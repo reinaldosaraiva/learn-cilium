@@ -1,0 +1,54 @@
+# =============================================================================
+# Cilium 1.20.x - CENARIO D : modo OVERLAY (VXLAN) para comparacao
+# -----------------------------------------------------------------------------
+# helm upgrade --install cilium cilium/cilium -n kube-system --version 1.20.1 \
+#   -f k8s/cilium/values-overlay.yaml
+#
+# Diferenca essencial em relacao a values-native.yaml:
+#   - routingMode: tunnel (VXLAN, UDP/8472) -> o fabric so ve IP de NO
+#   - o fabric NAO precisa conhecer PodCIDR; BGP fica so para os VIPs
+#   - MTU efetivo do pod cai 50 bytes (VXLAN)
+# =============================================================================
+
+cluster:
+  name: magalu-poc
+  id: 1
+
+routingMode: tunnel
+tunnelProtocol: vxlan          # alternativa: geneve (UDP/6081)
+
+ipam:
+  mode: kubernetes
+
+MTU: 1500
+
+kubeProxyReplacement: true
+k8sServiceHost: "10.10.1.11"
+k8sServicePort: 6443
+
+enableIPv4Masquerade: true
+bpf:
+  masquerade: true
+
+loadBalancer:
+  algorithm: maglev
+  mode: snat
+
+# BGP continua util no overlay: anunciar os VIPs de LoadBalancer.
+# Nesse modo NAO anuncie PodCIDR (o fabric nao roteia IP de pod).
+bgpControlPlane:
+  enabled: true
+
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+
+prometheus:
+  enabled: true
+operator:
+  replicas: 2
+  prometheus:
+    enabled: true

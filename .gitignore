@@ -1,0 +1,31 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+
+# Reentry and local session state.
+plans/
+MEMORY.md
+continue.txt
+tmp/
+/docs/
+
+# Runtime artifacts and private operational material.
+poc-k8s-fabric/evidence/
+poc-k8s-fabric/agent/evidence/
+poc-k8s-fabric/agent/
+poc-k8s-fabric/agent/.cache/
+poc-k8s-fabric/docs/RUNBOOK.md
+poc-k8s-fabric/docs/RESULTS.md
+poc-k8s-fabric/docs/0[1-9]-*.md
+poc-k8s-fabric/docs/1[0-2]-*.md
+poc-k8s-fabric/docs/diagramas/*-prompt.md
+poc-k8s-fabric/docs/diagramas/05-laboratorio-vm-cilium-quadro-branco.png
+poc-k8s-fabric/topo/clab-*/
+**/secrets/
+**/*kubeconfig*
+**/*.kubeconfig
+**/*.kubeconfig.yaml
+
+# Keep the published guide PDF trackable; ignore only ad-hoc output files.
+output/pdf/*.tmp

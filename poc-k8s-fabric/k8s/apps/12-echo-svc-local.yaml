@@ -1,0 +1,20 @@
+# CENARIO B (variante) - mesmo servico com externalTrafficPolicy: Local.
+# Agora SO os nos que tem pod local anunciam o /32: o fabric passa a fazer
+# o "health check" implicito por BGP. Preserva o IP de origem do cliente.
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-local
+  labels:
+    bgp-advertise: "true"
+  annotations:
+    lbipam.cilium.io/ips: "10.201.255.11"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: io.cilium/bgp-control-plane
+  externalTrafficPolicy: Local
+  selector: { app: echo }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

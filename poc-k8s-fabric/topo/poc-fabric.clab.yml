@@ -1,0 +1,102 @@
+# =============================================================================
+# PoC Magalu Cloud - Fabric SR Linux + FRR para cluster Kubernetes EXISTENTE
+# -----------------------------------------------------------------------------
+# Deploy:  sudo clab deploy -t topo/poc-fabric.clab.yml
+# Destroy: sudo clab destroy -t topo/poc-fabric.clab.yml --cleanup
+#
+# Os caminhos de startup-config sao relativos a ESTE arquivo.
+# Os nos do cluster k8s NAO sao criados aqui: eles sao conectados atraves
+# de bridges Linux do host (br-node1/2/3) - ver docs/06-conectar-cluster-existente.md
+# =============================================================================
+name: poc-k8s-fabric
+
+mgmt:
+  network: clab-poc
+  ipv4-subnet: 10.223.30.0/24
+
+topology:
+  kinds:
+    nokia_srlinux:
+      # confira as tags disponiveis: https://github.com/nokia/srlinux-container-image
+      image: ghcr.io/nokia/srlinux:25.3.2
+      type: ixrd2l
+    linux:
+      image: ghcr.io/hellt/network-multitool@sha256:a8d96c19e593e227d7b16d320a04256ba00434028f0adb9f7da206bf098c7140
+
+  nodes:
+    # ---------------------------------------------------------------- spines
+    spine1:
+      kind: nokia_srlinux
+      type: ixrd3l
+      startup-config: ../configs/srl/spine1.cfg
+    spine2:
+      kind: nokia_srlinux
+      type: ixrd3l
+      startup-config: ../configs/srl/spine2.cfg
+
+    # ---------------------------------------------------------------- leaves
+    leaf1:
+      kind: nokia_srlinux
+      startup-config: ../configs/srl/leaf1.cfg
+    leaf2:
+      kind: nokia_srlinux
+      startup-config: ../configs/srl/leaf2.cfg
+    leaf3:                       # border leaf - conecta no FRR
+      kind: nokia_srlinux
+      startup-config: ../configs/srl/leaf3-border.cfg
+
+    # ------------------------------------------------- border router (FRR)
+    border1:
+      kind: linux
+      # confira as tags: https://hub.docker.com/r/frrouting/frr/tags
+      image: frrouting/frr:v8.4.1
+      binds:
+        - ../configs/frr/daemons:/etc/frr/daemons
+        - ../configs/frr/frr.conf:/etc/frr/frr.conf
+      exec:
+        - sysctl -w net.ipv4.ip_forward=1
+        - sysctl -w net.ipv6.conf.all.forwarding=1
+
+    # ------------------------------------ cliente "externo" atras do border
+    client-ext:
+      kind: linux
+      exec:
+        - ip addr add 203.0.113.10/24 dev eth1
+        - ip route replace default via 203.0.113.1
+
+    # ----------------------------------------------------------------------
+    # Pontos de acoplamento com o cluster k8s REAL.
+    # Crie as bridges ANTES do deploy (o containerlab nao cria bridges):
+    #   sudo ip link add br-node1 type bridge && sudo ip link set br-node1 up
+    #   sudo ip link set br-node1 mtu 9216
+    # e conecte a NIC/tap de cada no do cluster nessa bridge.
+    #
+    # Alternativa sem bridge (no fisico ligado a uma NIC do host):
+    #   troque "br-node1:eth1" por "macvlan:enp3s0f1" no bloco links.
+    # ----------------------------------------------------------------------
+    br-node1:
+      kind: bridge
+    br-node2:
+      kind: bridge
+    br-node3:
+      kind: bridge
+
+  links:
+    # ------------------------------------------------ underlay leaf <-> spine
+    - endpoints: ["leaf1:e1-49", "spine1:e1-1"]
+    - endpoints: ["leaf1:e1-50", "spine2:e1-1"]
+    - endpoints: ["leaf2:e1-49", "spine1:e1-2"]
+    - endpoints: ["leaf2:e1-50", "spine2:e1-2"]
+    - endpoints: ["leaf3:e1-49", "spine1:e1-3"]
+    - endpoints: ["leaf3:e1-50", "spine2:e1-3"]
+
+    # ------------------------------------------------------- border / externo
+    - endpoints: ["leaf3:e1-1", "border1:eth1"]
+    - endpoints: ["border1:eth2", "client-ext:eth1"]
+
+    # ------------------------------------------- rack1 (leaf1) -> node1/node2
+    - endpoints: ["leaf1:e1-1", "br-node1:eth1"]
+    - endpoints: ["leaf1:e1-2", "br-node2:eth1"]
+
+    # -------------------------------------------------- rack2 (leaf2) -> node3
+    - endpoints: ["leaf2:e1-1", "br-node3:eth1"]

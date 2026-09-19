@@ -1,0 +1,131 @@
+# =============================================================================
+# PoC Magalu Cloud - variante 100% autocontida (ensaio / dry-run)
+# Containerlab sobe o fabric E um cluster kind de 3 nos.
+# Use esta topologia para ensaiar o roteiro antes de tocar no cluster real.
+#
+# Pre-requisito: kind >= 0.20 instalado no host.
+# Deploy:  sudo clab deploy -t topo/poc-kind.clab.yml
+# =============================================================================
+name: poc-k8s-kind
+
+mgmt:
+  network: clab-poc-kind
+  ipv4-subnet: 10.223.31.0/24
+
+topology:
+  kinds:
+    nokia_srlinux:
+      image: ghcr.io/nokia/srlinux:25.3.2
+      type: ixrd2l
+    linux:
+      image: ghcr.io/hellt/network-multitool@sha256:a8d96c19e593e227d7b16d320a04256ba00434028f0adb9f7da206bf098c7140
+
+  nodes:
+    spine1:
+      kind: nokia_srlinux
+      type: ixrd3l
+      startup-config: ../configs/srl/spine1.cfg
+    spine2:
+      kind: nokia_srlinux
+      type: ixrd3l
+      startup-config: ../configs/srl/spine2.cfg
+    leaf1:
+      kind: nokia_srlinux
+      startup-config: ../configs/srl/leaf1.cfg
+    leaf2:
+      kind: nokia_srlinux
+      startup-config: ../configs/srl/leaf2.cfg
+    leaf3:
+      kind: nokia_srlinux
+      startup-config: ../configs/srl/leaf3-border.cfg
+
+    border1:
+      kind: linux
+      image: frrouting/frr:v8.4.1
+      binds:
+        - ../configs/frr/daemons:/etc/frr/daemons
+        - ../configs/frr/frr.conf:/etc/frr/frr.conf
+      exec:
+        - sysctl -w net.ipv4.ip_forward=1
+        - sysctl -w net.ipv6.conf.all.forwarding=1
+
+    client-ext:
+      kind: linux
+      exec:
+        - ip addr add 203.0.113.10/24 dev eth1
+        - ip route replace default via 203.0.113.1
+        # P002-S001 S3: IPv6 p/ o VIP anycast (fd14::/64) e o PodCIDR IPv6 (fd13::/48)
+        - ip -6 addr add fd00:203:113::10/64 dev eth1
+        - ip -6 route replace default via fd00:203:113::1
+
+    # ------------------------------------------------------- cluster kind (k01)
+    k01:
+      kind: k8s-kind
+      startup-config: kind-cluster.yaml
+
+    # Os containers do cluster sao anexados como ext-container.
+    # IMPORTANTE: nao mexemos na rota default (eth0/docker) - ela e usada pela
+    # API do kind e pelo pull de imagens. So adicionamos rotas especificas.
+    k01-control-plane:                      # rack1 / node1
+      kind: ext-container
+      exec:
+        - ip addr add 10.10.1.11/24 dev eth1
+        - ip link set eth1 up
+        - ip link set eth1 mtu 1500
+        - ip route replace 10.10.0.0/16 via 10.10.1.1
+        - ip route replace 10.244.0.0/16 via 10.10.1.1
+        - ip route replace 10.201.255.0/24 via 10.10.1.1
+        - ip route replace 203.0.113.0/24 via 10.10.1.1
+        # P002-S001 S3: dual-stack - fabric IPv6 + PodCIDR/VIP IPv6 via fabric
+        - ip -6 addr add fd00:10:1::11/64 dev eth1
+        - ip -6 route replace fd13::/48 via fd00:10:1::1 dev eth1
+        - ip -6 route replace fd14::/64 via fd00:10:1::1 dev eth1
+    k01-worker:                             # rack1 / node2
+      kind: ext-container
+      exec:
+        - ip addr add 10.10.1.12/24 dev eth1
+        - ip link set eth1 up
+        - ip link set eth1 mtu 1500
+        - ip route replace 10.10.0.0/16 via 10.10.1.1
+        - ip route replace 10.244.0.0/16 via 10.10.1.1
+        - ip route replace 10.201.255.0/24 via 10.10.1.1
+        - ip route replace 203.0.113.0/24 via 10.10.1.1
+        # P002-S001 S3: dual-stack - fabric IPv6 + PodCIDR/VIP IPv6 via fabric
+        - ip -6 addr add fd00:10:1::12/64 dev eth1
+        - ip -6 route replace fd13::/48 via fd00:10:1::1 dev eth1
+        - ip -6 route replace fd14::/64 via fd00:10:1::1 dev eth1
+    k01-worker2:                            # rack2 / node3
+      kind: ext-container
+      exec:
+        - ip addr add 10.10.2.11/24 dev eth1
+        - ip link set eth1 up
+        - ip link set eth1 mtu 1500
+        - ip route replace 10.10.0.0/16 via 10.10.2.1
+        - ip route replace 10.244.0.0/16 via 10.10.2.1
+        - ip route replace 10.201.255.0/24 via 10.10.2.1
+        - ip route replace 203.0.113.0/24 via 10.10.2.1
+        # P002-S001 S3: dual-stack - fabric IPv6 + PodCIDR/VIP IPv6 via fabric
+        - ip -6 addr add fd00:10:2::11/64 dev eth1
+        - ip -6 route replace fd13::/48 via fd00:10:2::1 dev eth1
+        - ip -6 route replace fd14::/64 via fd00:10:2::1 dev eth1
+
+  links:
+    - endpoints: ["leaf1:e1-49", "spine1:e1-1"]
+    - endpoints: ["leaf1:e1-50", "spine2:e1-1"]
+    - endpoints: ["leaf2:e1-49", "spine1:e1-2"]
+    - endpoints: ["leaf2:e1-50", "spine2:e1-2"]
+    - endpoints: ["leaf3:e1-49", "spine1:e1-3"]
+    - endpoints: ["leaf3:e1-50", "spine2:e1-3"]
+
+    - endpoints: ["leaf3:e1-1", "border1:eth1"]
+    - endpoints: ["border1:eth2", "client-ext:eth1"]
+
+    # CAMINHO B+ : porta do FRR que termina no netns do HOST da vm-cilium.
+    # E por aqui que o VIP do lab fica alcancavel de outras VMs da VPC, usando
+    # o MAC da propria vm-cilium (o filtro de MAC da VPC nao se aplica).
+    # Configure o lado do host com: sudo ./scripts/06-expor-vip-na-vpc.sh
+    - endpoints: ["border1:eth3", "host:clab-ext"]
+
+    - endpoints: ["leaf1:e1-1", "k01-control-plane:eth1"]
+    - endpoints: ["leaf1:e1-2", "k01-worker:eth1"]
+    - endpoints: ["leaf2:e1-1", "k01-worker2:eth1"]

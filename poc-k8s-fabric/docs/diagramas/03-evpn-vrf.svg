@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1040 380" role="img" aria-label="Comparação do leaf1 antes e depois do EVPN. Antes, a sessão BGP com o Cilium vive na network-instance default. Depois, ela migra para a ip-vrf k8s, que ganha um túnel VXLAN VNI 1000 e uma sessão iBGP EVPN com os spines como route-reflector." xmlns="http://www.w3.org/2000/svg" style="background:#ffffff">
+          <text x="20" y="24" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans Condensed&quot;, sans-serif;font-size:14px;font-weight:700;letter-spacing:normal;">Cenários A e B — tabela global</text>
+          <text x="560" y="24" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans Condensed&quot;, sans-serif;font-size:14px;font-weight:700;letter-spacing:normal;">Cenário C — tenant VRF com EVPN</text>
+
+          <!-- painel esquerdo -->
+          <rect x="20" y="40" width="480" height="300" rx="6" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="38" y="64" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">leaf1</text>
+
+          <rect x="44" y="80" width="432" height="120" rx="5" style="fill:rgba(12, 118, 131, 0.1);stroke:rgb(12, 118, 131);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="62" y="104" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">network-instance default</text>
+          <text x="62" y="126" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">eBGP unnumbered ↔ spine1, spine2</text>
+          <text x="62" y="144" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">irb1.1 — 10.10.1.1/24</text>
+          <text x="62" y="162" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">eBGP ↔ Cilium (node1, node2)</text>
+          <text x="62" y="184" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">PodCIDR e VIPs entram na tabela global</text>
+
+          <rect x="44" y="236" width="432" height="72" rx="5" style="fill:rgba(167, 95, 8, 0.1);stroke:rgb(167, 95, 8);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="62" y="260" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">node1 · node2</text>
+          <text x="62" y="280" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">CiliumBGPClusterConfig · peerAddress 10.10.1.1</text>
+          <text x="62" y="296" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">localASN 65101 → peerASN 65001</text>
+          <line x1="260" y1="236" x2="260" y2="200" style="fill:none;stroke:rgb(167, 95, 8);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+
+          <!-- seta entre painéis -->
+          <path d="M 508 190 L 546 190" style="fill:none;stroke:rgb(97, 71, 156);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></path>
+          <polygon points="546,185 556,190 546,195" style="fill:rgb(97, 71, 156);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></polygon>
+
+          <!-- painel direito -->
+          <rect x="568" y="40" width="452" height="300" rx="6" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="586" y="64" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">leaf1</text>
+
+          <rect x="590" y="80" width="408" height="56" rx="5" style="fill:rgba(12, 118, 131, 0.1);stroke:rgb(12, 118, 131);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="606" y="102" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">network-instance default</text>
+          <text x="606" y="122" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">underlay + iBGP EVPN AS 65000 → spines como RR</text>
+
+          <rect x="590" y="150" width="408" height="98" rx="5" style="fill:rgba(97, 71, 156, 0.1);stroke:rgb(97, 71, 156);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="606" y="174" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">ip-vrf k8s</text>
+          <text x="606" y="194" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">VNI 1000 · EVI 1000 · RT target:65000:1000</text>
+          <text x="606" y="212" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">irb1.1 vira anycast-gw — mesmo IP e MAC em qualquer leaf</text>
+          <text x="606" y="230" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">eBGP ↔ Cilium mora aqui dentro</text>
+
+          <rect x="590" y="276" width="408" height="52" rx="5" style="fill:rgba(167, 95, 8, 0.1);stroke:rgb(167, 95, 8);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="606" y="298" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">node1 · node2</text>
+          <text x="606" y="316" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">sem nenhuma alteração no cluster</text>
+          <line x1="794" y1="276" x2="794" y2="248" style="fill:none;stroke:rgb(167, 95, 8);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+
+          <line x1="794" y1="150" x2="794" y2="136" style="fill:none;stroke:rgb(97, 71, 156);stroke-width:2px;stroke-dasharray:6px, 4px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+          <text x="806" y="146" style="fill:rgb(97, 71, 156);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">VXLAN VNI 1000 → leaf2 e leaf3 · EVPN type-5 carrega PodCIDR e default</text>
+        </svg>

@@ -1,0 +1,42 @@
+# CENARIO B - VIP anycast.
+# externalTrafficPolicy: Cluster => TODOS os nos anunciam o /32.
+# O fabric ve o mesmo 10.201.255.10/32 vindo de leaf1 e leaf2 -> ECMP.
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-anycast
+  labels:
+    bgp-advertise: "true"          # casa com o selector do CiliumBGPAdvertisement
+  annotations:
+    lbipam.cilium.io/ips: "10.201.255.10"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: io.cilium/bgp-control-plane
+  externalTrafficPolicy: Cluster
+  selector: { app: echo }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+# P002-S001 S3 - VIP anycast IPv6 (fd14::/64).
+# Mesma logica do IPv4: todos os nos anunciam o /128 -> ECMP no fabric.
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-anycast-v6
+  labels:
+    bgp-advertise: "true"
+  annotations:
+    lbipam.cilium.io/ips: "fd14::a"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: io.cilium/bgp-control-plane
+  ipFamilyPolicy: SingleStack
+  ipFamilies: [IPv6]
+  externalTrafficPolicy: Cluster
+  selector: { app: echo }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

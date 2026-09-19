@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1040 700" role="img" aria-label="Topologia leaf-spine com dois spines SR Linux em AS 65500, três leaves (65001, 65002 e o border leaf 65003), roteador FRR de borda em AS 65100, e três nós Kubernetes que falam eBGP com seus leaves usando AS 65101 e 65102." xmlns="http://www.w3.org/2000/svg" style="background:#ffffff">
+          <defs style="fill:rgb(0, 0, 0);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;">
+            <marker id="ar-k8s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse" style="fill:rgb(0, 0, 0);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;">
+              <path d="M0,0 L10,5 L0,10 z" style="fill:rgb(167, 95, 8);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></path>
+            </marker>
+            <marker id="ar-mut" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse" style="fill:rgb(0, 0, 0);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;">
+              <path d="M0,0 L10,5 L0,10 z" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></path>
+            </marker>
+          </defs>
+
+          <!-- zonas -->
+          <rect x="16" y="466" width="330" height="112" rx="5" style="fill:none;stroke:rgb(189, 205, 211);stroke-width:1px;stroke-dasharray:5px, 4px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="26" y="596" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:0.55px;">rack1 · 10.10.1.0/24 · Cilium AS 65101</text>
+          <rect x="362" y="466" width="164" height="112" rx="5" style="fill:none;stroke:rgb(189, 205, 211);stroke-width:1px;stroke-dasharray:5px, 4px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="372" y="596" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:0.55px;">rack2 · 10.10.2.0/24 · AS 65102</text>
+          <rect x="780" y="240" width="234" height="338" rx="5" style="fill:none;stroke:rgb(189, 205, 211);stroke-width:1px;stroke-dasharray:5px, 4px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="790" y="596" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:0.55px;">fora do fabric</text>
+
+          <!-- links leaf-spine -->
+          <line x1="138" y1="268" x2="370" y2="128" style="fill:none;stroke:rgb(12, 118, 131);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+          <line x1="138" y1="268" x2="600" y2="128" style="fill:none;stroke:rgb(12, 118, 131);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+          <line x1="376" y1="268" x2="405" y2="128" style="fill:none;stroke:rgb(12, 118, 131);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+          <line x1="376" y1="268" x2="632" y2="128" style="fill:none;stroke:rgb(12, 118, 131);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+          <line x1="614" y1="268" x2="440" y2="128" style="fill:none;stroke:rgb(12, 118, 131);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+          <line x1="614" y1="268" x2="664" y2="128" style="fill:none;stroke:rgb(12, 118, 131);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+          <text x="150" y="236" transform="rotate(-31 150 236)" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">e1-49 / e1-50 · IPv6 link-local</text>
+
+          <!-- link leaf3 - FRR -->
+          <line x1="704" y1="300" x2="800" y2="300" style="fill:none;stroke:rgb(12, 118, 131);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+          <text x="752" y="292" text-anchor="middle" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">10.255.0.0/31</text>
+          <text x="752" y="318" text-anchor="middle" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">65003 ↔ 65100</text>
+
+          <!-- links leaf-nó -->
+          <line x1="108" y1="332" x2="100" y2="492" style="fill:none;stroke:rgb(107, 132, 141);stroke-width:1.4px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+          <line x1="176" y1="332" x2="256" y2="492" style="fill:none;stroke:rgb(107, 132, 141);stroke-width:1.4px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+          <line x1="376" y1="332" x2="430" y2="492" style="fill:none;stroke:rgb(107, 132, 141);stroke-width:1.4px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+          <path d="M 70 462 L 70 356" marker-end="url(#ar-k8s)" style="fill:none;stroke:rgb(167, 95, 8);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></path>
+          <text x="82" y="420" style="fill:rgb(167, 95, 8);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">anuncia PodCIDR /24</text>
+          <text x="82" y="434" style="fill:rgb(167, 95, 8);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">e VIP /32 ao leaf1</text>
+          <path d="M 496 462 L 496 356" marker-end="url(#ar-k8s)" style="fill:none;stroke:rgb(167, 95, 8);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></path>
+          <text x="486" y="424" text-anchor="end" style="fill:rgb(167, 95, 8);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">idem no rack2</text>
+
+          <!-- border - client -->
+          <line x1="895" y1="332" x2="895" y2="492" style="fill:none;stroke:rgb(107, 132, 141);stroke-width:1.4px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+          <text x="905" y="416" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">203.0.113.0/24</text>
+
+          <!-- spines -->
+          <rect x="320" y="64" width="170" height="64" rx="6" style="fill:rgba(12, 118, 131, 0.1);stroke:rgb(12, 118, 131);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="336" y="90" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">spine1</text>
+          <text x="336" y="110" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">AS 65500 · 10.0.0.1</text>
+          <rect x="560" y="64" width="170" height="64" rx="6" style="fill:rgba(12, 118, 131, 0.1);stroke:rgb(12, 118, 131);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="576" y="90" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">spine2</text>
+          <text x="576" y="110" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">AS 65500 · 10.0.0.2</text>
+
+          <!-- leaves -->
+          <rect x="48" y="268" width="180" height="64" rx="6" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="62" y="291" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">leaf1</text>
+          <text x="62" y="308" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">AS 65001 · 10.0.1.1</text>
+          <text x="62" y="323" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">irb1.1 → 10.10.1.1</text>
+
+          <rect x="286" y="268" width="180" height="64" rx="6" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="300" y="291" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">leaf2</text>
+          <text x="300" y="308" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">AS 65002 · 10.0.1.2</text>
+          <text x="300" y="323" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">irb1.2 → 10.10.2.1</text>
+
+          <rect x="524" y="268" width="180" height="64" rx="6" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="538" y="291" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">leaf3 · border</text>
+          <text x="538" y="308" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">AS 65003 · 10.0.1.3</text>
+          <text x="538" y="323" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">saída do fabric</text>
+
+          <!-- border FRR -->
+          <rect x="800" y="268" width="190" height="64" rx="6" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="814" y="291" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">border1 — FRR</text>
+          <text x="814" y="308" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">AS 65100 · 10.0.1.254</text>
+          <text x="814" y="323" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">origina 0.0.0.0/0</text>
+
+          <!-- nós -->
+          <rect x="30" y="492" width="140" height="62" rx="6" style="fill:rgba(167, 95, 8, 0.1);stroke:rgb(167, 95, 8);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="44" y="515" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">node1</text>
+          <text x="44" y="532" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">10.10.1.11</text>
+          <text x="44" y="546" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">10.244.0.0/24</text>
+
+          <rect x="186" y="492" width="140" height="62" rx="6" style="fill:rgba(167, 95, 8, 0.1);stroke:rgb(167, 95, 8);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="200" y="515" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">node2</text>
+          <text x="200" y="532" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">10.10.1.12</text>
+          <text x="200" y="546" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">10.244.1.0/24</text>
+
+          <rect x="372" y="492" width="140" height="62" rx="6" style="fill:rgba(167, 95, 8, 0.1);stroke:rgb(167, 95, 8);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="386" y="515" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">node3</text>
+          <text x="386" y="532" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">10.10.2.11</text>
+          <text x="386" y="546" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">10.244.2.0/24</text>
+
+          <rect x="820" y="492" width="150" height="62" rx="6" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="834" y="515" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">client-ext</text>
+          <text x="834" y="532" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">203.0.113.10</text>
+          <text x="834" y="546" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">curl no VIP</text>
+
+          <!-- caixa host -->
+          <text x="16" y="34" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:0.55px;">containerlab no host de laboratório  —  spines, leaves, FRR e client-ext são containers</text>
+          <text x="16" y="646" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:0.55px;">nós do cluster: máquinas reais, acopladas por br-node1/2/3 (ou macvlan) — nada é recriado</text>
+        </svg>

@@ -1,0 +1,41 @@
+# O que o Cilium anuncia para o fabric.
+# O label advertise=fabric e o que amarra este objeto ao CiliumBGPPeerConfig.
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: fabric-advertisements
+  labels:
+    advertise: fabric
+spec:
+  advertisements:
+    # 1) PodCIDR do proprio no (/24 vindo do IPAM do Kubernetes).
+    #    CENARIO A - e isto que torna o pod roteavel no underlay.
+    #    NO CENARIO D (overlay/VXLAN) remova este bloco.
+    - advertisementType: "PodCIDR"
+      attributes:
+        communities:
+          standard: ["65101:100"]
+
+    # 2) VIPs de servico. CENARIO B - cada no anuncia o mesmo /32,
+    #    o fabric faz ECMP e o resultado e um anycast de servico.
+    - advertisementType: "Service"
+      service:
+        addresses:
+          - LoadBalancerIP
+      selector:
+        matchExpressions:
+          - { key: "bgp-advertise", operator: In, values: ["true"] }
+      attributes:
+        communities:
+          standard: ["65101:200"]
+
+    # 3) (opcional) ClusterIP - util para expor Services internos a rede corp.
+    #    Descomente com cuidado: coloca a ServiceCIDR dentro do fabric.
+    # - advertisementType: "Service"
+    #   service:
+    #     addresses:
+    #       - ClusterIP
+    #     aggregationLengthIPv4: 32
+    #   selector:
+    #     matchExpressions:
+    #       - { key: "bgp-advertise-clusterip", operator: In, values: ["true"] }

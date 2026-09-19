@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1040 320" role="img" aria-label="Comparação dos cabeçalhos. Em native routing o cabeçalho externo já é o IP do pod. Em overlay VXLAN o pacote original é encapsulado em IP de nó mais UDP 8472 mais cabeçalho VXLAN, somando cinquenta bytes e escondendo o IP do pod do switch." xmlns="http://www.w3.org/2000/svg" style="background:#ffffff">
+          <!-- native -->
+          <text x="20" y="26" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans Condensed&quot;, sans-serif;font-size:14px;font-weight:700;letter-spacing:normal;">native routing — routingMode: native</text>
+          <rect x="20" y="42" width="110" height="48" rx="4" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="34" y="64" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">Ethernet</text>
+          <text x="34" y="80" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">14 B</text>
+          <rect x="134" y="42" width="300" height="48" rx="4" style="fill:rgba(167, 95, 8, 0.1);stroke:rgb(167, 95, 8);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="150" y="64" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">IP  10.244.0.7 → 10.244.2.9</text>
+          <text x="150" y="80" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">IP do pod, sem encapsulamento</text>
+          <rect x="438" y="42" width="90" height="48" rx="4" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="452" y="64" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">TCP</text>
+          <rect x="532" y="42" width="240" height="48" rx="4" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="548" y="64" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">payload</text>
+          <text x="792" y="64" style="fill:rgb(167, 95, 8);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">o leaf vê 10.244.0.7</text>
+          <text x="792" y="80" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">ACL, QoS e telemetria por pod</text>
+
+          <!-- overlay -->
+          <text x="20" y="152" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans Condensed&quot;, sans-serif;font-size:14px;font-weight:700;letter-spacing:normal;">overlay — routingMode: tunnel (VXLAN)</text>
+          <rect x="20" y="168" width="78" height="48" rx="4" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="32" y="190" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">Eth</text>
+          <text x="32" y="206" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">14 B</text>
+          <rect x="102" y="168" width="214" height="48" rx="4" style="fill:rgba(12, 118, 131, 0.1);stroke:rgb(12, 118, 131);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="116" y="190" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">IP  10.10.1.11 → 10.10.2.11</text>
+          <text x="116" y="206" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">IP do nó · 20 B</text>
+          <rect x="320" y="168" width="104" height="48" rx="4" style="fill:rgba(12, 118, 131, 0.1);stroke:rgb(12, 118, 131);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="332" y="190" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">UDP 8472</text>
+          <text x="332" y="206" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">8 B</text>
+          <rect x="428" y="168" width="104" height="48" rx="4" style="fill:rgba(12, 118, 131, 0.1);stroke:rgb(12, 118, 131);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="440" y="190" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">VXLAN</text>
+          <text x="440" y="206" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">VNI · 8 B</text>
+          <rect x="536" y="168" width="70" height="48" rx="4" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="548" y="190" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">Eth</text>
+          <rect x="610" y="168" width="162" height="48" rx="4" style="fill:rgba(167, 95, 8, 0.1);stroke:rgb(167, 95, 8);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="622" y="190" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">IP pod → pod</text>
+          <text x="622" y="206" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">escondido</text>
+          <text x="792" y="190" style="fill:rgb(12, 118, 131);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">o leaf vê 10.10.1.11</text>
+          <text x="792" y="206" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">nenhuma visibilidade de pod</text>
+
+          <!-- bracket dos 50 bytes -->
+          <path d="M 102 240 L 102 252 L 606 252 L 606 240" style="fill:none;stroke:rgb(97, 71, 156);stroke-width:1.4px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></path>
+          <text x="354" y="270" text-anchor="middle" style="fill:rgb(97, 71, 156);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">+50 B de overhead — 3,3% do payload com o MTU 1500 desta VPC</text>
+
+          <text x="20" y="302" style="fill:rgb(107, 132, 141);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:10.5px;font-weight:400;letter-spacing:normal;">Em overlay, remova o bloco PodCIDR do CiliumBGPAdvertisement: o fabric não deve receber prefixo de pod que não sabe rotear.</text>
+        </svg>

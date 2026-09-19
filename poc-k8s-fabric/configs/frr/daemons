@@ -1,0 +1,30 @@
+# Quais daemons do FRR sobem neste container (border router da PoC).
+zebra=yes
+bgpd=yes
+staticd=yes
+bfdd=yes
+ospfd=no
+ospf6d=no
+ripd=no
+ripngd=no
+isisd=no
+pimd=no
+pim6d=no
+ldpd=no
+nhrpd=no
+eigrpd=no
+babeld=no
+sharpd=no
+pbrd=no
+fabricd=no
+vrrpd=no
+pathd=no
+
+vtysh_enable=yes
+zebra_options="  -A 127.0.0.1 -s 90000000"
+bgpd_options="   -A 127.0.0.1"
+staticd_options="-A 127.0.0.1"
+bfdd_options="   -A 127.0.0.1"
+
+# perfil datacenter: timers agressivos, ECMP e defaults adequados a fabric
+frr_profile="datacenter"

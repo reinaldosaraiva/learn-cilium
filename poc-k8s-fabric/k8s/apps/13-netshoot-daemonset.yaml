@@ -1,0 +1,18 @@
+# Pod utilitario em cada no - usado nos testes de pod-to-pod, MTU e iperf3.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: netshoot
+spec:
+  selector:
+    matchLabels: { app: netshoot }
+  template:
+    metadata:
+      labels: { app: netshoot }
+    spec:
+      containers:
+        - name: netshoot
+          image: docker.io/nicolaka/netshoot@sha256:b09d9b21381f47a79b3cbcb30da25266dc17186ea00ae65e99fdc51396f48e70
+          command: ["sleep", "infinity"]
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }

@@ -1,0 +1,90 @@
+# =============================================================================
+# Cilium 1.20.x - CENARIOS A / B / C : NATIVE ROUTING + BGP Control Plane v2
+# -----------------------------------------------------------------------------
+# helm repo add cilium https://helm.cilium.io
+# helm upgrade --install cilium cilium/cilium -n kube-system --version 1.20.1 \
+#   -f k8s/cilium/values-native.yaml
+#
+# Sem encapsulamento: o IP do pod entra no fabric como esta. Quem sabe alcancar
+# cada PodCIDR e o leaf SR Linux, que aprendeu o prefixo por BGP do proprio no.
+# =============================================================================
+
+cluster:
+  name: magalu-poc
+  id: 1
+
+# ----------------------------------------------------------------- datapath
+routingMode: native
+ipv4NativeRoutingCIDR: "10.244.0.0/16"
+# rota direta no-a-no quando os nos estao na mesma L2 (mesmo rack);
+# skipUnreachable evita erro quando o outro no esta em outro rack/sub-rede.
+autoDirectNodeRoutes: true
+directRoutingSkipUnreachable: true
+endpointRoutes:
+  enabled: true
+
+# ----------------------------------------------------------------- devices
+# O devices-controller do Cilium PULA veth sem rota default (workaround p/
+# kubernetes-in-docker). No node kind a rota default e da rede kind (eth0); a
+# interface de fabric (eth1, veth p/ o leaf) NAO tem rota default -> auto-deteccao
+# a ignora e o bpf-lb nao e anexado nela. Resultado: VIP anycast nao responde a
+# tráfego externo (chega em eth1 sem DNAT e o kernel o roteia de volta p/ o fabric
+# em loop). Fix: declarar explicitamente as interfaces de fabric.
+# (Cenário B / S09 — ver evidence/REQ-009/root-cause-and-fix.txt)
+devices: "eth+"
+
+ipam:
+  mode: kubernetes          # /24 por no, distribuido pelo kube-controller-manager
+
+k8s:
+  requireIPv4PodCIDR: true
+
+# MTU 1500: a VPC da Magalu nao entrega jumbo (medido 2026-09-16).
+# No overlay isso custa 50 bytes = 3,3% do payload - e exatamente o que
+# o Cenario D precisa medir.
+MTU: 1500
+
+# ------------------------------------------------- kube-proxy replacement (eBPF)
+kubeProxyReplacement: true
+# ajuste para o endereco/porta do seu API server (obrigatorio sem kube-proxy)
+k8sServiceHost: "10.10.1.11"
+k8sServicePort: 6443
+
+# ------------------------------------------------------------- masquerading
+enableIPv4Masquerade: true
+bpf:
+  masquerade: true
+# trafego DENTRO de ipv4NativeRoutingCIDR nunca e mascarado -> o fabric ve o IP do pod
+
+# --------------------------------------------------------- load balancing L4
+loadBalancer:
+  # maglev = hashing consistente; importante para anycast/ECMP: se o fabric
+  # trocar o no de destino, a conexao ainda cai no mesmo backend.
+  algorithm: maglev
+  mode: snat
+
+# ------------------------------------------------------- BGP Control Plane v2
+bgpControlPlane:
+  enabled: true
+
+# ------------------------------------------------------------- observabilidade
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+  metrics:
+    enabled:
+      - dns
+      - drop
+      - tcp
+      - flow
+      - port-distribution
+
+prometheus:
+  enabled: true
+operator:
+  replicas: 2
+  prometheus:
+    enabled: true

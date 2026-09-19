@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1040 430" role="img" aria-label="Fan-in de ECMP: o VIP 10.201.255.10/32 é anunciado por três nós, chega a leaf1 com dois next-hops e a leaf2 com um, os spines o veem por dois leaves, e o FRR o alcança por um único next-hop, o leaf3." xmlns="http://www.w3.org/2000/svg" style="background:#ffffff">
+          <defs style="fill:rgb(0, 0, 0);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;">
+            <marker id="ar-up" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse" style="fill:rgb(0, 0, 0);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;">
+              <path d="M0,0 L10,5 L0,10 z" style="fill:rgb(12, 118, 131);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></path>
+            </marker>
+          </defs>
+
+          <text x="20" y="24" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans Condensed&quot;, sans-serif;font-size:14px;font-weight:700;letter-spacing:normal;">quem anuncia</text>
+          <text x="660" y="24" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans Condensed&quot;, sans-serif;font-size:14px;font-weight:700;letter-spacing:normal;">next-hops na FIB</text>
+
+          <!-- camada 5: nós -->
+          <rect x="20" y="344" width="600" height="56" rx="6" style="fill:rgba(167, 95, 8, 0.1);stroke:rgb(167, 95, 8);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="38" y="368" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">node1 · node2 · node3</text>
+          <text x="38" y="386" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">cada um anuncia 10.201.255.10/32 ao seu leaf — externalTrafficPolicy: Cluster</text>
+          <rect x="660" y="352" width="14" height="14" rx="2" style="fill:rgb(167, 95, 8);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <rect x="680" y="352" width="14" height="14" rx="2" style="fill:rgb(167, 95, 8);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <rect x="700" y="352" width="14" height="14" rx="2" style="fill:rgb(167, 95, 8);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="724" y="364" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">3 origens</text>
+
+          <line x1="638" y1="344" x2="638" y2="286" marker-end="url(#ar-up)" style="fill:none;stroke:rgb(12, 118, 131);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+
+          <!-- camada 4: leaves -->
+          <rect x="20" y="262" width="290" height="56" rx="6" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="38" y="286" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">leaf1</text>
+          <text x="38" y="304" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">via node1, node2</text>
+          <rect x="330" y="262" width="290" height="56" rx="6" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="348" y="286" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">leaf2</text>
+          <text x="348" y="304" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">via node3</text>
+          <rect x="660" y="270" width="14" height="14" rx="2" style="fill:rgb(12, 118, 131);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <rect x="680" y="270" width="14" height="14" rx="2" style="fill:rgb(12, 118, 131);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <rect x="700" y="270" width="14" height="14" rx="2" fill="none" stroke="var(--line)" style="fill:none;stroke:rgb(189, 205, 211);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="724" y="282" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">2 no leaf1 · 1 no leaf2</text>
+
+          <line x1="638" y1="262" x2="638" y2="204" marker-end="url(#ar-up)" style="fill:none;stroke:rgb(12, 118, 131);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+
+          <!-- camada 3: spines -->
+          <rect x="20" y="180" width="600" height="56" rx="6" style="fill:rgba(12, 118, 131, 0.1);stroke:rgb(12, 118, 131);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="38" y="204" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">spine1 · spine2</text>
+          <text x="38" y="222" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">enxergam o /32 vindo de leaf1 e de leaf2 — multipath allow-multiple-as</text>
+          <rect x="660" y="188" width="14" height="14" rx="2" style="fill:rgb(12, 118, 131);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <rect x="680" y="188" width="14" height="14" rx="2" style="fill:rgb(12, 118, 131);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="704" y="200" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">2 caminhos</text>
+
+          <line x1="638" y1="180" x2="638" y2="122" marker-end="url(#ar-up)" style="fill:none;stroke:rgb(12, 118, 131);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+
+          <!-- camada 2: leaf3 -->
+          <rect x="20" y="98" width="600" height="56" rx="6" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="38" y="122" style="fill:rgb(15, 34, 40);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, sans-serif;font-size:14px;font-weight:600;letter-spacing:normal;">leaf3 · border leaf</text>
+          <text x="38" y="140" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">recebe por spine1 e spine2</text>
+          <rect x="660" y="106" width="14" height="14" rx="2" style="fill:rgb(12, 118, 131);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <rect x="680" y="106" width="14" height="14" rx="2" style="fill:rgb(12, 118, 131);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="704" y="118" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">2 caminhos</text>
+
+          <line x1="638" y1="98" x2="638" y2="70" marker-end="url(#ar-up)" style="fill:none;stroke:rgb(12, 118, 131);stroke-width:2px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></line>
+
+          <!-- camada 1: FRR -->
+          <rect x="20" y="36" width="600" height="30" rx="6" style="fill:rgb(242, 246, 247);stroke:rgb(189, 205, 211);stroke-width:1.25px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="38" y="56" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">border1 (FRR): 10.201.255.10/32 via 10.255.0.0 — um único next-hop, o fabric resolve o resto</text>
+          <rect x="660" y="44" width="14" height="14" rx="2" style="fill:rgb(12, 118, 131);stroke-width:1px;font-family:&quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, system-ui, sans-serif;font-size:15px;font-weight:400;letter-spacing:normal;"></rect>
+          <text x="684" y="56" style="fill:rgb(56, 82, 92);stroke-width:1px;font-family:&quot;IBM Plex Mono&quot;, monospace;font-size:11px;font-weight:400;letter-spacing:normal;">1 caminho</text>
+        </svg>

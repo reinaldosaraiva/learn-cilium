@@ -1,0 +1,33 @@
+# Perfil de sessao BGP reutilizado por todos os peers do fabric.
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
+metadata:
+  name: fabric-peer
+spec:
+  # Timers agressivos: deteccao de falha em ~9s (o minimo aceito e 9/3).
+  timers:
+    connectRetryTimeSeconds: 5
+    holdTimeSeconds: 9
+    keepAliveTimeSeconds: 3
+  # Graceful restart: o leaf mantem as rotas durante um restart do cilium-agent,
+  # evitando blackhole de trafego nas atualizacoes do DaemonSet.
+  gracefulRestart:
+    enabled: true
+    restartTimeSeconds: 30
+  ebgpMultihop: 1
+  families:
+    - afi: ipv4
+      safi: unicast
+      advertisements:
+        matchLabels:
+          advertise: fabric
+    # P002-S001 S3: dual-stack - anuncia tambem o PodCIDR/VIP IPv6
+    - afi: ipv6
+      safi: unicast
+      advertisements:
+        matchLabels:
+          advertise: fabric
+  # Opcional - autenticacao TCP-MD5 (RFC 2385). Crie o secret antes:
+  #   kubectl -n kube-system create secret generic bgp-auth-secret \
+  #     --from-literal=password='<senha>'
+  # authSecretRef: bgp-auth-secret

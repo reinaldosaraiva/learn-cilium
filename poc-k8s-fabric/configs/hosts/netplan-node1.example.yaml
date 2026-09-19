@@ -1,0 +1,18 @@
+# Exemplo persistente (Ubuntu/netplan) equivalente ao node-prep.sh para o node1.
+# /etc/netplan/60-fabric.yaml
+network:
+  version: 2
+  ethernets:
+    eth1:
+      addresses: [10.10.1.11/24]
+      mtu: 1500
+      # NAO defina gateway4/default aqui: a rota default fica na NIC de gerencia
+      routes:
+        - to: 10.10.0.0/16
+          via: 10.10.1.1
+        - to: 10.244.0.0/16
+          via: 10.10.1.1
+        - to: 10.201.255.0/24
+          via: 10.10.1.1
+        - to: 203.0.113.0/24
+          via: 10.10.1.1

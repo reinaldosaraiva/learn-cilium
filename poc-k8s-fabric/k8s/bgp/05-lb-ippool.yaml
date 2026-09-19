@@ -1,0 +1,14 @@
+# Pool de VIPs entregue aos Services type=LoadBalancer (LB-IPAM do Cilium).
+# Este /24 e o que o fabric SR Linux espera receber por BGP dos nos.
+apiVersion: "cilium.io/v2"
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: "poc-vips"
+spec:
+  blocks:
+    - cidr: "10.201.255.0/24"
+    # P002-S001 S3: pool de VIPs IPv6 (anycast /128)
+    - cidr: "fd14::/64"
+  allowFirstLastIPs: "No"
+  # serviceSelector vazio = qualquer Service pode consumir o pool.
+  # Em producao, restrinja por namespace/label.
