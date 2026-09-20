@@ -76,3 +76,8 @@ segundo terminal. Não trate `scripts/99-destroy.sh` como exercício de aluno.
 Veja o [resumo público dos resultados](docs/lab-results.md) e as propostas de
 [próximos estudos](docs/proximos-estudos.md), incluindo a comparação `/24` ×
 `/32` e o cenário futuro com pods Kubernetes e VMs OpenStack.
+
+O [índice público dos estudos P003](docs/estudos/README.md) reúne o planejamento
+completo, a pesquisa, o contrato, o protocolo e os dossiês E00–E08. Gateway API
+é a primeira etapa; o preflight e os experimentos continuam sem execução nesta
+publicação.

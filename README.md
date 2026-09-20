@@ -22,6 +22,8 @@ locais dos comandos, os exercícios somente leitura e o túnel SSH local. Os
 caminho do tráfego. O [resumo de resultados](poc-k8s-fabric/docs/lab-results.md)
 separa a reconstrução atual de medições históricas.
 
+O planejamento público dos próximos ensaios está no [índice de estudos P003](poc-k8s-fabric/docs/estudos/README.md). Gateway API vem primeiro; o índice conserva as matrizes, os controles negativos e o processo para sessões futuras ainda não executadas.
+
 ## Começar
 
 O checkout é portátil:
