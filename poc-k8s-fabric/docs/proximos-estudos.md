@@ -2,23 +2,46 @@
 
 As propostas abaixo são desenhos de laboratório. Não foram aplicadas ao ambiente vivo `k01` e não fazem parte do exercício básico.
 
+O [índice público dos estudos P003](estudos/README.md) é o roteiro completo,
+revisado em 20/09/2026, com 14 sessões previstas. Gateway API vem primeiro:
+consulte os dossiês de [Gateway e BGP](estudos/01-gateway-bgp.md), [L4 e host
+network](estudos/02-l4-hostnetwork.md) e [ExternalAuth](estudos/03-externalauth.md)
+antes das trilhas de tenants, IPAM e integração híbrida. O preflight é somente
+leitura e nenhum experimento foi executado por esta publicação.
+
+## Ordem pública dos estudos
+
+O plano começa com Gateway HTTP/TCP/UDP e anúncios VIP+BGP. Em seguida mede a
+exposição L4, a autorização externa e os caminhos native/VXLAN. Só depois trata
+de tenants, Multi-Pool IPAM e OpenStack/lifecycle, sempre em sandbox isolado e
+com evidência própria. Os dossiês são planos detalhados; não concedem acesso ou
+autorização para alterar o laboratório de referência.
+
 ## PodCIDR `/24` versus blocos `/32`
 
 O desenho atual usa IPAM Kubernetes e um PodCIDR IPv4 `/24` por nó. O Cilium anuncia esse bloco pelo anúncio `PodCIDR`; um pod novo que recebe um endereço desse bloco já está coberto pela rota do nó. O VIP do Service continua sendo um anúncio de serviço `/32`.
 
-Uma variante pode estudar pools com blocos `/32` e um anúncio BGP de pool de pods. A documentação estável do Cilium descreve `maskSize: 32` no Multi-Pool IPAM e o tipo de anúncio `CiliumPodIPPool` para blocos alocados a um `CiliumNode` ([Multi-Pool IPAM](https://docs.cilium.io/en/stable/network/concepts/ipam/multi-pool/) e [configuração do BGP Control Plane](https://docs.cilium.io/en/stable/network/bgp-control-plane/bgp-control-plane-configuration/)). Aplicar essa composição ao lab `1.20.1` é uma hipótese de estudo, não um resultado já medido.
+A comparação causal principal do estudo usa Multi-Pool nos dois braços: `M24`
+com `maskSize: 24` e `M32` com `maskSize: 32`, mantendo versões, três nós,
+imagens, afinidades, probes, timers BGP e subnet constantes. O braço `K24`
+(IPAM Kubernetes e `/24` por nó) é referência histórica adicional, não o
+contraste principal. Cada pool é executado em cluster ou reconstituição
+experimental separada; não alterar o IPAM de `k01`.
+
+Uma variante pode estudar pools com blocos `/32` e um anúncio BGP de pool de pods. A documentação estável do Cilium descreve `maskSize: 32` no Multi-Pool IPAM e o tipo de anúncio `CiliumPodIPPool` para blocos alocados a um `CiliumNode` ([Multi-Pool IPAM](https://docs.cilium.io/en/stable/network/concepts/ipam/multi-pool/) e [configuração do BGP Control Plane](https://docs.cilium.io/en/stable/network/bgp-control-plane/bgp-control-plane-configuration/)). Aplicar essa composição ao sandbox Cilium `1.20.2` do novo plano; o lab `1.20.1` permanece apenas como referência histórica preservada, não como resultado desta hipótese.
 
 Mesmo ignorando o tamanho da FIB, os comportamentos são diferentes:
 
-| Pergunta | `/24` por nó | `/32` por bloco alocado |
+| Pergunta | `M24`: Multi-Pool `/24` | `M32`: Multi-Pool `/32` |
 |---|---|---|
-| Pod recém-criado no nó | já coberto pelo anúncio do nó | depende de alocação e anúncio do bloco |
+| Pod recém-criado no nó | já coberto quando há IP livre em bloco alocado e anunciado | depende de alocação e anúncio do bloco |
 | Seleção de caminho por IP | granularidade do nó | pode ser granular por endereço |
 | Morte de um pod | rota do nó continua válida para o bloco | bloco reservado pode continuar anunciado; não presumir retirada por readiness |
 | Recriação efêmera | o pod pode receber outro IP dentro do bloco | pode receber outro IP e outro UID; a rota antiga não preserva TCP |
 | Pergunta de convergência | “o PodCIDR do nó chegou?” | “quando o bloco foi alocado, anunciado e retirado?” |
 
-O experimento deve manter três nós e medir as duas variantes com seis e quarenta réplicas:
+O experimento deve manter três nós e medir `M24` e `M32` com seis e quarenta
+réplicas. `K24` entra como controle histórico adicional:
 
 1. medir criação do pod, alocação do IP, anúncio no Cilium e chegada no spine;
 2. apagar somente recursos do laboratório experimental e medir retirada do anúncio;
