@@ -1,0 +1,72 @@
+# S004 controle — lane NodePort (hostNetwork OFF). Sem bgp-advertise (sem VIP).
+# GatewayClass + CiliumGatewayClassConfig exclusivos; Gateway de controle com
+# listeners iguais aos L4 (15432 TCP, 15353 UDP) apontando para as mesmas
+# fixtures. Remover por nome exato no rollback (S004 step 9).
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: p003-nodeport
+  labels: { study: P003 }
+spec:
+  controllerName: io.cilium/gateway-controller
+  parametersRef:
+    group: cilium.io
+    kind: CiliumGatewayClassConfig
+    namespace: p003-gateway
+    name: p003-nodeport
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumGatewayClassConfig
+metadata:
+  name: p003-nodeport
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  service:
+    type: NodePort
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: p003-ctrl-nodeport
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  gatewayClassName: p003-nodeport
+  listeners:
+    - name: tcp-echo
+      protocol: TCP
+      port: 15432
+    - name: udp-dns
+      protocol: UDP
+      port: 15353
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: TCPRoute
+metadata:
+  name: p003-ctrl-nodeport-tcp
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-ctrl-nodeport
+      sectionName: tcp-echo
+  rules:
+    - backendRefs:
+        - name: tcp-echo
+          port: 15432
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: UDPRoute
+metadata:
+  name: p003-ctrl-nodeport-udp
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-ctrl-nodeport
+      sectionName: udp-dns
+  rules:
+    - backendRefs:
+        - name: p003-dns
+          port: 15353

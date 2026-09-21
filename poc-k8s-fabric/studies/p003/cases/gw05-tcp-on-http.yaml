@@ -1,0 +1,17 @@
+# GW05 (controle negativo): TCPRoute anexada ao listener HTTP (web).
+# Esperado: Rejected/invalido; nenhum backend indevido. Criar, observar
+# conditions, probe, e DELETAR ao final do caso.
+apiVersion: gateway.networking.k8s.io/v1
+kind: TCPRoute
+metadata:
+  name: p003-gw05-tcp-on-http
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-main
+      sectionName: web
+  rules:
+    - backendRefs:
+        - name: tcp-echo
+          port: 15432

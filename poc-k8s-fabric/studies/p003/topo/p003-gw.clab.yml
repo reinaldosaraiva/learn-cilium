@@ -1,0 +1,110 @@
+# =============================================================================
+# P003-S003 - sandbox p003-gw (fabric + kind) - envelope S002
+# Base: topo/poc-kind.clab.yml (k01), renomeado com os valores aprovados.
+# Sem link a VPC. Sem dual-stack (IPv4 only nesta rodada).
+# Deploy: sudo clab deploy -t p003-gw.clab.yml   (depois do dry-run)
+# =============================================================================
+name: p003-gw-fabric
+
+mgmt:
+  network: p003-gw-mgmt
+  ipv4-subnet: 10.223.32.0/24
+
+topology:
+  kinds:
+    nokia_srlinux:
+      image: ghcr.io/nokia/srlinux:25.3.2
+      type: ixrd2l
+    linux:
+      image: ghcr.io/hellt/network-multitool@sha256:a8d96c19e593e227d7b16d320a04256ba00434028f0adb9f7da206bf098c7140
+
+  nodes:
+    spine1:
+      kind: nokia_srlinux
+      type: ixrd3l
+      startup-config: ../configs/srl/p003-spine1.cfg
+    spine2:
+      kind: nokia_srlinux
+      type: ixrd3l
+      startup-config: ../configs/srl/p003-spine2.cfg
+    leaf1:
+      kind: nokia_srlinux
+      startup-config: ../configs/srl/p003-leaf1.cfg
+    leaf2:
+      kind: nokia_srlinux
+      startup-config: ../configs/srl/p003-leaf2.cfg
+    leaf3:
+      kind: nokia_srlinux
+      startup-config: ../configs/srl/p003-leaf3-border.cfg
+
+    border1:
+      kind: linux
+      image: frrouting/frr:v8.4.1
+      binds:
+        - ../configs/frr/p003-daemons:/etc/frr/daemons
+        - ../configs/frr/p003-frr.conf:/etc/frr/frr.conf
+      exec:
+        - sysctl -w net.ipv4.ip_forward=1
+
+    client:
+      kind: linux
+      exec:
+        - ip addr add 198.19.0.10/24 dev eth1
+        - ip route replace default via 198.19.0.1
+
+    # ------------------------------------------------------- cluster kind (sandbox)
+    p003-gw:
+      kind: k8s-kind
+      startup-config: kind-cluster-p003.yaml
+
+    # ext-containers: nos kind anexados ao fabric (mesmo padrao do k01).
+    # Sem rota default em eth1 - so rotas especificas do sandbox.
+    p003-gw-control-plane:                      # rack1 / node1
+      kind: ext-container
+      exec:
+        - ip addr add 10.30.1.11/24 dev eth1
+        - ip link set eth1 up
+        - ip link set eth1 mtu 1500
+        - ip route replace 10.30.0.0/16 via 10.30.1.1
+        - ip route replace 10.245.0.0/16 via 10.30.1.1
+        - ip route replace 10.202.255.0/24 via 10.30.1.1
+        - ip route replace 198.19.0.0/24 via 10.30.1.1
+    p003-gw-worker:                             # rack1 / node2
+      kind: ext-container
+      exec:
+        - ip addr add 10.30.1.12/24 dev eth1
+        - ip link set eth1 up
+        - ip link set eth1 mtu 1500
+        - ip route replace 10.30.0.0/16 via 10.30.1.1
+        - ip route replace 10.245.0.0/16 via 10.30.1.1
+        - ip route replace 10.202.255.0/24 via 10.30.1.1
+        - ip route replace 198.19.0.0/24 via 10.30.1.1
+    p003-gw-worker2:                            # rack2 / node3
+      kind: ext-container
+      exec:
+        - ip addr add 10.30.2.11/24 dev eth1
+        - ip link set eth1 up
+        - ip link set eth1 mtu 1500
+        - ip route replace 10.30.0.0/16 via 10.30.2.1
+        - ip route replace 10.245.0.0/16 via 10.30.2.1
+        - ip route replace 10.202.255.0/24 via 10.30.2.1
+        - ip route replace 198.19.0.0/24 via 10.30.2.1
+
+  links:
+    - endpoints: ["leaf1:e1-49", "spine1:e1-1"]
+    - endpoints: ["leaf1:e1-50", "spine2:e1-1"]
+    - endpoints: ["leaf2:e1-49", "spine1:e1-2"]
+    - endpoints: ["leaf2:e1-50", "spine2:e1-2"]
+    - endpoints: ["leaf3:e1-49", "spine1:e1-3"]
+    - endpoints: ["leaf3:e1-50", "spine2:e1-3"]
+
+    - endpoints: ["leaf3:e1-1", "border1:eth1"]
+    - endpoints: ["border1:eth2", "client:eth1"]
+
+    # Link host<->fabric (debug/canario do host). NAO e link de VPC.
+    # Lado do host: 10.101.0.1/30 + rotas (acao autorizada do gate S003).
+    - endpoints: ["border1:eth3", "host:p003-ext"]
+
+    - endpoints: ["leaf1:e1-1", "p003-gw-control-plane:eth1"]
+    - endpoints: ["leaf1:e1-2", "p003-gw-worker:eth1"]
+    - endpoints: ["leaf2:e1-1", "p003-gw-worker2:eth1"]

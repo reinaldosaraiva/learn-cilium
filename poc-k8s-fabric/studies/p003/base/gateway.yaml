@@ -1,0 +1,83 @@
+# Gateway + Routes do sandbox p003 (E01 - manifest conceitual materializado
+# com o IP aprovado no envelope S002).
+# Namespace unico p/ nao misturar ReferenceGrant a prova de rede.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p003-gateway
+  labels: { study: P003 }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: p003-main
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  gatewayClassName: cilium
+  # Label de anuncio vai em infrastructure.labels (Service gerado), nao em
+  # metadata.labels do Gateway (E01 passo 10).
+  infrastructure:
+    labels:
+      bgp-advertise: "true"
+      study: P003
+  addresses:
+    - type: IPAddress
+      value: 10.202.255.10
+  listeners:
+    - name: web
+      protocol: HTTP
+      port: 8080
+    - name: tcp-echo
+      protocol: TCP
+      port: 15432
+    - name: udp-dns
+      protocol: UDP
+      port: 15353
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: p003-http
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-main
+      sectionName: web
+  hostnames:
+    - echo.p003.study
+  rules:
+    - backendRefs:
+        - name: http-echo
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: TCPRoute
+metadata:
+  name: p003-tcp
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-main
+      sectionName: tcp-echo
+  rules:
+    - backendRefs:
+        - name: tcp-echo
+          port: 15432
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: UDPRoute
+metadata:
+  name: p003-udp
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-main
+      sectionName: udp-dns
+  rules:
+    - backendRefs:
+        - name: p003-dns
+          port: 15353

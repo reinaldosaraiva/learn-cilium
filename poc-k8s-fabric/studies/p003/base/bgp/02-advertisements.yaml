@@ -1,0 +1,28 @@
+# O que o Cilium anuncia para o fabric (sandbox p003).
+# Base: k8s/bgp/02-advertisements.yaml (k01), communities do AS local 65301.
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: fabric-advertisements
+  labels:
+    advertise: fabric
+    study: P003
+spec:
+  advertisements:
+    # 1) PodCIDR do proprio no (/24 do IPAM do Kubernetes) - native routing.
+    - advertisementType: "PodCIDR"
+      attributes:
+        communities:
+          standard: ["65301:100"]
+
+    # 2) VIPs de servico: cada no anuncia o mesmo /32 -> ECMP/anycast no fabric.
+    - advertisementType: "Service"
+      service:
+        addresses:
+          - LoadBalancerIP
+      selector:
+        matchExpressions:
+          - { key: "bgp-advertise", operator: In, values: ["true"] }
+      attributes:
+        communities:
+          standard: ["65301:200"]

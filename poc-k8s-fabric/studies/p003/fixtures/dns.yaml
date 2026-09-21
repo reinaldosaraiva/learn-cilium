@@ -1,0 +1,63 @@
+# Fixture UDP/DNS (GW03): coredns servindo zona sintetica study.p003 na
+# porta 15353, sem forward/cache externo. Resposta: TXT "P003-OK".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: p003-dns-zone
+  namespace: p003-gateway
+  labels: { study: P003 }
+data:
+  Corefile: |
+    study.p003:15353 {
+        errors
+        log
+        template IN TXT study.p003 {
+            answer "{{ .Name }} 300 IN TXT \"P003-OK\""
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: p003-dns
+  namespace: p003-gateway
+  labels: { app: p003-dns, study: P003 }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: p003-dns }
+  template:
+    metadata:
+      labels: { app: p003-dns, study: P003 }
+    spec:
+      containers:
+        - name: coredns
+          image: registry.k8s.io/coredns/coredns:v1.13.1
+          args: ["-conf", "/etc/coredns/Corefile"]
+          ports:
+            - { name: udp, containerPort: 15353, protocol: UDP }
+            - { name: tcp, containerPort: 15353, protocol: TCP }
+          readinessProbe:
+            tcpSocket: { port: 15353 }
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          volumeMounts:
+            - { name: config, mountPath: /etc/coredns }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+      volumes:
+        - name: config
+          configMap:
+            name: p003-dns-zone
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: p003-dns
+  namespace: p003-gateway
+  labels: { app: p003-dns, study: P003 }
+spec:
+  selector: { app: p003-dns }
+  ports:
+    - { name: udp, port: 15353, targetPort: 15353, protocol: UDP }
+    - { name: tcp, port: 15353, targetPort: 15353, protocol: TCP }

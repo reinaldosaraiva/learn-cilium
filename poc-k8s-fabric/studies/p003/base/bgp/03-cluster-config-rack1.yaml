@@ -1,0 +1,20 @@
+# Rack 1 (leaf1) - nos com label topology.kubernetes.io/rack=rack1
+#   kubectl label node p003-gw-control-plane p003-gw-worker topology.kubernetes.io/rack=rack1
+apiVersion: cilium.io/v2
+kind: CiliumBGPClusterConfig
+metadata:
+  name: rack1
+  labels: { study: P003 }
+spec:
+  nodeSelector:
+    matchLabels:
+      topology.kubernetes.io/rack: rack1
+  bgpInstances:
+    - name: "rack1"
+      localASN: 65301
+      peers:
+        - name: "leaf1"
+          peerASN: 65201
+          peerAddress: 10.30.1.1     # IP do IRB do leaf1 (gateway do rack1)
+          peerConfigRef:
+            name: "fabric-peer"

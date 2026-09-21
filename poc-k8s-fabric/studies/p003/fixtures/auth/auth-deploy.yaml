@@ -1,0 +1,43 @@
+# P003-S005: Auth fixture deployment + service
+# 1 replica, pinned to workerA (ingress node)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: p003-authz
+  namespace: p003-gateway
+  labels: { app: p003-authz, study: P003 }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: p003-authz }
+  template:
+    metadata:
+      labels: { app: p003-authz, study: P003 }
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker
+      containers:
+        - name: authz
+          image: p003-authz:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: grpc, containerPort: 9000 }
+          env:
+            - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: p003-authz
+  namespace: p003-gateway
+  labels: { app: p003-authz, study: P003 }
+spec:
+  selector: { app: p003-authz }
+  ports:
+    - { name: http, port: 8080, targetPort: http }
+    - { name: grpc, port: 9000, targetPort: grpc }

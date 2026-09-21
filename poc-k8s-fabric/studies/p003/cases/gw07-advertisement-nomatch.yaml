@@ -1,0 +1,28 @@
+# GW07: selector do anuncio deixa de casar com o Service do Gateway.
+# Aplicar esta versao do CiliumBGPAdvertisement (selector "false") -> a rota
+# da VIP deve ser retirada do fabric apos convergencia; controle interno
+# (IP do pod) continua funcionando.
+# RESTAURAR base/bgp/02-advertisements.yaml ao final do caso.
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: fabric-advertisements
+  labels:
+    advertise: fabric
+    study: P003
+spec:
+  advertisements:
+    - advertisementType: "PodCIDR"
+      attributes:
+        communities:
+          standard: ["65301:100"]
+    - advertisementType: "Service"
+      service:
+        addresses:
+          - LoadBalancerIP
+      selector:
+        matchExpressions:
+          - { key: "bgp-advertise", operator: In, values: ["false"] }
+      attributes:
+        communities:
+          standard: ["65301:200"]

@@ -1,0 +1,20 @@
+# Rack 2 (leaf2) - nos com label topology.kubernetes.io/rack=rack2
+#   kubectl label node p003-gw-worker2 topology.kubernetes.io/rack=rack2
+apiVersion: cilium.io/v2
+kind: CiliumBGPClusterConfig
+metadata:
+  name: rack2
+  labels: { study: P003 }
+spec:
+  nodeSelector:
+    matchLabels:
+      topology.kubernetes.io/rack: rack2
+  bgpInstances:
+    - name: "rack2"
+      localASN: 65302
+      peers:
+        - name: "leaf2"
+          peerASN: 65202
+          peerAddress: 10.30.2.1     # IP do IRB do leaf2 (gateway do rack2)
+          peerConfigRef:
+            name: "fabric-peer"

@@ -1,0 +1,39 @@
+# Fixture TCP (GW02): socat ECHO na porta 15432 (network-multitool, digest
+# fixado do kit). Probe: nonce enviado e devolvido identico.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tcp-echo
+  namespace: p003-gateway
+  labels: { app: tcp-echo, study: P003 }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: tcp-echo }
+  template:
+    metadata:
+      labels: { app: tcp-echo, study: P003 }
+    spec:
+      containers:
+        - name: socat
+          image: ghcr.io/hellt/network-multitool@sha256:a8d96c19e593e227d7b16d320a04256ba00434028f0adb9f7da206bf098c7140
+          command: ["socat", "TCP-LISTEN:15432,reuseaddr,fork", "ECHO"]
+          ports:
+            - { containerPort: 15432 }
+          readinessProbe:
+            tcpSocket: { port: 15432 }
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tcp-echo
+  namespace: p003-gateway
+  labels: { app: tcp-echo, study: P003 }
+spec:
+  selector: { app: tcp-echo }
+  ports:
+    - { name: tcp, port: 15432, targetPort: 15432 }

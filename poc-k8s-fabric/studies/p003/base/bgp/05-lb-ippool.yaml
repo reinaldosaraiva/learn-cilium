@@ -1,0 +1,13 @@
+# Pool de VIPs do sandbox (LB-IPAM do Cilium). IPv4 only nesta rodada.
+apiVersion: "cilium.io/v2"
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: "p003-vips"
+  labels: { study: P003 }
+spec:
+  blocks:
+    - cidr: "10.202.255.0/24"
+  allowFirstLastIPs: "No"
+  # serviceSelector vazio = qualquer Service pode consumir o pool.
+  # Restricao por label e feita no caso que precisar (GW07 usa o selector
+  # do anuncio, nao do pool).

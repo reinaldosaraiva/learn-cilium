@@ -1,0 +1,16 @@
+# Cluster kind do sandbox p003-gw: SEM CNI e SEM kube-proxy (Cilium assume).
+# IPv4 only nesta rodada (dual-stack e extensao explicita, nao inferida).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  disableDefaultCNI: true
+  kubeProxyMode: "none"
+  podSubnet: "10.245.0.0/16"
+  serviceSubnet: "10.112.0.0/16"
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f
+  - role: worker
+    image: kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f
+  - role: worker
+    image: kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f

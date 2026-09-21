@@ -1,0 +1,76 @@
+# =============================================================================
+# Cilium 1.20.2 - sandbox p003-gw: NATIVE ROUTING + BGP CP v2 + Gateway API
+# Base: k8s/cilium/values-native.yaml (k01), valores do envelope S003.
+# Diferencas do k01: cluster.id 2, CIDRs do sandbox, gatewayAPI + l7Proxy,
+# hubble/prometheus desligados (economia de RAM; Hubble nao e prova de entrega),
+# operator 1 replica.
+# Install: helm install cilium <cilium-1.20.2.tgz> -n kube-system
+#   --kubeconfig /root/.kube/p003-gw.config --kube-context kind-p003-gw
+#   -f base/values-p003.yaml
+# =============================================================================
+
+cluster:
+  name: p003-gw
+  id: 2
+
+# ----------------------------------------------------------------- datapath
+routingMode: native
+ipv4NativeRoutingCIDR: "10.245.0.0/16"
+autoDirectNodeRoutes: true
+directRoutingSkipUnreachable: true
+endpointRoutes:
+  enabled: true
+
+# devices: mesmo workaround do k01 (veth sem rota default e pulado pelo
+# devices-controller; declarar explicitamente as interfaces de fabric).
+devices: "eth+"
+
+ipam:
+  mode: kubernetes
+
+k8s:
+  requireIPv4PodCIDR: true
+
+MTU: 1500
+
+# ------------------------------------------------- kube-proxy replacement (eBPF)
+kubeProxyReplacement: true
+# IP de kind do control-plane (nao o IP de fabric nem o service IP):
+# presente nos SANs do cert do apiserver e alcancavel pela rede kind.
+# Mesmo padrao do k01 (helm values: k8sServiceHost 172.19.0.3).
+k8sServiceHost: "172.19.0.5"
+k8sServicePort: 6443
+
+# ------------------------------------------------------------- masquerading
+enableIPv4Masquerade: true
+bpf:
+  masquerade: true
+
+# --------------------------------------------------------- load balancing L4
+loadBalancer:
+  algorithm: maglev
+  mode: snat
+
+# ------------------------------------------------------- BGP Control Plane v2
+bgpControlPlane:
+  enabled: true
+
+# ------------------------------------------------------------- Gateway API
+gatewayAPI:
+  enabled: true
+  # create explicit (nao auto): GatewayClass 'cilium' e criado pelo chart
+  # sem depender de deteccao de API version no momento do install.
+  gatewayClass:
+    create: true
+# no chart 1.20.2 l7Proxy e booleano (nao tabela)
+l7Proxy: true
+
+# ------------------------------------------------------------- observabilidade
+# Hubble desligado no sandbox: nao e evidencia de entrega (invariante do
+# contrato) e economiza RAM sob o gate de capacidade.
+hubble:
+  enabled: false
+prometheus:
+  enabled: false
+operator:
+  replicas: 1
