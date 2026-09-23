@@ -1,0 +1,65 @@
+# P003-S009: namespaces de estudo (plataforma gerencia labels/PSA)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p003-edge
+  labels:
+    study: P003
+    role: edge
+  annotations:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.35
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p003-tenant-a
+  labels:
+    study: P003
+    tenant: a
+    tenant-admission: "enabled"
+  annotations:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.35
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: v1.35
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p003-tenant-b
+  labels:
+    study: P003
+    tenant: b
+    tenant-admission: "enabled"
+  annotations:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.35
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: v1.35
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p003-delegated-a
+  labels:
+    study: P003
+    tenant: a
+    delegated: "true"
+    tenant-admission: "enabled"
+  annotations:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.35
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p003-delegated-b
+  labels:
+    study: P003
+    tenant: b
+    delegated: "true"
+    tenant-admission: "enabled"
+  annotations:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.35

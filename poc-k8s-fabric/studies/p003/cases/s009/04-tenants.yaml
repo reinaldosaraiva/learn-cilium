@@ -1,0 +1,156 @@
+# P003-S009: workloads de tenant A/B (PSA restricted compliant)
+# Marcador A/B = hostname (nome do pod) no body do agnhost.
+# A: client em worker, backend em worker2. B: client+backend em worker2.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: p003-a-client
+  namespace: p003-tenant-a
+  labels: { app: p003-a-client, study: P003 }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: p003-a-client }
+  template:
+    metadata:
+      labels: { app: p003-a-client, tenant: a, study: P003 }
+    spec:
+      serviceAccountName: p003-tenant-a-app
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: client
+          image: ghcr.io/hellt/network-multitool@sha256:a8d96c19e593e227d7b16d320a04256ba00434028f0adb9f7da206bf098c7140
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "sleep 86400"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: p003-a-backend
+  namespace: p003-tenant-a
+  labels: { app: p003-a-backend, study: P003 }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: p003-a-backend }
+  template:
+    metadata:
+      labels: { app: p003-a-backend, tenant: a, study: P003 }
+    spec:
+      serviceAccountName: p003-tenant-a-app
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker2
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: backend
+          image: registry.k8s.io/e2e-test-images/agnhost:2.47
+          imagePullPolicy: IfNotPresent
+          # agnhost 2.47: subcomando netexec (sem "run"/"http"); marcador = hostname no body
+          # udp-port 8081 = alvo do teste negativo T03 (porta sem allow)
+          args: ["netexec", "--http-port=8080", "--udp-port=8081"]
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: p003-a-backend
+  namespace: p003-tenant-a
+  labels: { app: p003-a-backend, study: P003 }
+spec:
+  selector: { app: p003-a-backend }
+  ports:
+    - { name: http, port: 8080, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: p003-b-client
+  namespace: p003-tenant-b
+  labels: { app: p003-b-client, study: P003 }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: p003-b-client }
+  template:
+    metadata:
+      labels: { app: p003-b-client, tenant: b, study: P003 }
+    spec:
+      serviceAccountName: p003-tenant-b-app
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker2
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: client
+          image: ghcr.io/hellt/network-multitool@sha256:a8d96c19e593e227d7b16d320a04256ba00434028f0adb9f7da206bf098c7140
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "sleep 86400"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: p003-b-backend
+  namespace: p003-tenant-b
+  labels: { app: p003-b-backend, study: P003 }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: p003-b-backend }
+  template:
+    metadata:
+      labels: { app: p003-b-backend, tenant: b, study: P003 }
+    spec:
+      serviceAccountName: p003-tenant-b-app
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker2
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: backend
+          image: registry.k8s.io/e2e-test-images/agnhost:2.47
+          imagePullPolicy: IfNotPresent
+          # agnhost 2.47: subcomando netexec (sem "run"/"http"); marcador = hostname no body
+          # udp-port 8081 = alvo do teste negativo T03 (porta sem allow)
+          args: ["netexec", "--http-port=8080", "--udp-port=8081"]
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: p003-b-backend
+  namespace: p003-tenant-b
+  labels: { app: p003-b-backend, study: P003 }
+spec:
+  selector: { app: p003-b-backend }
+  ports:
+    - { name: http, port: 8080, targetPort: http }

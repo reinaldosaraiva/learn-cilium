@@ -1,0 +1,120 @@
+# P003-S009: CNP default deny + allows explícitos (aplicar APÓS baseline)
+# - client: ingress deny-all; egress só backend próprio :8080 + DNS 53
+# - backend: ingress só client próprio + host (edge/Envoy); egress deny-all
+#   (agnhost não inicia conexões)
+# fromEntities no backend:
+#   ingress      = tráfego do Gateway/Envoy (identidade reservada
+#                  reserved:ingress, ID 8 — NÃO é host: o Envoy roda no pod
+#                  cilium e o tráfego Gateway→backend sai com identidade
+#                  ingress).
+#   host         = probes de infraestrutura na própria node.
+#   remote-node  = caminho NodePort LB entre nodes: o SYN chega na node do
+#                  pod com origem no IP da node remota → identidade
+#                  remote-node (não host). Sem isso o TCPRoute passthrough
+#                  (T07) é negado.
+# Tráfego direto do fabric (198.19.0.10) tem identidade world → negado (T06).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: p003-a-client-policy
+  namespace: p003-tenant-a
+  labels: { study: P003 }
+spec:
+  endpointSelector:
+    matchLabels:
+      app: p003-a-client
+  ingress: []
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app: p003-a-backend
+      toPorts:
+        - ports:
+            - { port: "8080", protocol: TCP }
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: p003-a-backend-policy
+  namespace: p003-tenant-a
+  labels: { study: P003 }
+spec:
+  endpointSelector:
+    matchLabels:
+      app: p003-a-backend
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: p003-a-client
+      toPorts:
+        - ports:
+            - { port: "8080", protocol: TCP }
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - { port: "8080", protocol: TCP }
+  egress: []
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: p003-b-client-policy
+  namespace: p003-tenant-b
+  labels: { study: P003 }
+spec:
+  endpointSelector:
+    matchLabels:
+      app: p003-b-client
+  ingress: []
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app: p003-b-backend
+      toPorts:
+        - ports:
+            - { port: "8080", protocol: TCP }
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: p003-b-backend-policy
+  namespace: p003-tenant-b
+  labels: { study: P003 }
+spec:
+  endpointSelector:
+    matchLabels:
+      app: p003-b-backend
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: p003-b-client
+      toPorts:
+        - ports:
+            - { port: "8080", protocol: TCP }
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - { port: "8080", protocol: TCP }
+  egress: []

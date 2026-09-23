@@ -1,0 +1,36 @@
+# Grant mínimo da plataforma (T10 "com Grant"): edge -> tenant-a Service
+# p003-a-backend, para HTTPRoute (rotas /protected /public) e TCPRoute (T07).
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: p003-edge-backend-a
+  namespace: p003-tenant-a
+  labels: { study: P003 }
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: p003-edge
+    - group: gateway.networking.k8s.io
+      kind: TCPRoute
+      namespace: p003-edge
+  to:
+    - group: ""
+      kind: Service
+      name: p003-a-backend
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: TCPRoute
+metadata:
+  name: p003-edge-tcp
+  namespace: p003-edge
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-edge-gw
+      sectionName: tcp
+  rules:
+    - backendRefs:
+        - namespace: p003-tenant-a
+          name: p003-a-backend
+          port: 8080

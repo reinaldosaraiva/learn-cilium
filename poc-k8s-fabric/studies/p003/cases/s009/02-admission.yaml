@@ -1,0 +1,117 @@
+# P003-S009: VAP de identidade de tenant (failurePolicy=Fail, Deny)
+# CEL não lê objeto Namespace: o param CR espelha o label de tenant do
+# namespace + conjunto de SAs autorizados (criado pela plataforma).
+# Binding seleciona SOMENTE study=P003 + tenant-admission=enabled.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: p003tenantconfigs.study.p003
+  labels: { study: P003 }
+spec:
+  group: study.p003
+  names:
+    kind: P003TenantConfig
+    listKind: P003TenantConfigList
+    plural: p003tenantconfigs
+    singular: p003tenantconfig
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [tenant, allowedServiceAccounts]
+              properties:
+                tenant:
+                  type: string
+                  enum: [a, b]
+                allowedServiceAccounts:
+                  type: array
+                  items:
+                    type: string
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: p003-tenant-identity
+  labels: { study: P003 }
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+        operations: ["CREATE", "UPDATE"]
+  paramKind:
+    apiVersion: study.p003/v1
+    kind: P003TenantConfig
+  validations:
+    # K8s v1.35: `params` é o objeto inteiro do param CR (com wrapper spec),
+    # não o spec nu — `params.tenant` falha com "no such key: tenant".
+    - expression: "has(object.metadata.labels) && ('tenant' in object.metadata.labels) && object.metadata.labels['tenant'] == params.spec.tenant"
+      message: "pod tenant label must equal the namespace tenant (params.spec.tenant); missing or forged labels are denied"
+    - expression: "has(object.spec.serviceAccountName) && object.spec.serviceAccountName in params.spec.allowedServiceAccounts"
+      message: "serviceAccountName is not authorized for this namespace (must be explicit and in params.spec.allowedServiceAccounts)"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: p003-tenant-identity
+  labels: { study: P003 }
+spec:
+  policyName: p003-tenant-identity
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        study: P003
+        tenant-admission: "enabled"
+  paramRef:
+    name: p003-tenant-config
+    parameterNotFoundAction: Deny
+---
+apiVersion: study.p003/v1
+kind: P003TenantConfig
+metadata:
+  name: p003-tenant-config
+  namespace: p003-tenant-a
+  labels: { study: P003 }
+spec:
+  tenant: a
+  allowedServiceAccounts: ["p003-tenant-a-app"]
+---
+apiVersion: study.p003/v1
+kind: P003TenantConfig
+metadata:
+  name: p003-tenant-config
+  namespace: p003-tenant-b
+  labels: { study: P003 }
+spec:
+  tenant: b
+  allowedServiceAccounts: ["p003-tenant-b-app"]
+---
+apiVersion: study.p003/v1
+kind: P003TenantConfig
+metadata:
+  name: p003-tenant-config
+  namespace: p003-delegated-a
+  labels: { study: P003 }
+spec:
+  tenant: a
+  allowedServiceAccounts: ["p003-delegated-a-ops"]
+---
+apiVersion: study.p003/v1
+kind: P003TenantConfig
+metadata:
+  name: p003-tenant-config
+  namespace: p003-delegated-b
+  labels: { study: P003 }
+spec:
+  tenant: b
+  allowedServiceAccounts: ["p003-delegated-b-ops"]

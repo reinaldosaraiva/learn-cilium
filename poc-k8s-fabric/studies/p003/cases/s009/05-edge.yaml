@@ -1,0 +1,143 @@
+# P003-S009: borda do estudo em p003-edge (p003-main/p003-gateway intocados)
+# Gateway com allowedRoutes from: Same (rotas protegidas sob autoridade da
+# plataforma). backendRef cross-ns para p003-a-backend — T10: sem Grant
+# rejeitado; com Grant mínimo funciona.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: p003-edge-authz
+  namespace: p003-edge
+  labels: { app: p003-edge-authz, study: P003 }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: p003-edge-authz }
+  template:
+    metadata:
+      labels: { app: p003-edge-authz, study: P003 }
+    spec:
+      serviceAccountName: p003-edge-authz
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: authz
+          image: p003-authz:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: grpc, containerPort: 9000 }
+          env:
+            - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: p003-edge-authz
+  namespace: p003-edge
+  labels: { app: p003-edge-authz, study: P003 }
+spec:
+  selector: { app: p003-edge-authz }
+  ports:
+    - { name: http, port: 8080, targetPort: http }
+    - { name: grpc, port: 9000, targetPort: grpc }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: p003-edge-gw
+  namespace: p003-edge
+  labels: { study: P003 }
+spec:
+  gatewayClassName: cilium
+  listeners:
+    - name: web
+      protocol: HTTP
+      port: 8080
+      allowedRoutes:
+        namespaces:
+          from: Same
+    # TCPRoute passthrough (T07): L4 não passa pelo filtro Envoy HTTP —
+    # ExternalAuth NÃO protege este listener; a política L4 é a CNP.
+    - name: tcp
+      protocol: TCP
+      port: 15433
+      allowedRoutes:
+        namespaces:
+          from: Same
+    # TLS (fatia T11-T13) vive em Gateway DEDICADO p003-edge-tls-gw (10-tls.yaml):
+    # Cilium 1.20.2 rejeita protocol TLS + mode Terminate (status_listener.go:648);
+    # o listener usa protocol HTTPS (terminação L7) e o TLS→backend é governado
+    # por BackendTLSPolicy (CA em ConfigMap).
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: p003-edge-protected
+  namespace: p003-edge
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-edge-gw
+      sectionName: web
+  hostnames:
+    - edge.p003.study
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /protected
+      filters:
+        - type: ExternalAuth
+          externalAuth:
+            protocol: HTTP
+            backendRef:
+              name: p003-edge-authz
+              port: 8080
+            http:
+              allowedHeaders:
+                - X-Lab-Request-ID
+                - X-Lab-Decision
+              # Cilium 1.20.2 bug (issue #48770, fix em main/backport 1.20):
+              # sem allowedResponseHeaders, o content-length da resposta do
+              # authz é copiado para o request upstream e o backend espera um
+              # body que nunca chega (GET pendura). Lista explícita evita.
+              allowedResponseHeaders:
+                - X-Lab-User
+      backendRefs:
+        - namespace: p003-tenant-a
+          name: p003-a-backend
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: p003-edge-public
+  namespace: p003-edge
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-edge-gw
+      sectionName: web
+  hostnames:
+    - edge.p003.study
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /public
+      backendRefs:
+        - namespace: p003-tenant-a
+          name: p003-a-backend
+          port: 8080

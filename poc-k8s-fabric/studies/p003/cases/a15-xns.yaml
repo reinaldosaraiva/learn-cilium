@@ -1,0 +1,106 @@
+# P003-S006 A15: auth em outro namespace, sem ReferenceGrant
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p003-authz-test
+  labels: { study: P003 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: p003-authz
+  namespace: p003-authz-test
+  labels: { app: p003-authz, study: P003 }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: p003-authz }
+  template:
+    metadata:
+      labels: { app: p003-authz, study: P003 }
+    spec:
+      containers:
+        - name: authz
+          image: p003-authz:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: grpc, containerPort: 9000 }
+          env:
+            - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: p003-authz
+  namespace: p003-authz-test
+  labels: { app: p003-authz, study: P003 }
+spec:
+  selector: { app: p003-authz }
+  ports:
+    - { name: http, port: 8080, targetPort: http }
+    - { name: grpc, port: 9000, targetPort: grpc }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: p003-xns-http
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-main
+      sectionName: web
+  hostnames:
+    - echo.p003.study
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /xns-http
+      filters:
+        - type: ExternalAuth
+          externalAuth:
+            protocol: HTTP
+            backendRef:
+              name: p003-authz
+              namespace: p003-authz-test
+              port: 8080
+            http: {}
+      backendRefs:
+        - name: http-echo
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: p003-xns-grpc
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-main
+      sectionName: web
+  hostnames:
+    - echo.p003.study
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /xns-grpc
+      filters:
+        - type: ExternalAuth
+          externalAuth:
+            protocol: GRPC
+            backendRef:
+              name: p003-authz
+              namespace: p003-authz-test
+              port: 9000
+            grpc: {}
+      backendRefs:
+        - name: http-echo
+          port: 80

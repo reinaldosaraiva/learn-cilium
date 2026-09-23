@@ -1,0 +1,39 @@
+# S010 — BGP advertisements: keep PodCIDR (K24 ref) + Service VIP, add
+# CiliumPodIPPool (all pools) for multi-pool block advertisement.
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: fabric-advertisements
+  labels:
+    advertise: fabric
+    study: P003
+spec:
+  advertisements:
+    - advertisementType: PodCIDR
+      attributes:
+        communities:
+          standard:
+            - "65301:100"
+    - advertisementType: Service
+      attributes:
+        communities:
+          standard:
+            - "65301:200"
+      selector:
+        matchExpressions:
+          - key: bgp-advertise
+            operator: In
+            values: ["true"]
+      service:
+        addresses:
+          - LoadBalancerIP
+    - advertisementType: CiliumPodIPPool
+      attributes:
+        communities:
+          standard:
+            - "65301:100"
+      selector:
+        matchExpressions:
+          - key: somekey
+            operator: NotIn
+            values: ["never-used-value"]

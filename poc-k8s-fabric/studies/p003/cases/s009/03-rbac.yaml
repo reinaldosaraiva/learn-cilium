@@ -1,0 +1,149 @@
+# P003-S009: RBAC mínimo congelado (dossiê E05)
+# Tenants A/B: somente workloads + Services no próprio namespace.
+# SEM NetworkPolicy/CiliumNetworkPolicy/Role/RoleBinding/Gateway/
+# GatewayClass/ReferenceGrant/rotas protegidas (CREATE/UPDATE/PATCH/DELETE).
+# Delegação: ListenerSet/HTTPRoute somente no próprio namespace delegated.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: p003-tenant-a-app
+  namespace: p003-tenant-a
+  labels: { study: P003 }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: p003-tenant-b-app
+  namespace: p003-tenant-b
+  labels: { study: P003 }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: p003-delegated-a-ops
+  namespace: p003-delegated-a
+  labels: { study: P003 }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: p003-delegated-b-ops
+  namespace: p003-delegated-b
+  labels: { study: P003 }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: p003-edge-authz
+  namespace: p003-edge
+  labels: { study: P003 }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: p003-tenant-a-workloads
+  namespace: p003-tenant-a
+  labels: { study: P003 }
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services"]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: p003-tenant-b-workloads
+  namespace: p003-tenant-b
+  labels: { study: P003 }
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services"]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: p003-delegated-a-ops
+  namespace: p003-delegated-a
+  labels: { study: P003 }
+rules:
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["listenersets", "httproutes"]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: p003-delegated-b-ops
+  namespace: p003-delegated-b
+  labels: { study: P003 }
+rules:
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["listenersets", "httproutes"]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: p003-tenant-a-workloads
+  namespace: p003-tenant-a
+  labels: { study: P003 }
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: p003-tenant-a-workloads
+subjects:
+  - kind: ServiceAccount
+    name: p003-tenant-a-app
+    namespace: p003-tenant-a
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: p003-tenant-b-workloads
+  namespace: p003-tenant-b
+  labels: { study: P003 }
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: p003-tenant-b-workloads
+subjects:
+  - kind: ServiceAccount
+    name: p003-tenant-b-app
+    namespace: p003-tenant-b
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: p003-delegated-a-ops
+  namespace: p003-delegated-a
+  labels: { study: P003 }
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: p003-delegated-a-ops
+subjects:
+  - kind: ServiceAccount
+    name: p003-delegated-a-ops
+    namespace: p003-delegated-a
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: p003-delegated-b-ops
+  namespace: p003-delegated-b
+  labels: { study: P003 }
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: p003-delegated-b-ops
+subjects:
+  - kind: ServiceAccount
+    name: p003-delegated-b-ops
+    namespace: p003-delegated-b

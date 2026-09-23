@@ -1,0 +1,59 @@
+# P003-S006 A13: externalAuth backendRef aponta Service inexistente
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: p003-broken-ref
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-main
+      sectionName: web
+  hostnames:
+    - echo.p003.study
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /broken-http
+      filters:
+        - type: ExternalAuth
+          externalAuth:
+            protocol: HTTP
+            backendRef:
+              name: p003-authz-inexistente
+              port: 8080
+            http: {}
+      backendRefs:
+        - name: http-echo
+          port: 80
+---
+# P003-S006 A13 (gRPC): mesmo Service inexistente, protocolo GRPC
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: p003-broken-ref-grpc
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-main
+      sectionName: web
+  hostnames:
+    - echo.p003.study
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /broken-grpc
+      filters:
+        - type: ExternalAuth
+          externalAuth:
+            protocol: GRPC
+            backendRef:
+              name: p003-authz-inexistente
+              port: 9000
+            grpc: {}
+      backendRefs:
+        - name: http-echo
+          port: 80

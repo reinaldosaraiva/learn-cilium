@@ -1,0 +1,37 @@
+# S010 — M24 arm test workload: 6 replicas (2 per node via spread), agnhost http :8080
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: p003-ipam-pods
+  namespace: p003-ipam
+  labels:
+    study: P003
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      study: P003
+      app: p003-ipam-pods
+  template:
+    metadata:
+      labels:
+        study: P003
+        app: p003-ipam-pods
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: p003-ipam-pods
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: echo
+          image: registry.k8s.io/e2e-test-images/agnhost:2.47
+          args: [netexec, --http-port=8080]
+          ports:
+            - containerPort: 8080

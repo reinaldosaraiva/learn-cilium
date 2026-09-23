@@ -1,0 +1,84 @@
+# P003-S009: Gateway didático p/ delegação (T09)
+# allowedListeners (nível spec do Gateway, Gateway API v1.6.1 experimental):
+# somente namespaces com delegated=true E tenant=a podem anexar ListenerSet.
+# p003-delegated-b (tenant=b) deve ser recusado.
+# Requer CRD Gateway patchado para o schema experimental (allowedListeners).
+# Grants criados pela plataforma (delegação):
+#  - p003-edge -> p003-delegated-a: Gateway p003-didactic (parentRef cross-ns)
+#  - p003-gateway -> p003-edge: Service http-echo (backend da rota didática)
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: p003-didactic
+  namespace: p003-edge
+  labels: { study: P003 }
+spec:
+  gatewayClassName: cilium
+  allowedListeners:
+    namespaces:
+      from: Selector
+      selector:
+        matchLabels:
+          delegated: "true"
+          tenant: a
+  listeners:
+    - name: base
+      protocol: HTTP
+      port: 8081
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: p003-didactic-route
+  namespace: p003-edge
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-didactic
+      sectionName: base
+  hostnames:
+    - didactic.p003.study
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - namespace: p003-gateway
+          name: http-echo
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: p003-didactic-parentref
+  namespace: p003-edge
+  labels: { study: P003 }
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: ListenerSet
+      namespace: p003-delegated-a
+  to:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: p003-didactic
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: p003-didactic-backend
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: p003-edge
+  to:
+    - group: ""
+      kind: Service
+      name: http-echo

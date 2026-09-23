@@ -1,0 +1,26 @@
+# S010 — M32 arm setup: dedicated namespace + pool p003-m32 (maskSize 32).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p003-ipam32
+  labels:
+    study: P003
+    ipam-pool: p003-m32
+  annotations:
+    ipam.cilium.io/require-pool-match: "true"
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumPodIPPool
+metadata:
+  name: p003-m32
+  labels:
+    study: P003
+spec:
+  ipv4:
+    cidrs:
+      - 10.252.0.0/16
+    maskSize: 32
+  namespaceSelector:
+    matchLabels:
+      study: P003
+      ipam-pool: p003-m32
