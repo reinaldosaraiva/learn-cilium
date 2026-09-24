@@ -1,6 +1,6 @@
 # Estudos P003 — Gateway API, segurança, IPAM e tenants híbridos
 
-> Planejamento revisado em **20/09/2026**. Os experimentos ainda não foram executados por esta publicação.
+> Planejamento revisado em **20/09/2026**. Os experimentos ainda não foram executados por esta publicação, com exceção da síntese E08 (S013/S014), publicada como resultados.
 
 Este índice público transforma o roteiro em uma sequência de 14 sessões pequenas, com fontes, critérios observáveis, controles negativos e rollback. O [resultado histórico do laboratório](../lab-results.md) permanece separado: ele descreve o kit de referência e não comprova nenhum estudo P003.
 
@@ -19,7 +19,7 @@ Os exemplos de acesso exigem quatro variáveis explícitas. No Mac, defina `REFE
 
 - S001 fechou o planejamento em 20/09/2026; esta edição exporta o contrato, a pesquisa, o protocolo e os dossiês.
 - S002 está representada por um template de leitura. Sua execução precisa criar evidência local e decidir GO/BLOCKED.
-- Não há sessão pública S003 ou posterior materializada. Resultados, credenciais, inventário bruto e estado Reentry permanecem fora do clone público.
+- **Síntese executada E08 (24/09/2026):** a matriz C01–C09 (S013 lado K8s + S014 lado VM) foi executada e consolidada na [síntese didática](08-lifecycle-synthesis.md) — primeira entrega de resultados publicada. As demais sessões seguem como dossiês de planejamento; resultados, credenciais, inventário bruto e estado Reentry permanecem fora do clone público.
 
 
 ## Objective
@@ -37,7 +37,7 @@ Gateway API vem primeiro; tenants, IPAM e OpenStack completam a trilha.
 - **Origem:** revisão aprofundada do roteiro de estudos, registrada em 20/09/2026.
 - **Data:** 2026-09-20.
 - **Forma pública:** este índice é a entrada portátil; uma execução local pode manter sua própria árvore Reentry e suas evidências.
-- **Estado publicado:** planejamento revisado. O preflight e todos os experimentos futuros continuam sem execução nesta edição.
+- **Estado publicado:** planejamento revisado. O preflight e os demais experimentos futuros continuam sem execução nesta edição; a exceção é a [síntese E08](08-lifecycle-synthesis.md) (S013/S014), publicada como resultados.
 
 ## Assessment
 
@@ -88,8 +88,8 @@ estudos futuros; não são sessões executáveis, nem substituem a atualização
 | P003-S010 | PLANNED | Multi-Pool /24 × /32: alocação, anúncios e ciclo de vida | PASS | [E06](06-ipam.md) |
 | P003-S011 | PLANNED | Inventário OpenStack e desenho verificável da integração | GO | [E07](07-openstack.md) |
 | P003-S012 | PLANNED | Pod A → VM A permitido; tenant B bloqueado nos dois sentidos definidos | PASS | [E07](07-openstack.md) |
-| P003-S013 | PLANNED | Recriação/reuso de IP com revogação de autorização e rotas observada | PASS | [E08](08-lifecycle.md) |
-| P003-S014 | PLANNED | Síntese de limites, exercícios, gates de adoção e entrega didática local | PASS | [E08](08-lifecycle.md) |
+| P003-S013 | EXECUTADO | Recriação/reuso de IP com revogação de autorização e rotas observada | PASS | [E08](08-lifecycle.md) · [síntese](08-lifecycle-synthesis.md) |
+| P003-S014 | EXECUTADO | Síntese de limites, exercícios, gates de adoção e entrega didática | PASS | [E08](08-lifecycle.md) · [síntese](08-lifecycle-synthesis.md) |
 
 ## Dependências e limites
 

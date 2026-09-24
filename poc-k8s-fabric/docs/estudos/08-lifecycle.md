@@ -4,6 +4,10 @@ S013 executa lifecycle híbrido após E07. S014 entrega consolidação didática
 O estudo Kubernetes de UID/IP já começa em E05/E06; aqui a questão é revogação
 entre duas plataformas sem identidade sincronizada automaticamente.
 
+> **Executado:** a matriz C01–C09 foi executada (S013 lado K8s, S014 lado VM) e
+> consolidada na [síntese didática E08](08-lifecycle-synthesis.md) — janelas
+> medidas, contraste C03/C05, runbook e checklist de adoção.
+
 ## Hipótese crítica
 
 IP pode mudar de dono. Uma regra IP/CIDR antiga pode autorizar o novo dono se
