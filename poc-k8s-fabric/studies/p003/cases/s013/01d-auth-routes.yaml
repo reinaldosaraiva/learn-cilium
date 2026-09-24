@@ -1,0 +1,87 @@
+# P003-S013: HTTPRoutes com ExternalAuth (reconstruídas de S005)
+# /protected-http — HTTP protocol auth; /protected-grpc — GRPC; /public —
+# controle sem filtro.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: p003-protected-http
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-main
+      sectionName: web
+  hostnames:
+    - echo.p003.study
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /protected-http
+      filters:
+        - type: ExternalAuth
+          externalAuth:
+            protocol: HTTP
+            backendRef:
+              name: p003-authz
+              port: 8080
+            http:
+              allowedHeaders:
+                - X-Lab-Request-ID
+                - X-Lab-Decision
+              allowedResponseHeaders:
+                - X-Test-Authz
+                - X-Lab-User
+      backendRefs:
+        - name: http-echo
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: p003-protected-grpc
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-main
+      sectionName: web
+  hostnames:
+    - echo.p003.study
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /protected-grpc
+      filters:
+        - type: ExternalAuth
+          externalAuth:
+            protocol: GRPC
+            backendRef:
+              name: p003-authz
+              port: 9000
+            grpc: {}
+      backendRefs:
+        - name: http-echo
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: p003-public
+  namespace: p003-gateway
+  labels: { study: P003 }
+spec:
+  parentRefs:
+    - name: p003-main
+      sectionName: web
+  hostnames:
+    - echo.p003.study
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /public
+      backendRefs:
+        - name: http-echo
+          port: 80

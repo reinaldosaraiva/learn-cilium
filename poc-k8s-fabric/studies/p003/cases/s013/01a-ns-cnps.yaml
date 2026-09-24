@@ -1,0 +1,33 @@
+# P003-S013: namespace de lifecycle + CNPs
+# default-deny egress no ns (endpointSelector {}) + allow de egress para
+# app=p003-pod-a (10.30.0.0/24 = subnet-a do testbed). Sem o default-deny,
+# pods sem label seriam allow-all e o negativo de C03 não existiria.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p003-lc
+  labels: { study: P003 }
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: p003-lc-default-deny-egress
+  namespace: p003-lc
+  labels: { study: P003 }
+spec:
+  endpointSelector: {}
+  egress: []
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: p003-lc-pod-a-allow
+  namespace: p003-lc
+  labels: { study: P003 }
+spec:
+  endpointSelector:
+    matchLabels:
+      app: p003-pod-a
+  egress:
+    - toCIDR:
+        - 10.30.0.0/24

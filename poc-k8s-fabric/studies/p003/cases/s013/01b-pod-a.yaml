@@ -1,0 +1,26 @@
+# P003-S013: Pod A (dono original) — Deployment 1 réplica p/ recriação
+# automática (novo UID a cada ciclo). Imagem com shell+ping+curl, pinned a
+# worker2 (imagem presente; rota de teste 10.30.0.0/24 também em worker2).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: p003-pod-a
+  namespace: p003-lc
+  labels: { app: p003-pod-a, study: P003 }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: p003-pod-a }
+  template:
+    metadata:
+      labels: { app: p003-pod-a, study: P003 }
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker2
+      containers:
+        - name: probe
+          image: curlimages/curl:latest
+          imagePullPolicy: IfNotPresent
+          command: ["sleep", "infinity"]
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
