@@ -1,0 +1,50 @@
+# P003-S014: namespace de lifecycle + Pod A (alvo das probes VM->Pod) + CNP
+# ingress. O Pod A não precisa de listener: a evidência de "probe chegou" são
+# os counters de kernel em /proc/net/snmp (InEchoRequests p/ ping; OutRsts p/
+# SYN em porta fechada) — com RX da VM morto (D-S012-13), a VM nunca vê
+# resposta, mas o request que o CNP permite chega ao kernel do pod.
+# CNP inicial AMPLA (10.30.0.0/24); o passo 01 narrow para A_IP/32 após o
+# spawn (procedimento de revogação controlada: amplo -> dono -> revogado).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p003-lc
+  labels: { study: P003 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: p003-pod-a
+  namespace: p003-lc
+  labels: { app: p003-pod-a, study: P003 }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: p003-pod-a }
+  template:
+    metadata:
+      labels: { app: p003-pod-a, study: P003 }
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker2
+      containers:
+        - name: probe
+          image: curlimages/curl:latest
+          imagePullPolicy: IfNotPresent
+          command: ["sleep", "infinity"]
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: p003-lc-pod-a-vm-allow
+  namespace: p003-lc
+  labels: { study: P003 }
+spec:
+  endpointSelector:
+    matchLabels:
+      app: p003-pod-a
+  ingress:
+    - fromCIDR:
+        - 10.30.0.0/24
