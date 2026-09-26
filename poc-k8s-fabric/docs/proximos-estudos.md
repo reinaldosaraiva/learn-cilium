@@ -1,6 +1,6 @@
 # Próximos estudos — Cilium como motor de uma conexão dedicada com eBGP
 
-> Proposta de trilha (P004) escrita em 26/09/2026, depois do encerramento da
+> Proposta de trilha (estudos E09–E20) escrita em 26/09/2026, depois do encerramento da
 > trilha P003. Nada aqui foi executado. Cada estudo nasce de uma lacuna
 > registrada no [guia do estudante 2.0](lab-guide-student.md) ou de um
 > requisito técnico de um produto de conexão dedicada com eBGP (Direct
@@ -276,6 +276,32 @@ kernel, sessões TCP/179, policies). Aplicar a mesma metodologia de E08 ao
 Gate: 0 diferenças entre snapshots; 0 resíduos após remoção, com lista de
 verificação reutilizável.
 
+### E20 — Cilium OSS + KubeVirt versus Isovalent Networking for Virtualization
+
+Hipótese: com Cilium OSS e KubeVirt, uma VM vira endpoint Cilium com IP,
+identidade por label, política e VIP por BGP; live migration não preserva o
+IP do virt-launcher; dois tenants com o mesmo CIDR colidem. Com FRR no nó
+(braço B, só depois do braço A), o `/32` da VM pode ser anunciado como EVPN
+Type 5 numa VRF por tenant, mas o datapath do Cilium continua global.
+
+Ensaio: casos V00 a V09 no sandbox. V00 é o gate de viabilidade: a VM
+precisa receber e responder nos dois sentidos antes de qualquer outro caso,
+porque KVM aninhado em container já matou a recepção da VM na trilha
+OpenStack. Braço A: endpoint, VIP BGP, política por label, reuso de IP,
+live migration, Multi-Pool `/32`, CIDR sobreposto e VM legada por pool `/32`.
+Braço B: Cilium em sessão local com FRR, FRR com o fabric, EVPN Type 5 por
+tenant, L2 estendido por Type 2.
+
+Gate: tabela "Cilium OSS × Cilium + FRR × INV" com evidência por linha. As
+linhas que só o INV cobre (CIDR sobreposto, IP preservado em migração,
+identidade propagada ao fabric) viram os critérios de aceite de uma PoC do
+produto.
+
+Fontes: [INV GA](https://isovalent.com/blog/post/isovalent-networking-for-virtualization/),
+[INV com Nexus One](https://www.cisco.com/c/en/us/products/collateral/networking/cloud-networking/nx-os/isovalent-net-v12n-int-n-one-fabric-so.html),
+[lab Cilium + KubeVirt](https://isovalent.com/labs/cilium-kubevirt/),
+[KubeVirt v1.9.0](https://github.com/kubevirt/kubevirt/releases/tag/v1.9.0).
+
 ## 5. Ordem sugerida e ambiente
 
 | Ordem | Estudo | Ambiente | Depende de |
@@ -291,6 +317,7 @@ verificação reutilizável.
 | 9 | E15 VRF por tenant | E12 | network-instance no border |
 | 10 | E16 desenho de terminação | E15 | todos os anteriores |
 | 11 | E18 MTU/MACsec/QinQ | qualquer momento | nada |
+| paralelo | E20 KubeVirt × INV | sandbox + KubeVirt | nada; braço B depois do braço A |
 
 O FRR "cliente" é um container novo no sandbox, fora do cluster, com sessão
 ao border. Ele substitui o cliente HTTP nos ensaios de roteamento e permite
