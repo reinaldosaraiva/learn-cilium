@@ -119,7 +119,7 @@ manual (retratar o CIDR antes de reutilizar o IP) é o único mecanismo — daí
 | CNP `ingress: []` rejeitado / sem efeito | inválido no Cilium 1.20.2 (D-S014-2) | revogar setando `fromCIDR` p/ IP que a VM **não** tem |
 | CNP `egress: []` sem efeito | não é default-deny eficaz (D-S013-2) | usar `egressDeny` com `toCIDR` |
 | pod→VM timeout/000 (mesmo com RX vivo) | chain DOCKER isola docker0 (D-S013-1) | ACCEPT direcionado na FORWARD (mutação de testbed, revertida) |
-| VM envia mas não responde (RX) | KVM aninhado no container (D-S012-13) — **intermitente** | medir por VM; C5 (VM fora do container) para resolver |
+| VM envia mas não responde (RX) | KVM aninhado no container (D-S012-13) — **intermitente** | medir por VM; **resolvido por C5** (VM fora do container, KVM real no host) — ver [C5](09-vm-outside-container.md) |
 | fonte do pod = IP fabric do nó | masquerade BPF expõe o IP do nó (D-S012-12) | SG de tenant cobre os IPs fabric dos nós |
 | counters do pod flat com a VM sondando | deny no CNP (drop antes do pod) — **esperado** em C04/C05 deny | confirmar com `cilium monitor` (action deny) |
 
