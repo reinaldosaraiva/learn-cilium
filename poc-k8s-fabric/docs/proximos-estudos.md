@@ -35,17 +35,37 @@ de cada sessão.
 | eBGP IPv4/IPv6 unicast, ASN 16 e 32 bits, eBGP multihop | suportado (`families`, `ebgpMultihop`) | [Recursos BGP v2](https://docs.cilium.io/en/stable/network/bgp-control-plane/bgp-control-plane-configuration/) |
 | Autenticação TCP MD5 (RFC 2385) | suportado por `authSecretRef` no `CiliumBGPPeerConfig` | mesma página |
 | Timers keepalive/hold e Graceful Restart | suportado (`timers`, `gracefulRestart`); o lab usou 3/9 s e GR 30 s | mesma página; Módulo 4 do guia |
-| BFD | **não suportado**; a doc de operação diz "currently, Cilium does not support it"; CFP #22394 aberta desde 2022 | [Operação BGP](https://docs.cilium.io/en/stable/network/bgp-control-plane/bgp-control-plane-operation/), [issue 22394](https://github.com/cilium/cilium/issues/22394) |
+| BFD | **não suportado no OSS**; a doc de operação diz "currently, Cilium does not support it"; CFP #22394 aberta desde 2022; PR #48251 em rascunho (intervalos e multiplicador no `CiliumBGPPeerConfig`, um instance por nó, sem multihop); disponível na Isovalent Enterprise desde 1.16 | [Operação BGP](https://docs.cilium.io/en/stable/network/bgp-control-plane/bgp-control-plane-operation/), [issue 22394](https://github.com/cilium/cilium/issues/22394), [PR 48251](https://github.com/cilium/cilium/pull/48251) |
+| Piso dos timers | `holdTimeSeconds=3` e `keepAliveTimeSeconds=1` são os mínimos documentados | Operação BGP |
 | Limite de prefixos aprendidos por sessão | **não exposto** na API v2 | ausência na página de recursos |
-| Filtro de import (aceitar só prefixos declarados) | **não exposto**; o Cilium não instala rotas recebidas no kernel do nó | ausência na página de recursos |
+| Filtro de import e aprendizado de rotas | **não exposto e recusado como CFP**: a doc afirma que o BGP Control Plane "does not program the datapath"; a CFP de route learning (#34841) foi fechada e os mantenedores recomendam FRR ou BIRD co-implantado para BGP bidirecional | [Visão geral BGP](https://docs.cilium.io/en/stable/network/bgp-control-plane/bgp-control-plane/), [issue 34841](https://github.com/cilium/cilium/issues/34841), [design-cfps 58](https://github.com/cilium/design-cfps/pull/58) |
+| Peering unnumbered (RFC 5549) | **não está na 1.20**; `autoDiscovery.mode: DefaultGateway` é o único modo; PR #47394 aberto | [PR 47394](https://github.com/cilium/cilium/pull/47394) |
+| VRF, network-instance, route-target | **não existe no OSS** (um GoBGP por nó sobre a tabela do host); Enterprise tem `IsovalentVRF` com SRv6 L3VPN e VPNv4 desde a 1.13 | [Isovalent Enterprise 1.13](https://isovalent.com/blog/post/isovalent-enterprise-1-13/) |
+| Egress Gateway | OSS: `CiliumEgressGatewayPolicy` fixa IP de saída por nó; múltiplos gateways por UID de endpoint, sem failover consciente; incompatível com Cluster Mesh. Enterprise: grupos de egress, anúncio do IP de egress por BGP e egress standalone fora do cluster | [Egress Gateway](https://docs.cilium.io/en/stable/network/egress-gateway/egress-gateway/) |
+| Cluster Mesh | PodCIDRs únicos entre clusters no OSS; CIDR sobreposto só na Enterprise; MCS-API estável na 1.20 | [Cluster Mesh](https://docs.cilium.io/en/stable/network/clustermesh/setup/) |
+| QinQ e VLAN | só passagem de 802.1Q por `bpf.vlanBypass`, em remoção (PR #38954); sem QinQ | [VLAN 802.1Q](https://docs.cilium.io/en/latest/configuration/vlan-802.1q/) |
+| MTU jumbo | detecta o MTU do host, incluindo 9000; override por Helm | [Tuning](https://docs.cilium.io/en/latest/operations/performance/tuning/) |
 | Communities standard, large e well-known nos anúncios | suportado por `advertisementType` | página de recursos |
 | `localPreference` | só iBGP; ignorado em eBGP | página de recursos |
 | AS-path prepend e MED | **não expostos** | ausência na página de recursos |
 | Métricas de sessão e rotas | `cilium_bgp_control_plane_session_state`, `advertised_routes`, `received_routes`, `reconcile_*` | [Métricas](https://docs.cilium.io/en/stable/observability/metrics/) |
 | CLI de estado | `cilium bgp peers`, `cilium bgp routes advertised/available`, `cilium-dbg bgp route-policies` | Operação BGP |
-| Motor BGP | GoBGP 4.6.1 (1.20.0), com novos comandos de shell e reconciliação de route-policy | [Release 1.20.0](https://github.com/cilium/cilium/releases/tag/v1.20.0) |
+| Motor BGP | GoBGP 4.6.1 na 1.20.0 (3.37 na 1.19); BGPv1 `CiliumBGPPeeringPolicy` removida na 1.19; o BFD do GoBGP é parcial e tem issues abertas de conformidade RFC 5880 (sem jitter, ignora RequiredMinRx do par) | [Release 1.20.0](https://github.com/cilium/cilium/releases/tag/v1.20.0), [1.19.0](https://github.com/cilium/cilium/discussions/44191), [GoBGP 3563](https://github.com/osrg/gobgp/issues/3563) |
 | Gateway `hostNetwork` para L4 | não expõe listener no nó (medido em S004) | Módulo 6 do guia |
 | Dual-homing do nó em duas sessões | design pronto; o simulador SR Linux não estabelece TCP/179 em porta adicionada em runtime | Módulo 4 do guia |
+
+### 2.1 A fronteira que a pesquisa desenha
+
+O Cilium OSS é um speaker do lado do cliente (CE): anuncia pods, serviços e
+pools com communities e MD5, por IPv4 e IPv6, com GR e timers de data center,
+e expõe estado e métricas. Ele não aprende rotas, não filtra import, não
+limita prefixos, não faz prepend nem MED, não tem BFD, VRF, unnumbered,
+MACsec ou QinQ. Os próprios mantenedores apontam FRR ou BIRD ao lado do
+GoBGP para qualquer papel bidirecional. O lado provedor (PE) de uma conexão
+dedicada, portanto, pertence a um roteador de borda (FRR, SONiC ou vendor)
+ou à Isovalent Enterprise (BFD, VRF/SRv6, Egress Gateway HA), com o Cilium
+confinado ao lado do tenant. A trilha abaixo testa essa fronteira em vez de
+assumi-la.
 
 ## 3. Mapa requisito → lacuna → estudo
 
@@ -105,6 +125,10 @@ retirada do prefixo no spine. Ensaio B (borda com BFD): FRR `bfd` habilitado
 no peering leaf↔border SR Linux, mesmo trigger, mesma métrica. Ensaio C:
 hold reduzido ao mínimo aceito pela API do Cilium, para cronometrar o piso.
 
+Ensaio D (opcional, se o PR #48251 for mesclado durante a trilha): BFD do
+Cilium contra FRR com intervalos estritos, verificando as não-conformidades
+abertas do GoBGP (jitter, RequiredMinRx) contra um PE real.
+
 Gate: tabela com tempo de detecção por célula e recomendação explícita de
 onde terminar a sessão do cliente. Fonte: issue 22394 permanece aberta;
 qualquer mudança de status é registrada como emenda.
@@ -112,13 +136,15 @@ qualquer mudança de status é registrada como emenda.
 ### E11 — Limite de prefixos e filtro de import
 
 Hipótese: o Cilium aceita qualquer quantidade de prefixos recebidos sem
-limite nem filtro, e não os instala no kernel; o controle de "só prefixos
-declarados" e o max-prefix têm de ficar no roteador que termina o cliente.
+limite nem filtro, e não os instala no kernel (route learning foi recusado
+como CFP); o controle de "só prefixos declarados" e o max-prefix têm de
+ficar no roteador que termina o cliente.
 
 Ensaio: um FRR faz o papel do roteador do cliente e anuncia 50, 200 e 1.100
 prefixos ao Cilium (célula 1) e ao FRR de borda com `maximum-prefix 100` e
 `prefix-list` de import (célula 2). Medir `received_routes`, o estado da
-sessão e o que aparece em `ip route` do nó. Negativo: prefixo fora da lista
+sessão e o que aparece em `ip route` do nó (esperado: nada, porque o BGP
+Control Plane não programa o datapath). Negativo: prefixo fora da lista
 declarada não deve aparecer na RIB do border.
 
 Gate: comportamento do Cilium documentado por número (aceita tudo, sem
@@ -184,7 +210,9 @@ A não alcança prefixo do "cliente" B, mesmo com rota existente na VRF A.
 Comparar com o isolamento por identidade de S009.
 
 Gate: matriz de alcance entre tenants e "clientes" com 0 vazamentos;
-limites explícitos (CIDR sobreposto continua impossível no lado Cilium).
+limites explícitos (CIDR sobreposto continua impossível no lado Cilium OSS;
+`IsovalentVRF` com SRv6 fica registrado como alternativa Enterprise a
+avaliar em ambiente próprio, não neste sandbox).
 
 ### E16 — Onde termina o eBGP do cliente e como o Cilium participa
 
@@ -196,7 +224,10 @@ Ensaio: topologia de referência com FRR "cliente" → border → fabric →
 Cilium; três desenhos de retorno para o prefixo do cliente a partir de um
 pod: rota default para o fabric (padrão), `CiliumEgressGatewayPolicy` para
 fixar o IP de saída por nó, e rota estática no nó. Medir path, IP de origem
-visto pelo "cliente" e comportamento sob falha de um nó de egress.
+visto pelo "cliente" e comportamento sob falha de um nó de egress (no OSS os
+endpoints são fixados a um gateway por UID e a troca de gateway quebra
+conexões existentes). Célula extra: FRR como sidecar no nó, em sessão local
+com o GoBGP, o padrão recomendado pelos mantenedores para BGP bidirecional.
 
 Gate: desenho de referência com responsabilidades por camada e o custo de
 cada opção de retorno.
@@ -224,8 +255,9 @@ Cilium; WireGuard de nó é a única criptografia que o Cilium oferece no
 caminho.
 
 Ensaio: MTU 9000 nos veths do containerlab, `ping -M do -s 8972` pod→pod e
-cliente→VIP; QinQ entre "cliente" e border no SR Linux; comparação de
-overhead de WireGuard já medido em S007/S008.
+cliente→VIP; QinQ entre "cliente" e border no SR Linux (o Cilium só passa
+802.1Q por `bpf.vlanBypass`, em remoção); comparação de overhead de
+WireGuard já medido em S007/S008.
 
 Gate: matriz de MTU efetivo por segmento; documento de fronteira "switch
 versus Cilium" para MACsec e QinQ.
@@ -280,7 +312,17 @@ os negativos de prefixo, senha e policy sem tocar no fabric de referência.
 - [Cilium — métricas](https://docs.cilium.io/en/stable/observability/metrics/)
 - [Cilium — CFP BFD no BGP Control Plane, issue 22394](https://github.com/cilium/cilium/issues/22394)
 - [Cilium 1.20.0 — notas de release](https://github.com/cilium/cilium/releases/tag/v1.20.0)
+- [Cilium — PR 48251, BFD no BGP Control Plane (rascunho)](https://github.com/cilium/cilium/pull/48251)
+- [Cilium — CFP route learning, issue 34841 (fechada)](https://github.com/cilium/cilium/issues/34841) e [design-cfps 58](https://github.com/cilium/design-cfps/pull/58)
+- [Cilium — PR 47394, peering unnumbered (aberto)](https://github.com/cilium/cilium/pull/47394)
+- [Cilium 1.19.0 — notas de release](https://github.com/cilium/cilium/discussions/44191)
 - [Cilium Egress Gateway](https://docs.cilium.io/en/stable/network/egress-gateway/egress-gateway/)
+- [Cilium Cluster Mesh](https://docs.cilium.io/en/stable/network/clustermesh/setup/)
+- [Cilium — VLAN 802.1Q](https://docs.cilium.io/en/latest/configuration/vlan-802.1q/)
+- [Cilium — tuning e MTU](https://docs.cilium.io/en/latest/operations/performance/tuning/)
+- [GoBGP — servidor e BFD parcial](https://pkg.go.dev/github.com/osrg/gobgp/v4/pkg/server) e [issue 3563](https://github.com/osrg/gobgp/issues/3563)
+- [Isovalent Enterprise 1.13 — VRF e SRv6](https://isovalent.com/blog/post/isovalent-enterprise-1-13/)
+- [Isovalent Enterprise 1.16 — BFD para BGP](https://isovalent.com/blog/post/isovalent-enterprise-for-cilium-1-16/)
 - [Cilium Multi-Pool IPAM](https://docs.cilium.io/en/stable/network/concepts/ipam/multi-pool/)
 - [FRR — BGP (maximum-prefix, prefix-list, route-map, bfd)](https://docs.frrouting.org/en/latest/bgp.html)
 - [FRR — BFD](https://docs.frrouting.org/en/latest/bfd.html)
