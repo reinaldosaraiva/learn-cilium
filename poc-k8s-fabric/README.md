@@ -1,9 +1,11 @@
 # Kit do laboratório Cilium + BGP
 
 Este diretório contém o cenário reproduzível usado pelo [guia do
-estudante](docs/lab-guide-student.md). O objetivo didático é observar um
-cluster Kubernetes kind ligado a um fabric leaf–spine e entender a diferença
-entre o PodCIDR que o Cilium anuncia e a VIP `/32` de um Service.
+estudante 2.0](docs/lab-guide-student.md). O objetivo didático começa por
+observar um cluster Kubernetes kind ligado a um fabric leaf–spine e entender a
+diferença entre o PodCIDR que o Cilium anuncia e a VIP `/32` de um Service; os
+módulos seguintes cobrem Gateway API, autorização, criptografia, tenants, IPAM
+e o tenant híbrido com VMs OpenStack, executados no sandbox `studies/p003/`.
 
 ![Topologia inteira dentro da vm-cilium](docs/diagramas/05-laboratorio-vm-cilium-quadro-branco-v2.png)
 
@@ -74,8 +76,9 @@ API kind, enquanto o kubeconfig dedicado é exportado e o Cilium é instalado no
 segundo terminal. Não trate `scripts/99-destroy.sh` como exercício de aluno.
 
 Veja o [resumo público dos resultados](docs/lab-results.md) e as propostas de
-[próximos estudos](docs/proximos-estudos.md), incluindo a comparação `/24` ×
-`/32` e o cenário futuro com pods Kubernetes e VMs OpenStack.
+[próximos estudos](docs/proximos-estudos.md), agora orientadas aos requisitos
+de um produto de conexão dedicada com eBGP. A comparação `/24` × `/32` e o
+tenant híbrido com VMs OpenStack já foram executados e estão no guia.
 
 O [índice público dos estudos P003](docs/estudos/README.md) reúne o planejamento
 completo, a pesquisa, o contrato, o protocolo e os dossiês E00–E08. Gateway API

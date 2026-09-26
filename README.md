@@ -16,13 +16,19 @@ O laboratório responde duas perguntas simples:
 - como um Service LoadBalancer recebe um VIP `/32` e pode ser alcançado por
   múltiplos caminhos ECMP.
 
-O [guia do estudante](poc-k8s-fabric/docs/lab-guide-student.md) explica os
-locais dos comandos, os exercícios somente leitura e o túnel SSH local. Os
+O [guia do estudante 2.0](poc-k8s-fabric/docs/lab-guide-student.md) consolida
+em doze módulos tudo o que foi executado e validado nas três trilhas do
+projeto: BGP base e VIP anycast, dual-stack, falhas e Graceful Restart, escala,
+Gateway API HTTP/TCP/UDP, ExternalAuth, WireGuard, tenants, Multi-Pool IPAM
+`/24` versus `/32`, tenant híbrido com VMs OpenStack e nós reais na nuvem. Os
 [diagramas](poc-k8s-fabric/docs/diagramas/README.md) mostram a topologia e o
 caminho do tráfego. O [resumo de resultados](poc-k8s-fabric/docs/lab-results.md)
 separa a reconstrução atual de medições históricas.
 
-O planejamento público dos próximos ensaios está no [índice de estudos P003](poc-k8s-fabric/docs/estudos/README.md). Gateway API vem primeiro; o índice conserva as matrizes, os controles negativos e o processo para sessões futuras ainda não executadas.
+O [índice de estudos P003](poc-k8s-fabric/docs/estudos/README.md) conserva o
+planejamento, as matrizes e o processo; as sínteses publicadas são a
+[E08](poc-k8s-fabric/docs/estudos/08-lifecycle-synthesis.md) e o
+[caso C5](poc-k8s-fabric/docs/estudos/09-vm-outside-container.md).
 
 ## Começar
 
@@ -60,6 +66,8 @@ Não é uma promessa de desempenho de hardware, alta disponibilidade de produç�
 round-robin perfeito ou isolamento de tenant equivalente a uma rede virtual
 completa.
 
-As propostas de estudo seguintes cobrem `/24` versus blocos `/32` e um tenant
-híbrido com pods Kubernetes e VMs OpenStack: [próximos
+A trilha seguinte, orientada pelos requisitos de um produto de conexão
+dedicada com eBGP (BFD, autenticação de sessão, limite de prefixos,
+communities, redundância entre dois equipamentos, VRF por tenant e
+observabilidade por conexão), está em [próximos
 estudos](poc-k8s-fabric/docs/proximos-estudos.md).

@@ -1,6 +1,6 @@
 # Estudos P003 — Gateway API, segurança, IPAM e tenants híbridos
 
-> Planejamento revisado em **20/09/2026**. Os experimentos ainda não foram executados por esta publicação, com exceção da síntese E08 (S013/S014) e da emenda C5 (S016, VM fora do container), publicadas como resultados.
+> Planejamento revisado em **20/09/2026**; trilha **executada e encerrada em 25/09/2026** (S001–S016, gates G01–G10 atendidos). Esta edição publica os dossiês, a síntese E08 (S013/S014) e a emenda C5 (S016, VM fora do container). Os resultados das demais sessões estão resumidos, com números e achados, no [guia do estudante 2.0](../lab-guide-student.md); a evidência bruta permanece privada.
 
 Este índice público transforma o roteiro em uma sequência de 14 sessões pequenas, com fontes, critérios observáveis, controles negativos e rollback. O [resultado histórico do laboratório](../lab-results.md) permanece separado: ele descreve o kit de referência e não comprova nenhum estudo P003.
 
