@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# labctl — CLI de lab-as-code (P004-S001).
+#
+# Uso:
+#   labctl <lab> <acao> [--dry-run] [--evidence DIR]
+#   labctl status
+#
+# Roda no host do lab (vm-cilium) como root (sudo). O kit está em $LAB_ROOT
+# (padrão /opt/poc-k8s-fabric); o labctl carrega lib/common.sh e labs/<lab>.sh.
+# Saída final de toda ação: LABCTL <lab> <acao> OK|FAIL|NEEDS_INPUT <s>s mem_avail=<GiB>
+set -euo pipefail
+
+LABCTL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "${LABCTL_DIR}/lib/common.sh"
+
+# carrega labctl.env (ignorado pelo git) se existir — valores do host
+if [[ -f "${LABCTL_DIR}/labctl.env" ]]; then
+  # shellcheck source=labctl.env
+  source "${LABCTL_DIR}/labctl.env"
+fi
+
+LAB_ROOT="${LAB_ROOT:-/opt/poc-k8s-fabric}"
+export LAB_ROOT
+
+usage() {
+  cat <<'EOF'
+labctl — lab-as-code (P004)
+
+Uso:
+  labctl <lab> <acao> [--dry-run] [--evidence DIR]
+  labctl status
+
+Labs:  k01, p003-gw, openstack
+Ações: preflight, up, verify, down, status, resources
+
+Flags:
+  --dry-run       imprime as mutações com prefixo DRY: sem executar
+  --evidence DIR  diretório de evidência (padrão /var/tmp/labctl/<lab>/<UTC>/)
+EOF
+}
+
+LAB=""
+ACTION=""
+FINAL=""
+FINAL_SET=0
+START_TS="$(date +%s)"
+
+# imprime a linha final de toda ação (garantida via trap EXIT)
+on_exit() {
+  local rc=$?
+  [[ "${FINAL_SET}" == "1" ]] || return 0
+  local end_ts dur mem
+  end_ts="$(date +%s)"
+  dur=$((end_ts - START_TS))
+  mem="$(mem_avail_gib)"
+  echo "LABCTL ${LAB} ${ACTION} ${FINAL} ${dur}s mem_avail=${mem}"
+}
+trap on_exit EXIT
+
+# ---- argumentos ----
+# -h/--help como primeiro argumento (antes do lab) — P3-7 da revisão v2
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+if [[ $# -lt 1 ]]; then
+  usage
+  exit 2
+fi
+LAB="$1"; shift
+ACTION="${1:-status}"
+if [[ $# -gt 0 ]]; then shift; fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) DRY_RUN=1; shift ;;
+    --evidence)
+      [[ $# -ge 2 ]] || die "--evidence requer DIR"
+      EVIDENCE_DIR="$2"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "argumento desconhecido: $1" >&2; usage; exit 2 ;;
+  esac
+done
+export DRY_RUN EVIDENCE_DIR
+
+# ---- modo "status" global (sem lab): itera labs/*.sh ----
+if [[ "${LAB}" == "status" ]]; then
+  log "labctl status — iterando labs/"
+  for f in "${LABCTL_DIR}"/labs/*.sh; do
+    [[ -f "$f" ]] || continue
+    # shellcheck disable=SC1090
+    source "$f"
+    log "=== $(basename "$f" .sh) ==="
+    lab_status || log "  (status indisponível ou lab ausente)"
+  done
+  LAB="all"  # O6: linha final "LABCTL all status OK" (não "status status")
+  FINAL="OK"; FINAL_SET=1
+  exit 0
+fi
+
+# ---- perfil ----
+PROFILE="${LABCTL_DIR}/labs/${LAB}.sh"
+if [[ ! -f "${PROFILE}" ]]; then
+  echo "lab inexistente: ${LAB}" >&2
+  usage
+  exit 2
+fi
+# shellcheck disable=SC1090
+source "${PROFILE}"
+
+case "${ACTION}" in
+  preflight|up|verify|down|status|resources) ;;
+  *) echo "ação inválida: ${ACTION}" >&2; usage; exit 2 ;;
+esac
+
+FINAL_SET=1
+FINAL="FAIL"
+rc=0
+"lab_${ACTION}" || rc=$?
+case "${rc}" in
+  0) FINAL="OK" ;;
+  3) FINAL="NEEDS_INPUT" ;;
+  *) FINAL="FAIL" ;;
+esac
+exit "${rc}"
