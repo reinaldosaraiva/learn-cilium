@@ -2,17 +2,21 @@
 
 ## Guia de estudo e prática
 
-**Edição:** 2.0 · **Formato:** laboratório guiado e reproduzível · **Público-alvo:** estudantes de Kubernetes, redes e Cilium que já conhecem o vocabulário básico de IP e roteamento
+**Edição:** 2.1 · **Formato:** módulos 1–11 com exercícios guiados apoiados nos ambientes P001–P003; módulo 12 de leitura histórica do estudo em nuvem, cuja infraestrutura fica fora da aula; módulo 13 de leitura dos resultados históricos de P004-S002 · **Público-alvo:** estudantes de Kubernetes, redes e Cilium que já conhecem o vocabulário básico de IP e roteamento
 
 > **Objetivo do módulo**
 >
-> Ao terminar este roteiro, a pessoa estudante consegue localizar cada parte dos dois laboratórios, explicar o que o Cilium anuncia por BGP, validar um Gateway HTTP/TCP/UDP exposto por VIP anycast, ler uma decisão de autorização na borda e no datapath, e distinguir autorização por identidade de autorização por endereço em um tenant com pods Kubernetes e VMs OpenStack.
+> Ao terminar este roteiro, a pessoa estudante consegue localizar os ambientes descritos para os exercícios dos módulos 1–11, explicar o que o Cilium anuncia por BGP, validar um Gateway HTTP/TCP/UDP exposto por VIP anycast, ler uma decisão de autorização na borda e no datapath, distinguir autorização por identidade de autorização por endereço em um tenant com pods Kubernetes e VMs OpenStack e interpretar como leituras históricas o estudo em nuvem do módulo 12 e os resultados MGC do módulo 13.
 
-Esta edição consolida tudo o que foi executado e validado nas três trilhas do
-projeto (P001 PoC base, P002 lab aprofundado e nós reais, P003 estudos de
-Gateway API, segurança, IPAM e tenants híbridos). Cada módulo diz onde o
-comando roda, separa o esperado do observado e cita a versão exata que gerou o
-resultado. Nada aqui é uma medição de hardware de produção.
+Esta edição preserva os módulos 1–11, com exercícios guiados e estudos das
+trilhas P001–P003 sobre BGP, Gateway API, segurança, IPAM e tenants híbridos.
+O módulo 12 é leitura do estudo histórico de nós reais na nuvem; essa
+infraestrutura não faz parte da aula. O módulo 13 acrescenta a leitura dos
+resultados parciais de P004-S002 para a réplica MGC com OVN, FRR e EVPN. P004
+ainda não terminou: X05 não foi aceito e as demais arquiteturas continuam
+planejadas. Os módulos 12 e 13 interpretam evidência histórica; não são
+roteiros para acessar ou executar essas infraestruturas. Nenhum módulo mede
+desempenho de hardware de produção.
 
 ## Sumário
 
@@ -31,9 +35,10 @@ resultado. Nada aqui é uma medição de hardware de produção.
 13. [Módulo 10 — Multi-Pool IPAM: /24 versus /32](#módulo-10--multi-pool-ipam-24-versus-32)
 14. [Módulo 11 — Tenant híbrido: pods e VMs OpenStack](#módulo-11--tenant-híbrido-pods-e-vms-openstack)
 15. [Módulo 12 — Nós reais na nuvem: o que muda](#módulo-12--nós-reais-na-nuvem-o-que-muda)
-16. [Apêndice do instrutor](#apêndice-do-instrutor)
-17. [Limites do que foi demonstrado](#limites-do-que-foi-demonstrado)
-18. [Próximos estudos](#próximos-estudos)
+16. [Módulo 13 — MGC, OVN, FRR e EVPN: o que os resultados provam](#módulo-13--mgc-ovn-frr-e-evpn-o-que-os-resultados-provam)
+17. [Apêndice do instrutor](#apêndice-do-instrutor)
+18. [Limites do que foi demonstrado](#limites-do-que-foi-demonstrado)
+19. [Próximos estudos](#próximos-estudos)
 
 ## Como usar o guia
 
@@ -47,6 +52,7 @@ resultado. Nada aqui é uma medição de hardware de produção.
 - provar isolamento de tenant em três controles diferentes: rede, borda e configuração;
 - explicar por que autorização por label não vaza no reuso de IP e por que autorização por CIDR vaza;
 - registrar separadamente a saída observada e a expectativa do roteiro.
+- interpretar os resultados de MGC/OVN/FRR/EVPN, incluindo exceções e gates ainda abertos, sem confundi-los com a trilha Cilium.
 
 ### Regras de segurança
 
@@ -55,6 +61,7 @@ resultado. Nada aqui é uma medição de hardware de produção.
 - Nunca dependa do contexto implícito do `kubectl`. Cada comando traz `--kubeconfig` e `--context`.
 - O cluster `k01` é a referência histórica protegida. Os estudos P003 rodam em um segundo cluster, o sandbox `p003-gw`. Antes de qualquer comando no sandbox, confirme o UID do cluster com o valor entregue pelo instrutor.
 - Se `127.0.0.1:18081` já responder no seu computador, existe um túnel ativo. Reutilize-o.
+- O módulo 13 é somente leitura de evidências históricas: não traz comandos para MGC ou X05 e não pede acesso à VM atual.
 
 ### Onde um comando roda
 
@@ -90,9 +97,10 @@ exercício e pode alterar a referência.
 
 ![Quadro geral do laboratório dentro da vm-cilium](diagramas/05-laboratorio-vm-cilium-quadro-branco-v2.png)
 
-Tudo vive dentro de uma única máquina Linux, a `vm-cilium`. O computador da
-pessoa estudante fica fora e entra por SSH. Dentro da VM existem dois
-laboratórios independentes e um testbed OpenStack:
+Os exercícios práticos dos módulos 1–11 usam os ambientes documentados nas
+linhas abaixo. O módulo 12 é leitura de um estudo com infraestrutura em nuvem
+que não faz parte da aula; o módulo 13 lê resultados históricos da réplica
+MGC. A tabela distingue esses estudos dos ambientes usados nos exercícios:
 
 | Ambiente | Componentes | Versões | Papel |
 |---|---|---|---|
@@ -100,6 +108,13 @@ laboratórios independentes e um testbed OpenStack:
 | **Sandbox `p003-gw`** | segundo fabric containerlab + kind com 3 nós + cliente `198.19.0.10` | Cilium `1.20.2`, Gateway API `1.6.1` (CRDs standard + experimental) | Módulos 6 a 11; onde o instrutor muda configuração |
 | **Testbed OpenStack** | DevStack em container (Neutron OVS, qrouter, qdhcp, SG) | neutron `34.x`, cirros `0.6.0` | Módulo 11; VMs do tenant |
 | **VM em KVM real** | `qemu` no host ligado ao `br-int` do testbed por um par veth | cirros `0.6.0` | Módulo 11, caso C5 |
+| **Estudo histórico de nós reais na nuvem** | 3 VMs na nuvem, cluster `kubeadm` e FRR na mesma VPC | Kubernetes `1.35.2`, Cilium `1.20.1` | Módulo 12; leitura, infraestrutura fora da aula |
+| **Réplica MGC histórica (P004-S002)** | OVN `26.03.3`, 1 plano de controle central, 2 nós chassis, 2 gateways, FRR e cliente AS 200 | Linux VRFs nos gateways; EVPN Type 5 para a VPC tenant | Módulo 13; leitura de resultados, sem perfil executável neste checkout |
+
+A tabela descreve os ambientes e estudos documentados, sem indicar
+disponibilidade atual. Os quadros 05 e 06 ilustram os ambientes P001–P003; a
+[figura 07](diagramas/07-mgc-caminhos.png) mostra separadamente os caminhos
+históricos da réplica MGC.
 
 Os dois fabrics usam eBGP puro em dois níveis. No `k01`, os nós falam com o
 leaf do rack (AS 6510x para 6500x) e os leaves com os spines (AS 65500). No
@@ -678,6 +693,66 @@ origens e destinos além do seu próprio IP, por allowed-address-pairs ou guard
 desligado. Isso é uma decisão de postura de segurança da VPC, não um ajuste
 do Cilium.
 
+## Módulo 13 — MGC, OVN, FRR e EVPN: o que os resultados provam
+
+Este módulo é uma leitura guiada dos resultados de P004-S002, medidos entre
+27 e 29 de setembro de 2026. Use os valores como evidência histórica. A réplica
+MGC não está incluída como perfil executável neste checkout; não rode comandos,
+não tente iniciar X05 e não infira o estado atual da VM.
+
+![Caminhos históricos da réplica MGC, com o cliente legado e o peer EVPN separados](diagramas/07-mgc-caminhos.png)
+
+*Figura 07 — Topologia lógica dos caminhos medidos; o desenho não representa
+um inventário ou estado operacional atual.*
+
+O tenant OVN usou a rede `192.168.100.0/24`, com uma VM fake em
+`192.168.100.10`. Dois Connect Gateways tinham as Linux VRFs `ovnvrf100` e
+`ovnvrf200`, com FRR dentro dos próprios gateways. Cada gateway mantinha uma
+sessão BGP com o cliente legado AS 200, que anunciava `10.0.0.0/16`. Esse
+caminho sustenta a leitura de M01 e M02. O peer externo usado em M03 é outro
+caminho: ele recebeu a rota EVPN Type 5 do tenant, identificada pelo VNI
+`50100`; não era o cliente legado nas VLANs 100 e 200.
+
+![Estado histórico das trilhas e gates de P004 em 7 de outubro de 2026](diagramas/08-p004-estado.png)
+
+*Figura 08 — P004 continua parcial; os estados são os documentados na data do
+diagrama.*
+
+M01 passou com uma exceção de escopo: o fault de FRR parou `bgpd`, `bfdd` e
+`zebra` dentro de `ovn-gw-1`, não um container FRR separado. Os gateways usaram
+FRR 10.7.0 e o cliente, 8.4.1_git. Withdraw e faults controlados preservaram
+o tráfego medido, mas a falha do chassis `ovn-chassis-1` não foi testada; esse
+host hospedava a fixture da VM fake e era distinto do plano central OVN.
+
+M02 passou sob o escopo aceito: com MTU 1500, pacotes pequenos passaram 30/30,
+mas o pacote IPv4 jumbo de 9000 B com DF não recebeu resposta em 30 tentativas
+(0/30) e o roteador devolveu ICMP Frag Needed com MTU 1500. Com MTU 9000, os
+pacotes pequenos e jumbo passaram 30/30; depois, as MTUs foram restauradas a
+1500. A reprodução literal do fragmento no tap físico da PoC permaneceu parcial.
+
+M03 passou com um controle negativo causal. O positivo alcançou
+`192.168.100.0/24` como Type 5 no VNI `50100` e o ping respondeu 30/30. No
+controle causal, A7 definiu `dynamic-routing-redistribute=static` na LRP
+tenant. Esse filtro excluiu rotas `connected` dos anúncios; não converteu a
+origem da rota para `static`. A seleção retirou a rota-alvo do SB, a rota
+tenant, o Type 5 e a FIB, e o ping teve 0/3 respostas. BGP, VTEP e duas rotas
+colaterais permaneceram. Ao restaurar a chave ao estado ausente, o caminho
+voltou e o ping respondeu 3/3. O controle negativo literal do VNI ficou
+NOT_RUN: não havia causalidade estabelecida com o withdraw da rota exportada
+pelo router/FRR.
+
+### Exercícios de interpretação
+
+1. Por que a limitação “sem VRF” dos módulos Cilium não descreve o braço MGC?
+2. Qual peer recebeu o Type 5 em M03: o cliente legado AS 200 ou o peer EVPN?
+3. O que ainda impede concluir isolamento de dois tenants com CIDRs
+   sobrepostos?
+
+As respostas comentadas, o quadro completo de evidências e os termos do
+estudo estão em [MGC: estado parcial e evidências](estudos/20-mgc-estado-parcial.md).
+X05, o ensaio de sobreposição, não foi aceito; o estado operacional mais
+recente é desconhecido. A comparação completa com INV ainda não foi feita.
+
 ## Apêndice do instrutor
 
 O laboratório já deve estar rodando. A reconstrução é referência, não
@@ -759,7 +834,7 @@ IPAM `kubernetes`, sem pools) e remova objetos de teste por nome exato.
 - O fabric roda em containers com simulação userspace; use relações, nunca valores absolutos de throughput ou latência.
 - A VIP IPv6 e o pod→pod IPv6 cross-node ficaram limitados pela topologia IPv4 do underlay externo.
 - ExternalAuth é experimental na 1.20.2 e tem os defeitos listados no Módulo 7; a fixture não é um IdP.
-- Tenants foram isolados logicamente; não existe VRF, kernel separado nem CIDR sobreposto.
+- Nos módulos P001–P003, os tenants Cilium foram isolados logicamente; a trilha Cilium não demonstrou VRF nem CIDR sobreposto. Isso não se aplica ao braço MGC de P004, que usou Linux VRFs nos gateways. Ainda assim, X05 não foi aceito e o isolamento com subnets sobrepostas não foi provado.
 - A sincronização entre identidade Kubernetes e Security Group Neutron não foi implementada; a conclusão da trilha híbrida é "seguro sob sequenciamento manual".
 - BFD, MD5 na sessão BGP, limite de prefixos, communities e prepend não foram exercitados porque a API do Cilium 1.20.x não os expõe ou porque não estavam no escopo; veja os próximos estudos.
 - Nós reais na nuvem provaram overlay e BGP; native routing e VIP anycast dependem da postura de spoofing da porta.
@@ -775,6 +850,7 @@ variantes é aplicada ao laboratório desta aula.
 ## Referências públicas
 
 - [Resultados resumidos do laboratório](lab-results.md)
+- [MGC: estado parcial e evidências](estudos/20-mgc-estado-parcial.md)
 - [Índice dos estudos P003](estudos/README.md), [síntese E08](estudos/08-lifecycle-synthesis.md) e [caso C5](estudos/09-vm-outside-container.md)
 - [Cilium BGP Control Plane](https://docs.cilium.io/en/stable/network/bgp-control-plane/bgp-control-plane/)
 - [Recursos do BGP Control Plane](https://docs.cilium.io/en/stable/network/bgp-control-plane/bgp-control-plane-configuration/)

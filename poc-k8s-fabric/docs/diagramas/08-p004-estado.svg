@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 720" role="img" aria-labelledby="title desc">
+  <title id="title">Estado público de P004 em 7 de outubro de 2026</title>
+  <desc id="desc">P004 não está completo. O ciclo comum labctl passou, MGC M01 a M03 foram aceitos com escopos e exceções, X05 permanece não aceito e os braços OVN-Kubernetes e Cilium continuam planejados. O estado mais recente do laboratório é desconhecido.</desc>
+  <defs>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #142a3a; }
+      .title { font-size: 30px; font-weight: 700; }
+      .subtitle { font-size: 19px; fill: #344f60; }
+      .head { font-size: 22px; font-weight: 700; }
+      .status { font-size: 18px; font-weight: 700; letter-spacing: 0.3px; }
+      .body { font-size: 18px; }
+      .small { font-size: 17px; }
+      .card { stroke-width: 2.5; }
+      .mgc { fill: #eaf4e8; stroke: #44723f; }
+      .planned { fill: #eef2f6; stroke: #687988; }
+      .pending { fill: #fff3dc; stroke: #a66400; }
+      .open { fill: #f9e9e8; stroke: #a43d36; }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1120" height="720" fill="#f7f9fb"/>
+  <text x="40" y="48" class="title">P004: resultados parciais e gates abertos</text>
+  <text x="40" y="78" class="subtitle">Checkpoint público de 07/10/2026 · P004 NÃO COMPLETO</text>
+
+  <rect x="40" y="110" width="330" height="270" rx="16" class="card mgc"/>
+  <text x="64" y="147" class="head">MGC + OVN + FRR</text>
+  <text x="64" y="179" class="status">PARCIALMENTE MEDIDO</text>
+  <text x="64" y="218" class="body">S001 · labctl PASS · 27/09</text>
+  <text x="64" y="251" class="body">M01 · PASS com exceção</text>
+  <text x="64" y="284" class="body">M02 · PASS no escopo aceito</text>
+  <text x="64" y="317" class="body">M03 · PASS causal · 29/09</text>
+  <text x="64" y="352" class="small">X05 segue sem aceite</text>
+
+  <rect x="395" y="110" width="330" height="270" rx="16" class="card planned"/>
+  <text x="419" y="147" class="head">OVN-K + UDN</text>
+  <text x="419" y="179" class="status">PLANEJADO</text>
+  <text x="419" y="221" class="body">EVPN + KubeVirt</text>
+  <text x="419" y="255" class="body">Ainda não avaliado</text>
+  <text x="419" y="297" class="small">Sem prova publicada de CIDRs</text>
+  <text x="419" y="326" class="small">sobrepostos ou migração</text>
+
+  <rect x="750" y="110" width="330" height="270" rx="16" class="card planned"/>
+  <text x="774" y="147" class="head">Cilium + KubeVirt</text>
+  <text x="774" y="179" class="status">PLANEJADO</text>
+  <text x="774" y="221" class="body">Braços OSS + FRR</text>
+  <text x="774" y="255" class="body">Ainda não avaliado</text>
+  <text x="774" y="297" class="small">Nenhum resultado MGC</text>
+  <text x="774" y="326" class="small">é transferível por inferência</text>
+
+  <rect x="40" y="414" width="660" height="226" rx="16" class="card pending"/>
+  <text x="64" y="451" class="head">X05 · isolamento com CIDRs sobrepostos</text>
+  <text x="64" y="485" class="status">NÃO ACEITO</text>
+  <text x="64" y="523" class="body">O isolamento entre dois tenants não foi demonstrado.</text>
+  <text x="64" y="557" class="body">Estado operacional mais recente: DESCONHECIDO.</text>
+  <text x="64" y="598" class="small">Não inferir que a VM esteja limpa, ativa ou disponível.</text>
+
+  <rect x="725" y="414" width="355" height="226" rx="16" class="card open"/>
+  <text x="749" y="451" class="head">Qualificação pendente</text>
+  <text x="749" y="489" class="body">D1 · backend Linux não executado</text>
+  <text x="749" y="523" class="body">D2 · preparo local apenas</text>
+  <text x="749" y="557" class="body">INV × aberto · comparação final</text>
+  <text x="749" y="585" class="body">ainda não feita</text>
+
+  <text x="42" y="680" class="small">Leitura histórica; sem afirmação sobre disponibilidade ou estado atual da VM.</text>
+</svg>

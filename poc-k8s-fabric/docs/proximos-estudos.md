@@ -1,8 +1,10 @@
 # Próximos estudos — Cilium como motor de uma conexão dedicada com eBGP
 
 > Proposta de trilha (estudos E09–E20) escrita em 26/09/2026, depois do encerramento da
-> trilha P003. Nada aqui foi executado. Cada estudo nasce de uma lacuna
-> registrada no [guia do estudante 2.0](lab-guide-student.md) ou de um
+> trilha P003. E09–E19 permanecem propostas. E20 avançou parcialmente dentro
+> de P004: M01–M03 têm resultados históricos e X05 não foi aceito; veja a
+> [síntese pública MGC](estudos/20-mgc-estado-parcial.md). Cada estudo nasce de uma lacuna
+> registrada no [guia do estudante 2.1](lab-guide-student.md) ou de um
 > requisito técnico de um produto de conexão dedicada com eBGP (Direct
 > Connect), e cita a fonte primária que sustenta a hipótese. Dados
 > comerciais do produto ficam fora desta edição pública.
@@ -296,6 +298,17 @@ Gate: tabela "Cilium OSS × Cilium + FRR × INV" com evidência por linha. As
 linhas que só o INV cobre (CIDR sobreposto, IP preservado em migração,
 identidade propagada ao fabric) viram os critérios de aceite de uma PoC do
 produto.
+
+#### Estado público do E20 em 07/10/2026
+
+E20 segue incompleto. A sessão P004-S001 aprovou o ciclo comum do `labctl` em
+27/09. P004-S002 registrou M01 como PASS com exceção, M02 como PASS sob o
+escopo aceito e M03 como PASS com controle negativo causal entre 28 e
+29/09/2026. X05, que deve provar isolamento com CIDRs sobrepostos, não foi
+aceito; o estado operacional mais recente é desconhecido. Os braços OVN-K +
+KubeVirt e Cilium + KubeVirt/FRR ainda não foram avaliados, e a tabela final
+INV × equivalente aberto não existe. Consulte a [síntese pública MGC](estudos/20-mgc-estado-parcial.md)
+para os resultados e limites completos.
 
 Fontes: [INV GA](https://isovalent.com/blog/post/isovalent-networking-for-virtualization/),
 [INV com Nexus One](https://www.cisco.com/c/en/us/products/collateral/networking/cloud-networking/nx-os/isovalent-net-v12n-int-n-one-fabric-so.html),
