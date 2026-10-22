@@ -951,7 +951,7 @@ def evaluate_type5_route(
         text = _text(raw, "EVPN Type 5 route")
         if not text.strip() or _documented_convergence_absence(text):
             return retry("EVPN Type 5 route is absent during convergence")
-        network = ipaddress.ip_network(prefix, strict=True)
+        ipaddress.ip_network(prefix, strict=True)  # validate the expected prefix
         lines = [line.rstrip() for line in text.splitlines()]
         entry_indexes = [
             index
@@ -1511,14 +1511,24 @@ def _evaluate_port_binding_rows(
 def evaluate_learned_routes(
     raw: bytes | str,
     *,
-    expected: Mapping[str, tuple[str, str]],
+    expected: Mapping[tuple[str, str], str],
+    scope: frozenset[str],
 ) -> Evaluation:
-    """Require one Learned_Route per source mapped to its exact LRP binding."""
+    """Require the exact expected Learned_Route set within the study LRP scope.
+
+    ``expected`` maps ``(ip_prefix, port_binding_uuid)`` to the required
+    nexthop. Rows bound to Port_Bindings outside ``scope`` (baseline lab
+    routes, e.g. lrp-mgc-100/200-external) are out of scope and ignored;
+    rows inside the scope must match the expected set exactly (no extras,
+    no duplicates, exact nexthop).
+    """
 
     try:
         rows = parse_ovs_rows(raw, context="SB Learned_Route")
-        scoped: dict[str, list[tuple[str, str, str]]] = {source: [] for source in expected}
-        extra_sources: list[str] = []
+        observed: dict[tuple[str, str], list[tuple[str, str]]] = {
+            key: [] for key in expected
+        }
+        extra: list[tuple[str, str]] = []
         observed_uuids: set[str] = set()
         for row in rows:
             _exact_keys(
@@ -1534,40 +1544,44 @@ def evaluate_learned_routes(
                 raise ParseError("Learned_Route: duplicate row UUID in observed table")
             observed_uuids.add(route_uuid)
             source = _string(row["ip_prefix"], "Learned_Route.ip_prefix").removesuffix("/32")
-            if source not in scoped:
-                extra_sources.append(source)
-                continue
-            nexthop = _string(row["nexthop"], "Learned_Route.nexthop")
             logical_port = _string(row["logical_port"], "Learned_Route.logical_port").lower()
             if UUID_RE.fullmatch(logical_port) is None:
                 raise ParseError("Learned_Route: malformed logical_port UUID")
-            scoped[source].append((route_uuid, nexthop, logical_port))
-        if extra_sources:
+            if logical_port not in scope:
+                continue
+            key = (source, logical_port)
+            if key not in observed:
+                extra.append(key)
+                continue
+            nexthop = _string(row["nexthop"], "Learned_Route.nexthop")
+            observed[key].append((route_uuid, nexthop))
+        if extra:
             return failed(
                 "Learned_Route scope contains unexpected sources",
-                sources=sorted(extra_sources),
+                sources=sorted("%s via %s" % (source, binding)
+                               for source, binding in extra),
             )
         missing: list[str] = []
-        for source, wanted in expected.items():
-            routes = scoped[source]
+        for key, wanted_nexthop in expected.items():
+            source, binding = key
+            routes = observed[key]
             if not routes:
-                missing.append(source)
+                missing.append("%s via %s" % (source, binding))
                 continue
             if len(routes) != 1:
                 return failed(f"Learned_Route for {source} is not unique", routes=routes)
-            _route_uuid, nexthop, logical_port = routes[0]
-            if (nexthop, logical_port) != wanted:
+            _route_uuid, nexthop = routes[0]
+            if nexthop != wanted_nexthop:
                 return failed(
                     f"Learned_Route for {source} has wrong nexthop/binding",
-                    observed=(nexthop, logical_port),
-                    expected=wanted,
+                    observed=(nexthop, binding), expected=(wanted_nexthop, binding),
                 )
         if missing:
             return retry(
                 "Learned_Route rows have not all converged",
-                missing=sorted(missing),
+                missing=missing,
             )
-        return passed("each peer source has one correctly bound Learned_Route")
+        return passed("each expected route has one correctly bound Learned_Route within study scope")
     except ParseError as exc:
         return errored(str(exc))
 
@@ -2245,6 +2259,18 @@ class EVPNTenantSpec:
     def lrp(self) -> str:
         return "lrp-mgc-tenant" if self.role is TenantRole.A else "lrp-x05-tenant-b"
 
+    @property
+    def external_lrp(self) -> str:
+        return "lrp-x05-300-external" if self.role is TenantRole.A else "lrp-x05-400-external"
+
+    @property
+    def external_nexthop(self) -> str:
+        return "169.254.254.2" if self.role is TenantRole.A else "169.254.254.6"
+
+    @property
+    def public_prefix(self) -> str:
+        return "10.0.0.0/16"
+
 
 class TenantRole(enum.StrEnum):
     A = "A"
@@ -2337,6 +2363,18 @@ def g2_commands(topology: G2Topology) -> dict[str, CommandSpec]:
         "--data=json", "--no-headings", "--columns=_uuid,logical_port,datapath",
         "find", "Port_Binding", "logical_port=" + topology.tenant_b.lrp,
     )
+    query = "sb.port_300"
+    commands[query] = _command_spec(
+        query, topology.central_id, "ovn-sbctl", "--format=json",
+        "--data=json", "--no-headings", "--columns=_uuid,logical_port,datapath",
+        "find", "Port_Binding", "logical_port=" + topology.tenant_a.external_lrp,
+    )
+    query = "sb.port_400"
+    commands[query] = _command_spec(
+        query, topology.central_id, "ovn-sbctl", "--format=json",
+        "--data=json", "--no-headings", "--columns=_uuid,logical_port,datapath",
+        "find", "Port_Binding", "logical_port=" + topology.tenant_b.external_lrp,
+    )
     query = "sb.learned_routes"
     commands[query] = _command_spec(
         query, topology.central_id, "ovn-sbctl", "--format=json",
@@ -2355,21 +2393,22 @@ def evaluate_g2_samples(
         return problem
     samples = collection.samples
     results: dict[str, Evaluation] = {}
-    bindings: dict[str, PortBindingProof] = {}
-    for label, expected_port in (
-        ("a", topology.tenant_a.lrp),
-        ("b", topology.tenant_b.lrp),
+    tenant_bindings: dict[str, PortBindingProof] = {}
+    external_bindings: dict[str, PortBindingProof] = {}
+    for query, expected_port, target in (
+        ("sb.port_a", topology.tenant_a.lrp, tenant_bindings),
+        ("sb.port_b", topology.tenant_b.lrp, tenant_bindings),
+        ("sb.port_300", topology.tenant_a.external_lrp, external_bindings),
+        ("sb.port_400", topology.tenant_b.external_lrp, external_bindings),
     ):
-        query = "sb.port_" + label
-
         def parse_binding(
-            raw: bytes, *, port: str = expected_port, role: str = label
+            raw: bytes, *, port: str = expected_port, sink: dict = target
         ) -> Evaluation:
             result, proof = evaluate_port_bindings(
                 raw, expected_ports=frozenset({port})
             )
             if result.outcome is Outcome.PASS:
-                bindings.update(proof)
+                sink.update(proof)
             return result
 
         results[query] = _command_result(
@@ -2379,9 +2418,9 @@ def evaluate_g2_samples(
         {name: results[name] for name in ("sb.port_a", "sb.port_b")}
     )
     if binding_result.outcome is Outcome.PASS:
-        if len({proof.uuid for proof in bindings.values()}) != 2:
+        if len({proof.uuid for proof in tenant_bindings.values()}) != 2:
             binding_result = errored("A/B SB queries returned a duplicate Port_Binding UUID")
-        elif len({proof.datapath for proof in bindings.values()}) != 2:
+        elif len({proof.datapath for proof in tenant_bindings.values()}) != 2:
             binding_result = failed("A/B LRP Port_Bindings share a datapath")
     results["sb.port_bindings"] = binding_result
     for label, spec in (("a", topology.tenant_a), ("b", topology.tenant_b)):
@@ -2438,20 +2477,30 @@ def evaluate_g2_samples(
             lambda raw, item=spec: evaluate_route_get(raw, destination=item.peer_source, source=None, next_hop=item.peer_vtep, interface=item.tenant_bridge, table=item.tenant_table),
         )
     query = "sb.learned_routes"
-    if binding_result.outcome is Outcome.PASS:
+    if (
+        binding_result.outcome is Outcome.PASS
+        and len(tenant_bindings) == 2
+        and len(external_bindings) == 2
+    ):
+        scope = frozenset(
+            {proof.uuid for proof in tenant_bindings.values()}
+            | {proof.uuid for proof in external_bindings.values()}
+        )
         expected_routes = {
-            topology.tenant_a.peer_source: (
+            (topology.tenant_a.peer_source, tenant_bindings[topology.tenant_a.lrp].uuid):
                 topology.tenant_a.peer_vtep,
-                bindings[topology.tenant_a.lrp].uuid,
-            ),
-            topology.tenant_b.peer_source: (
+            (topology.tenant_b.peer_source, tenant_bindings[topology.tenant_b.lrp].uuid):
                 topology.tenant_b.peer_vtep,
-                bindings[topology.tenant_b.lrp].uuid,
-            ),
+            (topology.tenant_a.public_prefix,
+             external_bindings[topology.tenant_a.external_lrp].uuid):
+                topology.tenant_a.external_nexthop,
+            (topology.tenant_b.public_prefix,
+             external_bindings[topology.tenant_b.external_lrp].uuid):
+                topology.tenant_b.external_nexthop,
         }
         results["sb.learned_routes"] = _command_result(
             samples[query], commands[query],
-            lambda raw: evaluate_learned_routes(raw, expected=expected_routes),
+            lambda raw: evaluate_learned_routes(raw, expected=expected_routes, scope=scope),
         )
     else:
         results["sb.learned_routes"] = _command_result(

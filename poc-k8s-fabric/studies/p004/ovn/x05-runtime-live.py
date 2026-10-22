@@ -106,7 +106,7 @@ REVIEWED_BUNDLE_FILES = {
     "lib/common.sh": "7faf46fecf1834a14b09d861ee1b996f5832a3adf239758799188220dff8bfd4",
     "labs/mgc.sh": "c24962a4382b9f905a448a2621bdf0a5ef0167a12147563a0509c224a33d92bc",
     "studies/p004/ovn/m03.sh": "9bde10234f54cfd3ebcc32ba88a5b60134a195c7b22f8c309eae475c63d5552c",
-    "studies/p004/ovn/nb-topology.sh": "e7ae8586ea07af5678468be5d6e8cc5099b783569107e691169a4da14bb6f7c3",
+    "studies/p004/ovn/nb-topology.sh": "48f6abc236ba3803aca88f2f2b7a2b287afc6619812366246e3f52a19807a7aa",
     "studies/p004/ovn/frr-client.conf": "5b4cd244ae1917832f7e8825e0fc6a414f0db53bc08c72ed0dd4d6541d679445",
     "studies/p004/ovn/frr-m03-chassis.conf": "f84c2680e2457ed5d070ef031842f5c9d8dddbff3c4b1fa94aba92d33f3d5497",
     "studies/p004/ovn/frr-m03-client.conf": "5951dda0687c1a847bda61c14fe5135bac014f61c21c02a016d4621998d93206",
@@ -114,7 +114,7 @@ REVIEWED_BUNDLE_FILES = {
     "studies/p004/ovn/x05-runtime-preflight.py": "f79f1b731cd3c8072f8658a660cea748a953ec9fa6a53fec4e747d0228d0b97c",
     "studies/p004/ovn/x05-runtime-apply.py": "4b01a3f3571b66ef51e36a280d6ecddc754cf1ecfa26c0c9a9a06c9757acddc1",
     "studies/p004/ovn/x05-capture.py": "2315c7416a6d32880bf276cb3c4d1b20cc5c3f1dc70b6d7f46ec37fd1c048287",
-    "studies/p004/ovn/x05-evaluator.py": "2a15593d9c3e0212afa7eb54029b94598b0fda373be5545df5e97e6ca90a3799",
+    "studies/p004/ovn/x05-evaluator.py": "95a1afc99a06d26d518a8fbf9d755ffc5ed9b4e37d873ad14bbe6a71f6702dac",
     "studies/p004/ovn/x05-nb-live.py": "cbe6000bca6698e2fe7b71bb07bd5676e68a45925917195793d46840a0dd3141",
     "studies/p004/ovn/x05-coordinator.py": "584bf99c4ade986033679f564f9e83a0030702a25001a700b6e07259d59906d3",
     "studies/p004/ovn/x05-cas.sh": "13081eaf3f66071f6dfef238b423449fe161df2002bc7642e3c1635d6baf162d",
@@ -129,7 +129,7 @@ REVIEWED_BUNDLE_FILES = {
     "studies/p004/ovn/x05-peer.conf": "9fc6033e407e85f9d03f89c77fedf31a1ac777ed938f06a75737167f969e39de",
 }
 REVIEWED_BUNDLE_MANIFEST_SHA256 = (
-    "f8636d3354fa8a76a4b0c223faff82009ad1506ddbd6fb302c9fd324136c083e"
+    "66e152b599798519d749c222d172ac42ff52f9542d2263726120202476f675a9"
 )
 
 

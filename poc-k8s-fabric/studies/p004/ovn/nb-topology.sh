@@ -212,6 +212,13 @@ configure_tenant() {
       "router-port=lrp-tenant-${vrf}"
   done
 
+  # Return routes for the external (client) /30s so tenant-VM replies reach
+  # the clients. The tenant return route above only covers 10.0.0.0/16; the
+  # client link-local networks (bgpvrf100/200) were missing, which dropped
+  # tenant-VM replies to the clients (request arrived, reply had no route).
+  nbctl --may-exist lr-route-add "${TENANT_LR}" 169.254.254.0/30 10.100.100.2
+  nbctl --may-exist lr-route-add "${TENANT_LR}" 169.254.254.4/30 10.200.100.2
+
   reconcile_tenant_return_routes
 }
 

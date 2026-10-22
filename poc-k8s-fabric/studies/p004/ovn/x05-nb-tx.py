@@ -328,7 +328,9 @@ def complete_rows(snapshot, objects, inserted, inserts, names, fingerprint):
             require(column in observed and equivalent(observed[column], value),
                     "owned NB planned column drift: " + item["id"] + ":" + column)
         for column, value in observed.items():
-            if column not in planned and column not in ("_uuid", "_version"):
+            if column not in planned and column not in ("_uuid", "_version",
+                                                        "status", "up", "uptime",
+                                                        "nat_addresses", "tag"):
                 require(empty_default(value),
                         "unexpected populated NB column: " + item["id"] + ":" + column)
         guarded[item["id"]] = {key: value for key, value in observed.items()

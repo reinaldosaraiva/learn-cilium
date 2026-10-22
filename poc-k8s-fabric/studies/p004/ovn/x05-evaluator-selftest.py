@@ -870,12 +870,19 @@ def sb_fixture() -> tuple[bytes, bytes, dict[str, str]]:
         "b_pb": "20000000-0000-4000-8000-000000000001",
         "a_dp": "10000000-0000-4000-8000-000000000002",
         "b_dp": "20000000-0000-4000-8000-000000000002",
+        "a_ext_pb": "10000000-0000-4000-8000-000000000011",
+        "b_ext_pb": "20000000-0000-4000-8000-000000000011",
+        "a_ext_dp": "10000000-0000-4000-8000-000000000012",
+        "b_ext_dp": "20000000-0000-4000-8000-000000000012",
+        "baseline_pb": "30000000-0000-4000-8000-000000000021",
     }
     bindings = ovs_json(
         ["_uuid", "logical_port", "datapath"],
         [
             [ovs_uuid(values["a_pb"]), "lrp-mgc-tenant", ovs_uuid(values["a_dp"])],
             [ovs_uuid(values["b_pb"]), "lrp-x05-tenant-b", ovs_uuid(values["b_dp"])],
+            [ovs_uuid(values["a_ext_pb"]), "lrp-x05-300-external", ovs_uuid(values["a_ext_dp"])],
+            [ovs_uuid(values["b_ext_pb"]), "lrp-x05-400-external", ovs_uuid(values["b_ext_dp"])],
         ],
     )
     routes = ovs_json(
@@ -883,6 +890,8 @@ def sb_fixture() -> tuple[bytes, bytes, dict[str, str]]:
         [
             [ovs_uuid("10000000-0000-4000-8000-000000000003"), "10.250.0.1", "170.168.0.7", ovs_uuid(values["a_pb"])],
             [ovs_uuid("20000000-0000-4000-8000-000000000003"), "10.251.0.1/32", "170.168.0.8", ovs_uuid(values["b_pb"])],
+            [ovs_uuid("10000000-0000-4000-8000-000000000013"), "10.0.0.0/16", "169.254.254.2", ovs_uuid(values["a_ext_pb"])],
+            [ovs_uuid("20000000-0000-4000-8000-000000000013"), "10.0.0.0/16", "169.254.254.6", ovs_uuid(values["b_ext_pb"])],
         ],
     )
     return bindings, routes, values
@@ -891,20 +900,60 @@ def sb_fixture() -> tuple[bytes, bytes, dict[str, str]]:
 def test_sb_scope_and_learned_routes() -> None:
     bindings, routes, values = sb_fixture()
     binding_result, proofs = EVAL.evaluate_port_bindings(
-        bindings, expected_ports=frozenset({"lrp-mgc-tenant", "lrp-x05-tenant-b"})
+        bindings,
+        expected_ports=frozenset({
+            "lrp-mgc-tenant", "lrp-x05-tenant-b",
+            "lrp-x05-300-external", "lrp-x05-400-external",
+        }),
     )
     assert_outcome(binding_result, EVAL.Outcome.PASS)
+    expected = {
+        ("10.250.0.1", values["a_pb"]): "170.168.0.7",
+        ("10.251.0.1", values["b_pb"]): "170.168.0.8",
+        ("10.0.0.0/16", values["a_ext_pb"]): "169.254.254.2",
+        ("10.0.0.0/16", values["b_ext_pb"]): "169.254.254.6",
+    }
+    scope = frozenset({
+        values["a_pb"], values["b_pb"],
+        values["a_ext_pb"], values["b_ext_pb"],
+    })
     assert_outcome(
-        EVAL.evaluate_learned_routes(
-            routes,
-            expected={
-                "10.250.0.1": ("170.168.0.7", values["a_pb"]),
-                "10.251.0.1": ("170.168.0.8", values["b_pb"]),
-            },
-        ),
+        EVAL.evaluate_learned_routes(routes, expected=expected, scope=scope),
         EVAL.Outcome.PASS,
     )
     assert proofs["lrp-mgc-tenant"].datapath != proofs["lrp-x05-tenant-b"].datapath
+    # Baseline rows bound to out-of-scope Port_Bindings are ignored.
+    with_baseline = json.loads(routes)
+    with_baseline["data"].append([
+        ovs_uuid("30000000-0000-4000-8000-000000000031"),
+        "10.0.0.0/16", "169.254.254.2", ovs_uuid(values["baseline_pb"]),
+    ])
+    assert_outcome(
+        EVAL.evaluate_learned_routes(encoded(with_baseline), expected=expected, scope=scope),
+        EVAL.Outcome.PASS,
+    )
+    # An in-scope extra (unexpected source on a study LRP) fails.
+    in_scope_extra = json.loads(routes)
+    in_scope_extra["data"].append([
+        ovs_uuid("30000000-0000-4000-8000-000000000032"),
+        "10.99.99.99", "169.254.254.2", ovs_uuid(values["a_ext_pb"]),
+    ])
+    assert_outcome(
+        EVAL.evaluate_learned_routes(encoded(in_scope_extra), expected=expected, scope=scope),
+        EVAL.Outcome.FAIL,
+    )
+    # A missing public route is convergence absence, not contradiction.
+    missing_public = ovs_json(
+        ["_uuid", "ip_prefix", "nexthop", "logical_port"],
+        [
+            [ovs_uuid("10000000-0000-4000-8000-000000000003"), "10.250.0.1", "170.168.0.7", ovs_uuid(values["a_pb"])],
+            [ovs_uuid("20000000-0000-4000-8000-000000000003"), "10.251.0.1/32", "170.168.0.8", ovs_uuid(values["b_pb"])],
+        ],
+    )
+    assert_outcome(
+        EVAL.evaluate_learned_routes(missing_public, expected=expected, scope=scope),
+        EVAL.Outcome.RETRY,
+    )
     duplicated = json.loads(routes)
     duplicated["data"].append(copy.deepcopy(duplicated["data"][0]))
     duplicated["data"][-1][0] = ovs_uuid(
@@ -912,11 +961,7 @@ def test_sb_scope_and_learned_routes() -> None:
     )
     assert_outcome(
         EVAL.evaluate_learned_routes(
-            encoded(duplicated),
-            expected={
-                "10.250.0.1": ("170.168.0.7", values["a_pb"]),
-                "10.251.0.1": ("170.168.0.8", values["b_pb"]),
-            },
+            encoded(duplicated), expected=expected, scope=scope,
         ),
         EVAL.Outcome.FAIL,
     )
@@ -924,11 +969,7 @@ def test_sb_scope_and_learned_routes() -> None:
     duplicate_uuid["data"][1][0] = copy.deepcopy(duplicate_uuid["data"][0][0])
     assert_outcome(
         EVAL.evaluate_learned_routes(
-            encoded(duplicate_uuid),
-            expected={
-                "10.250.0.1": ("170.168.0.7", values["a_pb"]),
-                "10.251.0.1": ("170.168.0.8", values["b_pb"]),
-            },
+            encoded(duplicate_uuid), expected=expected, scope=scope,
         ),
         EVAL.Outcome.ERROR,
     )
@@ -943,11 +984,7 @@ def test_sb_scope_and_learned_routes() -> None:
     )
     assert_outcome(
         EVAL.evaluate_learned_routes(
-            missing_a_wrong_b,
-            expected={
-                "10.250.0.1": ("170.168.0.7", values["a_pb"]),
-                "10.251.0.1": ("170.168.0.8", values["b_pb"]),
-            },
+            missing_a_wrong_b, expected=expected, scope=scope,
         ),
         EVAL.Outcome.FAIL,
     )
@@ -1758,6 +1795,8 @@ Displayed 1 prefixes (1 paths)
     port_headings = ["_uuid", "logical_port", "datapath"]
     outputs["sb.port_a"] = ovs_json(port_headings, [[ovs_uuid(values["a_pb"]), topology.tenant_a.lrp, ovs_uuid(values["a_dp"])]] )
     outputs["sb.port_b"] = ovs_json(port_headings, [[ovs_uuid(values["b_pb"]), topology.tenant_b.lrp, ovs_uuid(values["b_dp"])]] )
+    outputs["sb.port_300"] = ovs_json(port_headings, [[ovs_uuid(values["a_ext_pb"]), topology.tenant_a.external_lrp, ovs_uuid(values["a_ext_dp"])]] )
+    outputs["sb.port_400"] = ovs_json(port_headings, [[ovs_uuid(values["b_ext_pb"]), topology.tenant_b.external_lrp, ovs_uuid(values["b_ext_dp"])]] )
     outputs["sb.learned_routes"] = learned
     return outputs
 

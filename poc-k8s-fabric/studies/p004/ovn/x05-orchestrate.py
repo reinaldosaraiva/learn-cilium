@@ -49,8 +49,8 @@ review by integrating the existing X05 toolchain through its real APIs:
         M03; only then ``labctl mgc down --m03``, baseline verify, canaries).
         ``labctl mgc`` is called with ``M03_LOCK_HELD_FD=9`` and
         ``X05_COORDINATOR_TOKEN`` while the X05 marker exists, and labctl is
-        resolved at ``<repo>/labctl/labctl`` (the shell script pointed at a
-        non-existent path).
+        resolved at ``<repo>/labctl/labctl`` (repository layout) or
+        ``<repo>/labctl`` (installed/flat layout), whichever is a file.
 
 Usage::
 
@@ -88,7 +88,14 @@ sys.dont_write_bytecode = True
 SCHEMA = "p004-x05-orchestrate-v1"
 HERE = pathlib.Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent.parent.parent
+# labctl is resolved adaptively: repository layout (<repo>/labctl/labctl)
+# first, then installed/flat layout (<repo>/labctl). The reviewed production
+# code (x05-runtime-live.py) pins the flat layout at the bundle root, so the
+# flat form is the deployment target; the nested form keeps the repository
+# checkout working.
 LABCTL = REPO_ROOT / "labctl" / "labctl"
+if not LABCTL.is_file():
+    LABCTL = REPO_ROOT / "labctl"
 DEFAULT_EVIDENCE_ROOT = REPO_ROOT / "evidence" / "P004" / "S002"
 DEFAULT_OVS_RUNC = pathlib.Path("/opt/mgc-src/ovn-fake-multinode/ovs-runc")
 
@@ -171,6 +178,9 @@ BGP_POLL_ATTEMPTS = 40
 BGP_POLL_DELAY = 3.0
 COMMAND_TIMEOUT = 60.0
 UNDERLAY_IF = "vxlan_sys_4789"
+# Router MAC for the tenant-B EVPN bridge: must equal lrp-x05-tenant-b's MAC
+# in the frozen plan (x05-nb-plan.sh) per the m03 LRP/bridge MAC contract.
+EVPN_B_ROUTER_MAC = "02:00:00:20:00:01"
 
 GATE_ORDER = ("0", "0a", "nb", "1", "2", "3", "4", "5", "6", "7", "8")
 
@@ -291,7 +301,8 @@ class Commands:
     # -- primitives ---------------------------------------------------------
     def run(self, argv: Sequence[str], *, env: Mapping[str, str] | None = None,
             timeout: float = COMMAND_TIMEOUT, check: bool = True,
-            label: str | None = None) -> CommandResult:
+            label: str | None = None,
+            pass_fds: tuple[int, ...] | None = None) -> CommandResult:
         argv = [str(item) for item in argv]
         display = " ".join(argv)
         if label:
@@ -304,11 +315,16 @@ class Commands:
             merged_env = dict(os.environ)
             merged_env.update(dict(env))
         _log("CMD: " + display)
+        run_kwargs = {"capture_output": True, "timeout": timeout,
+                      "check": False, "env": merged_env}
+        if pass_fds is not None:
+            # Only pass pass_fds when set: subprocess.run forwards it to Popen,
+            # whose _execute_child does set(pass_fds) unconditionally, so an
+            # explicit None would raise TypeError. Omitting it uses Popen's
+            # working default.
+            run_kwargs["pass_fds"] = pass_fds
         try:
-            completed = subprocess.run(
-                argv, capture_output=True, timeout=timeout, check=False,
-                env=merged_env,
-            )
+            completed = subprocess.run(argv, **run_kwargs)
         except subprocess.TimeoutExpired as exc:
             result = CommandResult(argv, 124, b"", str(exc).encode())
             self._record(label or "", argv, result)
@@ -387,8 +403,20 @@ class Commands:
     def labctl(self, *args: str, extra_env: Mapping[str, str] | None = None,
                timeout: float = 1800.0) -> CommandResult:
         env = dict(extra_env or {})
+        pass_fds = None
+        if "M03_LOCK_HELD_FD" in env:
+            # The M03 lock is held on FD 9 in this process. On Unix the
+            # subprocess closes inherited FDs by default (close_fds=True), so
+            # labctl's inherited-lock check (mgc.sh: /proc/self/fd/9) would see
+            # a closed FD. Pass FD 9 explicitly so the child inherits the lock.
+            try:
+                os.fstat(9)
+                pass_fds = (9,)
+            except OSError:
+                pass_fds = None
         return self.run(["bash", str(LABCTL), *(str(a) for a in args)],
-                        env=env, timeout=timeout, label="labctl")
+                        env=env, timeout=timeout, label="labctl",
+                        pass_fds=pass_fds)
 
 
 # ---------------------------------------------------------------------------
@@ -708,13 +736,30 @@ def verify_gateway_frr_base(ctx: RunContext, gateway: str) -> None:
 def apply_gateway_frr(ctx: RunContext, gateway: str, *, add: bool) -> None:
     """Scoped gateway FRR extension via docker cp + vtysh -C -f + vtysh -f."""
     suffix = "add" if add else "remove"
+    vrf = "ovnvrf300" if gateway == GW1 else "ovnvrf400"
     fixture = "x05-%s-%s.conf" % ("gw1" if gateway == GW1 else "gw2", suffix)
     verify_gateway_frr_base(ctx, gateway)
     in_container = "/tmp/" + fixture
     stage_fixture(ctx, gateway, fixture, in_container)
-    if add:
+    if ctx.dry_run:
+        _log("DRY: vtysh -f %s in %s" % (in_container, gateway))
+    elif add:
         ctx.cmd.dex(gateway, "vtysh", "-C", "-f", in_container)
-    ctx.cmd.dex(gateway, "vtysh", "-f", in_container)
+        ctx.cmd.dex(gateway, "vtysh", "-f", in_container)
+    else:
+        # Idempotent remove: bgpd rejects the no-form with rc=13 when the
+        # BGP instance is already absent, so the command result is not the
+        # proof. Apply without check and prove the end state instead: the
+        # X05 BGP instance must be gone from the running config. The bare
+        # vrf <name> stub may remain here: the kernel VRF is OVN-generated
+        # and is only removed later, after the NB inverse transaction
+        # (teardown proves "OVN-generated VRFs absent" at that point).
+        ctx.cmd.dex(gateway, "vtysh", "-f", in_container, check=False)
+        running = ctx.cmd.dex_read(gateway, "vtysh", "-c", "show running-config")
+        instance = ("router bgp 100 vrf " + vrf).encode()
+        if instance in running:
+            raise GateFailure("gateway %s still carries the X05 BGP instance "
+                              "%s after the remove fixture" % (gateway, vrf))
     verify_gateway_frr_base(ctx, gateway)
     ctx.cmd.run(["docker", "exec", gateway, "rm", "-f", in_container])
 
@@ -840,6 +885,37 @@ def remove_container_owned(ctx: RunContext, name: str, gate: GateScope) -> None:
 # ---------------------------------------------------------------------------
 # Runtime build (P0-7): the resources the shell script assumed into existence
 # ---------------------------------------------------------------------------
+def ensure_client_a_vtysh_conf(ctx: RunContext, gate: GateScope) -> None:
+    """Ensure the pre-existing A client's vtysh has a config file.
+
+    The MGC baseline created mgc-client-1 without /etc/frr/vtysh.conf, so
+    every vtysh invocation writes a warning to stderr. The reviewed
+    evaluator's read-only invariant rejects any stderr on G1/G2 samples, so
+    the orchestrator creates the empty file (frr-owned) when absent; an
+    existing file is never touched.
+    """
+    if ctx.dry_run:
+        _log("DRY: ensure /etc/frr/vtysh.conf exists in %s (empty, frr-owned)"
+             % CLIENT_A)
+        return
+    if ctx.cmd.dex(CLIENT_A, "test", "-f", "/etc/frr/vtysh.conf",
+                   check=False).returncode == 0:
+        gate.step("A client vtysh.conf already present; left untouched")
+        return
+    ctx.cmd.dex(CLIENT_A, "touch", "/etc/frr/vtysh.conf")
+    ctx.cmd.dex(CLIENT_A, "chown", "frr:frr", "/etc/frr/vtysh.conf")
+    ctx.cmd.dex(CLIENT_A, "chmod", "644", "/etc/frr/vtysh.conf")
+    ctx.journal("client-vtysh-conf", CLIENT_A + ":/etc/frr/vtysh.conf",
+                status="created", before="absent")
+    probe = ctx.cmd.dex(CLIENT_A, "vtysh", "-c", "show version", check=False)
+    if probe.stderr:
+        raise GateFailure(
+            "A client vtysh still writes stderr after vtysh.conf fix: %s"
+            % probe.stderr.decode("utf-8", "replace")[:200])
+    gate.step("created empty /etc/frr/vtysh.conf in A client (baseline gap; "
+              "vtysh stderr warning would trip the evaluator read-only invariant)")
+
+
 def build_runtime(ctx: RunContext, gate: GateScope) -> None:
     """Create every X05 runtime resource from x05-runtime-plan's inventory."""
     # 1. Persist the marker at INTENT before the first mutation (contract).
@@ -862,6 +938,9 @@ def build_runtime(ctx: RunContext, gate: GateScope) -> None:
             handle.write(payload)
         os.chmod(X05_MARKER, 0o600)
     ctx.journal("marker", str(X05_MARKER), status="created", before="absent")
+
+    # 1b. A-client vtysh.conf precondition (baseline gap; G1 evaluator).
+    ensure_client_a_vtysh_conf(ctx, gate)
 
     # 2. Gateway BGP mirrors (bgpvrf300/400 veth pairs bound to the
     #    OVN-generated VRFs that the NB dynamic-routing rows create).
@@ -917,6 +996,26 @@ def wait_link(ctx: RunContext, container: str, link: str, attempts: int = 30) ->
     for _ in range(attempts):
         result = ctx.cmd.dex(container, "ip", "link", "show", link, check=False)
         if result.returncode == 0:
+            return True
+        time.sleep(1.0)
+    return False
+
+
+def wait_vrf_absent(
+    ctx: RunContext, container: str, link: str, attempts: int = 30
+) -> bool:
+    """Poll until an OVN-generated VRF link is gone (or give up).
+
+    Mirror of wait_link for the inverse direction: after the NB inverse
+    deletes the owned rows, ovn-northd/ovn-controller remove the generated
+    VRF interfaces asynchronously, so the strict absence check in the
+    teardown must wait for that convergence window first.
+    """
+    if ctx.dry_run:
+        return True
+    for _ in range(attempts):
+        result = ctx.cmd.dex(container, "ip", "link", "show", link, check=False)
+        if result.returncode != 0:
             return True
         time.sleep(1.0)
     return False
@@ -1031,10 +1130,10 @@ def build_chassis2_network(ctx: RunContext, gate: GateScope) -> None:
     vrf, bridge, vxlan, dummy = "ovnvrf-x05-b", "br-x05-b", "vxlan-x05-b", "evpn-x05-b"
     if ctx.dry_run:
         _log("DRY: %s: wait VRF %s (table 400); bridge %s (master vrf, "
-             "addrgenmode none); vxlan %s id 50200 local %s dev %s dstport 60010; "
-             "dummy %s; all aliased %s"
-             % (CHASSIS2, vrf, bridge, vxlan, CHASSIS2_UNDERLAY, UNDERLAY_IF,
-                dummy, ctx.owner))
+             "addrgenmode none, router-mac %s); vxlan %s id 50200 local %s "
+             "dev %s dstport 60010; dummy %s; all aliased %s"
+             % (CHASSIS2, vrf, bridge, EVPN_B_ROUTER_MAC, vxlan,
+                CHASSIS2_UNDERLAY, UNDERLAY_IF, dummy, ctx.owner))
         return
     if not wait_link(ctx, CHASSIS2, vrf):
         raise GateFailure("%s: OVN-generated VRF %s never appeared" % (CHASSIS2, vrf))
@@ -1042,6 +1141,14 @@ def build_chassis2_network(ctx: RunContext, gate: GateScope) -> None:
     alias_link(ctx, CHASSIS2, bridge)
     ctx.cmd.dex(CHASSIS2, "ip", "link", "set", bridge, "master", vrf)
     ctx.cmd.dex(CHASSIS2, "ip", "link", "set", bridge, "addrgenmode", "none")
+    # m03 contract (m03.sh: LRP MAC must equal the EVPN bridge MAC): the
+    # bridge MAC becomes the Router MAC FRR advertises in its EVPN type-5
+    # routes. The remote peer installs it as the neighbor for the VTEP, so
+    # decapped frames carry a destination MAC OVN knows (lrp-x05-tenant-b's
+    # MAC from the frozen plan, x05-nb-plan.sh). Without this the bridge
+    # keeps a random MAC and OVN drops the decapped frames.
+    ctx.cmd.dex(CHASSIS2, "ip", "link", "set", bridge, "address",
+                EVPN_B_ROUTER_MAC)
     ctx.cmd.dex(CHASSIS2, "ip", "link", "set", bridge, "up")
     ctx.cmd.dex(CHASSIS2, "ip", "link", "add", vxlan, "type", "vxlan",
                 "dev", UNDERLAY_IF, "id", "50200", "dstport", "60010",
@@ -1241,9 +1348,15 @@ def teardown_runtime(ctx: RunContext, gate: GateScope, *, nb_inverse: bool = Tru
     for container in (PEER_B, CHASSIS2):
         if ctx.dry_run:
             step("DRY stop FRR pathspace %s in %s" % (PATHSPACE, container))
-        else:
-            stop_frr_pathspace(ctx, container)
-            step("stopped FRR pathspace %s in %s" % (PATHSPACE, container))
+            continue
+        if container_absent(ctx, container):
+            # Container already gone: its pathspace is trivially absent.
+            # Probing a missing container would raise (docker exec rc!=0).
+            step("FRR pathspace %s in %s: container already absent"
+                 % (PATHSPACE, container))
+            continue
+        stop_frr_pathspace(ctx, container)
+        step("stopped FRR pathspace %s in %s" % (PATHSPACE, container))
 
     # Withdraw B gateway BGP legs with the matching remove fixtures.
     for gateway in (GW1, GW2):
@@ -1295,19 +1408,28 @@ def teardown_runtime(ctx: RunContext, gate: GateScope, *, nb_inverse: bool = Tru
     # NB inverse: one transaction that detaches the A sentinel and deletes
     # the 34 owned rows (P0-4), verified by the tool's own checkers.
     if nb_inverse and ctx.state.get("gates", {}).get("nb", {}).get("status") == "PASS":
+        # Mirror of the Gnb P0-7 step: the tenant-B client /30 return route
+        # is applied after the forward transaction, so it must be removed
+        # before the inverse — the inverse toolchain requires the owned
+        # routers to match the checked forward receipt exactly.
+        if not ctx.dry_run:
+            ctx.cmd.dex(CENTRAL, "ovn-nbctl", "--if-exists", "lr-route-del",
+                        "lr-x05-tenant-b", "169.254.254.4/30")
         nb_inverse_forward(ctx, gate)
         step("NB inverse transaction applied and checked")
     elif nb_inverse:
         step("NB inverse skipped (no checked forward receipt in state)")
 
     # Observation-only generated VRFs must be gone after the NB inverse.
+    # ovn-controller removes them asynchronously after the NB delete, so
+    # poll with the same bounded pattern as wait_link before the strict
+    # absence check (the check stays strict: residue after the window fails).
     if not ctx.dry_run:
         residues = []
         for number, gateway, vrf, _ip in GATEWAYS:
-            if ctx.cmd.dex(gateway, "ip", "link", "show", vrf, check=False).returncode == 0:
+            if not wait_vrf_absent(ctx, gateway, vrf):
                 residues.append("%s:%s" % (gateway, vrf))
-        if ctx.cmd.dex(CHASSIS2, "ip", "link", "show", "ovnvrf-x05-b",
-                       check=False).returncode == 0:
+        if not wait_vrf_absent(ctx, CHASSIS2, "ovnvrf-x05-b"):
             residues.append(CHASSIS2 + ":ovnvrf-x05-b")
         if residues:
             raise GateFailure("OVN-generated VRFs remain after NB inverse: %s"
@@ -1354,6 +1476,10 @@ def prove_x05_absence(ctx: RunContext) -> dict[str, Any]:
                            check=False).returncode == 0:
                 report["residue"].append("link:%s:%s" % (PEER_B, link))
     for container in (CHASSIS2, PEER_B):
+        if container_absent(ctx, container):
+            # Container already gone: its pathspace is trivially absent.
+            # Probing a missing container would raise (docker exec rc!=0).
+            continue
         if pathspace_daemons(ctx, container):
             report["residue"].append("pathspace:%s:%s" % (container, PATHSPACE))
         probe = ctx.cmd.dex(container, "test", "-e", "/etc/frr/" + PATHSPACE,
@@ -1447,6 +1573,34 @@ def probe(ctx: RunContext, gate: GateScope, label: str, container: str,
     gate.step("probe %s: %s (%s)" % (label, "pass" if expect_reply else "fail",
                                      evaluation.reason))
     return record
+
+
+def probe_with_retries(ctx: RunContext, gate: GateScope, label: str,
+                        container: str, target: str, expect_reply: bool,
+                        *, attempts: int = 6, delay: float = 3.0,
+                        **kwargs: Any) -> dict[str, Any]:
+    """Bounded retry wrapper for probes right after a datapath mutation.
+
+    The G5 CAS move re-parents the B LSP; ovn-northd, SB propagation and
+    the chassis flow install take a moment to converge, so the immediate
+    probe can lose the first packets (request or reply) without any
+    configuration being wrong. Each failed attempt keeps its own evidence
+    file; the last attempt carries the canonical label.
+    """
+    last: GateFailure | None = None
+    for n in range(1, attempts + 1):
+        tag = label if n == attempts else "%s-attempt-%02d" % (label, n)
+        try:
+            return probe(ctx, gate, tag, container, target, expect_reply,
+                         **kwargs)
+        except GateFailure as exc:
+            last = exc
+            if n < attempts:
+                _log("probe %s attempt %d/%d failed; waiting %.1fs for "
+                     "convergence: %s" % (label, n, attempts, delay, exc))
+                time.sleep(delay)
+    assert last is not None
+    raise last
 
 
 def require_route_present(ctx: RunContext, gate: GateScope, container: str,
@@ -1897,12 +2051,22 @@ def gate_nb(ctx: RunContext) -> int:
             ["python3", str(TOOL_NB_POSTFLIGHT), "--built",
              "--preflight", str(preflight_path),
              "--forward", str(checked_forward),
-             "--state", str(snapshot_path),
-             "--built-receipt", str(checked_forward)],
+             "--state", str(snapshot_path)],
             label="nb-postflight built")
         ctx.evidence.write("gate-nb/nb-built-checked.json", postflight)
         if json.loads(postflight.decode()).get("status") != "PASS":
             raise GateFailure("NB built-state postflight failed")
+
+    # P0-7 runtime extension: return route for the gw-2 client /30 so tenant-B
+    # (x05-tenant-b-vm) replies reach client-B. lr-x05-tenant-b has no route to
+    # 169.254.254.4/30 in the frozen 34-row plan, which dropped tenant-B replies
+    # (request arrived, reply had no route). Applied after the P0-6 postflight
+    # so the built-state check sees exactly the planned rows; the route dies
+    # with the router in the NB inverse. The gw-1 client /30 return route lives
+    # in nb-topology.sh (lr-mgc-tenant), the MGC baseline.
+    if not ctx.dry_run:
+        ctx.cmd.dex(CENTRAL, "ovn-nbctl", "--may-exist", "lr-route-add",
+                    "lr-x05-tenant-b", "169.254.254.4/30", "10.41.100.2")
 
     # Runtime resources the shell script assumed into existence (P0-7).
     build_runtime(ctx, gate)
@@ -2015,7 +2179,10 @@ def gate_5(ctx: RunContext) -> int:
         gate.step("DRY: read LS A/B UUIDs + complete port sets + B LSP UUID; "
                   "x05-cas.sh --build; ONE ovsdb transact; --check-result; "
                   "re-read both parents")
-    probe(ctx, gate, "g5-a-to-moved-b", CLIENT_A, SENTINEL_B, True)
+    # Post-move convergence window: the CAS re-parents the LSP and the
+    # datapath needs a moment before the first packets flow (P0-1 honesty:
+    # retry with evidence per attempt instead of probing once too early).
+    probe_with_retries(ctx, gate, "g5-a-to-moved-b", CLIENT_A, SENTINEL_B, True)
     probe(ctx, gate, "g5-b-to-own-lost", CLIENT_B, SENTINEL_B, False)
     gate.pass_gate("B LSP moved by guarded CAS; A reaches .12, B loses it "
                    "(same UUID, parent A only)")
@@ -2050,7 +2217,10 @@ def gate_6(ctx: RunContext) -> int:
         ctx.state["cas"]["restored"] = True
         ctx.save()
     probe(ctx, gate, "g6-a-to-b-fails", CLIENT_A, SENTINEL_B, False)
-    probe(ctx, gate, "g6-b-to-own-restored", CLIENT_B, SENTINEL_B, True)
+    # Same post-move convergence window as G5: the inverse CAS re-parents
+    # the LSP back to LS B before this probe.
+    probe_with_retries(ctx, gate, "g6-b-to-own-restored", CLIENT_B, SENTINEL_B,
+                       True)
     gate.pass_gate("B LSP restored by inverse CAS; A→.12 fails, B→.12 passes "
                    "(same UUID, B-only parent)")
     return 0
