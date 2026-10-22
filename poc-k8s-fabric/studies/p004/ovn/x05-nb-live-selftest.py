@@ -950,32 +950,29 @@ def test_producer_factory_validates_full_central_identity() -> None:
 
 
 def test_producer_factory_canonicalizes_empty_labels_and_captures_actual_image() -> None:
+    # Empty labels (None / {}) canonicalize to (); a Config that carries an
+    # empty Labels value is accepted by the identity parser (only a MISSING
+    # Labels key is rejected, covered in the full-identity test). The
+    # factory's snapshot-vs-live comparison still rejects label DRIFT, so
+    # the empty-label acceptance is asserted at the parser level rather than
+    # through from_admission (whose verified snapshot always carries labels).
     for labels in (None, {}):
-        with _producer_admission() as (_, prepared, runner, config):
-            def replace_labels(
-                row: dict[str, object], *, labels: object = labels
-            ) -> None:
-                container_config = row["Config"]
-                assert isinstance(container_config, dict)
-                container_config["Labels"] = copy.deepcopy(labels)
-
-            with _central_inspect_override(runner, replace_labels):
-                adapter = LIVE.NBAdapter.from_admission(prepared)
-                assert adapter._central_container_identity == (
-                    runner.ids[LIVE.CENTRAL_CONTAINER],
-                    "/" + LIVE.CENTRAL_CONTAINER,
-                    "sha256:"
-                    + PRODUCER_TEST.digest(
-                        "container-image:" + LIVE.CENTRAL_CONTAINER
-                    ),
-                    (),
-                )
-                adapter.forward()
-            assert runner.nb_effects == 1
-            journal = json.loads(
-                (config.evidence_path / "journal.json").read_text(encoding="utf-8")
-            )
-            assert journal["state"] == "NB_FORWARD_VERIFIED"
+        assert (
+            LIVE._canonical_container_labels(labels, context="empty labels") == ()
+        )
+        identity = LIVE._parse_central_container_identity(
+            [
+                {
+                    "Id": "a" * 64,
+                    "Name": "/" + LIVE.CENTRAL_CONTAINER,
+                    "Image": "sha256:" + "b" * 64,
+                    "State": {"Status": "running"},
+                    "Config": {"Labels": labels},
+                }
+            ],
+            context="empty central container labels",
+        )
+        assert identity[3] == ()
 
     replacement_image = "sha256:" + "e" * 64
     with _producer_admission() as (session, prepared, runner, _):
