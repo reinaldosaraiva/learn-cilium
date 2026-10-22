@@ -1,0 +1,16 @@
+{
+  "source": {
+    "uuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "ports": [
+      "11111111-1111-1111-1111-111111111111",
+      "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    ]
+  },
+  "target": {
+    "uuid": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    "ports": [
+      "22222222-2222-2222-2222-222222222222"
+    ]
+  },
+  "lsp_uuid": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+}

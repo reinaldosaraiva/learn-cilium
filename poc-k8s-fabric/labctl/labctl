@@ -28,13 +28,14 @@ usage() {
 labctl — lab-as-code (P004)
 
 Uso:
-  labctl <lab> <acao> [--dry-run] [--evidence DIR]
+  labctl <lab> <acao> [--m03] [--dry-run] [--evidence DIR]
   labctl status
 
-Labs:  k01, p003-gw, openstack
+Labs:  k01, mgc, p003-gw, openstack
 Ações: preflight, up, verify, down, status, resources
 
 Flags:
+  --m03           habilita o lifecycle EVPN M03 somente no perfil mgc
   --dry-run       imprime as mutações com prefixo DRY: sem executar
   --evidence DIR  diretório de evidência (padrão /var/tmp/labctl/<lab>/<UTC>/)
 EOF
@@ -44,6 +45,7 @@ LAB=""
 ACTION=""
 FINAL=""
 FINAL_SET=0
+MGC_M03_MODE=0
 START_TS="$(date +%s)"
 
 # imprime a linha final de toda ação (garantida via trap EXIT)
@@ -74,6 +76,9 @@ if [[ $# -gt 0 ]]; then shift; fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --m03)
+      [[ "${LAB}" == mgc ]] || die "--m03 só é válido para o perfil mgc"
+      MGC_M03_MODE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --evidence)
       [[ $# -ge 2 ]] || die "--evidence requer DIR"
@@ -82,7 +87,13 @@ while [[ $# -gt 0 ]]; do
     *) echo "argumento desconhecido: $1" >&2; usage; exit 2 ;;
   esac
 done
-export DRY_RUN EVIDENCE_DIR
+if [[ "${MGC_M03_MODE}" == 1 ]]; then
+  case "${ACTION}" in
+    up|verify|down) ;;
+    *) die '--m03 só pode acompanhar as ações up, verify ou down' ;;
+  esac
+fi
+export DRY_RUN EVIDENCE_DIR MGC_M03_MODE
 
 # ---- modo "status" global (sem lab): itera labs/*.sh ----
 if [[ "${LAB}" == "status" ]]; then
