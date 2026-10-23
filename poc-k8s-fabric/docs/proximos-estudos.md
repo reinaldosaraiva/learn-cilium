@@ -1,6 +1,6 @@
 # Próximos estudos — Cilium como motor de uma conexão dedicada com eBGP
 
-> Proposta de trilha (estudos E09–E20) escrita em 26/09/2026, depois do encerramento da
+> Proposta de trilha (estudos E09–E25) escrita em 26/09/2026, depois do encerramento da
 > trilha P003. Nada aqui foi executado. Cada estudo nasce de uma lacuna
 > registrada no [guia do estudante 2.0](lab-guide-student.md) ou de um
 > requisito técnico de um produto de conexão dedicada com eBGP (Direct
@@ -302,6 +302,129 @@ Fontes: [INV GA](https://isovalent.com/blog/post/isovalent-networking-for-virtua
 [lab Cilium + KubeVirt](https://isovalent.com/labs/cilium-kubevirt/),
 [KubeVirt v1.9.0](https://github.com/kubevirt/kubevirt/releases/tag/v1.9.0).
 
+### E21 — IPAM e tempo de implantação: VPC-native versus overlay
+
+**Estado:** BACKLOG — adicionado em 30/09/2026; não executado.
+
+Fonte: [Fleet-Scale Pod Deployment with VPC-Native Networking in Managed
+Kubernetes](https://arxiv.org/pdf/2608.22210). O artigo compara IPs secundários,
+pré-alocação de ENIs e delegação de prefixos no EKS, com Cilium e Calico como
+baselines overlay. Os warm pools diferem entre modos; os resultados não
+isolam apenas a granularidade da alocação.
+
+Hipótese a testar: manter endereços disponíveis antes do burst reduz o tempo
+até os pods ficarem Ready e a dependência de chamadas ao provedor.
+
+Ensaio proposto: primeiro revisar metodologia e capacidade; depois comparar
+bursts com imagem pré-carregada, recursos e versões fixados. Medir tempo até
+Ready, pods/s, latência CNI ADD, consumo de IPs e chamadas de provisionamento,
+incluindo throttling. Controle: variar warm pool dentro do mesmo modo; separar
+entrada de nós e provisionamento de pods. EKS depende de orçamento e ambiente
+dedicado aprovados; um ensaio local caracteriza apenas o braço overlay.
+
+Gate: resultados repetidos com dispersão, configuração completa e atribuição
+do gargalo; registrar explicitamente o que não foi reproduzido.
+
+### E22 — XLB: balanceamento L7 com eBPF na camada de sockets
+
+**Estado:** BACKLOG — adicionado em 30/09/2026; não executado.
+
+Fonte: [XLB: A High Performance Layer-7 Load Balancer for Microservices using
+eBPF-based In-kernel Interposition](https://arxiv.org/pdf/2602.09473). O artigo
+propõe interposição L7 no kernel, redirecionamento de sockets e mapas eBPF
+aninhados, comparando com configurações de Istio e Cilium.
+
+Hipótese a testar: reduzir movimentação de dados e escalonamento do proxy
+pode melhorar desempenho sem perder a semântica L7 e o isolamento exigidos.
+
+Ensaio proposto: verificar disponibilidade do código e requisitos de kernel;
+comparar acesso direto, proxy L7 e XLB em cadeias HTTP equivalentes. Fixar
+versões, políticas, conexões e posicionamento; conferir quais funções L7,
+TLS e protocolos cada braço realmente oferece. Medir throughput, p50/p95/p99,
+CPU, memória, erros e justiça entre serviços. Negativos: backend indisponível,
+regra de roteamento divergente e tentativa de acesso entre tenants.
+
+Gate: correção funcional e isolamento antes da comparação de desempenho;
+documentar diferenças de funcionalidades e limitações de reprodução.
+
+### E23 — Netkit versus veth no datapath de containers
+
+**Estado:** BACKLOG — adicionado em 30/09/2026; não executado.
+
+Fonte: [Netkit: Specializing Linux Packet Delivery for Container
+Networks](https://arxiv.org/pdf/2609.18633). O artigo especializa a entrega
+entre namespaces com eBPF, evitando travessias redundantes de backlog, e
+avalia sua integração com Cilium.
+
+Hipótese a testar: netkit reduz o custo da comunicação entre namespaces,
+preservando conectividade e políticas das aplicações existentes.
+
+Ensaio proposto: conferir suporte na combinação exata de kernel e Cilium;
+comparar veth e netkit em sandbox dedicado, no mesmo nó e entre nós, com
+conexões curtas e longas. Usar processos no mesmo namespace como referência.
+Fixar MTU, offloads, CPU e configuração do CNI; medir throughput, p50/p95/p99,
+CPU, softirq e drops. Negativos: política deny e tentativa de acesso cruzado
+entre tenants, com captura externa. Compatibilidade com KubeVirt fica como
+subensaio condicionado ao caminho suportado, sem assumir equivalência.
+
+Gate: conectividade e isolamento preservados, medições repetidas e limites
+registrados; rollback para o datapath original comprovado.
+
+### E24 — DRA no Cilium: alocação de recursos de rede por claim
+
+**Estado:** BACKLOG — adicionado em 30/09/2026; não executado.
+
+Fonte: branch [Cilium `feature/dra-driver`](https://github.com/cilium/cilium/tree/feature/dra-driver),
+consultada em 30/09/2026 no commit
+[`157b5331c727867fa009d8c6ec6ac8de92800ac9`](https://github.com/cilium/cilium/commit/157b5331c727867fa009d8c6ec6ac8de92800ac9).
+O [driver DRA](https://github.com/cilium/cilium/blob/157b5331c727867fa009d8c6ec6ac8de92800ac9/pkg/networkdriver/dra.go)
+implementa preparação e liberação de `ResourceClaim`, registro no kubelet e
+publicação de interface/IPs em `NetworkDeviceData`. A branch é a referência
+do estudo; isso não estabelece disponibilidade em release estável.
+
+Hipótese a testar: Dynamic Resource Allocation (DRA) permite declarar e
+acompanhar recursos de rede por claim, com alocação consistente, isolamento
+e liberação verificável durante o ciclo de vida do pod.
+
+Ensaio proposto: mapear arquitetura do driver, IPAM, CRDs, exemplos e testes;
+fixar commit, imagens e versão/API Kubernetes exigidas. Em cluster dedicado,
+exercitar claim válido, recurso indisponível, conflito entre claims e pool
+esgotado. Verificar interface/IP no namespace do pod, status do claim,
+conectividade e políticas. Testar repetição de prepare/unprepare, reinício
+do driver e exclusão de pod/claim, medindo recuperação e resíduos. Não
+pressupor suporte a hardware, SR-IOV ou KubeVirt sem confirmação no código.
+
+Gate: claim/status e estado real da rede consistentes, conflitos recusados,
+isolamento preservado, retries sem alocação duplicada e teardown sem IPs ou
+interfaces órfãos; rollback do cluster experimental comprovado.
+
+### E25 — Cilium/Hubble no RKE2: observabilidade do tráfego de microserviços
+
+**Estado:** BACKLOG — adicionado em 13/10/2026; não executado.
+
+Referência sugerida: [Cilium Hubble on RKE2: Microservice Traffic Observability
+(Seeing the Invisible)](https://dev.to/ezejioforog/cilium-hubble-on-rke2-microservice-traffic-observability-seeing-the-invisible-5glb),
+de George Ezejiofor. Complementa E17 com foco nos fluxos entre aplicações.
+Conferir a configuração nas fontes primárias de
+[Hubble](https://docs.cilium.io/en/stable/observability/hubble/setup/),
+[métricas](https://docs.cilium.io/en/stable/observability/metrics/) e
+[Cilium no RKE2](https://docs.rke2.io/networking/basic_network_options).
+
+Hipótese a testar: correlacionar identidade, verdicts e métricas permite
+distinguir falha da aplicação, conectividade e bloqueio por política.
+
+Ensaio proposto: RKE2 dedicado, versões e chart fixados, configuração via
+`HelmChartConfig`; habilitar Relay, UI e coleta Prometheus. Gerar tráfego
+HTTP/DNS permitido e negado, comparar CLI/mapa/métricas com logs e captura
+externa; contrastar L3/L4, HTTP com política L7 e tráfego TLS/mTLS. Medir
+custo, retenção/perda de eventos e indisponibilidade do Relay; verificar
+compatibilidade com AppArmor/KubeArmor sem copiar exceções de segurança do
+relato como solução geral.
+
+Gate: diagnóstico sustentado por evidências correlacionadas, limites de
+visibilidade e retenção registrados, isolamento preservado e rollback
+comprovado. Preparar acesso e redação de dados dos fluxos antes da coleta.
+
 ## 5. Ordem sugerida e ambiente
 
 | Ordem | Estudo | Ambiente | Depende de |
@@ -318,6 +441,11 @@ Fontes: [INV GA](https://isovalent.com/blog/post/isovalent-networking-for-virtua
 | 10 | E16 desenho de terminação | E15 | todos os anteriores |
 | 11 | E18 MTU/MACsec/QinQ | qualquer momento | nada |
 | paralelo | E20 KubeVirt × INV | sandbox + KubeVirt | nada; braço B depois do braço A |
+| backlog | E21 IPAM e implantação em escala | overlay local; EKS dedicado para braços VPC-native | revisão metodológica, capacidade e orçamento |
+| backlog | E22 XLB L7 | sandbox dedicado | código reproduzível e requisitos de kernel |
+| backlog | E23 netkit versus veth | sandbox dedicado | kernel/Cilium compatíveis e rollback |
+| backlog | E24 DRA no Cilium | cluster experimental dedicado | commit pinado, build reproduzível e API Kubernetes compatível |
+| backlog | E25 Hubble no RKE2 | RKE2 dedicado + microserviços de teste | versões/chart fixados, Prometheus e revisão de acesso aos fluxos |
 
 O FRR "cliente" é um container novo no sandbox, fora do cluster, com sessão
 ao border. Ele substitui o cliente HTTP nos ensaios de roteamento e permite
