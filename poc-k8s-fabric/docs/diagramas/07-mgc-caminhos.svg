@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 790" role="img" aria-labelledby="title desc">
+  <title id="title">Caminhos históricos da réplica MGC</title>
+  <desc id="desc">Diagrama lógico dos caminhos históricos M01/M02 do tenant pelos gateways até o cliente legado AS 200 e do caminho M03 entre tenant OVN e peer EVPN externo distinto. O Type 5 é controle; VXLAN é o caminho de dados. O desenho não representa disponibilidade atual.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,4 L0,8 z" fill="#176b87"/>
+    </marker>
+    <marker id="arrow-start" markerWidth="8" markerHeight="8" refX="1" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M8,0 L0,4 L8,8 z" fill="#176b87"/>
+    </marker>
+    <marker id="control-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,4 L0,8 z" fill="#8a4f00"/>
+    </marker>
+    <marker id="control-start" markerWidth="8" markerHeight="8" refX="1" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M8,0 L0,4 L8,8 z" fill="#8a4f00"/>
+    </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #142a3a; }
+      .title { font-size: 30px; font-weight: 700; }
+      .subtitle { font-size: 19px; fill: #344f60; }
+      .section { font-size: 20px; font-weight: 700; }
+      .head { font-size: 20px; font-weight: 700; }
+      .body { font-size: 18px; }
+      .small { font-size: 17px; }
+      .data { fill: none; stroke: #176b87; stroke-width: 4; marker-start: url(#arrow-start); marker-end: url(#arrow); }
+      .control { fill: none; stroke: #8a4f00; stroke-width: 3; stroke-dasharray: 10 8; marker-start: url(#control-start); marker-end: url(#control-arrow); }
+      .control-forward { fill: none; stroke: #8a4f00; stroke-width: 3; stroke-dasharray: 10 8; marker-end: url(#control-arrow); }
+      .tenant { fill: #e7f3f7; stroke: #176b87; stroke-width: 2.5; }
+      .gateway { fill: #f1f0fb; stroke: #5a4c9c; stroke-width: 2.5; }
+      .client { fill: #fff3dc; stroke: #a66400; stroke-width: 2.5; }
+      .zone { fill: #ffffff; stroke: #c7d3dc; stroke-width: 1.5; }
+      .label-bg { fill: #ffffff; opacity: 0.94; }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1120" height="790" fill="#f7f9fb"/>
+  <text x="40" y="48" class="title">Réplica MGC: dois caminhos medidos</text>
+  <text x="40" y="78" class="subtitle">Topologia lógica e resultados históricos de 27–29/09/2026; sem indicação de disponibilidade atual.</text>
+
+  <rect x="24" y="104" width="1072" height="330" rx="16" class="zone"/>
+  <text x="44" y="136" class="section">M01/M02 · cliente legado AS 200</text>
+
+  <rect x="48" y="160" width="290" height="194" rx="14" class="tenant"/>
+  <text x="70" y="192" class="head">Tenant OVN</text>
+  <text x="70" y="222" class="body">VPC 192.168.100.0/24</text>
+  <text x="70" y="250" class="body">VM fake 192.168.100.10</text>
+  <text x="70" y="284" class="small">Logical router + 2 rotas ECMP</text>
+  <text x="70" y="316" class="small">Não é uma VM KubeVirt</text>
+  <text x="70" y="340" class="small">OVN: 1 central · 2 chassis</text>
+
+  <rect x="405" y="155" width="270" height="104" rx="14" class="gateway"/>
+  <text x="427" y="186" class="head">Gateway 1</text>
+  <text x="427" y="215" class="body">Linux VRF ovnvrf100</text>
+  <text x="427" y="242" class="small">VLAN 100 · FRR no gateway</text>
+
+  <rect x="405" y="286" width="270" height="104" rx="14" class="gateway"/>
+  <text x="427" y="317" class="head">Gateway 2</text>
+  <text x="427" y="346" class="body">Linux VRF ovnvrf200</text>
+  <text x="427" y="373" class="small">VLAN 200 · FRR no gateway</text>
+
+  <rect x="790" y="206" width="274" height="142" rx="14" class="client"/>
+  <text x="813" y="240" class="head">Cliente legado</text>
+  <text x="813" y="272" class="body">FRR AS 200</text>
+  <text x="813" y="301" class="body">Anuncia 10.0.0.0/16</text>
+  <text x="813" y="330" class="small">Par dos gateways MGC</text>
+
+  <path d="M338 208 C365 208 374 207 405 207" class="data"/>
+  <path d="M338 306 C365 306 374 338 405 338" class="data"/>
+  <path d="M675 207 C717 207 739 252 790 252" class="data"/>
+  <path d="M675 338 C718 338 742 302 790 302" class="data"/>
+  <path d="M675 177 C724 148 741 225 790 225" class="control"/>
+  <path d="M675 368 C726 397 740 329 790 329" class="control"/>
+  <rect x="682" y="143" width="98" height="28" rx="7" class="label-bg"/>
+  <text x="690" y="163" class="small">BGP · AS 100/200</text>
+  <text x="45" y="420" class="small">Setas sólidas: dados; tracejadas: controle BGP/EVPN. Os gateways usam VRFs Linux distintas.</text>
+
+  <rect x="24" y="455" width="1072" height="300" rx="16" class="zone"/>
+  <text x="44" y="489" class="section">M03 · EVPN Type 5 + VXLAN entre tenant OVN e peer externo</text>
+
+  <rect x="50" y="520" width="282" height="128" rx="14" class="tenant"/>
+  <text x="72" y="552" class="head">Tenant OVN</text>
+  <text x="72" y="583" class="body">192.168.100.0/24</text>
+  <text x="72" y="614" class="small">VNI 50100</text>
+
+  <rect x="782" y="520" width="282" height="128" rx="14" class="client"/>
+  <text x="804" y="552" class="head">Peer FRR externo</text>
+  <text x="804" y="583" class="body">Recebe Type 5</text>
+  <text x="804" y="614" class="small">Distinto do cliente legado</text>
+
+  <path d="M332 570 H782" class="control-forward"/>
+  <rect x="438" y="545" width="238" height="28" rx="6" class="label-bg"/>
+  <text x="451" y="565" class="small">Controle: EVPN Type 5</text>
+  <path d="M782 620 H332" class="data"/>
+  <rect x="462" y="596" width="190" height="28" rx="6" class="label-bg"/>
+  <text x="477" y="616" class="small">Dados: VXLAN/UDP 4789</text>
+  <text x="45" y="679" class="small">A7 filtrou connected na redistribuição; a origem da rota não virou static.</text>
+  <text x="45" y="710" class="small">Ping: positivo 30/30 · causal 0/3 · restaurado 3/3; VNI literal: NOT_RUN.</text>
+</svg>

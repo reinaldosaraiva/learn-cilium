@@ -1,7 +1,14 @@
 # Kit do laboratório Cilium + BGP
 
-Este diretório contém o cenário reproduzível usado pelo [guia do
-estudante 2.0](docs/lab-guide-student.md). O objetivo didático começa por
+Este diretório reúne materiais para os exercícios guiados dos módulos 1–11 do
+[guia do estudante 2.1](docs/lab-guide-student.md), baseados nos ambientes
+documentados em P001–P003. O módulo 12 é leitura histórica do estudo com nós
+reais na nuvem; essa infraestrutura fica fora da aula. O módulo 13 lê os
+resultados históricos da réplica MGC/OVN/FRR de P004-S002 (concluída com PASS
+em 23/10/2026; o perfil `labctl/labs/mgc.sh` e os artefatos de `studies/p004/ovn/`
+acompanham o checkout como referência de instrutor).
+
+O objetivo didático começa por
 observar um cluster Kubernetes kind ligado a um fabric leaf–spine e entender a
 diferença entre o PodCIDR que o Cilium anuncia e a VIP `/32` de um Service; os
 módulos seguintes cobrem Gateway API, autorização, criptografia, tenants, IPAM
@@ -80,7 +87,13 @@ Veja o [resumo público dos resultados](docs/lab-results.md) e as propostas de
 de um produto de conexão dedicada com eBGP. A comparação `/24` × `/32` e o
 tenant híbrido com VMs OpenStack já foram executados e estão no guia.
 
-O [índice público dos estudos P003](docs/estudos/README.md) reúne o planejamento
-completo, a pesquisa, o contrato, o protocolo e os dossiês E00–E08. Gateway API
-é a primeira etapa; o preflight e os experimentos continuam sem execução nesta
-publicação.
+O [índice público dos estudos P003](docs/estudos/README.md) reúne planejamento,
+pesquisa, contrato, protocolo e dossiês. A trilha P003 foi encerrada em
+25/09/2026; seus resultados estão resumidos no guia e nas sínteses publicadas
+da [E08](docs/estudos/08-lifecycle-synthesis.md) e do [caso
+C5](docs/estudos/09-vm-outside-container.md). O modelo S002 de preflight é
+somente documental e não descreve o estado atual de uma VM. P004 é uma trilha
+separada: o `labctl` comum foi validado em S001 e a réplica MGC/OVN+FRR fechou
+com **PASS** em S002 (23/10/2026, com M01–M03 e X05 aceitos e perfil `labctl mgc`
+publicado); os braços OVN-Kubernetes e Cilium+KubeVirt seguem em S003–S005.
+Consulte a [síntese pública MGC](docs/estudos/20-mgc-estado-parcial.md).

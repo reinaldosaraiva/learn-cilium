@@ -16,19 +16,24 @@ O laboratório responde duas perguntas simples:
 - como um Service LoadBalancer recebe um VIP `/32` e pode ser alcançado por
   múltiplos caminhos ECMP.
 
-O [guia do estudante 2.0](poc-k8s-fabric/docs/lab-guide-student.md) consolida
-em doze módulos tudo o que foi executado e validado nas três trilhas do
-projeto: BGP base e VIP anycast, dual-stack, falhas e Graceful Restart, escala,
-Gateway API HTTP/TCP/UDP, ExternalAuth, WireGuard, tenants, Multi-Pool IPAM
-`/24` versus `/32`, tenant híbrido com VMs OpenStack e nós reais na nuvem. Os
-[diagramas](poc-k8s-fabric/docs/diagramas/README.md) mostram a topologia e o
-caminho do tráfego. O [resumo de resultados](poc-k8s-fabric/docs/lab-results.md)
-separa a reconstrução atual de medições históricas.
+O [guia do estudante 2.1](poc-k8s-fabric/docs/lab-guide-student.md) organiza os
+módulos 1–11 como exercícios guiados apoiados nos estudos P001–P003. O módulo
+12 é leitura histórica do estudo com nós reais na nuvem, cuja infraestrutura
+fica fora da aula; o módulo 13 lê os resultados da réplica MGC/OVN/FRR de
+P004-S002 (concluída com **PASS** em 23/10/2026: M01–M03, X05 com CIDRs
+sobrepostos em EVPN Type 5 e medição de capacidade). Os braços OVN-Kubernetes +
+KubeVirt e Cilium + KubeVirt e a comparação final com INV seguem nas sessões
+P004-S003 a S005. Os
+[diagramas](poc-k8s-fabric/docs/diagramas/README.md) mostram a topologia e os
+caminhos históricos. O [resumo de resultados](poc-k8s-fabric/docs/lab-results.md)
+separa a reconstrução de 19/09 das medições históricas; veja também a
+[síntese pública MGC](poc-k8s-fabric/docs/estudos/20-mgc-estado-parcial.md).
 
 O [índice de estudos P003](poc-k8s-fabric/docs/estudos/README.md) conserva o
-planejamento, as matrizes e o processo; as sínteses publicadas são a
-[E08](poc-k8s-fabric/docs/estudos/08-lifecycle-synthesis.md) e o
-[caso C5](poc-k8s-fabric/docs/estudos/09-vm-outside-container.md).
+planejamento, as matrizes e o processo. Os resultados publicados incluem a
+[E08](poc-k8s-fabric/docs/estudos/08-lifecycle-synthesis.md), o [caso
+C5](poc-k8s-fabric/docs/estudos/09-vm-outside-container.md) e os demais
+achados resumidos no guia.
 
 ## Começar
 

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 720" role="img" aria-labelledby="title desc">
+  <title id="title">Estado público de P004 em 23 de outubro de 2026</title>
+  <desc id="desc">P004-S001 (labctl) e P004-S002 (MGC M01 a M03, X05 com CIDRs sobrepostos e capacidade) fecharam com PASS. Os braços OVN-Kubernetes (S003), Cilium + KubeVirt (S004) e a matriz final INV (S005) seguem nas próximas sessões.</desc>
+  <defs>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #142a3a; }
+      .title { font-size: 30px; font-weight: 700; }
+      .subtitle { font-size: 19px; fill: #344f60; }
+      .head { font-size: 22px; font-weight: 700; }
+      .status { font-size: 18px; font-weight: 700; letter-spacing: 0.3px; }
+      .body { font-size: 18px; }
+      .small { font-size: 17px; }
+      .card { stroke-width: 2.5; }
+      .mgc { fill: #eaf4e8; stroke: #44723f; }
+      .planned { fill: #eef2f6; stroke: #687988; }
+      .pending { fill: #fff3dc; stroke: #a66400; }
+      .open { fill: #f9e9e8; stroke: #a43d36; }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1120" height="720" fill="#f7f9fb"/>
+  <text x="40" y="48" class="title">P004: S002 concluída (PASS) e próximos braços</text>
+  <text x="40" y="78" class="subtitle">Checkpoint público de 23/10/2026 · P004-S001 e P004-S002 PASS</text>
+
+  <rect x="40" y="110" width="330" height="270" rx="16" class="card mgc"/>
+  <text x="64" y="147" class="head">MGC + OVN + FRR</text>
+  <text x="64" y="179" class="status">S002 COMPLETO · PASS</text>
+  <text x="64" y="218" class="body">S001 · labctl PASS · 27/09</text>
+  <text x="64" y="251" class="body">M01 · PASS com exceção</text>
+  <text x="64" y="284" class="body">M02 · PASS no escopo aceito</text>
+  <text x="64" y="317" class="body">M03 · PASS causal · 29/09</text>
+  <text x="64" y="352" class="body">X05 · PASS (23/10) · 0,54 GiB</text>
+
+  <rect x="395" y="110" width="330" height="270" rx="16" class="card pending"/>
+  <text x="419" y="147" class="head">OVN-K + UDN</text>
+  <text x="419" y="179" class="status">EM EXECUÇÃO (S003)</text>
+  <text x="419" y="221" class="body">EVPN + KubeVirt</text>
+  <text x="419" y="255" class="body">Casos K01 a K04</text>
+  <text x="419" y="297" class="small">UDN com CIDR sobreposto,</text>
+  <text x="419" y="326" class="small">live migration e Type 5</text>
+
+  <rect x="750" y="110" width="330" height="270" rx="16" class="card planned"/>
+  <text x="774" y="147" class="head">Cilium + KubeVirt</text>
+  <text x="774" y="179" class="status">PLANEJADO (S004)</text>
+  <text x="774" y="221" class="body">Braços OSS + FRR</text>
+  <text x="774" y="255" class="body">Casos V00 a V09</text>
+  <text x="774" y="297" class="small">Nenhum resultado MGC</text>
+  <text x="774" y="326" class="small">é transferível por inferência</text>
+
+  <rect x="40" y="414" width="660" height="226" rx="16" class="card mgc"/>
+  <text x="64" y="451" class="head">X05 · isolamento com CIDRs sobrepostos</text>
+  <text x="64" y="485" class="status">ACEITO · PASS EM 23/10/2026 (c9d0e1 + b8c9d0)</text>
+  <text x="64" y="523" class="body">192.168.100.0/24 em VNI 50100 e VNI 50200: 30/30 intra-tenant.</text>
+  <text x="64" y="557" class="body">Cross-tenant: 0/3 nos 4 sentidos e 0 pacotes no destino.</text>
+  <text x="64" y="598" class="small">Rollback canônico G7+G8 com 0 resíduos; Router MAC 02:00:00:20:00:01.</text>
+
+  <rect x="725" y="414" width="355" height="226" rx="16" class="card planned"/>
+  <text x="749" y="451" class="head">Qualificação e síntese</text>
+  <text x="749" y="489" class="body">D1 · Q0–Q4 QUALIFIED PASS</text>
+  <text x="749" y="523" class="body">D2 · manifesto v758B pinado</text>
+  <text x="749" y="557" class="body">INV × aberto · síntese final</text>
+  <text x="749" y="585" class="body">prevista em P004-S005</text>
+
+  <text x="42" y="680" class="small">Leitura histórica datada (23/10/2026); sem afirmação sobre disponibilidade atual da VM.</text>
+</svg>

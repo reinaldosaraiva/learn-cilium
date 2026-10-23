@@ -1,8 +1,10 @@
 # Próximos estudos — Cilium como motor de uma conexão dedicada com eBGP
 
 > Proposta de trilha (estudos E09–E25) escrita em 26/09/2026, depois do encerramento da
-> trilha P003. Nada aqui foi executado. Cada estudo nasce de uma lacuna
-> registrada no [guia do estudante 2.0](lab-guide-student.md) ou de um
+> trilha P003. E09–E19 e E21–E25 permanecem propostas. O braço MGC/OVN+FRR de E20
+> foi concluído com **PASS** em P004-S002 (23/10/2026: M01–M03 e X05 aceitos); veja a
+> [síntese pública MGC](estudos/20-mgc-estado-parcial.md). Cada estudo nasce de uma lacuna
+> registrada no [guia do estudante 2.1](lab-guide-student.md) ou de um
 > requisito técnico de um produto de conexão dedicada com eBGP (Direct
 > Connect), e cita a fonte primária que sustenta a hipótese. Dados
 > comerciais do produto ficam fora desta edição pública.
@@ -296,6 +298,13 @@ Gate: tabela "Cilium OSS × Cilium + FRR × INV" com evidência por linha. As
 linhas que só o INV cobre (CIDR sobreposto, IP preservado em migração,
 identidade propagada ao fabric) viram os critérios de aceite de uma PoC do
 produto.
+
+#### Estado público do E20 em 23/10/2026
+
+A etapa MGC/OVN+FRR de P004 foi concluída com **PASS** em 23/10/2026:
+- **P004-S001 (27/09/2026):** aprovou o ciclo comum do `labctl`.
+- **P004-S002 (23/10/2026, PASS):** publicou o perfil `labctl mgc` (`labctl/labs/mgc.sh`) e o harness auditável de `X05` (`studies/p004/ovn/`); registrou M01 como PASS com exceção, M02 como PASS sob o escopo aceito, M03 como PASS com controle negativo causal e **X05 como PASS** (run `c9d0e1` `G0→G8 RC=0` + prova negativa de rollback `b8c9d0` `G7+G8 PASS`), comprovando isolamento entre dois tenants com CIDRs sobrepostos (`192.168.100.0/24` e `/30` `169.254.254.0/30`) em EVPN Type 5 (`VNI 50100` versus `VNI 50200`, `30/30` intra-tenant, `0/3` cross-tenant com `0` pacotes no destino e `0` resíduos pós-rollback), além da pegada de memória (`0,539 GiB` para `mgc` + OVS host; `6,38 GiB` livres com `k01` + `p003-gw` + `mgc` simultâneos).
+- **Próximas etapas de P004:** os braços OVN-Kubernetes + UDN + EVPN + KubeVirt (`P004-S003`), Cilium OSS + KubeVirt + FRR (`P004-S004`) e a matriz comparativa final `INV × equivalente aberto` (`P004-S005`) seguem nas sessões subsequentes. Consulte a [síntese pública MGC](estudos/20-mgc-estado-parcial.md) para os resultados e limites completos.
 
 Fontes: [INV GA](https://isovalent.com/blog/post/isovalent-networking-for-virtualization/),
 [INV com Nexus One](https://www.cisco.com/c/en/us/products/collateral/networking/cloud-networking/nx-os/isovalent-net-v12n-int-n-one-fabric-so.html),
