@@ -1,0 +1,18 @@
+tags:
+  ovn-ipsec: false
+  ovnkube-single-node-zone-dpu: false
+  ovnkube-node-dpu-host: false
+  ovnkube-single-node-zone: true
+global:
+  image:
+    repository: ghcr.io/ovn-kubernetes/ovn-kubernetes/ovn-kube-ubuntu
+    tag: release-1.4
+    pullPolicy: IfNotPresent
+  gatewayMode: local
+  enableMultiNetwork: true
+  enableNetworkSegmentation: true
+  enableRouteAdvertisements: true
+  enableEVPN: true
+  enablePersistentIPs: true
+  enablePreconfiguredUDNAddresses: true
+  enableHybridOverlay: false

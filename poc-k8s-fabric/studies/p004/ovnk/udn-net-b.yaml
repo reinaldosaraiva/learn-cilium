@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-b
+  labels:
+    k8s.ovn.org/primary-user-defined-network: ""
+    tenant: tenant-b
+---
+apiVersion: k8s.ovn.org/v1
+kind: UserDefinedNetwork
+metadata:
+  name: udn-net-b
+  namespace: tenant-b
+spec:
+  topology: Layer2
+  layer2:
+    role: Primary
+    subnets:
+      - "10.0.0.0/24"
+    ipam:
+      lifecycle: Persistent

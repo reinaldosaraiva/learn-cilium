@@ -12,7 +12,7 @@ sudo LAB_ROOT=/opt/poc-k8s-fabric /caminho/para/labctl <lab> <acao> [--dry-run] 
 sudo LAB_ROOT=/opt/poc-k8s-fabric /caminho/para/labctl status
 ```
 
-- **Labs:** `k01`, `p003-gw`, `openstack`.
+- **Labs:** `k01`, `mgc`, `p003-gw`, `openstack`, `evpn-fabric`, `ovnk`.
 - **Ações:** `preflight`, `up`, `verify`, `down`, `status`, `resources`.
 - `--dry-run` imprime cada mutação com prefixo `DRY:` e não executa nenhuma.
 - `--evidence DIR` grava comando, saída, duração e memória antes/depois
@@ -28,8 +28,11 @@ sudo LAB_ROOT=/opt/poc-k8s-fabric /caminho/para/labctl status
 ## Perfis
 
 - **k01** — lab de referência (fabric SR Linux + kind + Cilium dual-stack + BGP).
+- **mgc** — réplica MGC Connect OVN 26.03.3 + OVS 3.7 + FRR (`M01–M03`, `--m03`).
 - **p003-gw** — sandbox Cilium 1.20.2 + Gateway API + BGP (VIP 10.202.255.10).
 - **openstack** — testbed `p003-os` (só `status`/`down`/`up`; nunca rebuild).
+- **evpn-fabric** — fabric standalone OVN 26.03 + FRR 10.7 EVPN/BGP multi-VRF (`10.0.0.0/24` same-CIDR, VNI 10100/10200).
+- **ovnk** — Kind 3 nós + OVN-Kubernetes v1.4.0 (`UDN`, `EVPN`, `RouteAdvertisements`) + KubeVirt v1.9.0 (KVM real) + `frr-k8s` v0.0.27 (`K01–K04`).
 
 ## Lições operacionais (L1–L7)
 

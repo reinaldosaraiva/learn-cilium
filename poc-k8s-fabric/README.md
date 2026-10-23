@@ -93,7 +93,10 @@ pesquisa, contrato, protocolo e dossiês. A trilha P003 foi encerrada em
 da [E08](docs/estudos/08-lifecycle-synthesis.md) e do [caso
 C5](docs/estudos/09-vm-outside-container.md). O modelo S002 de preflight é
 somente documental e não descreve o estado atual de uma VM. P004 é uma trilha
-separada: o `labctl` comum foi validado em S001 e a réplica MGC/OVN+FRR fechou
+separada: o `labctl` comum foi validado em S001, a réplica MGC/OVN+FRR fechou
 com **PASS** em S002 (23/10/2026, com M01–M03 e X05 aceitos e perfil `labctl mgc`
-publicado); os braços OVN-Kubernetes e Cilium+KubeVirt seguem em S003–S005.
+publicado), e o braço OVN-Kubernetes + KubeVirt + EVPN fechou com **PASS** em
+S003 (23/10/2026, com perfis `labctl evpn-fabric` e `labctl ovnk` e matriz
+`K01–K04` em `studies/p004/evpn-fabric/` e `studies/p004/ovnk/`); os casos
+cruzados (`X01–X04`, `X06`, `X07`) e Cilium+KubeVirt seguem em S004–S008.
 Consulte a [síntese pública MGC](docs/estudos/20-mgc-estado-parcial.md).

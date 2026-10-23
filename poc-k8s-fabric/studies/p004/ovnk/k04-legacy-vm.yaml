@@ -1,0 +1,80 @@
+apiVersion: k8s.cni.cncf.io/v1alpha1
+kind: IPAMClaim
+metadata:
+  name: vm-legacy-udn
+  namespace: tenant-a
+spec:
+  network: tenant-a_udn-net-a
+  interface: ovn-udn1
+---
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: vm-legacy
+  namespace: tenant-a
+  labels:
+    app: vm-legacy
+    tenant: tenant-a
+spec:
+  runStrategy: Always
+  template:
+    metadata:
+      labels:
+        kubevirt.io/domain: vm-legacy
+        app: vm-legacy
+        tenant: tenant-a
+      annotations:
+        k8s.ovn.org/openflow-ports: ""
+        v1.multus-cni.io/default-network: '[{"namespace":"ovn-kubernetes","name":"default","ips":["10.0.0.99/24"],"mac":"02:00:10:00:01:99","ipam-claim-reference":"vm-legacy-udn"}]'
+    spec:
+      domain:
+        cpu:
+          cores: 1
+        resources:
+          requests:
+            memory: 192Mi
+        devices:
+          autoattachSerialConsole: true
+          logSerialConsole: true
+          disks:
+            - name: containerdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              binding:
+                name: l2bridge
+              macAddress: "02:00:10:00:01:99"
+            - name: legacy-net
+              binding:
+                name: l2bridge
+              macAddress: "02:00:c0:a8:64:0b"
+      networks:
+        - name: default
+          pod: {}
+        - name: legacy-net
+          multus:
+            networkName: tenant-a/evpn-nad-fabric
+      volumes:
+        - name: containerdisk
+          containerDisk:
+            image: quay.io/kubevirt/cirros-container-disk-demo:v1.9.0
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #!/bin/sh
+              for dev in /sys/class/net/*; do
+                ifname="$(basename "$dev")"
+                mac="$(cat "$dev/address" 2>/dev/null | tr 'A-F' 'a-f')"
+                if [ "$mac" = "02:00:10:00:01:99" ]; then
+                  ip link set "$ifname" up
+                  ip addr replace 10.0.0.99/24 dev "$ifname"
+                  nohup sh -c "while true; do ip -4 -o addr show dev $ifname | awk '{print \"GUEST_OS_IP=\" \$4}' > /dev/ttyS0 2>/dev/null || true; sleep 2; done" >/dev/null 2>&1 &
+                elif [ "$mac" = "02:00:c0:a8:64:0b" ]; then
+                  ip link set "$ifname" up
+                  ip addr replace 192.168.100.11/24 dev "$ifname"
+                fi
+              done

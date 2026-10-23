@@ -31,7 +31,7 @@ Uso:
   labctl <lab> <acao> [--m03] [--dry-run] [--evidence DIR]
   labctl status
 
-Labs:  k01, mgc, p003-gw, openstack
+Labs:  k01, mgc, p003-gw, openstack, evpn-fabric, ovnk
 Ações: preflight, up, verify, down, status, resources
 
 Flags:

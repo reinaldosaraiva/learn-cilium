@@ -1,0 +1,21 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: ovnk
+networking:
+  disableDefaultCNI: true
+  kubeProxyMode: "none"
+  podSubnet: "10.244.0.0/16"
+  serviceSubnet: "10.96.0.0/16"
+nodes:
+  - role: control-plane
+    extraMounts:
+      - hostPath: /dev/kvm
+        containerPath: /dev/kvm
+  - role: worker
+    extraMounts:
+      - hostPath: /dev/kvm
+        containerPath: /dev/kvm
+  - role: worker
+    extraMounts:
+      - hostPath: /dev/kvm
+        containerPath: /dev/kvm
