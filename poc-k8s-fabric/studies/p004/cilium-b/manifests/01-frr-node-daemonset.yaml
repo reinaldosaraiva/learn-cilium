@@ -1,0 +1,186 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frr-node-config
+  namespace: kube-system
+  labels:
+    app: frr-node
+    study: P004
+data:
+  start-frr.sh: |
+    #!/bin/sh
+    set -eu
+
+    FRR_BIN_DIR=""
+    for d in /usr/lib/frr /usr/libexec/frr; do
+      if [ -x "${d}/mgmtd" ] && [ -x "${d}/bgpd" ] && [ -x "${d}/zebra" ]; then
+        FRR_BIN_DIR="${d}"
+        break
+      fi
+    done
+    if [ -z "${FRR_BIN_DIR}" ]; then
+      echo "ERROR: FRR binaries (mgmtd/zebra/bgpd) not found" >&2
+      exit 1
+    fi
+
+    NODE_ETH1_IP="$(ip -4 -o addr show dev eth1 | awk '{split($4,a,"/"); print a[1]}' | head -n 1)"
+    if [ -z "${NODE_ETH1_IP}" ]; then
+      echo "ERROR: eth1 IPv4 address not found on node $(hostname)" >&2
+      exit 1
+    fi
+
+    case "${NODE_ETH1_IP}" in
+      10.30.1.*)
+        FRR_ASN=65301
+        CILIUM_LOCAL_ASN=65311
+        LEAF_IP="10.30.1.1"
+        LEAF_ASN=65201
+        INTERNAL_NH="10.30.1.254"
+        ;;
+      10.30.2.*)
+        FRR_ASN=65302
+        CILIUM_LOCAL_ASN=65312
+        LEAF_IP="10.30.2.1"
+        LEAF_ASN=65202
+        INTERNAL_NH="10.30.2.254"
+        ;;
+      *)
+        echo "ERROR: unexpected eth1 IP ${NODE_ETH1_IP}" >&2
+        exit 1
+        ;;
+    esac
+
+    ip addr replace 10.255.255.1/30 dev lo
+
+    mkdir -p /etc/frr /var/run/frr /var/log/frr
+    chown -R frr:frr /etc/frr /var/run/frr /var/log/frr 2>/dev/null || true
+
+    cat >/etc/frr/vtysh.conf <<EOF
+    service integrated-vtysh-config
+    hostname $(hostname)-frr
+    EOF
+
+    cat >/etc/frr/frr.conf <<EOF
+    frr defaults traditional
+    hostname $(hostname)-frr
+    log file /var/log/frr/frr.log informational
+    service integrated-vtysh-config
+    !
+    route-map RM-NO-KERNEL deny 10
+    !
+    ip protocol bgp route-map RM-NO-KERNEL
+    !
+    route-map RM-DENY-ALL deny 10
+    !
+    route-map RM-FROM-CILIUM permit 10
+     set ip next-hop ${INTERNAL_NH}
+    !
+    route-map RM-TO-FABRIC permit 10
+     set ip next-hop ${NODE_ETH1_IP}
+    !
+    router bgp ${FRR_ASN}
+     bgp router-id ${NODE_ETH1_IP}
+     no bgp ebgp-requires-policy
+     timers bgp 3 9
+     neighbor CILIUM peer-group
+     neighbor CILIUM remote-as ${CILIUM_LOCAL_ASN}
+     neighbor CILIUM description cilium-gobgp-local
+     neighbor CILIUM update-source 10.255.255.1
+     neighbor CILIUM disable-connected-check
+     neighbor CILIUM ebgp-multihop 2
+     neighbor CILIUM timers 3 9
+     bgp listen range 10.255.255.0/30 peer-group CILIUM
+     neighbor ${LEAF_IP} remote-as ${LEAF_ASN}
+     neighbor ${LEAF_IP} description fabric-leaf
+     neighbor ${LEAF_IP} disable-connected-check
+     neighbor ${LEAF_IP} port 179
+     neighbor ${LEAF_IP} timers 3 9
+     neighbor ${LEAF_IP} timers connect 3
+     !
+     address-family ipv4 unicast
+      table-map RM-NO-KERNEL
+      neighbor CILIUM activate
+      neighbor CILIUM soft-reconfiguration inbound
+      neighbor CILIUM route-map RM-FROM-CILIUM in
+      neighbor CILIUM route-map RM-DENY-ALL out
+      neighbor ${LEAF_IP} activate
+      neighbor ${LEAF_IP} next-hop-self force
+      neighbor ${LEAF_IP} route-map RM-DENY-ALL in
+      neighbor ${LEAF_IP} route-map RM-TO-FABRIC out
+     exit-address-family
+    !
+    line vty
+    !
+    EOF
+    chown -R frr:frr /etc/frr 2>/dev/null || true
+
+    "${FRR_BIN_DIR}/mgmtd" -d -A 127.0.0.1
+    "${FRR_BIN_DIR}/zebra" -d -A 127.0.0.1 -f /dev/null
+    "${FRR_BIN_DIR}/bgpd" -d -p 1790 -A 127.0.0.1 -f /dev/null
+    sleep 1
+    vtysh -b
+
+    term_handler() {
+      killall -q bgpd zebra mgmtd 2>/dev/null || true
+      exit 0
+    }
+    trap term_handler INT TERM
+
+    while true; do
+      if ! pidof mgmtd >/dev/null 2>&1 || ! pidof zebra >/dev/null 2>&1 || ! pidof bgpd >/dev/null 2>&1; then
+        echo "ERROR: mgmtd, zebra, or bgpd exited unexpectedly" >&2
+        exit 1
+      fi
+      sleep 2
+    done
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: frr-node
+  namespace: kube-system
+  labels:
+    app: frr-node
+    study: P004
+spec:
+  selector:
+    matchLabels:
+      app: frr-node
+  template:
+    metadata:
+      labels:
+        app: frr-node
+        study: P004
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: frr
+          image: quay.io/frrouting/frr:10.7.1@sha256:9aeb1c4947207a3d405674c4de06451d8b7e0d00e6f7d1f8e61e7354273efc63
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "/scripts/start-frr.sh"]
+          securityContext:
+            privileged: true
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "vtysh -c 'show bgp summary' >/dev/null 2>&1"
+            initialDelaySeconds: 2
+            periodSeconds: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+          volumeMounts:
+            - name: frr-scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: frr-scripts
+          configMap:
+            name: frr-node-config
+            defaultMode: 0755

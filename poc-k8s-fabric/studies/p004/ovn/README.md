@@ -69,3 +69,14 @@ intervenção explícita; o perfil não adota o cluster apenas pelo nome.
 4. Os nomes dos dispositivos EVPN (`br-evpn-tenant`, `vxlan-tenant` e
    `evpn-tenant`) são aceitos pelo controller OVN 26.03.3; a presença no NB é
    estrutural e o datapath é gate da cápsula M03.
+
+## Resultados Consolidados ao Vivo (`P004-S002`, **PASS** em 23/10/2026)
+
+| Caso | Script | Descrição | Resultado ao vivo (`vm-cilium`) |
+|---|---|---|---|
+| `M01` | `m01.sh` | Sessão BGP/BFD (`AS 100` ↔ `AS 200`), ECMP `2` caminhos, withdraw, parada de daemons FRR em `ovn-gw-1` e parada do gateway sob `A5` (`ecmp_symmetric_reply`) | **PASS sob A5** (baseline BGP `2/2`, ECMP `2`, ping `30/30`; failover via `gw2` com `30/30` replies em cada falha e recuperação limpa) |
+| `M02` | `m02.sh` | `gateway_mtu` `1500` vs `9000` nas LRPs de saída com `ping -M do -s 8972` (`9000 B` IPv4 / `9014 B` L2) | **PASS sob A6** (em `1500`: `0/30` jumbo c/ `ICMP Frag Needed MTU 1500`; em `9000`: `30/30` jumbo c/ quadros `9018 B` VLAN / `9014 B` cliente; rollback a `1500`) |
+| `M03` | `m03.sh` | VPC OVN anunciada como EVPN Type 5 (`192.168.100.0/24`, `VNI 50100`) e controle negativo causal sob `A7` (`dynamic-routing-redistribute=static`) | **PASS sob A7** (`30/30` ping EVPN via VXLAN `4789`; override `static` retira Type 5 e `0/3` ping preservando rotas colaterais; restauração `3/3` e rollback limpo) |
+| `X05` | `x05.sh` / `x05-orchestrate.py` | Dois clientes on-prem anunciando **o mesmo CIDR** `192.168.0.0/24` e `/30` (`169.254.254.0/30`) em VRFs/VNIs distintas do MGC Connect | **PASS** (`c9d0e1` `G0→G8 RC=0` + prova de rollback negativo `b8c9d0` `G7+G8 PASS`; `0` pacotes vazados entre tenants) |
+
+Consulte a síntese completa em [`docs/estudos/20-mgc-estado-parcial.md`](../../../docs/estudos/20-mgc-estado-parcial.md) e [`docs/lab-results.md`](../../../docs/lab-results.md).

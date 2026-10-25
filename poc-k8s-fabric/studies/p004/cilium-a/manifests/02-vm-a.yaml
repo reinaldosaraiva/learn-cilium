@@ -1,0 +1,107 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: vm-a
+  namespace: p004-vm-a
+  labels:
+    app: p004-vm-a
+    kubevirt.io/domain: vm-a
+    study: P004
+spec:
+  runStrategy: Always
+  template:
+    metadata:
+      labels:
+        app: p004-vm-a
+        kubevirt.io/domain: vm-a
+        study: P004
+    spec:
+      evictionStrategy: LiveMigrate
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - p003-gw-worker
+                      - p003-gw-worker2
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - p003-gw-worker
+      domain:
+        cpu:
+          cores: 1
+        resources:
+          requests:
+            memory: 192Mi
+        devices:
+          autoattachSerialConsole: true
+          logSerialConsole: true
+          disks:
+            - name: containerdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: containerdisk
+          containerDisk:
+            image: quay.io/kubevirt/cirros-container-disk-demo:v1.9.0
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #!/bin/sh
+              ip link set eth0 up
+              if ! ip -4 addr show dev eth0 | grep -q '10\.0\.2\.'; then
+                udhcpc -i eth0 -n -q >/dev/null 2>&1 || true
+              fi
+              cat >/tmp/http8080.sh <<'EOF'
+              #!/bin/sh
+              rm -f /tmp/httpfifo
+              mkfifo /tmp/httpfifo
+              while true; do
+                body="VM_OK host=$(hostname) vm=vm-a guest_ip=$(ip -4 -o addr show dev eth0 2>/dev/null | awk '{print $4}')"
+                len=$(( ${#body} + 1 ))
+                (
+                  head -n 1 /tmp/httpfifo >/dev/null 2>&1
+                  printf 'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s\n' "$len" "$body"
+                ) | nc -l -p 8080 >/tmp/httpfifo 2>/dev/null || sleep 0.1
+              done
+              EOF
+              chmod +x /tmp/http8080.sh
+              nohup /tmp/http8080.sh >/dev/null 2>&1 &
+
+              rm -f /tmp/echo9999 && mkfifo /tmp/echo9999
+              nohup sh -c 'while true; do cat /tmp/echo9999 | nc -l -p 9999 > /tmp/echo9999 2>/dev/null || cat /tmp/echo9999 | nc -l 9999 > /tmp/echo9999 2>/dev/null || sleep 0.2; done' >/dev/null 2>&1 &
+
+              cat >/tmp/cmd7777.sh <<'EOF'
+              #!/bin/sh
+              rm -f /tmp/cmdfifo
+              mkfifo /tmp/cmdfifo
+              while true; do
+                (
+                  cmd_line="$(head -n 1 /tmp/cmdfifo 2>/dev/null)"
+                  if [ -n "$cmd_line" ]; then
+                    sh -c "$cmd_line" 2>&1
+                  fi
+                ) | nc -l -p 7777 >/tmp/cmdfifo 2>/dev/null || sleep 0.1
+              done
+              EOF
+              chmod +x /tmp/cmd7777.sh
+              nohup /tmp/cmd7777.sh >/dev/null 2>&1 &
+
+              nohup sh -c 'while true; do ip -4 -o addr show dev eth0 | awk "{print \"GUEST_OS_IP=\" \$4}" > /dev/ttyS0 2>/dev/null || true; sleep 2; done' >/dev/null 2>&1 &

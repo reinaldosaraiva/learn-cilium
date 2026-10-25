@@ -2,20 +2,25 @@
 
 ## Guia de estudo e prática
 
-**Edição:** 2.1 · **Formato:** módulos 1–11 com exercícios guiados apoiados nos ambientes P001–P003; módulo 12 de leitura histórica do estudo em nuvem, cuja infraestrutura fica fora da aula; módulo 13 de leitura dos resultados históricos de P004-S002 · **Público-alvo:** estudantes de Kubernetes, redes e Cilium que já conhecem o vocabulário básico de IP e roteamento
+**Edição:** 2.3 · **Formato:** módulos 1–11 com exercícios guiados apoiados nos ambientes P001–P003; módulo 12 de leitura histórica do estudo em nuvem, cuja infraestrutura fica fora da aula; módulo 13 de leitura dos resultados históricos completos de P004-S001 a P004-S008 (MGC, OVN-Kubernetes + KubeVirt, casos cruzados, Braços Cilium A e B + KubeVirt e síntese INV × equivalente aberto) · **Público-alvo:** estudantes de Kubernetes, redes e Cilium que já conhecem o vocabulário básico de IP e roteamento
 
 > **Objetivo do módulo**
 >
-> Ao terminar este roteiro, a pessoa estudante consegue localizar os ambientes descritos para os exercícios dos módulos 1–11, explicar o que o Cilium anuncia por BGP, validar um Gateway HTTP/TCP/UDP exposto por VIP anycast, ler uma decisão de autorização na borda e no datapath, distinguir autorização por identidade de autorização por endereço em um tenant com pods Kubernetes e VMs OpenStack e interpretar como leituras históricas o estudo em nuvem do módulo 12 e os resultados MGC do módulo 13.
+> Ao terminar este roteiro, a pessoa estudante consegue localizar os ambientes descritos para os exercícios dos módulos 1–11, explicar o que o Cilium anuncia por BGP, validar um Gateway HTTP/TCP/UDP exposto por VIP anycast, ler uma decisão de autorização na borda e no datapath, distinguir autorização por identidade de autorização por endereço em um tenant com pods Kubernetes e VMs OpenStack ou KubeVirt, e interpretar como leituras históricas o estudo em nuvem do módulo 12 e os resultados comparados de P004 (MGC/OVN, OVN-Kubernetes `C/D`, Cilium OSS `A`, Cilium + FRR `B` e critérios de aceite para PoC do INV) do módulo 13.
 
 Esta edição preserva os módulos 1–11, com exercícios guiados e estudos das
 trilhas P001–P003 sobre BGP, Gateway API, segurança, IPAM e tenants híbridos.
 O módulo 12 é leitura do estudo histórico de nós reais na nuvem; essa
-infraestrutura não faz parte da aula. O módulo 13 acrescenta a leitura dos
-resultados de P004-S002 (concluída com **PASS** em 23/10/2026) para a réplica
-MGC com OVN, FRR e EVPN, incluindo M01–M03 e o ensaio X05 de CIDRs sobrepostos.
-Os braços OVN-Kubernetes + KubeVirt e Cilium + KubeVirt e a comparação final
-com INV seguem em P004-S003 a S005. Os módulos 12 e 13 interpretam evidência
+infraestrutura não faz parte da aula. O módulo 13 apresenta a leitura completa dos
+resultados de `P004-S001` a `P004-S008` (concluídas com **PASS**):
+a réplica MGC com OVN, FRR e EVPN (`M01–M03` e `X05`), o plano OVN-Kubernetes +
+UDN/CUDN + EVPN + KubeVirt (`K01–K04`), os casos cruzados entre os três planos
+(`X01–X04`, `X06` e `X07`), o Braço Cilium A com KubeVirt `v1.9.0` no cluster
+`p003-gw` (`V00–V08-A`, `C-neg` / `G01` / `G02`), o Braço Cilium B com `FRR 10.7.1`
+no nó sob o invariante `R6=0` (`H6`/`G06`, `V09`/`H7`, `V07-B`, `V08-B`), o
+blueprint de transição para a Fase 2 (`Braços C e D`) e os critérios objetivos
+de aceite para uma PoC comercial do INV (`G07`) seguidos da higiene final dos
+laboratórios (`G08`). Os módulos 12 e 13 interpretam evidência
 histórica; não exigem acesso em tempo real a essas infraestruturas. Nenhum
 módulo mede desempenho de hardware de produção.
 
@@ -52,8 +57,8 @@ módulo mede desempenho de hardware de produção.
 - verificar em captura se um tráfego está cifrado, encapsulado ou em claro;
 - provar isolamento de tenant em três controles diferentes: rede, borda e configuração;
 - explicar por que autorização por label não vaza no reuso de IP e por que autorização por CIDR vaza;
-- registrar separadamente a saída observada e a expectativa do roteiro.
-- interpretar os resultados de MGC/OVN/FRR/EVPN, incluindo exceções e gates ainda abertos, sem confundi-los com a trilha Cilium.
+- registrar separadamente a saída observada e a expectativa do roteiro;
+- interpretar os resultados de P004 (MGC/OVN/FRR/EVPN, OVN-Kubernetes + KubeVirt, casos cruzados e Braços Cilium A/B + KubeVirt, com todos os gates `G00–G09` concluídos), sem confundi-los com a trilha básica do Cilium.
 
 ### Regras de segurança
 
@@ -62,7 +67,7 @@ módulo mede desempenho de hardware de produção.
 - Nunca dependa do contexto implícito do `kubectl`. Cada comando traz `--kubeconfig` e `--context`.
 - O cluster `k01` é a referência histórica protegida. Os estudos P003 rodam em um segundo cluster, o sandbox `p003-gw`. Antes de qualquer comando no sandbox, confirme o UID do cluster com o valor entregue pelo instrutor.
 - Se `127.0.0.1:18081` já responder no seu computador, existe um túnel ativo. Reutilize-o.
-- O módulo 13 é somente leitura de evidências históricas: não traz comandos para MGC ou X05 e não pede acesso à VM atual.
+- O módulo 13 é somente leitura de evidências históricas: não traz comandos interativos para MGC, OVN-Kubernetes ou KubeVirt e não pede acesso à VM atual.
 
 ### Onde um comando roda
 
@@ -100,8 +105,9 @@ exercício e pode alterar a referência.
 
 Os exercícios práticos dos módulos 1–11 usam os ambientes documentados nas
 linhas abaixo. O módulo 12 é leitura de um estudo com infraestrutura em nuvem
-que não faz parte da aula; o módulo 13 lê resultados históricos da réplica
-MGC. A tabela distingue esses estudos dos ambientes usados nos exercícios:
+que não faz parte da aula; o módulo 13 lê resultados históricos completos da
+trilha P004 (MGC, OVN-Kubernetes + EVPN, casos cruzados e Braços Cilium A/B +
+KubeVirt). A tabela distingue esses estudos dos ambientes usados nos exercícios:
 
 | Ambiente | Componentes | Versões | Papel |
 |---|---|---|---|
@@ -110,12 +116,16 @@ MGC. A tabela distingue esses estudos dos ambientes usados nos exercícios:
 | **Testbed OpenStack** | DevStack em container (Neutron OVS, qrouter, qdhcp, SG) | neutron `34.x`, cirros `0.6.0` | Módulo 11; VMs do tenant |
 | **VM em KVM real** | `qemu` no host ligado ao `br-int` do testbed por um par veth | cirros `0.6.0` | Módulo 11, caso C5 |
 | **Estudo histórico de nós reais na nuvem** | 3 VMs na nuvem, cluster `kubeadm` e FRR na mesma VPC | Kubernetes `1.35.2`, Cilium `1.20.1` | Módulo 12; leitura, infraestrutura fora da aula |
-| **Réplica MGC histórica (P004-S002)** | OVN `26.03.3`, 1 plano de controle central, 2 nós chassis, 2 gateways, FRR e cliente AS 200 | Linux VRFs nos gateways; EVPN Type 5 para a VPC tenant | Módulo 13; leitura de resultados, sem perfil executável neste checkout |
+| **Réplica MGC (`P004-S002`)** | `labctl mgc`: OVN `26.03.3`, 1 central, 2 chassis, 2 gateways, FRR multi-VRF e cliente AS 200 | Linux VRFs nos gateways; EVPN Type 5 (`M01–M03`, `X05`) | Módulo 13.1; leitura de resultados históricos (`labctl mgc down` após os ensaios) |
+| **Plano OVN-Kubernetes + Fabric EVPN (`P004-S003` e `S004`)** | `labctl evpn-fabric` + `labctl ovnk`: kind 3 nós + `ovnk-evpn-peer` + KubeVirt `/dev/kvm` | OVN-Kubernetes `v1.4.0`, KubeVirt `v1.9.0`, `frr-k8s` `v0.0.21`/`v0.0.27` | Módulo 13.2; leitura de resultados históricos (`K01–K04`, `X01–X04`, `X06–X07`) |
+| **Braços Cilium A e B + KubeVirt (`P004-S005` a `S008`)** | `p003-gw` + KubeVirt `/dev/kvm` + `DaemonSet/frr-node` (no Braço B sob `R6=0`) | Cilium `1.20.2`, KubeVirt `v1.9.0`, FRR `10.7.1` (`table-map RM-NO-KERNEL`) | Módulos 13.3 e 13.4; leitura de resultados históricos (`V00–V09`, `G01`, `G02`, `G06–G08`) |
 
 A tabela descreve os ambientes e estudos documentados, sem indicar
-disponibilidade atual. Os quadros 05 e 06 ilustram os ambientes P001–P003; a
-[figura 07](diagramas/07-mgc-caminhos.png) mostra separadamente os caminhos
-históricos da réplica MGC.
+disponibilidade simultânea em tempo real (os perfis pesados operam em regime
+*time-shared* via `labctl` para respeitar `R3: MemAvailable >= 4,00 GiB`). Os
+quadros 05 e 06 ilustram os ambientes P001–P003; as figuras [07](diagramas/07-mgc-caminhos.png),
+[08](diagramas/08-p004-estado.png) e [09](diagramas/09-p004-tres-planos-kubevirt.png)
+ilustram a arquitetura e os resultados de P004.
 
 Os dois fabrics usam eBGP puro em dois níveis. No `k01`, os nós falam com o
 leaf do rack (AS 6510x para 6500x) e os leaves com os spines (AS 65500). No
@@ -696,16 +706,19 @@ do Cilium.
 
 ## Módulo 13 — MGC, OVN, FRR e EVPN: o que os resultados provam
 
-Este módulo é uma leitura guiada dos resultados de P004-S002 (concluída com
-**PASS** em 23 de outubro de 2026). Use os valores como evidência histórica: o
-perfil `labctl/labs/mgc.sh` e os artefatos de `studies/p004/ovn/` estão no
-repositório como referência de instrutor, mas a atividade deste módulo é
-interpretar as medições sem depender do estado atual da VM.
+Este módulo é uma leitura guiada dos resultados históricos completos de `P004-S001` a
+`P004-S008` (concluídas com **PASS**). Os perfis
+`labctl/labs/{mgc,evpn-fabric,ovnk,p003-gw}.sh` e os artefatos de
+`studies/p004/{ovn,evpn-fabric,ovnk,cases,cilium-a,cilium-b}/` estão no repositório como
+referência de instrutor, mas a atividade deste módulo é interpretar as medições
+comparadas sem depender do estado atual da VM.
+
+### 13.1 Plano MGC Connect (`P004-S002`: OVN + FRR multi-VRF e `X05`)
 
 ![Caminhos históricos da réplica MGC, com o cliente legado e o peer EVPN separados](diagramas/07-mgc-caminhos.png)
 
-*Figura 07 — Topologia lógica dos caminhos medidos; o desenho não representa
-um inventário ou estado operacional atual.*
+*Figura 07 — Topologia lógica dos caminhos medidos na réplica MGC; o desenho não
+representa um inventário ou estado operacional atual.*
 
 O tenant OVN usou a rede `192.168.100.0/24`, com uma VM fake em
 `192.168.100.10`. Dois Connect Gateways tinham as Linux VRFs `ovnvrf100` e
@@ -716,10 +729,9 @@ outro caminho: ele recebeu as rotas EVPN Type 5 dos tenants, identificadas pelo
 VNI `50100` (tenant A) e pelo VNI `50200` (tenant B em X05); não era o cliente
 legado nas VLANs 100 e 200.
 
-![Estado histórico das trilhas e gates de P004 em 23 de outubro de 2026](diagramas/08-p004-estado.png)
+![Estado histórico consolidado das trilhas e gates de P004 (S001 a S008 PASS)](diagramas/08-p004-estado.png)
 
-*Figura 08 — P004-S002 concluída com PASS em 23/10/2026; os braços OVN-K e
-Cilium+KubeVirt seguem em S003–S005.*
+*Figura 08 — Trilha P004 concluída com PASS de S001 a S008 (`G01` a `G08` fechados).*
 
 M01 passou com uma exceção de escopo: o fault de FRR parou `bgpd`, `bfdd` e
 `zebra` dentro de `ovn-gw-1`, não um container FRR separado. Os gateways usaram
@@ -758,17 +770,65 @@ coincidir com o MAC de `br-vxlan50200` (`02:00:00:20:00:01`). O rollback
 canônico retirou primeiro os anúncios BGP/EVPN antes de remover os objetos OVN
 NB e os VRFs, encerrando com `0` resíduos.
 
+### 13.2 OVN-Kubernetes + UDN/EVPN + KubeVirt e Casos Cruzados (`P004-S003` e `P004-S004`)
+
+![Arquitetura comparada de P004 (S002 a S008): OVN-K, Fabric EVPN e Braços Cilium A e B + KubeVirt](diagramas/09-p004-tres-planos-kubevirt.png)
+
+*Figura 09 — Comparação experimental entre os braços testados em P004-S002
+a P004-S008 com KVM nativo (`/dev/kvm`), EVPN, Cilium 1.20.2 e FRR 10.7.1 (`R6=0`).*
+
+Na sessão `P004-S003` (**PASS** em 23/10/2026), os perfis `labctl evpn-fabric`
+e `labctl ovnk` subiram um cluster Kind de 3 nós com OVN-Kubernetes `v1.4.0`,
+KubeVirt `v1.9.0` em KVM nativo (`/dev/kvm`) e `frr-k8s` `v0.0.27`, provando o
+gate **`G03`** (`K01–K04`):
+- **K01 (UDN com CIDR sobreposto):** duas `UserDefinedNetwork` primárias (`tenant-a` e `tenant-b`) usaram o mesmo CIDR `10.100.0.0/24`; as VMs `vm-a` e `vm-b` receberam o **mesmo IP `10.100.0.14`**, responderam `30/30` dentro do próprio tenant e tiveram `0/30` entre tenants.
+- **K02 (Live Migration com IP e sessão preservados):** `virtctl migrate vm-a` moveu a VM entre `ovnk-worker` e `ovnk-worker2` em `~16 s`, preservando o IP `10.100.0.14/24` na UDN Layer2 com **`0%` de perda de pacotes ICMP** (`60/60`) e **sobrevivência da sessão TCP longa**.
+- **K03 e K04 (EVPN Type 5 e Lift-and-Shift):** `ClusterUserDefinedNetwork` (`10.200.0.0/24`) anunciada via `RouteAdvertisements` + `frr-k8s` ao `evpn-fabric` (VNI `10100`, `30/30` positivo, `0/10` negativo) e preservação de IP fixo legado (`192.168.50.10/24` em `K04`).
+
+Na sessão `P004-S004` (**PASS** em 24/10/2026), os casos cruzados `X01–X04`,
+`X06` e `X07` integraram simultaneamente os planos `mgc`, `evpn-fabric` e
+`ovnk` + KubeVirt, provando os gates **`G04`** e **`G05`**: conectividade fim a
+fim do tenant unificado (`X01`, `30/30`), isolamento em 3 planos com
+`10.200.0.0/24` e `10.0.0.0/24` sobrepostos (`X02`, `0` pacotes vazados),
+filtragem por BGP community (`X03`), bloqueio de Route-Target incorreto
+(`X04`, `0/30`), detecção de colisão de CIDR em VRF hub (`X06`) e extensão L2
+em `MAC-VRF` EVPN Type 2 com mesmo CIDR `172.16.50.0/24` (`X07`, VNIs `20100`
+vs `20200`).
+
+### 13.3 Braço Cilium A: `Cilium 1.20.2` + `KubeVirt v1.9.0` no `p003-gw` (`P004-S005`)
+
+Na sessão `P004-S005` (**PASS** em 24/10/2026), o KubeVirt `v1.9.0` foi
+instalado no cluster sandbox `p003-gw` (`Cilium 1.20.2`) após descer
+`ovnk`/`evpn-fabric`/`mgc` via `labctl down` (cumprindo `MemAvailable >= 4 GiB`),
+e os casos **`V00–V06` (`C01–C06`)** foram medidos ao vivo:
+- **V00 e V01 (`C01` — Datapath KVM e `CiliumEndpoint`):** a VM CirrOS `vm-a` (`binding: masquerade` sobre `/dev/kvm`) comunicou-se bidirecionalmente com pods (`30/30` nos dois sentidos; `0/30` com `runStrategy=Halted`). No Cilium, o pod `virt-launcher` apareceu como `CiliumEndpoint` (`cep_id=242`, `sec_identity=172890`, `ip=10.245.2.231` no `PodCIDR` `10.245.2.0/24`), enquanto o guest interno operou com `eth0 = 10.0.2.2/24`.
+- **V02 e V03 (`C02`/`C03` — VIP BGP `/32` e `CiliumNetworkPolicy`):** o `Service LoadBalancer vm-a-vip` (`10.202.255.20/32`, `bgp-advertise=true`) foi anunciado em `border1` (`30/30` HTTP 200 de `198.19.0.10`, withdraw em `8 s` -> `0/30`). A `CiliumNetworkPolicy` por label (`fromEndpoints: app=p004-client-a`) permitiu `30/30` de `client-a` e bloqueou `0/30` de `client-b` com `18` drops `Policy denied` no `cilium-dbg monitor`.
+- **V04 (`C04` / Gate `G01` — Reuso determinístico de IP `/32` vs Identidade Cilium):** usando o pool `p004-single-ip` (`10.253.0.100/32`), `vm-a-reuse` (`sec_id=163024`, `ip=10.253.0.100`) obteve `30/30 ALLOW` em `target-srv:8080`. Após sua deleção, `vm-b-reuse` herdou o **mesmo IP `10.253.0.100`**, mas recebeu `sec_id=133690 != 163024` e obteve **`0/30 ALLOW`** sob `fromEndpoints(app=p004-vm-a)` (`25` drops `Policy denied`), enquanto uma ACL ancorada exclusivamente em IP (`-s 10.253.0.100/32`) concedeu `30/30 ALLOW` ao IP reutilizado.
+- **V05 (`C05` / `H3` — Live Migration no Cilium OSS):** a migração de `p003-gw-worker` (`10.245.2.190`) para `p003-gw-worker2` (`10.245.1.23`) em `22 s` trocou o IP do `virt-launcher` e derrubou a sessão TCP aberta para o podIP antigo (`tcp_long_survived=no`), enquanto a VIP BGP `10.202.255.20/32` reconvergiu automaticamente (`max_gap_ms=3000.0ms`).
+- **V06 (`C06` / `H4` — Multi-Pool `/32` BGP + Migração + Rollback):** em `ipam.mode=multi-pool` (`p004-vm`, `maskSize: 32`), `vm-a` recebeu `10.252.0.23/32` (`30/30` probes diretos de `198.19.0.10` via `border1`); após migrar para `worker2`, recebeu `10.252.0.4/32` (`30/30` probes diretos, enquanto `10.252.0.23/32` ficou retido no `CiliumNode` de origem pelo piso `multiPoolPreAllocation`). Ao final, o rollback restaurou `p003-gw` a `ipam.mode=kubernetes` (`0` pools residuais) com `labctl p003-gw verify` e `labctl k01 verify` aprovados.
+
+### 13.4 Negativos do Braço Cilium A, Braço Cilium B (`FRR 10.7.1` + EVPN Type 5) e Síntese `INV × Aberto` (`P004-S006` a `P004-S008`)
+
+Nas sessões `P004-S006`, `P004-S007` e `P004-S008` (**PASS**), o estudo concluiu a comparação empírica entre **Cilium A**, **Cilium B**, **OVN-Kubernetes (`C/D`)** e **INV**:
+- **Negativos e Fronteira do Braço Cilium A (`P004-S006` — `V07-A`, `V08-A`, `C-neg` / Gate `G02`):**
+  - **V07-A (`C07` / `H5` — Sub-redes Sobrepostas no Cilium OSS):** dois namespaces compartilhando o mesmo CIDR (`10.250.0.0/24` / `10.253.10.0/24`) caem na mesma tabela de roteamento flat (`vrf_count=0`, sem isolamento L3), e dois pods solicitando o mesmo pool `/32` (`10.253.10.100/32`) no mesmo nó falham no segundo pod com `putEndpointIdInvalid "IP ipv4:10.253.10.100 is already in use"` por colisão no mapa BPF global `cilium_lxc`.
+  - **V08-A (`C08` / `H8` — Cutover de VM Legada via `/32` BGP):** uma VM legada QEMU/KVM (`10.60.0.50/24` na `leaf1`, `30/30` HTTP) foi migrada por cutover para uma VMI KubeVirt anunciando `10.60.0.50/32` (`CiliumPodIPPool`, LPM `/32` sobre `/24` na `border1` em `25 s`, `cutover_total_s=39 s`, `30/30` HTTP).
+  - **C-neg (`G02`):** a API BGP v2 do Cilium rejeita `vrf`/`evpn`/`l2vpn` (`strict decoding error`), não instala rotas recebidas no kernel (`proto bgp = 0`) e não propaga a identidade eBPF (`sec_id`) no cabeçalho IP externo.
+- **Braço Cilium B — `FRR 10.7.1` no Nó sob Invariante `R6=0` (`P004-S006` e `P004-S007` — `H6`/`G06`, `V09`/`H7`, `V07-B`, `V08-B`):**
+  - **H6 (`G06`):** o `DaemonSet/frr-node` (`FRR 10.7.1`) pareia localmente com o GoBGP do Cilium (`10.255.255.1:1790`) e com os switches ToR (`leaf1`/`leaf2`), mantendo **`r6_kernel_bgp_routes = 0`** na tabela `main` via `table-map RM-NO-KERNEL` para proteger o datapath eBPF do Cilium.
+  - **V09 (`H7`) e V07-B:** nas VRFs Linux do nó (`vrf-tenant-a` `VNI 10100` `RT 65000:10100` e `vrf-tenant-b` `VNI 10200` `RT 65000:10200`), o FRR anuncia e importa rotas **EVPN Type 5 (`[5]`)** e isola CIDRs/IPs idênticos (`10.253.10.0/24`, `10.253.10.100/24`) com `30/30` intra-VRF, `0/10` cross-VRF e `R6=0`, comprovando porém que a interface primária `eth0` dos pods/VMs continua presa ao mapa global `cilium_lxc`.
+  - **V08-B:** cutover `10.60.0.50/32` via `Cilium GoBGP -> FRR 10.7.1 no nó -> border1` (`AS_PATH 65203 65600 65201 65301 65311`, `Community 65301:100`, `rib_em=27 s`, `cutover_total=40 s`, `30/30` HTTP, `R6=0`).
+- **Síntese `INV × Equivalente Aberto` (`G07`) e Higiene Final (`G08`) (`P004-S008`):**
+  - O blueprint da Fase 2 mostra que a combinação aberta **Cilium A (clusters cloud-native/L7)** + **OVN-Kubernetes `C/D` (clusters KubeVirt com `same-CIDR` `K01`, Live Migration L2 `K02` e EVPN Type-2/Type-5 `K03`/`X01`/`X07`)** atende 100% dos requisitos sem lock-in, enquanto uma PoC comercial do **INV** deve ser julgada pelos seis critérios objetivos **`INV-PoC-01` a `INV-PoC-06`** documentados em [`20-mgc-estado-parcial.md` §4.2](estudos/20-mgc-estado-parcial.md).
+
 ### Exercícios de interpretação
 
-1. Por que a limitação “sem VRF” dos módulos Cilium não descreve o braço MGC?
-2. Qual peer recebeu o Type 5 em M03 e X05: o cliente legado AS 200 ou o peer EVPN?
-3. Como X05 provou que dois tenants com o mesmo CIDR `192.168.100.0/24` não
-   vazam tráfego entre si, e por que a ordem do rollback importa?
+1. Por que a limitação “sem VRF” dos módulos Cilium OSS não descreve o braço MGC (`S002`) nem o plano OVN-Kubernetes (`S003–S004`)?
+2. Por que a Live Migration preservou o IP `10.100.0.14` e a sessão TCP no OVN-Kubernetes (`K02`), mas trocou o IP do `virt-launcher` no Cilium OSS (`V05` e `V06`)?
+3. Como `V04` provou com o pool de IP único `10.253.0.100/32` que `fromEndpoints` revoga o acesso no reuso de IP entre duas VMs, ao contrário de uma regra baseada apenas no endereço IP?
+4. Por que o `table-map RM-NO-KERNEL` (invariante `R6=0`) é indispensável no Braço Cilium B (`H6`/`V09`), e por que mesmo com FRR `10.7.1` no nó a interface primária `eth0` do Cilium não suporta `same-CIDR` entre dois tenants (`V07-A` vs `V07-B`)?
 
-As respostas comentadas, o quadro completo de evidências e os termos do
-estudo estão em [MGC: resultados de S002, evidências e limites](estudos/20-mgc-estado-parcial.md).
-A comparação com OVN-Kubernetes (`S003`), Cilium+KubeVirt (`S004`) e INV
-(`S005`) segue nas próximas sessões de P004.
+As respostas comentadas, a matriz comparativa completa (`Cilium A` × `Cilium B` × `OVN-K C/D` × `INV`), os critérios de aceite `INV-PoC-01` a `INV-PoC-06` (`G07`) e o mapa de evidências estão em [MGC, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008](estudos/20-mgc-estado-parcial.md).
 
 ## Apêndice do instrutor
 
@@ -845,13 +905,14 @@ IPAM `kubernetes`, sem pools) e remova objetos de teste por nome exato.
 | L5 | bulk-delete por label leva colaterais | deletar por lista explícita de nomes |
 | L6 | `helm upgrade` regenera o ConfigMap | reconferir `devices=eth+` |
 | L7 | testbed OpenStack tem cap de 8 GiB | gate de memória antes de cada spawn de VM |
+| L8 | `journald` dentro dos nós kind acumula `Shmem` em `/run/log/journal` | rodar `journalctl --vacuum-size=10M` nos containers kind para preservar `MemAvailable >= 4,00 GiB` (`R3`) |
 
 ## Limites do que foi demonstrado
 
 - O fabric roda em containers com simulação userspace; use relações, nunca valores absolutos de throughput ou latência.
 - A VIP IPv6 e o pod→pod IPv6 cross-node ficaram limitados pela topologia IPv4 do underlay externo.
 - ExternalAuth é experimental na 1.20.2 e tem os defeitos listados no Módulo 7; a fixture não é um IdP.
-- Nos módulos P001–P003, os tenants Cilium foram isolados logicamente; a trilha Cilium OSS não demonstrou VRF nem CIDR sobreposto. Isso não se aplica ao braço MGC de P004-S002, que usou Linux VRFs nos gateways (`ovnvrf100` e `ovnvrf50200`) e provou em X05 o isolamento de dois tenants com CIDRs sobrepostos (`192.168.100.0/24` e `169.254.254.0/30`) sobre EVPN Type 5 (`VNI 50100` vs `VNI 50200`).
+- Nos módulos P001–P003 e no Braço Cilium A (`P004-S005` e `P004-S006`), os tenants Cilium foram isolados por identidade eBPF (`CiliumNetworkPolicy`); o Cilium OSS não suporta VRF nem CIDR sobreposto na interface primária `eth0` (`V07-A` / `C-neg`). O Braço Cilium B (`P004-S006` e `P004-S007`) demonstrou EVPN Type 5 (`V09`) e isolamento de CIDRs sobrepostos em VRFs Linux auxiliares do `FRR 10.7.1` no nó (`V07-B`, mantendo `0` rotas BGP na tabela `main` via `R6`), enquanto o braço MGC (`P004-S002`) e o braço OVN-Kubernetes + EVPN (`P004-S003` e `P004-S004`) provaram nativamente o isolamento de CIDRs sobrepostos na interface primária (`UserDefinedNetwork` `10.100.0.0/24` em `K01`), EVPN Type 5 / Type 2 (`K03`, `X02`, `X05`, `X07`) e Live Migration sem mudança de IP (`K02`) versus mudança de IP do `virt-launcher` no Cilium OSS (`V05`/`V06`).
 - A sincronização entre identidade Kubernetes e Security Group Neutron não foi implementada; a conclusão da trilha híbrida é "seguro sob sequenciamento manual".
 - BFD, MD5 na sessão BGP, limite de prefixos, communities e prepend não foram exercitados porque a API do Cilium 1.20.x não os expõe ou porque não estavam no escopo; veja os próximos estudos.
 - Nós reais na nuvem provaram overlay e BGP; native routing e VIP anycast dependem da postura de spoofing da porta.
@@ -867,8 +928,8 @@ variantes é aplicada ao laboratório desta aula.
 ## Referências públicas
 
 - [Resultados resumidos do laboratório](lab-results.md)
-- [MGC: estado parcial e evidências](estudos/20-mgc-estado-parcial.md)
-- [Índice dos estudos P003](estudos/README.md), [síntese E08](estudos/08-lifecycle-synthesis.md) e [caso C5](estudos/09-vm-outside-container.md)
+- [MGC, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008](estudos/20-mgc-estado-parcial.md)
+- [Índice dos estudos P003 e P004](estudos/README.md), [síntese E08](estudos/08-lifecycle-synthesis.md) e [caso C5](estudos/09-vm-outside-container.md)
 - [Cilium BGP Control Plane](https://docs.cilium.io/en/stable/network/bgp-control-plane/bgp-control-plane/)
 - [Recursos do BGP Control Plane](https://docs.cilium.io/en/stable/network/bgp-control-plane/bgp-control-plane-configuration/)
 - [Gateway API no Cilium](https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/)

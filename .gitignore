@@ -2,9 +2,14 @@
 __pycache__/
 *.py[cod]
 .venv/
+.ruff_cache/
+.reentry-agy-closeout.json
 
 # Reentry and local session state.
 plans/
+.humanlayer/
+/AGENTS.md
+/output/diagramas/
 MEMORY.md
 continue.txt
 tmp/

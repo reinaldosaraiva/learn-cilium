@@ -1,0 +1,157 @@
+apiVersion: cilium.io/v2alpha1
+kind: CiliumPodIPPool
+metadata:
+  name: default
+  labels:
+    study: P004
+spec:
+  ipv4:
+    cidrs:
+      - 10.251.0.0/16
+    maskSize: 24
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumPodIPPool
+metadata:
+  name: p004-vm
+  labels:
+    study: P004
+spec:
+  ipv4:
+    cidrs:
+      - 10.252.0.0/16
+    maskSize: 32
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumPodIPPool
+metadata:
+  name: p004-legacy-ip
+  labels:
+    study: P004
+spec:
+  ipv4:
+    cidrs:
+      - 10.60.0.50/32
+    maskSize: 32
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: fabric-advertisements
+  labels:
+    advertise: fabric
+    study: P004
+spec:
+  advertisements:
+    - advertisementType: PodCIDR
+      attributes:
+        communities:
+          standard:
+            - "65301:100"
+    - advertisementType: Service
+      attributes:
+        communities:
+          standard:
+            - "65301:200"
+      selector:
+        matchExpressions:
+          - key: bgp-advertise
+            operator: In
+            values: ["true"]
+      service:
+        addresses:
+          - LoadBalancerIP
+    - advertisementType: CiliumPodIPPool
+      attributes:
+        communities:
+          standard:
+            - "65301:100"
+      selector:
+        matchExpressions:
+          - key: study
+            operator: In
+            values: ["P004", "P003"]
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p004-vm-legacy
+  labels:
+    study: P004
+    ipam-pool: p004-legacy-ip
+  annotations:
+    ipam.cilium.io/ip-pool: p004-legacy-ip
+    ipam.cilium.io/require-pool-match: "true"
+---
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: vm-legacy-cutover
+  namespace: p004-vm-legacy
+  labels:
+    app: vm-legacy-cutover
+    kubevirt.io/domain: vm-legacy-cutover
+    study: P004
+spec:
+  runStrategy: Always
+  template:
+    metadata:
+      labels:
+        app: vm-legacy-cutover
+        kubevirt.io/domain: vm-legacy-cutover
+        study: P004
+      annotations:
+        ipam.cilium.io/ip-pool: p004-legacy-ip
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker
+      domain:
+        cpu:
+          cores: 1
+        resources:
+          requests:
+            memory: 192Mi
+        devices:
+          autoattachSerialConsole: true
+          logSerialConsole: true
+          disks:
+            - name: containerdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: containerdisk
+          containerDisk:
+            image: quay.io/kubevirt/cirros-container-disk-demo:v1.9.0
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #!/bin/sh
+              ip link set eth0 up
+              if ! ip -4 addr show dev eth0 | grep -q '10\.0\.2\.'; then
+                udhcpc -i eth0 -n -q >/dev/null 2>&1 || true
+              fi
+              cat >/tmp/http8080.sh <<'EOF'
+              #!/bin/sh
+              rm -f /tmp/httpfifo
+              mkfifo /tmp/httpfifo
+              body="VM_LEGACY_KUBEVIRT_OK host=$(hostname) vm=vm-legacy-cutover orig_ip=10.60.0.50 guest_ip=$(ip -4 -o addr show dev eth0 2>/dev/null | awk '{print $4}')"
+              len=$(( ${#body} + 1 ))
+              while true; do
+                (
+                  dd if=/tmp/httpfifo bs=4096 count=1 >/dev/null 2>&1
+                  printf 'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s\n' "$len" "$body"
+                  sleep 0.02
+                ) | nc -l -p 8080 >/tmp/httpfifo 2>/dev/null || sleep 0.02
+              done
+              EOF
+              chmod +x /tmp/http8080.sh
+              nohup /tmp/http8080.sh >/dev/null 2>&1 &

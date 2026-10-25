@@ -1,10 +1,18 @@
 # Próximos estudos — Cilium como motor de uma conexão dedicada com eBGP
 
 > Proposta de trilha (estudos E09–E25) escrita em 26/09/2026, depois do encerramento da
-> trilha P003. E09–E19 e E21–E25 permanecem propostas. O braço MGC/OVN+FRR de E20
-> foi concluído com **PASS** em P004-S002 (23/10/2026: M01–M03 e X05 aceitos); veja a
-> [síntese pública MGC](estudos/20-mgc-estado-parcial.md). Cada estudo nasce de uma lacuna
-> registrada no [guia do estudante 2.1](lab-guide-student.md) ou de um
+> trilha P003. E09–E19 e E21–E25 permanecem propostas. O estudo **E20 (`P004`) foi
+> integralmente concluído com PASS (`P004-S001` a `P004-S008`, `G01` a `G08` fechados)**:
+> `P004-S001` (`labctl`), `P004-S002` (MGC/OVN+FRR `M01–M03` + `X05`),
+> `P004-S003` (OVN-Kubernetes + UDN/EVPN + KubeVirt `K01–K04`), `P004-S004`
+> (cruzados `X01–X04`, `X06`, `X07`), `P004-S005` (Braço Cilium A + KubeVirt
+> `V00–V06` / `C01–C06`), `P004-S006` (negativos Cilium A `V07-A`, `V08-A`, `C-neg`
+> + Braço Cilium B `H6` / `G02` / `G06`), `P004-S007` (Braço Cilium B `V09`/`V07-B`/`V08-B`,
+> matriz comparativa Cilium A vs Cilium B e blueprint da Fase 2 OVN-Kubernetes `C/D`) e
+> `P004-S008` (síntese `INV × equivalente aberto` `G07`, critérios `INV-PoC-01` a `INV-PoC-06`,
+> Guia do Estudante Ed. 2.3 e higiene final `G08`); veja a
+> [síntese pública de P004](estudos/20-mgc-estado-parcial.md). Cada estudo nasce de uma lacuna
+> registrada no [guia do estudante 2.3](lab-guide-student.md) ou de um
 > requisito técnico de um produto de conexão dedicada com eBGP (Direct
 > Connect), e cita a fonte primária que sustenta a hipótese. Dados
 > comerciais do produto ficam fora desta edição pública.
@@ -299,12 +307,17 @@ linhas que só o INV cobre (CIDR sobreposto, IP preservado em migração,
 identidade propagada ao fabric) viram os critérios de aceite de uma PoC do
 produto.
 
-#### Estado público do E20 em 23/10/2026
+#### Estado público do E20 (CONCLUÍDO — `P004-S001` a `P004-S008` PASS)
 
-A etapa MGC/OVN+FRR de P004 foi concluída com **PASS** em 23/10/2026:
-- **P004-S001 (27/09/2026):** aprovou o ciclo comum do `labctl`.
-- **P004-S002 (23/10/2026, PASS):** publicou o perfil `labctl mgc` (`labctl/labs/mgc.sh`) e o harness auditável de `X05` (`studies/p004/ovn/`); registrou M01 como PASS com exceção, M02 como PASS sob o escopo aceito, M03 como PASS com controle negativo causal e **X05 como PASS** (run `c9d0e1` `G0→G8 RC=0` + prova negativa de rollback `b8c9d0` `G7+G8 PASS`), comprovando isolamento entre dois tenants com CIDRs sobrepostos (`192.168.100.0/24` e `/30` `169.254.254.0/30`) em EVPN Type 5 (`VNI 50100` versus `VNI 50200`, `30/30` intra-tenant, `0/3` cross-tenant com `0` pacotes no destino e `0` resíduos pós-rollback), além da pegada de memória (`0,539 GiB` para `mgc` + OVS host; `6,38 GiB` livres com `k01` + `p003-gw` + `mgc` simultâneos).
-- **Próximas etapas de P004:** os braços OVN-Kubernetes + UDN + EVPN + KubeVirt (`P004-S003`), Cilium OSS + KubeVirt + FRR (`P004-S004`) e a matriz comparativa final `INV × equivalente aberto` (`P004-S005`) seguem nas sessões subsequentes. Consulte a [síntese pública MGC](estudos/20-mgc-estado-parcial.md) para os resultados e limites completos.
+Todas as oito sessões de `P004` (`P004-S001` a `P004-S008`) foram concluídas com **PASS**, fechando `20-mgc-estado-parcial.md` (§1–§8) e os gates `G01` a `G08`:
+- **P004-S001 (27/09/2026, PASS):** aprovou o ciclo comum do `labctl` (`k01` e `p003-gw`) e mediu a capacidade base (`D5 = NÃO`).
+- **P004-S002 (23/10/2026, PASS):** publicou o perfil `labctl mgc` (`labctl/labs/mgc.sh`) e o harness auditável de `X05` (`studies/p004/ovn/`); provou `M01` (BGP/ECMP e falhas), `M02` (MTU 1500 vs 9000), `M03` (EVPN Type 5 causal) e **X05** (isolamento de CIDRs sobrepostos `192.168.100.0/24` e `169.254.254.0/30` entre `VNI 50100` e `VNI 50200` com `30/30` intra-tenant, `0/3` cross-tenant e `0` resíduos pós-rollback), além da pegada de memória (`0,539 GiB` para `mgc` + OVS host).
+- **P004-S003 (23/10/2026, PASS):** publicou os perfis `labctl evpn-fabric` e `labctl ovnk` (`studies/p004/evpn-fabric/` e `studies/p004/ovnk/`) com OVN-Kubernetes v1.4.0, KubeVirt v1.9.0 em KVM nativo (`/dev/kvm`) e `frr-k8s` v0.0.27; provou o gate **`G03`** (`K01` UDN primária com CIDR sobreposto `10.100.0.0/24`, `K02` live migration preservando IP `.14` e sessão TCP com `0%` de perda, `K03` CUDN exportada via EVPN Type 5 e `K04` lift-and-shift de IP fixo `192.168.50.10/24`).
+- **P004-S004 (24/10/2026, PASS):** publicou os casos cruzados `studies/p004/cases/x01..x07` e provou os gates **`G04`** e **`G05`** integrando simultaneamente `mgc`, `evpn-fabric` e `ovnk` + KubeVirt (`X01` tenant unificado nos 3 planos, `X02` isolamento 3 planos com `10.200.0.0/24` sobreposto, `X03` policy por BGP community, `X04` guardrail de Route-Target incorreto, `X06` admissão vs bloqueio de colisão em VRF hub e `X07` extensão L2 em `MAC-VRF` EVPN Type 2).
+- **P004-S005 (24/10/2026, PASS):** publicou o Braço Cilium A (`studies/p004/cilium-a/`) com `KubeVirt v1.9.0` no cluster `p003-gw` (`Cilium 1.20.2`) e provou os casos **`V00–V06` (`C01–C06`)**: `V00` datapath KVM nativo bidirecional (`30/30`), `V01` VM como `CiliumEndpoint` (`sec_identity=172890`), `V02` VIP BGP `/32` (`10.202.255.20/32`, withdraw em `8 s`), `V03` `CiliumNetworkPolicy` por label na VM (`30/30` `client-a`, `0/30` `client-b` com `18` drops `Policy denied`), `V04` (Gate `G01`: reuso determinístico do mesmo IP `10.253.0.100/32` entre `vm-a-reuse` `sec_id=163024` e `vm-b-reuse` `sec_id=133690`, provando `0/30 ALLOW` e `25` drops `Policy denied` sob `fromEndpoints` vs `30/30 ALLOW` sob ACL por IP), `V05` (`H3`: live migration altera o IP do `virt-launcher` `10.245.2.190 -> 10.245.1.23`, derruba sessão TCP para o podIP antigo e reconverge a VIP BGP em `~3 s`) e `V06` (`H4`: Multi-Pool `/32` por VM anunciado em `border1` `10.252.0.23/32 -> 10.252.0.4/32` após migração, seguido de rollback limpo a `ipam.mode=kubernetes`).
+- **P004-S006 (24/10/2026, PASS):** provou os negativos e limites estruturais do Braço Cilium A (`V07-A` / `C07` / `C-neg` / `H5`: dois namespaces compartilhando `10.253.10.0/24` operam sem VRF `vrf_count=0` com alcance direto entre `10.253.10.67` e `10.253.10.12`, enquanto dois pods exigindo o mesmo IP `10.253.10.100/32` falham com `putEndpointIdInvalid: IP ipv4:10.253.10.100 is already in use`; `V08-A` / `C08` / `H8`: cutover de VM legada QEMU/KVM `10.60.0.50/24` para VMI KubeVirt `10.60.0.50/32` em `pool-legacy-v08a` via BGP LPM em `cutover_total_s=39s`, `30/30` HTTP) e inaugurou o Braço Cilium B (**`H6` / Gate `G06`**: `DaemonSet/frr-node` `FRR 10.7.1` `AS 65301/65302` em peering iBGP `10.255.255.1:1790` com o Cilium `AS 65311/65312` e eBGP com o fabric, mantendo **`r6_kernel_bgp_routes = 0`** sob `table-map RM-NO-KERNEL` e concluindo rollback canônico com `MemAvailable = 4,23 GiB`).
+- **P004-S007 (25/10/2026, PASS):** executou ao vivo e provou os casos restantes do Braço Cilium B em `vm-cilium` (`V09`/`H7` EVPN Type 5 por VRF `vrf-tenant-a` `VNI 10100` e `vrf-tenant-b` `VNI 10200` com `30/30` intra-VRF, `0/10` cross-VRF e `R6=0`; `V07-B` CIDR sobreposto `10.253.10.0/24` e IP idêntico `10.253.10.100/24` isolados por VRF/EVPN Type 5 no FRR `30/30` vs limite global `cilium_lxc` na `eth0`; `V08-B` cutover de IP legado `10.60.0.50/32` via `Cilium -> FRR 10.7.1 no nó -> border1` com `AS_PATH 65203 65600 65201 65301 65311`, `rib_em=27s`, `cutover_total=40s`, `30/30` HTTP, `R6=0` e rollback limpo a `ipam.mode=kubernetes` com `MemAvailable = 4,95 GiB >= 4,0 GiB`) e fechou `docs/estudos/20-mgc-estado-parcial.md` (§1–§8) com a matriz comparativa final **Cilium A vs Cilium B vs INV (`V00–V09` / `H1–H8`)** e o blueprint de transição para o Braço **OVN-Kubernetes (`C` / `D`)**.
+- **P004-S008 (25/10/2026, PASS):** fechou o gate **`G07`** com a matriz de equivalência `INV × Cilium A × Cilium B × OVN-K (C/D)` e os seis critérios objetivos de aceite para uma PoC comercial do INV (`INV-PoC-01` a `INV-PoC-06` em `20-mgc-estado-parcial.md` §4.2), publicou a Edição 2.3 do Guia do Estudante e dos diagramas `08`/`09`, e aprovou o gate **`G08`** de higiene final dos laboratórios (`mgc`, `evpn-fabric` e `ovnk` desligados com `0` resíduos; `p003-os` preservado `exited`; `p003-gw` em baseline limpo `ipam=kubernetes`, `0` pools, `R6=0`; `k01` `10/10` e `MemAvailable = 4,95 GiB / 4,93 GiB >= 4,00 GiB`). Consulte a [síntese pública de P004](estudos/20-mgc-estado-parcial.md) para os resultados e limites completos.
 
 Fontes: [INV GA](https://isovalent.com/blog/post/isovalent-networking-for-virtualization/),
 [INV com Nexus One](https://www.cisco.com/c/en/us/products/collateral/networking/cloud-networking/nx-os/isovalent-net-v12n-int-n-one-fabric-so.html),

@@ -1,6 +1,6 @@
 # Estudos P003 — Gateway API, segurança, IPAM e tenants híbridos
 
-> Planejamento revisado em **20/09/2026**; trilha **executada e encerrada em 25/09/2026** (S001–S016, gates G01–G10 atendidos). Esta edição publica os dossiês, a síntese E08 (S013/S014) e a emenda C5 (S016, VM fora do container). Os resultados das demais sessões estão resumidos, com números e achados, no [guia do estudante 2.0](../lab-guide-student.md); a evidência bruta permanece privada.
+> Planejamento revisado em **20/09/2026**; trilha **P003 executada e encerrada em 25/09/2026** (S001–S016, gates G01–G10 atendidos) e trilha **P004 (E20 v2 — MGC Connect × INV × Equivalente Aberto) executada e encerrada em 25/10/2026** (S001–S008, gates G00–G09 atendidos). Esta edição publica os dossiês P003 (`00`–`09`), a síntese E08 (S013/S014), a emenda C5 (S016, VM fora do container) e a consolidação integral de E20/P004 em [`20-mgc-estado-parcial.md`](20-mgc-estado-parcial.md) (§1–§8). Os resultados de todas as sessões estão resumidos no [guia do estudante 2.3](../lab-guide-student.md) e nos [resultados do laboratório](../lab-results.md); a evidência bruta permanece privada.
 
 Este índice público transforma o roteiro em uma sequência de 14 sessões pequenas, com fontes, critérios observáveis, controles negativos e rollback. O [resultado histórico do laboratório](../lab-results.md) permanece separado: ele descreve o kit de referência e não comprova nenhum estudo P003.
 
@@ -92,6 +92,7 @@ estudos futuros; não são sessões executáveis, nem substituem a atualização
 | P003-S013 | EXECUTADO | Recriação/reuso de IP com revogação de autorização e rotas observada | PASS | [E08](08-lifecycle.md) · [síntese](08-lifecycle-synthesis.md) |
 | P003-S014 | EXECUTADO | Síntese de limites, exercícios, gates de adoção e entrega didática | PASS | [E08](08-lifecycle.md) · [síntese](08-lifecycle-synthesis.md) |
 | P003-S016 (C5) | EXECUTADO | VM fora do container (KVM real no host): RX resolvido + pod↔VM bidirecional | PASS | [C5](09-vm-outside-container.md) |
+| P004-S001..S008 (E20 v2) | EXECUTADO | Lab MGC Connect (`M01–M03`, `X05`), OVN-K + EVPN (`K01–K04`), Casos Cruzados (`X01–X07`), Braço Cilium A (`V00–V08A`), Braço Cilium B (`H6`, `V09`, `V07-B`, `V08-B`) e Síntese `INV × Equivalente Aberto` (`G00–G09`) | PASS | [E20 (`20-mgc-estado-parcial.md`)](20-mgc-estado-parcial.md) |
 
 ## Dependências e limites
 

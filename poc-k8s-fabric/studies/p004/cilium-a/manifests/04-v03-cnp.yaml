@@ -1,0 +1,23 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: v03-allow-only-client-a
+  namespace: p004-vm-a
+  labels:
+    study: P004
+spec:
+  endpointSelector:
+    matchLabels:
+      app: p004-vm-a
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: p004-client-a
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+            - port: "9999"
+              protocol: TCP
+            - port: "22"
+              protocol: TCP

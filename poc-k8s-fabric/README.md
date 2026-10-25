@@ -1,12 +1,16 @@
 # Kit do laboratório Cilium + BGP
 
 Este diretório reúne materiais para os exercícios guiados dos módulos 1–11 do
-[guia do estudante 2.1](docs/lab-guide-student.md), baseados nos ambientes
+[guia do estudante 2.3](docs/lab-guide-student.md), baseados nos ambientes
 documentados em P001–P003. O módulo 12 é leitura histórica do estudo com nós
-reais na nuvem; essa infraestrutura fica fora da aula. O módulo 13 lê os
-resultados históricos da réplica MGC/OVN/FRR de P004-S002 (concluída com PASS
-em 23/10/2026; o perfil `labctl/labs/mgc.sh` e os artefatos de `studies/p004/ovn/`
-acompanham o checkout como referência de instrutor).
+reais na nuvem; essa infraestrutura fica fora da aula. O módulo 13 sintetiza os
+resultados empíricos completos da trilha P004 (sessões S001–S008 concluídas com **PASS**:
+réplica MGC/OVN/FRR `M01–M03` + `X05`, OVN-Kubernetes + KubeVirt `K01–K04`,
+cenários híbridos `X01–X07`, Braço Cilium A `V00–V08-A` / `C-neg`, Braço Cilium B
+`FRR 10.7.1` no nó `H6` / `V09` / `V07-B` / `V08-B` com `R6=0`, blueprint OVN-K `C/D` e
+síntese `INV × equivalente aberto` `G07`/`G08`;
+os perfis `labctl/labs/` e os artefatos de `studies/p004/` acompanham o checkout
+como referência de instrutor).
 
 O objetivo didático começa por
 observar um cluster Kubernetes kind ligado a um fabric leaf–spine e entender a
@@ -95,8 +99,17 @@ C5](docs/estudos/09-vm-outside-container.md). O modelo S002 de preflight é
 somente documental e não descreve o estado atual de uma VM. P004 é uma trilha
 separada: o `labctl` comum foi validado em S001, a réplica MGC/OVN+FRR fechou
 com **PASS** em S002 (23/10/2026, com M01–M03 e X05 aceitos e perfil `labctl mgc`
-publicado), e o braço OVN-Kubernetes + KubeVirt + EVPN fechou com **PASS** em
+publicado), o braço OVN-Kubernetes + KubeVirt + EVPN fechou com **PASS** em
 S003 (23/10/2026, com perfis `labctl evpn-fabric` e `labctl ovnk` e matriz
-`K01–K04` em `studies/p004/evpn-fabric/` e `studies/p004/ovnk/`); os casos
-cruzados (`X01–X04`, `X06`, `X07`) e Cilium+KubeVirt seguem em S004–S008.
-Consulte a [síntese pública MGC](docs/estudos/20-mgc-estado-parcial.md).
+`K01–K04` em `studies/p004/evpn-fabric/` e `studies/p004/ovnk/`), os casos
+cruzados (`X01–X04`, `X06`, `X07`) fecharam com **PASS** em S004 (24/10/2026,
+em `studies/p004/cases/`), e o braço Cilium A (`1.20.2` + KubeVirt `v1.9.0` no
+`p003-gw`, casos `C01–C06` / `V00–V06`) fechou com **PASS** em S005 (24/10/2026,
+em `studies/p004/cilium-a/`). Em S006 e S007 (**PASS**), foram provados os
+negativos e limites estruturais do Braço Cilium A (`V07-A`, `V08-A`, `C-neg` / `G02`)
+e o Braço Cilium B completo com `FRR 10.7.1` no nó sob o invariante `R6=0`
+(`H6`/`G06`, `V09`/`H7` EVPN Type 5, `V07-B` e `V08-B`, em `studies/p004/cilium-b/`),
+além do blueprint de transição para o Braço OVN-Kubernetes (`C/D`). Em S008 (**PASS**),
+fecharam-se a síntese `INV × equivalente aberto` com os seis critérios de aceite
+para uma PoC comercial do INV (`G07`) e a higiene final dos laboratórios (`G08`).
+Consulte a [síntese pública completa de P004](docs/estudos/20-mgc-estado-parcial.md).

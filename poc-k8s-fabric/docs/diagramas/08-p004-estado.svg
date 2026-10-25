@@ -1,64 +1,70 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 720" role="img" aria-labelledby="title desc">
-  <title id="title">Estado público de P004 em 23 de outubro de 2026</title>
-  <desc id="desc">P004-S001 (labctl) e P004-S002 (MGC M01 a M03, X05 com CIDRs sobrepostos e capacidade) fecharam com PASS. Os braços OVN-Kubernetes (S003), Cilium + KubeVirt (S004) e a matriz final INV (S005) seguem nas próximas sessões.</desc>
+  <title id="title">Estado público de P004 concluído (S001 a S008 PASS)</title>
+  <desc id="desc">Trilha P004 concluída com PASS de S001 a S008: S001 (labctl), S002 (MGC M01 a M03 e X05), S003 (OVN-K K01 a K04 com KubeVirt em KVM nativo), S004 (cruzados X01 a X04, X06 e X07), S005 (Braço Cilium A V00 a V06), S006 (negativos V07-A, V08-A, C-neg e Braço B H6), S007 (Braço Cilium B V09, V07-B, V08-B e Blueprint OVN-K C/D) e S008 (Síntese INV × Aberto G07 e Higiene Final G08).</desc>
   <defs>
     <style>
       text { font-family: Arial, Helvetica, sans-serif; fill: #142a3a; }
-      .title { font-size: 30px; font-weight: 700; }
-      .subtitle { font-size: 19px; fill: #344f60; }
-      .head { font-size: 22px; font-weight: 700; }
-      .status { font-size: 18px; font-weight: 700; letter-spacing: 0.3px; }
-      .body { font-size: 18px; }
-      .small { font-size: 17px; }
+      .title { font-size: 25px; font-weight: 700; }
+      .subtitle { font-size: 16px; fill: #344f60; }
+      .head { font-size: 18.5px; font-weight: 700; }
+      .status { font-size: 15px; font-weight: 700; letter-spacing: 0.2px; fill: #235320; }
+      .body { font-size: 15px; }
+      .small { font-size: 14px; fill: #2c4353; }
       .card { stroke-width: 2.5; }
-      .mgc { fill: #eaf4e8; stroke: #44723f; }
-      .planned { fill: #eef2f6; stroke: #687988; }
-      .pending { fill: #fff3dc; stroke: #a66400; }
-      .open { fill: #f9e9e8; stroke: #a43d36; }
+      .pass { fill: #eaf4e8; stroke: #44723f; }
     </style>
   </defs>
   <rect x="0" y="0" width="1120" height="720" fill="#f7f9fb"/>
-  <text x="40" y="48" class="title">P004: S002 concluída (PASS) e próximos braços</text>
-  <text x="40" y="78" class="subtitle">Checkpoint público de 23/10/2026 · P004-S001 e P004-S002 PASS</text>
+  <text x="40" y="44" class="title">P004: Trilha completa concluída (S001 a S008 · PASS · G01 a G08 fechados)</text>
+  <text x="40" y="72" class="subtitle">Checkpoint final P004 · MGC (S002), OVN-K (S003), Cruzados (S004), Cilium A/B + KubeVirt (S005–S007) e Síntese INV (S008)</text>
 
-  <rect x="40" y="110" width="330" height="270" rx="16" class="card mgc"/>
-  <text x="64" y="147" class="head">MGC + OVN + FRR</text>
-  <text x="64" y="179" class="status">S002 COMPLETO · PASS</text>
-  <text x="64" y="218" class="body">S001 · labctl PASS · 27/09</text>
-  <text x="64" y="251" class="body">M01 · PASS com exceção</text>
-  <text x="64" y="284" class="body">M02 · PASS no escopo aceito</text>
-  <text x="64" y="317" class="body">M03 · PASS causal · 29/09</text>
-  <text x="64" y="352" class="body">X05 · PASS (23/10) · 0,54 GiB</text>
+  <rect x="40" y="100" width="330" height="280" rx="16" class="card pass"/>
+  <text x="60" y="136" class="head">1. MGC + OVN + FRR</text>
+  <text x="60" y="164" class="status">S001 + S002 COMPLETO · PASS</text>
+  <text x="60" y="198" class="body">S001 · labctl comum PASS (27/09)</text>
+  <text x="60" y="228" class="body">M01 · BGP/ECMP e falhas PASS</text>
+  <text x="60" y="258" class="body">M02 · MTU 1500 vs 9000 PASS</text>
+  <text x="60" y="288" class="body">M03 · EVPN Type 5 VNI 50100 PASS</text>
+  <text x="60" y="318" class="body">X05 · CIDR sobreposto 50100/50200</text>
+  <text x="60" y="352" class="small">Pegada: 0,54 GiB (mgc + OVS host)</text>
 
-  <rect x="395" y="110" width="330" height="270" rx="16" class="card pending"/>
-  <text x="419" y="147" class="head">OVN-K + UDN</text>
-  <text x="419" y="179" class="status">EM EXECUÇÃO (S003)</text>
-  <text x="419" y="221" class="body">EVPN + KubeVirt</text>
-  <text x="419" y="255" class="body">Casos K01 a K04</text>
-  <text x="419" y="297" class="small">UDN com CIDR sobreposto,</text>
-  <text x="419" y="326" class="small">live migration e Type 5</text>
+  <rect x="395" y="100" width="330" height="280" rx="16" class="card pass"/>
+  <text x="415" y="136" class="head">2. OVN-K + UDN + Cruzados</text>
+  <text x="415" y="164" class="status">S003 + S004 COMPLETO · PASS</text>
+  <text x="415" y="198" class="body">K01 · UDN CIDR sobreposto 10.100/24</text>
+  <text x="415" y="228" class="body">K02 · Live migration IP fixo (0 loss)</text>
+  <text x="415" y="258" class="body">K03/K04 · EVPN Type 5 + IP fixo VM</text>
+  <text x="415" y="288" class="body">X01–X04 · Tenant 3 planos + RT</text>
+  <text x="415" y="318" class="body">X06/X07 · Hub overlap + Type 2 L2</text>
+  <text x="415" y="352" class="small">Gates G03, G04 e G05 provados</text>
 
-  <rect x="750" y="110" width="330" height="270" rx="16" class="card planned"/>
-  <text x="774" y="147" class="head">Cilium + KubeVirt</text>
-  <text x="774" y="179" class="status">PLANEJADO (S004)</text>
-  <text x="774" y="221" class="body">Braços OSS + FRR</text>
-  <text x="774" y="255" class="body">Casos V00 a V09</text>
-  <text x="774" y="297" class="small">Nenhum resultado MGC</text>
-  <text x="774" y="326" class="small">é transferível por inferência</text>
+  <rect x="750" y="100" width="330" height="280" rx="16" class="card pass"/>
+  <text x="770" y="136" class="head">3. Cilium A &amp; B + KubeVirt</text>
+  <text x="770" y="164" class="status">S005 a S007 COMPLETO · PASS</text>
+  <text x="770" y="198" class="body">V00–V04 · CEP, VIP BGP, Reuso (G01)</text>
+  <text x="770" y="228" class="body">V05/V06 · Migração L3 + Multi-Pool /32</text>
+  <text x="770" y="258" class="body">V07-A/C-neg · Overlap e fronteira (G02)</text>
+  <text x="770" y="288" class="body">H6/V08 · FRR 10.7.1 no nó (G06, R6=0)</text>
+  <text x="770" y="318" class="body">V09/V07-B · EVPN Type 5 VNI 10100/200</text>
+  <text x="770" y="352" class="small">Rollback limpo a ipam=kubernetes</text>
 
-  <rect x="40" y="414" width="660" height="226" rx="16" class="card mgc"/>
-  <text x="64" y="451" class="head">X05 · isolamento com CIDRs sobrepostos</text>
-  <text x="64" y="485" class="status">ACEITO · PASS EM 23/10/2026 (c9d0e1 + b8c9d0)</text>
-  <text x="64" y="523" class="body">192.168.100.0/24 em VNI 50100 e VNI 50200: 30/30 intra-tenant.</text>
-  <text x="64" y="557" class="body">Cross-tenant: 0/3 nos 4 sentidos e 0 pacotes no destino.</text>
-  <text x="64" y="598" class="small">Rollback canônico G7+G8 com 0 resíduos; Router MAC 02:00:00:20:00:01.</text>
+  <rect x="40" y="406" width="660" height="248" rx="16" class="card pass"/>
+  <text x="62" y="440" class="head">Destaques comparativos medidos em S001–S008 (OVN-K vs Cilium A/B vs INV)</text>
+  <text x="62" y="470" class="status">EVIDÊNCIAS AO VIVO EM KVM NATIVO (/dev/kvm) · R6=0 VERIFICADO</text>
+  <text x="62" y="504" class="body">• Identidade vs IP (V04 / G01): reuso do mesmo IP 10.253.0.100/32 bloqueado por</text>
+  <text x="62" y="530" class="body">  fromEndpoints (0/30 ALLOW), enquanto ACL por IP vaza (30/30 ALLOW).</text>
+  <text x="62" y="562" class="body">• Cilium A vs Cilium B (S006–S007): FRR 10.7.1 no nó adiciona EVPN Type 5 (V09)</text>
+  <text x="62" y="588" class="body">  e VRFs auxiliares (V07-B) com R6=0, mas eth0 primária continua global no</text>
+  <text x="62" y="614" class="body">  cilium_lxc — same-CIDR primário (K01) e migração L2 (K02) exigem OVN-K C/D.</text>
 
-  <rect x="725" y="414" width="355" height="226" rx="16" class="card planned"/>
-  <text x="749" y="451" class="head">Qualificação e síntese</text>
-  <text x="749" y="489" class="body">D1 · Q0–Q4 QUALIFIED PASS</text>
-  <text x="749" y="523" class="body">D2 · manifesto v758B pinado</text>
-  <text x="749" y="557" class="body">INV × aberto · síntese final</text>
-  <text x="749" y="585" class="body">prevista em P004-S005</text>
+  <rect x="725" y="406" width="355" height="248" rx="16" class="card pass"/>
+  <text x="747" y="440" class="head">4. Síntese &amp; Higiene (S008)</text>
+  <text x="747" y="470" class="status">S008 COMPLETO · G07 &amp; G08 PASS</text>
+  <text x="747" y="504" class="body">• G07: Matriz INV × Aberto e 6</text>
+  <text x="747" y="530" class="body">  critérios objetivos de PoC (INV-PoC</text>
+  <text x="747" y="556" class="body">  01 a 06) + Blueprint Fase 2 C/D.</text>
+  <text x="747" y="588" class="body">• G08: mgc/ovnk/evpn down (0 res.),</text>
+  <text x="747" y="614" class="body">  k01 10/10, p003-gw limpo, RAM 4,95G.</text>
 
-  <text x="42" y="680" class="small">Leitura histórica datada (23/10/2026); sem afirmação sobre disponibilidade atual da VM.</text>
+  <text x="42" y="686" class="small">Leitura histórica consolidada de P004 (S001–S008); sem afirmação sobre disponibilidade em tempo real da VM.</text>
 </svg>

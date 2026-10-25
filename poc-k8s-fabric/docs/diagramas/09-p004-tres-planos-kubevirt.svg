@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 760" role="img" aria-labelledby="title desc">
+  <title id="title">Planos comparados de P004 (S002–S008): MGC/OVN, OVN-Kubernetes + KubeVirt e Cilium A/B + KubeVirt</title>
+  <desc id="desc">Arquitetura comparada medida em P004-S002 a S008: (1) Plano OVN-Kubernetes v1.4.0 + UDN + KubeVirt v1.9.0 com IP fixo na migração (K01–K04); (2) Plano MGC e Fabric EVPN com VRFs/VNIs isolados (X01–X07); (3) Braços Cilium A e B (Cilium 1.20.2 + KubeVirt v1.9.0 + FRR 10.7.1 no p003-gw, V00–V09, H1–H8, R6=0) e fronteira INV × Aberto (G07).</desc>
+  <defs>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #142a3a; }
+      .title { font-size: 23.5px; font-weight: 700; }
+      .subtitle { font-size: 15.5px; fill: #344f60; }
+      .head { font-size: 18px; font-weight: 700; }
+      .subhead { font-size: 14.5px; font-weight: 700; fill: #1d4ed8; }
+      .subhead-green { font-size: 14.5px; font-weight: 700; fill: #2f6b2a; }
+      .subhead-amber { font-size: 14.5px; font-weight: 700; fill: #9a5200; }
+      .body { font-size: 14px; font-weight: 600; }
+      .mono { font-family: Courier, monospace; font-size: 12px; fill: #0f3a52; }
+      .small { font-size: 13.5px; fill: #385062; }
+      .panel-ovnk { fill: #eef6ff; stroke: #2b6cb0; stroke-width: 2.2; }
+      .panel-fabric { fill: #f3f8f1; stroke: #44723f; stroke-width: 2.2; }
+      .panel-cilium { fill: #fff8eb; stroke: #b76e00; stroke-width: 2.5; }
+      .box { fill: #ffffff; stroke: #64748b; stroke-width: 1.8; }
+      .box-allow { fill: #e8f6e8; stroke: #2f6b2a; stroke-width: 1.8; }
+      .box-deny { fill: #fdecec; stroke: #b83227; stroke-width: 1.8; }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1120" height="760" fill="#f7f9fb"/>
+  <text x="36" y="42" class="title">Arquitetura comparada em P004 (S002–S008): OVN-K (C/D) × Fabric EVPN × Cilium A &amp; B + KubeVirt</text>
+  <text x="36" y="68" class="subtitle">Quatro braços testados ao vivo na vm-cilium com KVM nativo (/dev/kvm), FRR 10.7.1 e Containerlab SR Linux</text>
+
+  <!-- Left column: OVN-K + Fabric EVPN / MGC (S002-S004) -->
+  <rect x="36" y="90" width="490" height="295" rx="14" class="panel-ovnk"/>
+  <text x="54" y="122" class="head">Braço C: OVN-Kubernetes v1.4.0 + KubeVirt (S003)</text>
+  <text x="54" y="146" class="subhead">Isolamento por UDN/CUDN L2 + Live Migration transparente</text>
+  <rect x="54" y="162" width="454" height="64" rx="10" class="box"/>
+  <text x="68" y="186" class="body">• K01: tenant-a e tenant-b com mesmo CIDR primário</text>
+  <text x="68" y="209" class="mono">10.100.0.0/24 (VM 10.100.0.14 em ambos · 0 vazamento)</text>
+  <rect x="54" y="236" width="454" height="64" rx="10" class="box-allow"/>
+  <text x="68" y="260" class="body">• K02: virtctl migrate ovnk-worker → ovnk-worker2</text>
+  <text x="68" y="283" class="mono">IP 10.100.0.14 fixo · 0% packet loss · TCP sobrevive</text>
+  <rect x="54" y="310" width="454" height="60" rx="10" class="box"/>
+  <text x="68" y="334" class="body">• K03/K04: EVPN Type 5 via frr-k8s + Lift-and-Shift</text>
+  <text x="68" y="355" class="mono">10.200.0.0/24 (VNI 10100) + VM 192.168.50.10/24</text>
+
+  <rect x="36" y="401" width="490" height="307" rx="14" class="panel-fabric"/>
+  <text x="54" y="433" class="head">Braço MGC + Fabric EVPN Cruzado / D (S002 + S004)</text>
+  <text x="54" y="457" class="subhead-green">Integração 3 planos e guardrails de sobreposição (X01–X07)</text>
+  <rect x="54" y="473" width="454" height="66" rx="10" class="box-allow"/>
+  <text x="68" y="497" class="body">• X01 (G04): Tenant unificado MGC ↔ Fabric ↔ OVN-K</text>
+  <text x="68" y="520" class="mono">192.168.100.10 ↔ 10.0.0.10 ↔ VM 10.200.0.x (30/30)</text>
+  <rect x="54" y="549" width="454" height="66" rx="10" class="box"/>
+  <text x="68" y="573" class="body">• X02 / X05 / X07 (G05): Subnets sobrepostas isoladas</text>
+  <text x="68" y="596" class="mono">Type 5 (VNI 10100/10200, 50100/50200) e Type 2 MAC-VRF</text>
+  <rect x="54" y="625" width="454" height="66" rx="10" class="box-deny"/>
+  <text x="68" y="649" class="body">• X03 / X04 / X06: Controles de borda e admissão</text>
+  <text x="68" y="672" class="mono">Communities BGP · RT errado (0/30) · Hub CIDR guard</text>
+
+  <!-- Right column: Cilium A & B + KubeVirt on p003-gw (S005-S008) -->
+  <rect x="546" y="90" width="538" height="618" rx="14" class="panel-cilium"/>
+  <text x="566" y="120" class="head">Braços Cilium A &amp; B: Cilium 1.20.2 + KubeVirt + FRR (S005–S008)</text>
+  <text x="566" y="143" class="subhead-amber">p003-gw: GoBGP nativo (A) vs FRR 10.7.1 no nó (B, R6=0) · V00 a V09</text>
+
+  <rect x="566" y="158" width="498" height="72" rx="10" class="box"/>
+  <text x="582" y="180" class="body">• V00–V03 (C01–C03): CiliumEndpoint, VIP BGP /32 e CNP por label</text>
+  <text x="582" y="201" class="mono">cep_id=242 sec_id=172890 · VIP 10.202.255.20/32 (30/30, withdraw 8s)</text>
+  <text x="582" y="220" class="mono">CNP fromEndpoints(client-a)=30/30 · client-b=0/30 (18 drops)</text>
+
+  <rect x="566" y="240" width="498" height="86" rx="10" class="box-allow"/>
+  <text x="582" y="262" class="body">• V04 (G01) &amp; V08-A/B (H8): Reuso de IP /32 e Cutover Legado</text>
+  <text x="582" y="283" class="mono">V04: 10.253.0.100/32 reutilizado → sec_id 133690 != 163024 (0/30 ALLOW)</text>
+  <text x="582" y="302" class="mono">V08-A/B: cutover KVM 10.60.0.50/24 → VMI /32 BGP (39s/40s · 30/30 OK)</text>
+  <text x="582" y="319" class="mono">C-neg (G02): sem VRF/EVPN no Cilium OSS; sec_id local ao eBPF</text>
+
+  <rect x="566" y="336" width="498" height="82" rx="10" class="box-deny"/>
+  <text x="582" y="358" class="body">• V05 (H3) &amp; V06: Live Migration L3 e Multi-Pool /32 no Cilium OSS</text>
+  <text x="582" y="379" class="mono">masquerade troca podIP (.2.190 → .1.23; /32 .0.23 → .0.4); l2bridge bloqueado</text>
+  <text x="582" y="399" class="mono">TCP direto p/ podIP antigo cai · VIP BGP reconverge em ~2–3 s (20/20)</text>
+
+  <rect x="566" y="428" width="498" height="86" rx="10" class="box-deny"/>
+  <text x="582" y="450" class="body">• V07-A (C-neg) vs V07-B: Sub-redes Sobrepostas (Same-CIDR)</text>
+  <text x="582" y="471" class="mono">V07-A (Cilium OSS): flat routing + putEndpointIdInvalid "IP in use" em eth0</text>
+  <text x="582" y="491" class="mono">V07-B (Cilium B): isolado em VRFs FRR (VNI 10100/10200 30/30), não em eth0</text>
+
+  <rect x="566" y="524" width="498" height="86" rx="10" class="box-allow"/>
+  <text x="582" y="546" class="body">• H6 (G06) &amp; V09 (H7): Braço Cilium B (FRR 10.7.1 no Nó · R6=0)</text>
+  <text x="582" y="567" class="mono">GoBGP (:1790) → frr-node (table-map RM-NO-KERNEL → 0 rotas BGP na main)</text>
+  <text x="582" y="587" class="mono">V09: EVPN Type-5 [5] em vrf-tenant-a/b (30/30 intra, 0/10 cross-VRF)</text>
+
+  <rect x="566" y="620" width="498" height="72" rx="10" class="box"/>
+  <text x="582" y="642" class="body">• Síntese INV × Aberto (G07): Critérios INV-PoC-01 a INV-PoC-06</text>
+  <text x="582" y="663" class="mono">Fase 2: Cilium A (Cloud-Native L7) + OVN-K C/D (VMs L2/EVPN/Same-CIDR)</text>
+  <text x="582" y="681" class="mono">cobre 100% dos requisitos sem lock-in; PoC INV exige eth0 VRF + L2 migrate</text>
+
+  <text x="36" y="736" class="small">Figura 09 — Síntese arquitetural dos resultados medidos de P004-S002 a P004-S008 (MGC, OVN-K C/D, Cilium A e Cilium B).</text>
+</svg>

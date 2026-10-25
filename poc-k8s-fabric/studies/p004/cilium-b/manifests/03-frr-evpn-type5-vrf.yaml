@@ -1,0 +1,259 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frr-node-evpn-config
+  namespace: kube-system
+  labels:
+    app: frr-node
+    study: P004
+    variant: cilium-b-evpn-v09
+data:
+  start-frr-evpn.sh: |
+    #!/bin/sh
+    set -eu
+
+    FRR_BIN_DIR=""
+    for d in /usr/lib/frr /usr/libexec/frr; do
+      if [ -x "${d}/mgmtd" ] && [ -x "${d}/bgpd" ] && [ -x "${d}/zebra" ]; then
+        FRR_BIN_DIR="${d}"
+        break
+      fi
+    done
+    if [ -z "${FRR_BIN_DIR}" ]; then
+      echo "ERROR: FRR binaries (mgmtd/zebra/bgpd) not found" >&2
+      exit 1
+    fi
+
+    NODE_ETH0_IP="$(ip -4 -o addr show dev eth0 | awk '{split($4,a,"/"); print a[1]}' | head -n 1)"
+    NODE_ETH1_IP="$(ip -4 -o addr show dev eth1 | awk '{split($4,a,"/"); print a[1]}' | head -n 1)"
+    if [ -z "${NODE_ETH0_IP}" ] || [ -z "${NODE_ETH1_IP}" ]; then
+      echo "ERROR: eth0/eth1 IPv4 address not found on node $(hostname)" >&2
+      exit 1
+    fi
+
+    NODE_LAST_OCTET="$(printf '%s' "${NODE_ETH0_IP}" | awk -F. '{printf "%02x", $4}')"
+
+    case "${NODE_ETH1_IP}" in
+      10.30.1.*)
+        FRR_ASN=65301
+        CILIUM_LOCAL_ASN=65311
+        LEAF_IP="10.30.1.1"
+        LEAF_ASN=65201
+        INTERNAL_NH="10.30.1.254"
+        ;;
+      10.30.2.*)
+        FRR_ASN=65302
+        CILIUM_LOCAL_ASN=65312
+        LEAF_IP="10.30.2.1"
+        LEAF_ASN=65202
+        INTERNAL_NH="10.30.2.254"
+        ;;
+      *)
+        echo "ERROR: unexpected eth1 IP ${NODE_ETH1_IP}" >&2
+        exit 1
+        ;;
+    esac
+
+    sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
+    sysctl -w net.ipv4.conf.all.rp_filter=0 >/dev/null 2>&1 || true
+    sysctl -w net.ipv4.conf.default.rp_filter=0 >/dev/null 2>&1 || true
+
+    ip addr replace 10.255.255.1/30 dev lo
+
+    # Configurar VRFs Linux por tenant (vrf-tenant-a table 10100 VNI 10100 / vrf-tenant-b table 10200 VNI 10200)
+    # isoladas da tabela default (onde o datapath eBPF do Cilium opera — invariante R6)
+    for dev in br-vni-10100 vxlan-10100 vrf-tenant-a br-vni-10200 vxlan-10200 vrf-tenant-b; do
+      ip link del "${dev}" 2>/dev/null || true
+    done
+
+    ip link add vrf-tenant-a type vrf table 10100
+    ip link set vrf-tenant-a up
+    ip -4 route replace vrf vrf-tenant-a unreachable default metric 4278198272
+    ip link add br-vni-10100 type bridge stp_state 0
+    ip link set br-vni-10100 address "02:00:10:01:00:${NODE_LAST_OCTET}" master vrf-tenant-a addrgenmode none up
+    ip link add vxlan-10100 type vxlan id 10100 dstport 4789 local "${NODE_ETH0_IP}" dev eth0 nolearning
+    ip link set vxlan-10100 master br-vni-10100 addrgenmode none up
+    bridge link set dev vxlan-10100 learning off 2>/dev/null || true
+
+    ip link add vrf-tenant-b type vrf table 10200
+    ip link set vrf-tenant-b up
+    ip -4 route replace vrf vrf-tenant-b unreachable default metric 4278198272
+    ip link add br-vni-10200 type bridge stp_state 0
+    ip link set br-vni-10200 address "02:00:10:02:00:${NODE_LAST_OCTET}" master vrf-tenant-b addrgenmode none up
+    ip link add vxlan-10200 type vxlan id 10200 dstport 4789 local "${NODE_ETH0_IP}" dev eth0 nolearning
+    ip link set vxlan-10200 master br-vni-10200 addrgenmode none up
+    bridge link set dev vxlan-10200 learning off 2>/dev/null || true
+
+    mkdir -p /etc/frr /var/run/frr /var/log/frr
+    chown -R frr:frr /etc/frr /var/run/frr /var/log/frr 2>/dev/null || true
+
+    cat >/etc/frr/vtysh.conf <<EOF
+    service integrated-vtysh-config
+    hostname $(hostname)-frr-evpn
+    EOF
+
+    cat >/etc/frr/frr.conf <<EOF
+    frr defaults traditional
+    hostname $(hostname)-frr-evpn
+    log file /var/log/frr/frr.log informational
+    service integrated-vtysh-config
+    !
+    vrf vrf-tenant-a
+     vni 10100
+    exit-vrf
+    !
+    vrf vrf-tenant-b
+     vni 10200
+    exit-vrf
+    !
+    route-map RM-NO-KERNEL deny 10
+    !
+    route-map RM-DENY-ALL deny 10
+    !
+    route-map RM-FROM-CILIUM permit 10
+     set ip next-hop ${INTERNAL_NH}
+    !
+    route-map RM-TO-FABRIC permit 10
+     set ip next-hop ${NODE_ETH1_IP}
+    !
+    router bgp ${FRR_ASN}
+     bgp router-id ${NODE_ETH0_IP}
+     no bgp ebgp-requires-policy
+     timers bgp 3 9
+     neighbor CILIUM peer-group
+     neighbor CILIUM remote-as ${CILIUM_LOCAL_ASN}
+     neighbor CILIUM description cilium-gobgp-local
+     neighbor CILIUM update-source 10.255.255.1
+     neighbor CILIUM disable-connected-check
+     neighbor CILIUM ebgp-multihop 2
+     neighbor CILIUM timers 3 9
+     bgp listen range 10.255.255.0/30 peer-group CILIUM
+     neighbor ${LEAF_IP} remote-as ${LEAF_ASN}
+     neighbor ${LEAF_IP} description fabric-leaf
+     neighbor ${LEAF_IP} disable-connected-check
+     neighbor ${LEAF_IP} port 179
+     neighbor ${LEAF_IP} timers 3 9
+     neighbor ${LEAF_IP} timers connect 3
+     !
+     address-family ipv4 unicast
+      table-map RM-NO-KERNEL
+      neighbor CILIUM activate
+      neighbor CILIUM soft-reconfiguration inbound
+      neighbor CILIUM route-map RM-FROM-CILIUM in
+      neighbor CILIUM route-map RM-DENY-ALL out
+      neighbor ${LEAF_IP} activate
+      neighbor ${LEAF_IP} next-hop-self force
+      neighbor ${LEAF_IP} route-map RM-DENY-ALL in
+      neighbor ${LEAF_IP} route-map RM-TO-FABRIC out
+     exit-address-family
+     !
+     address-family l2vpn evpn
+      advertise-all-vni
+     exit-address-family
+    !
+    router bgp ${FRR_ASN} vrf vrf-tenant-a
+     bgp router-id ${NODE_ETH0_IP}
+     no bgp ebgp-requires-policy
+     address-family ipv4 unicast
+      redistribute connected
+     exit-address-family
+     address-family l2vpn evpn
+      rd ${FRR_ASN}:10100
+      route-target import 65000:10100
+      route-target export 65000:10100
+      advertise ipv4 unicast
+     exit-address-family
+    !
+    router bgp ${FRR_ASN} vrf vrf-tenant-b
+     bgp router-id ${NODE_ETH0_IP}
+     no bgp ebgp-requires-policy
+     address-family ipv4 unicast
+      redistribute connected
+     exit-address-family
+     address-family l2vpn evpn
+      rd ${FRR_ASN}:10200
+      route-target import 65000:10200
+      route-target export 65000:10200
+      advertise ipv4 unicast
+     exit-address-family
+    !
+    line vty
+    !
+    EOF
+    chown -R frr:frr /etc/frr 2>/dev/null || true
+
+    "${FRR_BIN_DIR}/mgmtd" -d -A 127.0.0.1
+    "${FRR_BIN_DIR}/zebra" -d -A 127.0.0.1 -f /dev/null
+    "${FRR_BIN_DIR}/bgpd" -d -p 1790 -A 127.0.0.1 -f /dev/null
+    sleep 1
+    vtysh -b
+
+    term_handler() {
+      killall -q bgpd zebra mgmtd 2>/dev/null || true
+      for dev in br-vni-10100 vxlan-10100 vrf-tenant-a br-vni-10200 vxlan-10200 vrf-tenant-b; do
+        ip link del "${dev}" 2>/dev/null || true
+      done
+      exit 0
+    }
+    trap term_handler INT TERM
+
+    while true; do
+      if ! pidof mgmtd >/dev/null 2>&1 || ! pidof zebra >/dev/null 2>&1 || ! pidof bgpd >/dev/null 2>&1; then
+        echo "ERROR: mgmtd, zebra, or bgpd exited unexpectedly" >&2
+        exit 1
+      fi
+      sleep 2
+    done
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: frr-node
+  namespace: kube-system
+  labels:
+    app: frr-node
+    study: P004
+    variant: cilium-b-evpn-v09
+spec:
+  selector:
+    matchLabels:
+      app: frr-node
+  template:
+    metadata:
+      labels:
+        app: frr-node
+        study: P004
+        variant: cilium-b-evpn-v09
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: frr
+          image: quay.io/frrouting/frr:10.7.1@sha256:9aeb1c4947207a3d405674c4de06451d8b7e0d00e6f7d1f8e61e7354273efc63
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "/scripts/start-frr-evpn.sh"]
+          securityContext:
+            privileged: true
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "vtysh -c 'show bgp summary' >/dev/null 2>&1"
+            initialDelaySeconds: 2
+            periodSeconds: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+          volumeMounts:
+            - name: frr-scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: frr-scripts
+          configMap:
+            name: frr-node-evpn-config
+            defaultMode: 0755
