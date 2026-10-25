@@ -1,0 +1,103 @@
+# ==============================================================================
+# P005-S002 (Onda 2 — Braço A): E12 — Workloads, Service VIP 10.202.255.192/32
+# e CiliumBGPAdvertisements por Rack (65400:100 Primário / 65400:200 Secundário)
+# ==============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p005-e12
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e12-echo-rack1
+  namespace: p005-e12
+  labels:
+    app: e12-echo
+    rack: rack1
+spec:
+  nodeName: p003-gw-worker
+  containers:
+  - name: agnhost
+    image: registry.k8s.io/e2e-test-images/agnhost:2.47
+    imagePullPolicy: IfNotPresent
+    args: ["netexec", "--http-port=8080"]
+    ports:
+    - containerPort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e12-echo-rack2
+  namespace: p005-e12
+  labels:
+    app: e12-echo
+    rack: rack2
+spec:
+  nodeName: p003-gw-worker2
+  containers:
+  - name: agnhost
+    image: registry.k8s.io/e2e-test-images/agnhost:2.47
+    imagePullPolicy: IfNotPresent
+    args: ["netexec", "--http-port=8080"]
+    ports:
+    - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e12-vip-svc
+  namespace: p005-e12
+  labels:
+    e12-bgp-advertise: "true"
+  annotations:
+    lbipam.cilium.io/ips: "10.202.255.192"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: e12-echo
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: e12-adv-rack1
+  labels:
+    e12-adv: rack1
+spec:
+  advertisements:
+  - advertisementType: "Service"
+    service:
+      addresses:
+      - LoadBalancerIP
+    selector:
+      matchLabels:
+        e12-bgp-advertise: "true"
+    attributes:
+      communities:
+        standard:
+        - "65400:100"
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: e12-adv-rack2
+  labels:
+    e12-adv: rack2
+spec:
+  advertisements:
+  - advertisementType: "Service"
+    service:
+      addresses:
+      - LoadBalancerIP
+    selector:
+      matchLabels:
+        e12-bgp-advertise: "true"
+    attributes:
+      communities:
+        standard:
+        - "65400:200"

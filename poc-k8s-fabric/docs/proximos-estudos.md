@@ -1,10 +1,12 @@
 # Próximos estudos — Cilium como motor de uma conexão dedicada com eBGP
 
 > Proposta de trilha (estudos E09–E25) escrita em 26/09/2026, depois do encerramento da
-> trilha P003. O estudo **E20 (`P004`) foi integralmente concluído com PASS (`P004-S001` a `P004-S008`, `G01` a `G08` fechados)** — veja a [síntese pública de P004](estudos/20-mgc-estado-parcial.md) — e o plano **P005 (Ondas Paralelas Braço A eBGP ∥ Braço B Datapath eBPF)** concluiu com **PASS** a **Onda 1 (`P005-S001`)**:
-> - **Braço A (`E19` + `E09`):** [19 — Idempotência BGP (10x), Zero Resíduo e eBGP Autenticado TCP MD5 com ASN 32 bits (`4200000001`)](estudos/19-bgp-idempotency-md5-asn32.md);
-> - **Braço B (`E23` + `E21`):** [21 — `netkit` vs `veth` no Datapath eBPF & Escala de Burst IPAM com Warm Pool](estudos/21-netkit-vs-veth-ipam-burst.md).
-> Os estudos das Ondas 2 a 4 (`E10–E18`, `E22`, `E24`, `E25`) seguem em execução estruturada sob `P005-S002` a `P005-S004`. Cada estudo nasce de uma lacuna
+> trilha P003. O estudo **E20 (`P004`) foi integralmente concluído com PASS (`P004-S001` a `P004-S008`, `G01` a `G08` fechados)** — veja a [síntese pública de P004](estudos/20-mgc-estado-parcial.md) — e o plano **P005 (Ondas Paralelas Braço A eBGP ∥ Braço B Datapath eBPF)** concluiu com **PASS** as **Ondas 1 e 2 (`P005-S001` e `P005-S002`)**:
+> - **Onda 1 — Braço A (`E19` + `E09`):** [19 — Idempotência BGP (10x), Zero Resíduo e eBGP Autenticado TCP MD5 com ASN 32 bits (`4200000001`)](estudos/19-bgp-idempotency-md5-asn32.md);
+> - **Onda 1 — Braço B (`E23` + `E21`):** [21 — `netkit` vs `veth` no Datapath eBPF & Escala de Burst IPAM com Warm Pool](estudos/21-netkit-vs-veth-ipam-burst.md);
+> - **Onda 2 — Braço A (`E11` + `E12` + `E10`):** [11 — Limite de Prefixos (`max-prefix`), Filtro de Import, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](estudos/11-bgp-maxprefix-communities-bfd.md);
+> - **Onda 2 — Braço B (`E22`):** [22 — XLB: Balanceamento L7 eBPF na Camada de Sockets (`sockmap` / `bpf_sock_ops` / `sk_msg`) vs `SocketLB L4` e `Envoy L7`](estudos/22-xlb-ebpf-socket-lb-vs-envoy.md).
+> Os estudos das Ondas 3 e 4 (`E13–E18`, `E24`, `E25`) seguem em execução estruturada sob `P005-S003` e `P005-S004`. Cada estudo nasce de uma lacuna
 > registrada no [guia do estudante 2.3](lab-guide-student.md) ou de um
 > requisito técnico de um produto de conexão dedicada com eBGP (Direct
 > Connect), e cita a fonte primária que sustenta a hipótese. Dados
@@ -119,6 +121,8 @@ Gate: 4/4 células **PASS** em `vm-cilium` (`03-e09-bgp-md5-asn32.txt`): sessão
 
 ### E10 — Detecção de falha sem BFD: onde ela deve viver
 
+**Estado:** **CONCLUÍDO (`P005-S002` — PASS em 25/10/2026)** — publicado em [11 — Limite de Prefixos, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](estudos/11-bgp-maxprefix-communities-bfd.md).
+
 Hipótese: com hold 9 s, uma falha silenciosa de enlace só é detectada entre
 6 e 9 s; BFD abaixo de 1 s só existe se o eBGP do cliente terminar em um
 roteador que o suporte (FRR ou SR Linux), com o Cilium na sessão interna.
@@ -133,11 +137,11 @@ Ensaio D (opcional, se o PR #48251 for mesclado durante a trilha): BFD do
 Cilium contra FRR com intervalos estritos, verificando as não-conformidades
 abertas do GoBGP (jitter, RequiredMinRx) contra um PE real.
 
-Gate: tabela com tempo de detecção por célula e recomendação explícita de
-onde terminar a sessão do cliente. Fonte: issue 22394 permanece aberta;
-qualquer mudança de status é registrada como emenda.
+Gate: **PASS** (`04-e10-failure-detection-bfd.txt`): sob falha silenciosa de enlace (`iptables DROP` sem `TCP RST`/`FIN`), o Cilium com timers `3/9 s` convergiu em **`8901 ms`** (`> 1000 ms`); no piso da API BGP v2 (`1/3 s`, com `holdTimeSeconds=2` rejeitado pelo CRD validation), convergiu em **`3045 ms`** (`> 1000 ms`); já o pareamento `FRR PE <-> FRR CE` protegido por **BFD (`100 ms × 3`)** detectou a falha e retirou a rota `198.18.210.0/24` em **`359 ms < 1000 ms`**, cumprindo `RNF05`.
 
 ### E11 — Limite de prefixos e filtro de import
+
+**Estado:** **CONCLUÍDO (`P005-S002` — PASS em 25/10/2026)** — publicado em [11 — Limite de Prefixos, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](estudos/11-bgp-maxprefix-communities-bfd.md).
 
 Hipótese: o Cilium aceita qualquer quantidade de prefixos recebidos sem
 limite nem filtro, e não os instala no kernel (route learning foi recusado
@@ -151,11 +155,11 @@ sessão e o que aparece em `ip route` do nó (esperado: nada, porque o BGP
 Control Plane não programa o datapath). Negativo: prefixo fora da lista
 declarada não deve aparecer na RIB do border.
 
-Gate: comportamento do Cilium documentado por número (aceita tudo, sem
-instalação no kernel) e comprovação de que a borda FRR descarta o excesso e
-o não declarado.
+Gate: **PASS** (`02-e11-maxprefix-import.txt`): o Cilium OSS `1.20.2` manteve a sessão `established` ao receber `50`, `200` e `300` prefixos (`Received: 51 -> 201 -> 301` na `Adj-RIB-In` de `cilium-dbg bgp peers`, sem atributo `max-prefix` nem filtro de import na API BGP v2) e sem instalar nenhuma rota no kernel (`kernel_proto_bgp_routes=0`, `R6=0`); na borda FRR (`border1`) com `ip prefix-list E11-IMPORT-ALLOW` (`permit 198.18.0.0/16 le 32`) e `maximum-prefix 100`, os `50` prefixos `198.18.1.1/32..198.18.1.50/32` foram aceitos (`50` rotas), o prefixo não declarado `198.51.100.99/32` foi descartado (`% Network not in table`, `0` entradas na RIB) e o envio de `200` e `300` prefixos derrubou automaticamente a sessão com `Idle (PfxCt)` (`Maximum-prefix exceeded`).
 
 ### E12 — Communities, prepend e MED: marcar na origem, decidir na borda
+
+**Estado:** **CONCLUÍDO (`P005-S002` — PASS em 25/10/2026)** — publicado em [11 — Limite de Prefixos, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](estudos/11-bgp-maxprefix-communities-bfd.md).
 
 Hipótese: o Cilium só consegue **marcar** anúncios (communities); prepend e
 MED devem ser aplicados por route-policy no border, disparados pela community.
@@ -167,8 +171,7 @@ a community. Medir no FRR "cliente" o caminho preferido e a troca de caminho
 ao retirar a community primária. Negativo: sem policy, os dois caminhos
 ficam em ECMP.
 
-Gate: preferência de caminho controlada de ponta a ponta com evidência no
-"cliente"; matriz do que o Cilium faz e do que a borda faz.
+Gate: **PASS** (`03-e12-communities-prepend-med.txt`): a VIP `10.202.255.192/32` marcada pelo Cilium com `65400:100` em `rack1` (`p003-gw-worker`, `AS 65301`) e `65400:200` em `rack2` (`p003-gw-worker2`, `AS 65302`) instalou ambos os next-hops (`10.255.212.1 via e12r1b` e `10.255.212.5 via e12r2b`) em ECMP de 2 vias (`multipath`) sem `route-map` em `border1`; ao ativar `RM-E12-RACK1-IN`, `RM-E12-RACK2-IN` e `RM-E12-TO-CE` em `border1` (`65400:100 -> metric 10`, `65400:200 -> metric 200 + as-path prepend 2x`), `10/10` (`100%`) das requisições de `frr-e12-ce` atingiram `e12-echo-rack1` (`p003-gw-worker`, `AS 65301`); e ao inverter as communities nos `CiliumBGPAdvertisement`s do Kubernetes, `10/10` (`100%`) das requisições migraram em `4 s` para `e12-echo-rack2` (`p003-gw-worker2`, `AS 65302`) sem tocar na CLI do roteador de borda.
 
 ### E13 — Redundância em dois equipamentos e teste de failover
 
@@ -343,7 +346,7 @@ Gate: **PASS** (`05-e21-ipam-burst-scale.txt`): em rajadas de 16 pods (`registry
 
 ### E22 — XLB: balanceamento L7 com eBPF na camada de sockets
 
-**Estado:** BACKLOG — adicionado em 30/09/2026; não executado.
+**Estado:** **CONCLUÍDO (`P005-S002` — PASS em 25/10/2026)** — publicado em [22 — XLB: Balanceamento L7 eBPF na Camada de Sockets (`sockmap` / `bpf_sock_ops` / `sk_msg`) vs `SocketLB L4` e `Envoy L7`](estudos/22-xlb-ebpf-socket-lb-vs-envoy.md).
 
 Fonte: [XLB: A High Performance Layer-7 Load Balancer for Microservices using
 eBPF-based In-kernel Interposition](https://arxiv.org/pdf/2602.09473). O artigo
@@ -360,8 +363,7 @@ TLS e protocolos cada braço realmente oferece. Medir throughput, p50/p95/p99,
 CPU, memória, erros e justiça entre serviços. Negativos: backend indisponível,
 regra de roteamento divergente e tentativa de acesso entre tenants.
 
-Gate: correção funcional e isolamento antes da comparação de desempenho;
-documentar diferenças de funcionalidades e limitações de reprodução.
+Gate: **PASS** (`05-e22-xlb-socket-lb-vs-envoy.txt`): em `100` requisições HTTP sequenciais em `e22-svc:8080`, comparados `Envoy L7` (`avg=1,014 ms`, `p95=1,418 ms`, `985,9 req/s`, `NET_RX delta=1692`), `SocketLB L4` (`bpf-lb-sock-hostns-only=false`: `avg=0,392 ms`, `p95=0,465 ms`, `2550,9 req/s`, `NET_RX delta=1309`) e `XLB Sockmap/sk_msg L7` (`BPF_MAP_TYPE_SOCKHASH` + `BPF_PROG_TYPE_SOCK_OPS` + `BPF_PROG_TYPE_SK_MSG`: **`avg=0,413 ms`, `p95=0,493 ms`, `2418,9 req/s` (`+145,4%` vs Envoy), `NET_RX delta=1220` (`-27,9%` vs Envoy e `-6,8%` vs SocketLB L4)**, `sk_msg_redirected=160` chamadas `bpf_msg_redirect_hash` concluídas com `SK_PASS` e bloqueio L7 in-kernel `SK_DROP` em `GET /deny` com `curl_rc=55`), além dos controles negativos `403 Forbidden` em `GET /deny` (Envoy L7), `rc=28` (tenant não autorizado) e `rc=7` (`0` réplicas), seguidos de rollback limpo ao baseline.
 
 ### E23 — Netkit versus veth no datapath de containers
 

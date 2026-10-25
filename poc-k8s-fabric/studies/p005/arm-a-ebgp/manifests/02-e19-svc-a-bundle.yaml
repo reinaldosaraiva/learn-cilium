@@ -1,0 +1,42 @@
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: e19-vip-advertisement
+  labels:
+    advertise: fabric
+    study: p005-e19
+spec:
+  advertisements:
+    - advertisementType: "Service"
+      service:
+        addresses:
+          - LoadBalancerIP
+      selector:
+        matchLabels:
+          e19-bgp-advertise: "true"
+      attributes:
+        communities:
+          standard:
+            - "65301:190"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-a
+  namespace: p005-e19
+  labels:
+    app: e19-svc-a
+    e19-bgp-advertise: "true"
+    study: p005-e19
+  annotations:
+    lbipam.cilium.io/ips: "10.202.255.190"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  selector:
+    app: e19-svc-a
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
