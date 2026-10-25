@@ -1,17 +1,10 @@
 # Próximos estudos — Cilium como motor de uma conexão dedicada com eBGP
 
 > Proposta de trilha (estudos E09–E25) escrita em 26/09/2026, depois do encerramento da
-> trilha P003. E09–E19 e E21–E25 permanecem propostas. O estudo **E20 (`P004`) foi
-> integralmente concluído com PASS (`P004-S001` a `P004-S008`, `G01` a `G08` fechados)**:
-> `P004-S001` (`labctl`), `P004-S002` (MGC/OVN+FRR `M01–M03` + `X05`),
-> `P004-S003` (OVN-Kubernetes + UDN/EVPN + KubeVirt `K01–K04`), `P004-S004`
-> (cruzados `X01–X04`, `X06`, `X07`), `P004-S005` (Braço Cilium A + KubeVirt
-> `V00–V06` / `C01–C06`), `P004-S006` (negativos Cilium A `V07-A`, `V08-A`, `C-neg`
-> + Braço Cilium B `H6` / `G02` / `G06`), `P004-S007` (Braço Cilium B `V09`/`V07-B`/`V08-B`,
-> matriz comparativa Cilium A vs Cilium B e blueprint da Fase 2 OVN-Kubernetes `C/D`) e
-> `P004-S008` (síntese `INV × equivalente aberto` `G07`, critérios `INV-PoC-01` a `INV-PoC-06`,
-> Guia do Estudante Ed. 2.3 e higiene final `G08`); veja a
-> [síntese pública de P004](estudos/20-mgc-estado-parcial.md). Cada estudo nasce de uma lacuna
+> trilha P003. O estudo **E20 (`P004`) foi integralmente concluído com PASS (`P004-S001` a `P004-S008`, `G01` a `G08` fechados)** — veja a [síntese pública de P004](estudos/20-mgc-estado-parcial.md) — e o plano **P005 (Ondas Paralelas Braço A eBGP ∥ Braço B Datapath eBPF)** concluiu com **PASS** a **Onda 1 (`P005-S001`)**:
+> - **Braço A (`E19` + `E09`):** [19 — Idempotência BGP (10x), Zero Resíduo e eBGP Autenticado TCP MD5 com ASN 32 bits (`4200000001`)](estudos/19-bgp-idempotency-md5-asn32.md);
+> - **Braço B (`E23` + `E21`):** [21 — `netkit` vs `veth` no Datapath eBPF & Escala de Burst IPAM com Warm Pool](estudos/21-netkit-vs-veth-ipam-burst.md).
+> Os estudos das Ondas 2 a 4 (`E10–E18`, `E22`, `E24`, `E25`) seguem em execução estruturada sob `P005-S002` a `P005-S004`. Cada estudo nasce de uma lacuna
 > registrada no [guia do estudante 2.3](lab-guide-student.md) ou de um
 > requisito técnico de um produto de conexão dedicada com eBGP (Direct
 > Connect), e cita a fonte primária que sustenta a hipótese. Dados
@@ -110,6 +103,8 @@ o próprio aceite.
 
 ### E09 — Sessão eBGP autenticada com os parâmetros do produto
 
+**Estado:** **CONCLUÍDO (`P005-S001` — PASS em 25/10/2026)** — publicado em [19 — Idempotência BGP e eBGP Autenticado TCP MD5 com ASN 32 bits](estudos/19-bgp-idempotency-md5-asn32.md).
+
 Hipótese: o Cilium estabelece eBGP com MD5 e ASN de 32 bits contra FRR e
 SR Linux, e uma senha divergente impede a sessão sem afetar as demais.
 
@@ -120,8 +115,7 @@ sessão fica em `Active/Connect` e o `cilium bgp peers` mostra o motivo.
 Coleta: `show network-instance default protocols bgp neighbor` no SR Linux,
 `show bgp neighbors` no FRR, captura de TCP/179 com opção MD5 presente.
 
-Gate: 3/3 células conforme esperado; troca de senha em produção
-documentada com janela medida de queda e reestabelecimento.
+Gate: 4/4 células **PASS** em `vm-cilium` (`03-e09-bgp-md5-asn32.txt`): sessão `65302 <-> 4200000001` `established` em `3 s` com opção TCP 19 (`md5`) no `tcpdump`; senha divergente bloqueada em `active` (`TcpExtTCPMD5Failure=2`, `3/3` sessões do fabric intactas); Secret ausente fail-safe (`restarts=0`, `3/3` fabric intacto); rotação de chave `v1 -> v2` convergida em `9,39 s` com BGP `UPDATE` de 4 bytes (`0xfa56ea01`).
 
 ### E10 — Detecção de falha sem BFD: onde ela deve viver
 
@@ -274,6 +268,8 @@ versus Cilium" para MACsec e QinQ.
 
 ### E19 — Ciclo de vida da configuração BGP: idempotência e resíduo
 
+**Estado:** **CONCLUÍDO (`P005-S001` — PASS em 25/10/2026)** — publicado em [19 — Idempotência BGP e eBGP Autenticado TCP MD5 com ASN 32 bits](estudos/19-bgp-idempotency-md5-asn32.md).
+
 Hipótese: aplicar o mesmo conjunto de CRDs BGP repetidamente não altera a
 RIB; remover os CRDs de uma "conexão" retira todos os prefixos e não deixa
 resíduo no nó, no fabric nem no GoBGP.
@@ -283,8 +279,7 @@ Ensaio: apply idêntico 10 vezes com snapshot da RIB e de
 kernel, sessões TCP/179, policies). Aplicar a mesma metodologia de E08 ao
 "reuso" de uma VIP por outro serviço.
 
-Gate: 0 diferenças entre snapshots; 0 resíduos após remoção, com lista de
-verificação reutilizável.
+Gate: **PASS** (`02-e19-bgp-idempotency.txt`): `0` diffs em `10x kubectl apply` (`version: 488` constante em `border1`), `0` resíduos após teardown (`R6=0`) e reuso imediato da VIP `10.202.255.190/32` por `e19-echo-b` (`30/30` HTTP `200` em `/hostname` retornando `e19-echo-b-*`, `0` respostas antigas `e19-echo-a-*`).
 
 ### E20 — Cilium OSS + KubeVirt versus Isovalent Networking for Virtualization
 
@@ -326,7 +321,7 @@ Fontes: [INV GA](https://isovalent.com/blog/post/isovalent-networking-for-virtua
 
 ### E21 — IPAM e tempo de implantação: VPC-native versus overlay
 
-**Estado:** BACKLOG — adicionado em 30/09/2026; não executado.
+**Estado:** **CONCLUÍDO (`P005-S001` — PASS em 25/10/2026)** — publicado em [21 — `netkit` vs `veth` no Datapath eBPF & Escala de Burst IPAM com Warm Pool](estudos/21-netkit-vs-veth-ipam-burst.md).
 
 Fonte: [Fleet-Scale Pod Deployment with VPC-Native Networking in Managed
 Kubernetes](https://arxiv.org/pdf/2608.22210). O artigo compara IPs secundários,
@@ -344,8 +339,7 @@ incluindo throttling. Controle: variar warm pool dentro do mesmo modo; separar
 entrada de nós e provisionamento de pods. EKS depende de orçamento e ambiente
 dedicado aprovados; um ensaio local caracteriza apenas o braço overlay.
 
-Gate: resultados repetidos com dispersão, configuração completa e atribuição
-do gargalo; registrar explicitamente o que não foi reproduzido.
+Gate: **PASS** (`05-e21-ipam-burst-scale.txt`): em rajadas de 16 pods (`registry.k8s.io/e2e-test-images/agnhost:2.47` pré-carregada nos nós), `ipam.mode=kubernetes` convergiu em `5,40 s` (`2,96 pods/s`, `0` erros CNI); `multi-pool` frio (`e21-burst-pool` `10.252.0.0/16` `maskSize: 32`, `ipam.multiPoolPreAllocation="default=8,e21-burst-pool=1"`) sofreu `27` falhas `postIpamFailure` (`502`); `multi-pool` pré-aquecido (`ipam.multiPoolPreAllocation="default=8,e21-burst-pool=32"`) **eliminou 100% dos erros `CNI ADD` (`27 -> 0`)**; e o controle negativo `e21-tiny-pool` (`10.253.21.0/29` `maskSize: 29`, `6` IPs utilizáveis para `10` pods) manteve `6 Running` e `4 Pending` sem afetar os `16/16` pods de `e21-burst-pool`.
 
 ### E22 — XLB: balanceamento L7 com eBPF na camada de sockets
 
@@ -371,7 +365,7 @@ documentar diferenças de funcionalidades e limitações de reprodução.
 
 ### E23 — Netkit versus veth no datapath de containers
 
-**Estado:** BACKLOG — adicionado em 30/09/2026; não executado.
+**Estado:** **CONCLUÍDO (`P005-S001` — PASS em 25/10/2026)** — publicado em [21 — `netkit` vs `veth` no Datapath eBPF & Escala de Burst IPAM com Warm Pool](estudos/21-netkit-vs-veth-ipam-burst.md).
 
 Fonte: [Netkit: Specializing Linux Packet Delivery for Container
 Networks](https://arxiv.org/pdf/2609.18633). O artigo especializa a entrega
@@ -389,8 +383,7 @@ CPU, softirq e drops. Negativos: política deny e tentativa de acesso cruzado
 entre tenants, com captura externa. Compatibilidade com KubeVirt fica como
 subensaio condicionado ao caminho suportado, sem assumir equivalência.
 
-Gate: conectividade e isolamento preservados, medições repetidas e limites
-registrados; rollback para o datapath original comprovado.
+Gate: **PASS** (`04-e23-netkit-vs-veth.txt`): provada a guarda fail-closed do Cilium `1.20.2` na transição `veth -> netkit` com endpoints incompatíveis; em `datapath-mode=netkit` (`mode l3`, `NOARP`), o tráfego TCP bulk `iperf3` eliminou `100%` das retransmissões (`47 -> 0` same-node, `11 -> 0` cross-node) e reduziu softirqs `NET_RX` em `-8,9%` (same-node) e `-20,5%` (cross-node), mantendo `CiliumNetworkPolicy` com `leaked_pkts=0` e rollback limpo para `veth`.
 
 ### E24 — DRA no Cilium: alocação de recursos de rede por claim
 

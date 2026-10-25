@@ -5,6 +5,19 @@ Todas as mudanças relevantes deste repositório de estudos e laboratório
 
 ---
 
+## [v2.4.0-dev] — 2026-10-25 (Em andamento — Plano `P005`)
+
+### Adicionado
+- **P005-S001 — Onda 1 Paralela (`Braço A: E19 + E09` ∥ `Braço B: E23 + E21`) (`Verdict: PASS`):**
+  - **Braço A (`poc-k8s-fabric/studies/p005/arm-a-ebgp/`, dossiê [`19-bgp-idempotency-md5-asn32.md`](poc-k8s-fabric/docs/estudos/19-bgp-idempotency-md5-asn32.md)):**
+    - `E19`: prova de idempotência declarativa (`10x kubectl apply` consecutivos com `0` diffs em `route-policies`, `advertised routes` e na RIB de `border1` com `version: 488` constante), auditoria de zero resíduo após remoção (`R6=0` rotas `proto bgp` no kernel) e reuso imediato da VIP `10.202.255.190/32` por `e19-echo-b` (`30/30` HTTP `200` em `/hostname` retornando `e19-echo-b-*`, `0` respostas antigas `e19-echo-a-*`).
+    - `E09`: sessão eBGP autenticada com TCP MD5 (`RFC 2385`, `authSecretRef` em `kube-system`) e ASN privado de 32 bits (`4200000001`, `RFC 6793`) contra `frr-e09` (`established` em `3 s`, opção TCP 19 comprovada via `tcpdump`), controles negativos de senha divergente (`TcpExtTCPMD5Failure=2`, `3/3` sessões do fabric intactas) e Secret ausente (`restarts=0`), e rotação de senha em produção (`v1 -> v2` convergida em `9,39 s`).
+  - **Braço B (`poc-k8s-fabric/studies/p005/arm-b-datapath/`, dossiê [`21-netkit-vs-veth-ipam-burst.md`](poc-k8s-fabric/docs/estudos/21-netkit-vs-veth-ipam-burst.md)):**
+    - `E23`: benchmark comparativo `netkit` (`mode l3`, `NOARP`) vs `veth` (`tcx`) no Cilium `1.20.2` (Kernel `6.8.0-139-generic`, `CONFIG_NETKIT=y`), comprovando a guarda fail-closed de migração `veth -> netkit` com endpoints incompatíveis, eliminação de `100%` das retransmissões TCP em `iperf3` (`47 -> 0` same-node, `11 -> 0` cross-node), redução de softirqs `NET_RX` (`-8,9%` same-node, `-20,5%` cross-node), controle negativo com `CiliumNetworkPolicy` (`leaked_pkts=0`) e rollback limpo para `veth`.
+    - `E21`: escala de burst IPAM (`16` pods simultâneos com imagem local `registry.k8s.io/e2e-test-images/agnhost:2.47`) comparando `ipam.mode=kubernetes` (`5,40 s`, `2,96 pods/s`, `0` falhas CNI), `multi-pool` frio (`e21-burst-pool` `10.252.0.0/16` `maskSize: 32`, `ipam.multiPoolPreAllocation="default=8,e21-burst-pool=1"` -> `27` falhas `postIpamFailure` `502` / `FailedCreatePodSandBox`), `multi-pool` pré-aquecido (`ipam.multiPoolPreAllocation="default=8,e21-burst-pool=32"` -> **`0` falhas `postIpamFailure`**, eliminando `100%` dos erros de `CNI ADD`) e controle negativo de exaustão de `e21-tiny-pool` (`10.253.21.0/29`, `6 Running`, `4 Pending`, sem impacto em outros pools).
+
+---
+
 ## [v2.3.0] — 2026-10-25
 
 ### Adicionado

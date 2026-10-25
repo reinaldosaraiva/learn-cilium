@@ -75,8 +75,12 @@ Não é uma promessa de desempenho de hardware, alta disponibilidade de produç�
 round-robin perfeito ou isolamento de tenant equivalente a uma rede virtual
 completa.
 
-A trilha seguinte, orientada pelos requisitos de um produto de conexão
+A trilha seguinte (**P005**), orientada pelos requisitos de um produto de conexão
 dedicada com eBGP (BFD, autenticação de sessão, limite de prefixos,
 communities, redundância entre dois equipamentos, VRF por tenant e
-observabilidade por conexão), está em [próximos
-estudos](poc-k8s-fabric/docs/proximos-estudos.md).
+observabilidade por conexão) em paralelo com estudos avançados de datapath eBPF
+(`netkit` vs `veth`, escala de burst IPAM, XLB L7 eBPF, DRA e observabilidade Hubble),
+está em [próximos estudos](poc-k8s-fabric/docs/proximos-estudos.md). A **Onda 1 (`P005-S001`)**
+já se encontra concluída e documentada em:
+- [19 — Ciclo de Vida e Idempotência BGP (`E19`) & Sessão eBGP Autenticada TCP MD5 com ASN 32 bits (`E09`)](poc-k8s-fabric/docs/estudos/19-bgp-idempotency-md5-asn32.md)
+- [21 — `netkit` vs `veth` no Datapath eBPF (`E23`) & Escala de Burst IPAM com Warm Pool (`E21`)](poc-k8s-fabric/docs/estudos/21-netkit-vs-veth-ipam-burst.md)

@@ -82,6 +82,17 @@ Consulte
 [MGC, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008 (§1–§8, G07 e G08)](estudos/20-mgc-estado-parcial.md)
 para a matriz comparativa completa **Cilium A vs Cilium B vs INV (`V00–V09` / `H1–H8`)**, os critérios **`INV-PoC-01` a `INV-PoC-06` (`G07`)**, o blueprint de transição para o Braço **OVN-Kubernetes (`C` / `D`)** e as perguntas de estudo.
 
+## P005 — Estudos Avançados em Ondas Paralelas (Braço A eBGP ∥ Braço B Datapath eBPF)
+
+### Onda 1 (`P005-S001` — PASS em 25/10/2026)
+
+| Estudo | Braço | Resultado Observado em `vm-cilium` | Dossiê Público |
+|---|---|---|---|
+| **E19 — Idempotência BGP (10x), Zero Resíduo e Reuso de VIP** | Braço A (`eBGP`) | `10x kubectl apply` consecutivos produziram `0` diffs em `route-policies`, `advertised routes` e na RIB de `border1` (`version: 488` constante). Teardown em `11 s` com `0` resíduos (`R6=0`) e reuso imediato do VIP `10.202.255.190/32` por `e19-echo-b` (`30/30` HTTP `200` em `/hostname` retornando `e19-echo-b-*`, `0` respostas antigas `e19-echo-a-*`). | [`19-bgp-idempotency-md5-asn32.md`](estudos/19-bgp-idempotency-md5-asn32.md) |
+| **E09 — Sessão eBGP Autenticada TCP MD5 e ASN 32 bits (`4200000001`)** | Braço A (`eBGP`) | Peering `AS 65302 <-> AS 4200000001` (`frr-e09`) com `authSecretRef` convergiu em `3 s` com opção TCP 19 (`md5`) provada no `tcpdump`; senha divergente bloqueada em `active` (`TcpExtTCPMD5Failure=2`, `3/3` sessões do fabric intactas); Secret inexistente fail-safe (`restarts=0`); rotação de chave `v1 -> v2` convergida em `9,39 s` com `AS_PATH` de 4 bytes (`0xfa56ea01`). | [`19-bgp-idempotency-md5-asn32.md`](estudos/19-bgp-idempotency-md5-asn32.md) |
+| **E23 — `netkit` vs `veth` no Datapath de Containers** | Braço B (`Datapath`) | Provada a guarda fail-closed do Cilium `1.20.2` ao migrar `veth -> netkit` com endpoints incompatíveis. Em `datapath-mode=netkit` (`mode l3`, `NOARP`), o tráfego TCP bulk `iperf3` eliminou `100%` das retransmissões (`47 -> 0` same-node, `11 -> 0` cross-node) e reduziu softirqs `NET_RX` em `-8,9%` / `-20,5%`, mantendo `CiliumNetworkPolicy` com `leaked_pkts=0`. | [`21-netkit-vs-veth-ipam-burst.md`](estudos/21-netkit-vs-veth-ipam-burst.md) |
+| **E21 — Escala de Burst IPAM e Warm Pool (`preAllocate`)** | Braço B (`Datapath`) | Burst de `16` pods (`agnhost:2.47` local): `ipam.mode=kubernetes` convergiu em `5,40 s` (`2,96 pods/s`, `0` erros); `multi-pool` frio (`e21-burst-pool` `10.252.0.0/16` `maskSize: 32`, `ipam.multiPoolPreAllocation="default=8,e21-burst-pool=1"`) gerou `27` falhas `postIpamFailure` (`502`); `multi-pool` aquecido (`ipam.multiPoolPreAllocation="default=8,e21-burst-pool=32"`) **eliminou 100% das falhas de `CNI ADD` (`27 -> 0`)**; exaustão controlada de `e21-tiny-pool` (`10.253.21.0/29`, `6 Running`, `4 Pending`) isolada de outros pools. | [`21-netkit-vs-veth-ipam-burst.md`](estudos/21-netkit-vs-veth-ipam-burst.md) |
+
 ## Proveniência e limites
 
 O roteiro e as configurações públicas neste diretório são a fonte de reprodução. Os resultados acima são um resumo editorial de execuções datadas; para uma nova aula, a coluna “observado” deve vir da saída atual do cluster. Não se deve inferir disponibilidade de produção, round-robin perfeito, persistência de sessão durante recriação de pod ou isolamento de tenant a partir de uma rota BGP.

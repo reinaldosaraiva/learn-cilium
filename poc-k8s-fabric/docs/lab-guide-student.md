@@ -830,6 +830,19 @@ Nas sessões `P004-S006`, `P004-S007` e `P004-S008` (**PASS**), o estudo conclui
 
 As respostas comentadas, a matriz comparativa completa (`Cilium A` × `Cilium B` × `OVN-K C/D` × `INV`), os critérios de aceite `INV-PoC-01` a `INV-PoC-06` (`G07`) e o mapa de evidências estão em [MGC, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008](estudos/20-mgc-estado-parcial.md).
 
+## Módulo 14 — Estudos Avançados P005: Conexão Dedicada eBGP ∥ Datapath eBPF
+
+A trilha **P005** executa os 16 estudos remanescentes (`E09–E19` e `E21–E25`) em quatro ondas paralelas sobre `vm-cilium`, combinando o **Braço A (Plano de Controle eBGP / Direct Connect)** com o **Braço B (Datapath eBPF, Escala e Observabilidade)**.
+
+### 14.1 Onda 1 (`P005-S001` — PASS): Idempotência BGP (`E19`), TCP MD5 + ASN 32 bits (`E09`), `netkit` vs `veth` (`E23`) e Burst IPAM (`E21`)
+
+- **Braço A — Conexão Dedicada eBGP ([`19-bgp-idempotency-md5-asn32.md`](estudos/19-bgp-idempotency-md5-asn32.md)):**
+  - **E19 (Idempotência 10x, Zero Resíduo e Reuso de VIP):** `10` execuções consecutivas de `kubectl apply` sobre os CRDs BGP (`CiliumBGPClusterConfig`, `CiliumBGPPeerConfig`, `CiliumBGPAdvertisement` e `Service LoadBalancer svc-a` com VIP `10.202.255.190/32`) produziram **`0` diferenças** em `route-policies`, `advertised routes` e na RIB JSON de `border1` (`version: 488` inalterada), provando que loops GitOps não causam flaps nem BGP `UPDATE`s espúrios. A remoção limpou `100%` das rotas em `11 s` (`R6=0` rotas `proto bgp` no kernel), e o reuso imediato de `10.202.255.190/32` por `svc-b` respondeu `30/30` HTTP `200` com `0` respostas antigas.
+  - **E09 (Sessão eBGP Autenticada TCP MD5 RFC 2385 e ASN de 32 bits `4200000001`):** pareamento entre `p003-gw-worker2` (`AS 65302`) e um roteador CE FRR (`AS 4200000001`) com `authSecretRef` (`bgp-secrets-namespace=kube-system`, timers `3/9 s`, Graceful Restart). A célula positiva convergiu em `3 s` com **TCP Option 19 (`md5`)** provada no `tcpdump`; a senha divergente bloqueou apenas o peer inválido (`TcpExtTCPMD5Failure=2`, mantendo `3/3` sessões do fabric Clos intactas); o `Secret` ausente falhou de forma segura (`restarts=0`); e a rotação de senha em produção (`v1 -> v2`) reestabeleceu a sessão em **`9,39 s`** anunciando `198.18.209.0/24` com `AS_PATH` de 4 bytes (`0xfa56ea01`).
+- **Braço B — Datapath eBPF e Escala de Alocação ([`21-netkit-vs-veth-ipam-burst.md`](estudos/21-netkit-vs-veth-ipam-burst.md)):**
+  - **E23 (`netkit` vs `veth` no Cilium `1.20.2` / Kernel `6.8`):** provou a guarda fail-closed do `cilium-agent` ao alternar `veth -> netkit` com pods `veth` ativos no nó (`detected 1 existing endpoint(s) using incompatible datapath-modes`). Após recriação dos pods em `datapath-mode=netkit` (`mode l3`, `NOARP`, MAC `00:00:00:00:00:00`), o throughput TCP `iperf3` **eliminou 100% das retransmissões TCP** (`47 -> 0` same-node, `11 -> 0` cross-node) e reduziu softirqs `NET_RX` em **`-8,9%`** (same-node) e **`-20,5%`** (cross-node), preservando o bloqueio por `CiliumNetworkPolicy` (`leaked_pkts=0`).
+  - **E21 (Escala de Burst IPAM e Warm Pool `multiPoolPreAllocation`):** em rajadas de `16` pods simultâneos (`agnhost:2.47` local), `ipam.mode=kubernetes` convergiu em `5,40 s` (`2,96 pods/s`, `0` falhas); `multi-pool` frio (`multiPoolPreAllocation="default=8,e21-burst-pool=1"`) sofreu **`27` falhas `postIpamFailure` (`502`)** enquanto aguardava o `cilium-operator` alocar blocos no `CiliumNode`; já o `multi-pool` pré-aquecido (`multiPoolPreAllocation="default=8,e21-burst-pool=32"`) **reduziu de `27` para `0` (`-100%`) as falhas de `CNI ADD` / `FailedCreatePodSandBox`**. O controle negativo com pool `/29` (`6` IPs utilizáveis para `10` pods) manteve `6 Running` e `4 Pending` sem degradar outros pools.
+
 ## Apêndice do instrutor
 
 O laboratório já deve estar rodando. A reconstrução é referência, não
@@ -914,22 +927,20 @@ IPAM `kubernetes`, sem pools) e remova objetos de teste por nome exato.
 - ExternalAuth é experimental na 1.20.2 e tem os defeitos listados no Módulo 7; a fixture não é um IdP.
 - Nos módulos P001–P003 e no Braço Cilium A (`P004-S005` e `P004-S006`), os tenants Cilium foram isolados por identidade eBPF (`CiliumNetworkPolicy`); o Cilium OSS não suporta VRF nem CIDR sobreposto na interface primária `eth0` (`V07-A` / `C-neg`). O Braço Cilium B (`P004-S006` e `P004-S007`) demonstrou EVPN Type 5 (`V09`) e isolamento de CIDRs sobrepostos em VRFs Linux auxiliares do `FRR 10.7.1` no nó (`V07-B`, mantendo `0` rotas BGP na tabela `main` via `R6`), enquanto o braço MGC (`P004-S002`) e o braço OVN-Kubernetes + EVPN (`P004-S003` e `P004-S004`) provaram nativamente o isolamento de CIDRs sobrepostos na interface primária (`UserDefinedNetwork` `10.100.0.0/24` em `K01`), EVPN Type 5 / Type 2 (`K03`, `X02`, `X05`, `X07`) e Live Migration sem mudança de IP (`K02`) versus mudança de IP do `virt-launcher` no Cilium OSS (`V05`/`V06`).
 - A sincronização entre identidade Kubernetes e Security Group Neutron não foi implementada; a conclusão da trilha híbrida é "seguro sob sequenciamento manual".
-- BFD, MD5 na sessão BGP, limite de prefixos, communities e prepend não foram exercitados porque a API do Cilium 1.20.x não os expõe ou porque não estavam no escopo; veja os próximos estudos.
+- Na Onda 1 de `P005` (`P005-S001`), foram provados: idempotência declarativa `10x` e reuso de VIP BGP sem resíduo (`E19`), autenticação TCP MD5 (`RFC 2385`, `authSecretRef`) com ASN de 32 bits (`4200000001`) e rotação de chave em produção (`E09`), substituição de `veth` por `netkit` (`mode l3`, `NOARP`) no datapath eBPF (`E23`), e eliminação de `postIpamFailure` em rajadas de pods (`agnhost:2.47`) com `ipam.multiPoolPreAllocation` (`E21`). BFD, limite de prefixos, communities/prepend/MED e XLB L7 seguem na Onda 2 (`P005-S002`).
 - Nós reais na nuvem provaram overlay e BGP; native routing e VIP anycast dependem da postura de spoofing da porta.
 
 ## Próximos estudos
 
-A nova trilha, orientada pelos requisitos de um produto de conexão dedicada
-com eBGP, está em [`docs/proximos-estudos.md`](proximos-estudos.md). Ela
-parte das lacunas registradas acima e mapeia cada uma a uma capacidade
-documentada do Cilium ou a uma alternativa fora dele. Nenhuma dessas
-variantes é aplicada ao laboratório desta aula.
+A trilha avançada de `P005` (Ondas Paralelas Braço A eBGP ∥ Braço B Datapath eBPF) está em [`docs/proximos-estudos.md`](proximos-estudos.md), com a Onda 1 (`E19`, `E09`, `E23`, `E21`) já concluída e documentada em [`19-bgp-idempotency-md5-asn32.md`](estudos/19-bgp-idempotency-md5-asn32.md) e [`21-netkit-vs-veth-ipam-burst.md`](estudos/21-netkit-vs-veth-ipam-burst.md).
 
 ## Referências públicas
 
 - [Resultados resumidos do laboratório](lab-results.md)
 - [MGC, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008](estudos/20-mgc-estado-parcial.md)
-- [Índice dos estudos P003 e P004](estudos/README.md), [síntese E08](estudos/08-lifecycle-synthesis.md) e [caso C5](estudos/09-vm-outside-container.md)
+- [P005 Onda 1 — Braço A (`E19` + `E09`): Idempotência BGP e TCP MD5 com ASN 32 bits](estudos/19-bgp-idempotency-md5-asn32.md)
+- [P005 Onda 1 — Braço B (`E23` + `E21`): `netkit` vs `veth` e Burst IPAM com Warm Pool](estudos/21-netkit-vs-veth-ipam-burst.md)
+- [Índice dos estudos P003, P004 e P005](estudos/README.md), [síntese E08](estudos/08-lifecycle-synthesis.md) e [caso C5](estudos/09-vm-outside-container.md)
 - [Cilium BGP Control Plane](https://docs.cilium.io/en/stable/network/bgp-control-plane/bgp-control-plane/)
 - [Recursos do BGP Control Plane](https://docs.cilium.io/en/stable/network/bgp-control-plane/bgp-control-plane-configuration/)
 - [Gateway API no Cilium](https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/)

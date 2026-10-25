@@ -93,6 +93,7 @@ estudos futuros; não são sessões executáveis, nem substituem a atualização
 | P003-S014 | EXECUTADO | Síntese de limites, exercícios, gates de adoção e entrega didática | PASS | [E08](08-lifecycle.md) · [síntese](08-lifecycle-synthesis.md) |
 | P003-S016 (C5) | EXECUTADO | VM fora do container (KVM real no host): RX resolvido + pod↔VM bidirecional | PASS | [C5](09-vm-outside-container.md) |
 | P004-S001..S008 (E20 v2) | EXECUTADO | Lab MGC Connect (`M01–M03`, `X05`), OVN-K + EVPN (`K01–K04`), Casos Cruzados (`X01–X07`), Braço Cilium A (`V00–V08A`), Braço Cilium B (`H6`, `V09`, `V07-B`, `V08-B`) e Síntese `INV × Equivalente Aberto` (`G00–G09`) | PASS | [E20 (`20-mgc-estado-parcial.md`)](20-mgc-estado-parcial.md) |
+| P005-S001 (Onda 1: `E19`+`E09` ∥ `E23`+`E21`) | EXECUTADO | **Braço A:** Idempotência 10x BGP, zero resíduo e reuso de VIP (`E19`) + eBGP TCP MD5 RFC 2385 com ASN 32 bits `4200000001` e rotação (`E09`). **Braço B:** `netkit` vs `veth` no datapath eBPF (`E23`) + Escala de Burst IPAM `kubernetes` vs `multi-pool` frio/aquecido (`E21`). | PASS | [E19/E09 (`19-bgp-idempotency-md5-asn32.md`)](19-bgp-idempotency-md5-asn32.md) · [E23/E21 (`21-netkit-vs-veth-ipam-burst.md`)](21-netkit-vs-veth-ipam-burst.md) |
 
 ## Dependências e limites
 
