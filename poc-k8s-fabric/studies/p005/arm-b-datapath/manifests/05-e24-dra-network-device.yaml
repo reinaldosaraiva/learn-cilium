@@ -1,0 +1,304 @@
+# ==============================================================================
+# P005-S004 (Braço B — Estudo E24): Dynamic Resource Allocation (DRA) no Cilium
+# API: resource.k8s.io/v1 (Kubernetes v1.35.0)
+# Referência: Cilium branch feature/dra-driver (commit 157b5331c727867fa009d8c6ec6ac8de92800ac9)
+# ==============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p005-e24
+  labels:
+    study: P005
+    case: E24
+---
+# 1. ResourceSlice anunciando 2 dispositivos de rede gerenciados por network.cilium.io
+#    no nó p003-gw-worker2 (rack2).
+apiVersion: resource.k8s.io/v1
+kind: ResourceSlice
+metadata:
+  name: p003-gw-worker2-cilium-netpool-slice-0
+  labels:
+    study: P005
+    case: E24
+spec:
+  driver: network.cilium.io
+  nodeName: p003-gw-worker2
+  pool:
+    name: p003-gw-worker2-netpool
+    generation: 1
+    resourceSliceCount: 1
+  devices:
+    - name: cilium-netdev-0
+      attributes:
+        pciAddress:
+          string: "0000:03:00.0"
+        ifName:
+          string: "net1"
+        mac:
+          string: "02:42:0a:f5:02:10"
+        mtu:
+          int: 1500
+        rdma:
+          bool: false
+        ebpfAttach:
+          bool: true
+        vfIndex:
+          int: 0
+      capacity:
+        bandwidth:
+          value: "10Gi"
+    - name: cilium-netdev-1
+      attributes:
+        pciAddress:
+          string: "0000:03:00.1"
+        ifName:
+          string: "net2"
+        mac:
+          string: "02:42:0a:f5:02:11"
+        mtu:
+          int: 9000
+        rdma:
+          bool: false
+        ebpfAttach:
+          bool: true
+        vfIndex:
+          int: 1
+      capacity:
+        bandwidth:
+          value: "10Gi"
+---
+# 2. DeviceClass principal para interfaces de rede Cilium eBPF/DRA (ebpfAttach == true)
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: cilium-netdev
+  labels:
+    study: P005
+    case: E24
+spec:
+  selectors:
+    - cel:
+        expression: 'device.driver == "network.cilium.io" && device.attributes["network.cilium.io"].ebpfAttach == true'
+---
+# 3. DeviceClass para Controle Negativo 3A (exige RDMA == true, ausente no ResourceSlice)
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: cilium-netdev-rdma
+  labels:
+    study: P005
+    case: E24
+spec:
+  selectors:
+    - cel:
+        expression: 'device.driver == "network.cilium.io" && device.attributes["network.cilium.io"].rdma == true'
+---
+# 4. ResourceClaim explícito (seleciona cilium-netdev-0: ifName == "net1" && mtu == 1500)
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: e24-net-claim-a
+  namespace: p005-e24
+  labels:
+    study: P005
+    case: E24
+spec:
+  devices:
+    requests:
+      - name: req-net1
+        exactly:
+          deviceClassName: cilium-netdev
+          allocationMode: ExactCount
+          count: 1
+          selectors:
+            - cel:
+                expression: 'device.attributes["network.cilium.io"].ifName == "net1" && device.attributes["network.cilium.io"].mtu == 1500'
+---
+# 5. ResourceClaimTemplate (seleciona cilium-netdev-1: ifName == "net2" && mtu == 9000)
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: e24-net-claim-tmpl-b
+  namespace: p005-e24
+  labels:
+    study: P005
+    case: E24
+spec:
+  spec:
+    devices:
+      requests:
+        - name: req-net2
+          exactly:
+            deviceClassName: cilium-netdev
+            allocationMode: ExactCount
+            count: 1
+            selectors:
+              - cel:
+                  expression: 'device.attributes["network.cilium.io"].ifName == "net2" && device.attributes["network.cilium.io"].mtu == 9000'
+---
+# 6. Pods de Aplicação Ativos em p003-gw-worker2 (coexistência eth0 CNI Cilium + net1/net2 DRA)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e24-app-a
+  namespace: p005-e24
+  labels:
+    app: e24-app-a
+    role: dra-workload
+    study: P005
+  annotations:
+    dra.cilium.io/claim-name: "e24-net-claim-a"
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: p003-gw-worker2
+  containers:
+    - name: agnhost
+      image: registry.k8s.io/e2e-test-images/agnhost:2.47
+      imagePullPolicy: IfNotPresent
+      args: ["netexec", "--http-port=8080"]
+      securityContext:
+        capabilities:
+          add: ["NET_ADMIN"]
+      ports:
+        - containerPort: 8080
+          name: http
+      readinessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 1
+        periodSeconds: 2
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e24-app-b
+  namespace: p005-e24
+  labels:
+    app: e24-app-b
+    role: dra-backend
+    study: P005
+  annotations:
+    dra.cilium.io/claim-template: "e24-net-claim-tmpl-b"
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: p003-gw-worker2
+  containers:
+    - name: agnhost
+      image: registry.k8s.io/e2e-test-images/agnhost:2.47
+      imagePullPolicy: IfNotPresent
+      args: ["netexec", "--http-port=8080"]
+      securityContext:
+        capabilities:
+          add: ["NET_ADMIN"]
+      ports:
+        - containerPort: 8080
+          name: http
+      readinessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 1
+        periodSeconds: 2
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e24-untrusted
+  namespace: p005-e24
+  labels:
+    app: e24-untrusted
+    role: untrusted
+    study: P005
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: p003-gw-worker2
+  containers:
+    - name: agnhost
+      image: registry.k8s.io/e2e-test-images/agnhost:2.47
+      imagePullPolicy: IfNotPresent
+      command: ["sh", "-c", "sleep 36000"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+---
+# 7. CiliumBGPAdvertisement + Service LoadBalancer BGP VIP (10.202.255.24) expondo e24-app-b via Cilium eth0
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: e24-vip-advertisement
+  labels:
+    advertise: fabric
+    study: P005
+spec:
+  advertisements:
+    - advertisementType: "Service"
+      service:
+        addresses:
+          - LoadBalancerIP
+      selector:
+        matchLabels:
+          e24-bgp-advertise: "true"
+      attributes:
+        communities:
+          standard:
+            - "65301:100"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e24-bgp-vip-svc
+  namespace: p005-e24
+  labels:
+    bgp-advertise: "true"
+    e24-bgp-advertise: "true"
+    study: P005
+  annotations:
+    lbipam.cilium.io/ips: "10.202.255.24"
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 10.202.255.24
+  selector:
+    app: e24-app-b
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+# 8. CiliumNetworkPolicy sobre a interface primária eth0 de e24-app-b:
+#    Permite apenas e24-app-a e world (VIP BGP 10.202.255.24); bloqueia e24-untrusted.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: e24-cnp-eth0-isolation
+  namespace: p005-e24
+spec:
+  endpointSelector:
+    matchLabels:
+      app: e24-app-b
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: e24-app-a
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    - fromEntities:
+        - world
+        - remote-node
+        - host
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP

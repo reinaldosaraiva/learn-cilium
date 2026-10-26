@@ -16,7 +16,7 @@ O laboratório responde duas perguntas simples:
 - como um Service LoadBalancer recebe um VIP `/32` e pode ser alcançado por
   múltiplos caminhos ECMP.
 
-O [guia do estudante 2.3](poc-k8s-fabric/docs/lab-guide-student.md) organiza os
+O [guia do estudante 2.4](poc-k8s-fabric/docs/lab-guide-student.md) organiza os
 módulos 1–11 como exercícios guiados apoiados nos estudos P001–P003. O módulo
 12 é leitura histórica do estudo com nós reais na nuvem, cuja infraestrutura
 fica fora da aula; o módulo 13 sintetiza os resultados empíricos completos da trilha P004
@@ -25,6 +25,12 @@ fica fora da aula; o módulo 13 sintetiza os resultados empíricos completos da 
 - **13.2** — OVN-Kubernetes `v1.4.0` + KubeVirt `v1.9.0` (`K01–K04`) e cenários híbridos (`X01–X04`, `X06`, `X07` em `S003–S004`);
 - **13.3** — Braço Cilium A: Cilium `1.20.2` + KubeVirt `v1.9.0` no `p003-gw` (`C01–C06` / `V00–V06`: `CiliumEndpoint`, VIP BGP `/32`, `CiliumNetworkPolicy` por label, Gate `G01` de reuso de IP `10.253.0.100/32` vs identidade, live migration com mudança de podIP e Multi-Pool `/32` BGP em `S005`);
 - **13.4** — Negativos do Braço Cilium A (`V07-A`, `V08-A`, `C-neg` / `G02`), Braço Cilium B (`FRR 10.7.1` no nó sob `R6=0`, `H6`/`G06`, EVPN Type 5 `V09`/`H7`, `V07-B`, `V08-B`), blueprint de transição para a Fase 2 (`Braços C/D`), síntese `INV × equivalente aberto` (`G07`: critérios `INV-PoC-01` a `INV-PoC-06`) e higiene final dos laboratórios (`G08`, em `S006–S008`).
+
+O módulo 14 consolida os **16 estudos avançados da trilha P005** (`P005-S001` a `P005-S004`, todos concluídos com **PASS** em `v2.4.0`):
+- **14.1** — Onda 1 (`P005-S001`): Idempotência BGP `10x` e reuso de VIP (`E19`), TCP MD5 RFC 2385 + ASN de 32 bits `4200000001` (`E09`), `netkit` vs `veth` (`E23`) e Burst IPAM com Warm Pool (`E21`);
+- **14.2** — Onda 2 (`P005-S002`): Limite de prefixos `maximum-prefix 100` e filtro de import (`E11`), Communities `65400:100/200` + `AS-path prepend` + `MED` (`E12`), BFD sub-segundo `< 1 s` (`E10`) e XLB L7 eBPF (`sockmap`/`sk_msg`) vs `SocketLB L4` e `Envoy L7` (`E22`);
+- **14.3** — Onda 3 (`P005-S003`): Redundância Dual-Border ECMP + failover com/sem Graceful Restart (`E13`), sessão eBGP IPv6 dedicada servindo `fd14::a/128` (`E14`), e observabilidade contínua BGP por 3 leituras consecutivas (`E17`) + Hubble `L3/L4`, `L7 HTTP/DNS`, `TLS :8443` e Prometheus (`E25`);
+- **14.4** — Onda 4 (`P005-S004`): Isolamento de VRF por tenant via BGP community (`E15`), 3 modos de retorno PE/CE + `CiliumEgressGatewayPolicy` (`E16`), enlace L2 (`MTU 9000` Jumbo, `QinQ 802.1ad` e `MACsec 802.1AE` vs `WireGuard`, `E18`) e Dynamic Resource Allocation (`resource.k8s.io/v1` `NetworkDeviceData`, `E24`).
 
 Os
 [diagramas](poc-k8s-fabric/docs/diagramas/README.md) mostram a topologia, o
@@ -77,14 +83,16 @@ completa.
 
 A trilha seguinte (**P005**), orientada pelos requisitos de um produto de conexão
 dedicada com eBGP (BFD, autenticação de sessão, limite de prefixos,
-communities, redundância entre dois equipamentos, VRF por tenant e
-observabilidade por conexão) em paralelo com estudos avançados de datapath eBPF
-(`netkit` vs `veth`, escala de burst IPAM, XLB L7 eBPF, DRA e observabilidade Hubble),
-está em [próximos estudos](poc-k8s-fabric/docs/proximos-estudos.md). As **Ondas 1, 2 e 3 (`P005-S001`, `P005-S002` e `P005-S003`)**
-já se encontram concluídas e documentadas em:
+communities, redundância entre dois equipamentos, VRF por tenant, modos de retorno PE/CE,
+MTU 9000/QinQ/MACsec e observabilidade por conexão) em paralelo com estudos avançados de datapath eBPF
+(`netkit` vs `veth`, escala de burst IPAM, XLB L7 eBPF, DRA `resource.k8s.io/v1` e observabilidade Hubble),
+está em [próximos estudos](poc-k8s-fabric/docs/proximos-estudos.md). Todas as **4 Ondas (`P005-S001` a `P005-S004`, `16/16` estudos de P005 e `25/25` estudos totais do repositório)**
+encontram-se **concluídas com PASS (`v2.4.0`)** e documentadas em:
 - [19 — Ciclo de Vida e Idempotência BGP (`E19`) & Sessão eBGP Autenticada TCP MD5 com ASN 32 bits (`E09`)](poc-k8s-fabric/docs/estudos/19-bgp-idempotency-md5-asn32.md)
 - [21 — `netkit` vs `veth` no Datapath eBPF (`E23`) & Escala de Burst IPAM com Warm Pool (`E21`)](poc-k8s-fabric/docs/estudos/21-netkit-vs-veth-ipam-burst.md)
 - [11 — Limite de Prefixos (`E11`), Communities/Prepend/MED (`E12`) & Detecção de Falha com BFD `< 1 s` (`E10`)](poc-k8s-fabric/docs/estudos/11-bgp-maxprefix-communities-bfd.md)
 - [22 — XLB: Balanceamento L7 eBPF na Camada de Sockets (`sockmap`/`sk_msg`) vs `SocketLB L4` e `Envoy L7` (`E22`)](poc-k8s-fabric/docs/estudos/22-xlb-ebpf-socket-lb-vs-envoy.md)
 - [13 — Redundância Dual-Border, Failover Controlado com/sem Graceful Restart (`E13`) & Sessão eBGP IPv6 Nativa Fim a Fim (`E14`)](poc-k8s-fabric/docs/estudos/13-bgp-dual-border-gr-ipv6.md)
 - [17 — Observabilidade Contínua BGP (`ACTIVE`/`DOWN`/`UNKNOWN` por 3 Leituras, `E17`) & Microsserviços com Hubble (`L3/L4`, `L7 HTTP/DNS`, `TLS` e Prometheus, `E25`)](poc-k8s-fabric/docs/estudos/17-bgp-hubble-observability.md)
+- [15 — Isolamento de VRF por Tenant via BGP Community (`E15`), 3 Modos de Retorno PE/CE & `CiliumEgressGatewayPolicy` (`E16`) e Enlace L2: MTU 9000 Jumbo, QinQ `802.1ad` & MACsec `802.1AE` vs WireGuard (`E18`)](poc-k8s-fabric/docs/estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md)
+- [24 — Dynamic Resource Allocation (DRA `resource.k8s.io/v1`) para Dispositivos de Rede no Cilium (`NetworkDeviceData`, `E24`)](poc-k8s-fabric/docs/estudos/24-cilium-dra-network-device.md)

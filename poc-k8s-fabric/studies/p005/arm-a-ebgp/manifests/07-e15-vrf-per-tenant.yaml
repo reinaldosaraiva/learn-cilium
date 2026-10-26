@@ -1,0 +1,188 @@
+# ==============================================================================
+# P005-S004 (Onda 4 — Braço A): E15 — Isolamento de VRF por Tenant no Border via
+# BGP Community (65400:1010 -> vrf-e15-a, 65400:1020 -> vrf-e15-b, 65400:9999 -> deny)
+# ==============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p005-e15-a
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p005-e15-b
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e15-echo-a
+  namespace: p005-e15-a
+  labels:
+    app: e15-echo-a
+    tenant: tenant-a
+spec:
+  nodeName: p003-gw-worker
+  terminationGracePeriodSeconds: 0
+  containers:
+  - name: agnhost
+    image: registry.k8s.io/e2e-test-images/agnhost:2.47
+    imagePullPolicy: IfNotPresent
+    args: ["netexec", "--http-port=8080"]
+    ports:
+    - containerPort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e15-echo-b
+  namespace: p005-e15-b
+  labels:
+    app: e15-echo-b
+    tenant: tenant-b
+spec:
+  nodeName: p003-gw-worker
+  terminationGracePeriodSeconds: 0
+  containers:
+  - name: agnhost
+    image: registry.k8s.io/e2e-test-images/agnhost:2.47
+    imagePullPolicy: IfNotPresent
+    args: ["netexec", "--http-port=8080"]
+    ports:
+    - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e15-vip-a
+  namespace: p005-e15-a
+  labels:
+    e15-tenant: tenant-a
+  annotations:
+    lbipam.cilium.io/ips: "10.202.255.195"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: e15-echo-a
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e15-vip-b
+  namespace: p005-e15-b
+  labels:
+    e15-tenant: tenant-b
+  annotations:
+    lbipam.cilium.io/ips: "10.202.255.196"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: e15-echo-b
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e15-vip-unauth
+  namespace: p005-e15-a
+  labels:
+    e15-tenant: unauth
+  annotations:
+    lbipam.cilium.io/ips: "10.202.255.199"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: e15-echo-a
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: e15-adv-tenant-a
+  labels:
+    e15-adv: all
+spec:
+  advertisements:
+  - advertisementType: "Service"
+    service:
+      addresses:
+      - LoadBalancerIP
+    selector:
+      matchLabels:
+        e15-tenant: tenant-a
+    attributes:
+      communities:
+        standard:
+        - "65400:1010"
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: e15-adv-tenant-b
+  labels:
+    e15-adv: all
+spec:
+  advertisements:
+  - advertisementType: "Service"
+    service:
+      addresses:
+      - LoadBalancerIP
+    selector:
+      matchLabels:
+        e15-tenant: tenant-b
+    attributes:
+      communities:
+        standard:
+        - "65400:1020"
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: e15-adv-unauth
+  labels:
+    e15-adv: all
+spec:
+  advertisements:
+  - advertisementType: "Service"
+    service:
+      addresses:
+      - LoadBalancerIP
+    selector:
+      matchLabels:
+        e15-tenant: unauth
+    attributes:
+      communities:
+        standard:
+        - "65400:9999"
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
+metadata:
+  name: e15-peer-pe
+spec:
+  timers:
+    connectRetryTimeSeconds: 2
+    holdTimeSeconds: 9
+    keepAliveTimeSeconds: 3
+  ebgpMultihop: 1
+  gracefulRestart:
+    enabled: true
+    restartTimeSeconds: 30
+  families:
+  - afi: ipv4
+    safi: unicast
+    advertisements:
+      matchLabels:
+        e15-adv: all

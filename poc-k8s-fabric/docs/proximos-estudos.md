@@ -1,15 +1,17 @@
 # Próximos estudos — Cilium como motor de uma conexão dedicada com eBGP
 
 > Proposta de trilha (estudos E09–E25) escrita em 26/09/2026, depois do encerramento da
-> trilha P003. O estudo **E20 (`P004`) foi integralmente concluído com PASS (`P004-S001` a `P004-S008`, `G01` a `G08` fechados)** — veja a [síntese pública de P004](estudos/20-mgc-estado-parcial.md) — e o plano **P005 (Ondas Paralelas Braço A eBGP ∥ Braço B Datapath eBPF)** concluiu com **PASS** as **Ondas 1, 2 e 3 (`P005-S001`, `P005-S002` e `P005-S003`)**:
+> trilha P003. O estudo **E20 (`P004`) foi integralmente concluído com PASS (`P004-S001` a `P004-S008`, `G01` a `G08` fechados)** — veja a [síntese pública de P004](estudos/20-mgc-estado-parcial.md) — e o plano **P005 (Ondas Paralelas Braço A eBGP ∥ Braço B Datapath eBPF)** concluiu com **PASS** todas as **4 Ondas (`P005-S001` a `P005-S004`, `16/16` estudos de P005 e `25/25` estudos totais do roadmap)**:
 > - **Onda 1 — Braço A (`E19` + `E09`):** [19 — Idempotência BGP (10x), Zero Resíduo e eBGP Autenticado TCP MD5 com ASN 32 bits (`4200000001`)](estudos/19-bgp-idempotency-md5-asn32.md);
 > - **Onda 1 — Braço B (`E23` + `E21`):** [21 — `netkit` vs `veth` no Datapath eBPF & Escala de Burst IPAM com Warm Pool](estudos/21-netkit-vs-veth-ipam-burst.md);
 > - **Onda 2 — Braço A (`E11` + `E12` + `E10`):** [11 — Limite de Prefixos (`max-prefix`), Filtro de Import, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](estudos/11-bgp-maxprefix-communities-bfd.md);
 > - **Onda 2 — Braço B (`E22`):** [22 — XLB: Balanceamento L7 eBPF na Camada de Sockets (`sockmap` / `bpf_sock_ops` / `sk_msg`) vs `SocketLB L4` e `Envoy L7`](estudos/22-xlb-ebpf-socket-lb-vs-envoy.md);
 > - **Onda 3 — Braço A (`E13` + `E14`):** [13 — Redundância Dual-Border, Failover Controlado com/sem Graceful Restart (`E13`) e Sessão eBGP IPv6 Nativa Fim a Fim (`E14`)](estudos/13-bgp-dual-border-gr-ipv6.md);
-> - **Onda 3 — Braço B (`E17` + `E25`):** [17 — Observabilidade Contínua BGP (`ACTIVE`/`DOWN`/`UNKNOWN` por 3 Leituras) e Microsserviços com Hubble (`L3/L4`, `L7 HTTP/DNS`, `TLS` e Prometheus)](estudos/17-bgp-hubble-observability.md).
-> Os estudos da Onda 4 (`E15`, `E16`, `E18`, `E24`) seguem em execução estruturada sob `P005-S004`. Cada estudo nasce de uma lacuna
-> registrada no [guia do estudante 2.3](lab-guide-student.md) ou de um
+> - **Onda 3 — Braço B (`E17` + `E25`):** [17 — Observabilidade Contínua BGP (`ACTIVE`/`DOWN`/`UNKNOWN` por 3 Leituras) e Microsserviços com Hubble (`L3/L4`, `L7 HTTP/DNS`, `TLS` e Prometheus)](estudos/17-bgp-hubble-observability.md);
+> - **Onda 4 — Braço A (`E15` + `E16` + `E18`):** [15 — VRF por Tenant via BGP Community (`E15`), 3 Modos de Retorno PE/CE & `CiliumEgressGatewayPolicy` (`E16`) e Enlace L2: MTU 9000 Jumbo, QinQ `802.1ad` & MACsec `802.1AE` vs WireGuard (`E18`)](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md);
+> - **Onda 4 — Braço B (`E24`):** [24 — Dynamic Resource Allocation (DRA `resource.k8s.io/v1`) para Dispositivos de Rede no Cilium (`NetworkDeviceData`)](estudos/24-cilium-dra-network-device.md).
+> Todos os estudos (`E01` a `E25`) encontram-se concluídos e documentados no [guia do estudante 2.4](lab-guide-student.md). Cada estudo nasceu de uma lacuna
+> registrada no guia ou de um
 > requisito técnico de um produto de conexão dedicada com eBGP (Direct
 > Connect), e cita a fonte primária que sustenta a hipótese. Dados
 > comerciais do produto ficam fora desta edição pública.
@@ -209,6 +211,8 @@ Gate: **PASS** (`03-e14-ipv6-e2e-vip.txt`): na Célula 1 (baseline `P002-S001`),
 
 ### E15 — VRF por tenant: fabric com network-instance e Cilium atrás
 
+**Estado:** **CONCLUÍDO (`P005-S004` — PASS em 25/10/2026)** — publicado em [15 — VRF por Tenant via BGP Community (`E15`), 3 Modos de Retorno PE/CE & `CiliumEgressGatewayPolicy` (`E16`) e Enlace L2: MTU 9000 Jumbo, QinQ `802.1ad` & MACsec `802.1AE` vs WireGuard (`E18`)](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md).
+
 Hipótese: o Cilium OSS não tem VRF na BGP Control Plane; o isolamento por
 tenant com prefixos sem sobreposição pode ser feito com uma
 `network-instance` por tenant no fabric (SR Linux) ou VRF no FRR, e o
@@ -220,12 +224,11 @@ communities distintas, route-target por community. Negativo: pod do tenant
 A não alcança prefixo do "cliente" B, mesmo com rota existente na VRF A.
 Comparar com o isolamento por identidade de S009.
 
-Gate: matriz de alcance entre tenants e "clientes" com 0 vazamentos;
-limites explícitos (CIDR sobreposto continua impossível no lado Cilium OSS;
-`IsovalentVRF` com SRv6 fica registrado como alternativa Enterprise a
-avaliar em ambiente próprio, não neste sandbox).
+Gate: **PASS** (`02-e15-vrf-per-tenant-live.txt`): provada a importação seletiva por BGP community (`65400:1010` -> `vrf-e15-a` `table 1510` com VIP `10.202.255.195/32`; `65400:1020` -> `vrf-e15-b` `table 1520` com VIP `10.202.255.196/32`) a partir de uma única sessão eBGP do Cilium com `frr-e15-pe`, servindo `30/30` HTTP `200` intra-tenant (`e15-echo-a` e `e15-echo-b`) e bloqueando `0/5` em todas as tentativas cross-tenant (`Client A -> VIP B`, `Client B -> VIP A`, `Client A -> Client B` e VIP não autorizada `10.202.255.199/32` com `65400:9999`), mantendo `R6=0`.
 
 ### E16 — Onde termina o eBGP do cliente e como o Cilium participa
+
+**Estado:** **CONCLUÍDO (`P005-S004` — PASS em 25/10/2026)** — publicado em [15 — VRF por Tenant via BGP Community (`E15`), 3 Modos de Retorno PE/CE & `CiliumEgressGatewayPolicy` (`E16`) e Enlace L2: MTU 9000 Jumbo, QinQ `802.1ad` & MACsec `802.1AE` vs WireGuard (`E18`)](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md).
 
 Hipótese: o roteador de borda termina a sessão do cliente (MD5, BFD,
 max-prefix, policies) e o Cilium é o motor do lado interno: anuncia VIPs e
@@ -240,8 +243,7 @@ endpoints são fixados a um gateway por UID e a troca de gateway quebra
 conexões existentes). Célula extra: FRR como sidecar no nó, em sessão local
 com o GoBGP, o padrão recomendado pelos mantenedores para BGP bidirecional.
 
-Gate: desenho de referência com responsabilidades por camada e o custo de
-cada opção de retorno.
+Gate: **PASS** (`03-e16-pe-ce-return-paths-live.txt`): provados ao vivo os 3 modos de retorno PE/CE — **Modo 1** (blackhole assimétrico `0/3` sem rota de retorno no kernel vs `30/30` HTTP `200` com rota estática sumarizada `198.19.16.0/24 via 10.255.216.2` mantendo `R6=0`), **Modo 2** (`0/3` antes do speaker auxiliar vs `30/30` HTTP `200` com FRR `10.7.1` no nó (`frr-e16-node`, `AS 65316`) filtrando `198.19.116.0/24` via `E16-CUST-ONLY` (`RM-E16-IN`) e restaurando `R6=0` ao parar o container) e **Modo 3** (`CiliumEgressGatewayPolicy` fixando SNAT `10.255.216.10` com `30/30` HTTP `200` para `e16-egress-client`, enquanto `e16-unmatched-client` sai com `10.255.216.1` e é bloqueado `0/5` pela ACL do PE; documentada também a exclusão mútua entre `enable-ipv4-egress-gateway` e `enable-masquerade-to-route-source` no Cilium `1.20.2`).
 
 ### E17 — Observabilidade por conexão e estado operacional
 
@@ -261,6 +263,8 @@ Gate: **PASS** (`04-e17-e25-observability.txt`): sob amostragem a cada `3 s`, um
 
 ### E18 — MTU 9000, MACsec e QinQ: a fronteira do Cilium
 
+**Estado:** **CONCLUÍDO (`P005-S004` — PASS em 25/10/2026)** — publicado em [15 — VRF por Tenant via BGP Community (`E15`), 3 Modos de Retorno PE/CE & `CiliumEgressGatewayPolicy` (`E16`) e Enlace L2: MTU 9000 Jumbo, QinQ `802.1ad` & MACsec `802.1AE` vs WireGuard (`E18`)](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md).
+
 Hipótese: MTU 9000 funciona em native routing quando todo o caminho aceita;
 MACsec e QinQ são funções de enlace do switch e não têm contraparte no
 Cilium; WireGuard de nó é a única criptografia que o Cilium oferece no
@@ -271,8 +275,7 @@ cliente→VIP; QinQ entre "cliente" e border no SR Linux (o Cilium só passa
 802.1Q por `bpf.vlanBypass`, em remoção); comparação de overhead de
 WireGuard já medido em S007/S008.
 
-Gate: matriz de MTU efetivo por segmento; documento de fronteira "switch
-versus Cilium" para MACsec e QinQ.
+Gate: **PASS** (`04-e18-l2-mtu9000-qinq-macsec-live.txt`): provados ao vivo (1) **MTU 9000 Jumbo Frames** (`30/30` pings `DF=1` de `8972 B` payload / `9014 B` Ethernet com RTT `0,065 ms` vs `0/5` + `ICMP need to frag (mtu 1500)` ao reduzir `e18pe0` para `mtu 1500`), (2) **QinQ IEEE 802.1ad** (`S-TAG 100` `0x88a8` + `C-TAG 200` `0x8100` com eBGP Established e `10/10` pings vs `0/5` em `C-TAG 201`), e (3) **MACsec IEEE 802.1AE (`gcm-aes-128`)** (`ethertype 0x88e5`, `OutPktsEncrypted=40`, `InPktsOK=43`, `0` pacotes TCP/179 ou ICMP em claro vs `0/5` pings e `InPktsNotValid=15` sob SAK divergente em `TX SA 1`).
 
 ### E19 — Ciclo de vida da configuração BGP: idempotência e resíduo
 
@@ -394,7 +397,7 @@ Gate: **PASS** (`04-e23-netkit-vs-veth.txt`): provada a guarda fail-closed do Ci
 
 ### E24 — DRA no Cilium: alocação de recursos de rede por claim
 
-**Estado:** BACKLOG — adicionado em 30/09/2026; não executado.
+**Estado:** **CONCLUÍDO (`P005-S004` — PASS em 25/10/2026)** — publicado em [24 — Dynamic Resource Allocation (DRA `resource.k8s.io/v1`) para Dispositivos de Rede no Cilium (`NetworkDeviceData`)](estudos/24-cilium-dra-network-device.md).
 
 Fonte: branch [Cilium `feature/dra-driver`](https://github.com/cilium/cilium/tree/feature/dra-driver),
 consultada em 30/09/2026 no commit
@@ -416,9 +419,7 @@ conectividade e políticas. Testar repetição de prepare/unprepare, reinício
 do driver e exclusão de pod/claim, medindo recuperação e resíduos. Não
 pressupor suporte a hardware, SR-IOV ou KubeVirt sem confirmação no código.
 
-Gate: claim/status e estado real da rede consistentes, conflitos recusados,
-isolamento preservado, retries sem alocação duplicada e teardown sem IPs ou
-interfaces órfãos; rollback do cluster experimental comprovado.
+Gate: **PASS** (`05-e24-cilium-dra-live.txt`): provadas no Kubernetes `v1.35.0` (`resource.k8s.io/v1` GA) a publicação de `ResourceSlice` (`network.cilium.io`, `cilium-netdev-0` `mtu=1500` e `cilium-netdev-1` `mtu=9000`) e `DeviceClass` com seletores CEL, a alocação automática pelo `kube-scheduler` (`ResourceClaim` e `ResourceClaimTemplate`), a idempotência `3x` de `NodePrepareResources` (`ipv4_addrs=1`), o preenchimento de `status.devices[].networkData` (`ips`, `hardwareAddress`, `interfaceName`), a coexistência entre o datapath secundário DRA (`10/10` HTTP `200`) e o CNI primário do Cilium (`eth0` allow `10/10`, `CiliumNetworkPolicy` deny `5/5`, BGP VIP `10/10`), e os controles negativos `3A` (CEL inválido rejeitado na admissão + `rdma == true` -> `Pending`/`Unschedulable`), `3B` (exaustão `2/2`), `3C` (bloqueio de deleção pelo finalizer `resource.kubernetes.io/delete-protection`) e `3D` (remoção limpa sem órfãos e realocação automática do 3º claim em `cilium-netdev-0`).
 
 ### E25 — Cilium/Hubble no RKE2: observabilidade do tráfego de microserviços
 
@@ -445,27 +446,27 @@ relato como solução geral.
 
 Gate: **PASS** (`04-e17-e25-observability.txt`): provadas no Hubble a correlação L3/L4 (`hubble_forwarded=302`, `hubble_dropped_policy=10` com razão `Policy denied` e `hubble_from_ip_198_19=120` norte-sul preservando `198.19.0.10` via `externalTrafficPolicy: Local`), a visibilidade L7 HTTP e DNS via Envoy (`hubble_l7_200=10` em `GET /hostname`, `hubble_l7_403=5` `DROPPED` em `GET /denied`, `hubble_l7_dns=20`), a fronteira TLS em `:8443` (`hubble_8443_l4_flows=92` com identidade SPIFFE/Cilium visível e `hubble_8443_l7_cleartext_leak=0` vazamentos de URL), e a correlação com métricas Prometheus (`:9962` / `:9965`: `hubble_flows_processed_total=2836`, `hubble_drop_total=65`, `hubble_http_requests_total=15`, `hubble_dns_queries_total=8`) mais a continuidade do ring buffer local (`Ok (3,015/4,095 flows)`) sob indisponibilidade do Relay (`:4245`).
 
-## 5. Ordem sugerida e ambiente
+## 5. Ordem sugerida, ambiente e estado final de execução (`v2.4.0` — `17/17` estudos de E09–E25 concluídos com `PASS`)
 
-| Ordem | Estudo | Ambiente | Depende de |
-|---|---|---|---|
-| 1 | E19 idempotência | sandbox atual | nada |
-| 2 | E09 MD5 + ASN 32 bits | sandbox + FRR "cliente" novo | nada |
-| 3 | E11 max-prefix e import | E09 | FRR "cliente" |
-| 4 | E12 communities/prepend/MED | E11 | route-policy no border |
-| 5 | E10 detecção de falha | E09 | BFD no fabric |
-| 6 | E13 redundância e failover | E10 | segundo border |
-| 7 | E17 observabilidade | E13 | Prometheus no sandbox |
-| 8 | E14 IPv6 fim a fim | sandbox dual-stack | reconfiguração do cliente |
-| 9 | E15 VRF por tenant | E12 | network-instance no border |
-| 10 | E16 desenho de terminação | E15 | todos os anteriores |
-| 11 | E18 MTU/MACsec/QinQ | qualquer momento | nada |
-| paralelo | E20 KubeVirt × INV | sandbox + KubeVirt | nada; braço B depois do braço A |
-| backlog | E21 IPAM e implantação em escala | overlay local; EKS dedicado para braços VPC-native | revisão metodológica, capacidade e orçamento |
-| backlog | E22 XLB L7 | sandbox dedicado | código reproduzível e requisitos de kernel |
-| backlog | E23 netkit versus veth | sandbox dedicado | kernel/Cilium compatíveis e rollback |
-| backlog | E24 DRA no Cilium | cluster experimental dedicado | commit pinado, build reproduzível e API Kubernetes compatível |
-| backlog | E25 Hubble no RKE2 | RKE2 dedicado + microserviços de teste | versões/chart fixados, Prometheus e revisão de acesso aos fluxos |
+| Ordem / Onda | Estudo | Ambiente | Estado Final | Dossiê Público |
+|---|---|---|---|---|
+| `P005-S001` (Onda 1 — Braço A) | **E19** idempotência BGP (`10x`) e zero resíduo | `p003-gw` + `border1` | **CONCLUÍDO (`PASS`)** | [`19-bgp-idempotency-md5-asn32.md`](estudos/19-bgp-idempotency-md5-asn32.md) |
+| `P005-S001` (Onda 1 — Braço A) | **E09** TCP MD5 + ASN 32 bits (`4200000001`) + rotação | `p003-gw` + `frr-e09` | **CONCLUÍDO (`PASS`)** | [`19-bgp-idempotency-md5-asn32.md`](estudos/19-bgp-idempotency-md5-asn32.md) |
+| `P005-S001` (Onda 1 — Braço B) | **E23** `netkit` vs `veth` no datapath eBPF | `p003-gw` (`netkit` L3) | **CONCLUÍDO (`PASS`)** | [`21-netkit-vs-veth-ipam-burst.md`](estudos/21-netkit-vs-veth-ipam-burst.md) |
+| `P005-S001` (Onda 1 — Braço B) | **E21** IPAM burst e warm pool (`preAllocate`) | `p003-gw` (`multi-pool`) | **CONCLUÍDO (`PASS`)** | [`21-netkit-vs-veth-ipam-burst.md`](estudos/21-netkit-vs-veth-ipam-burst.md) |
+| `P005-S002` (Onda 2 — Braço A) | **E11** `max-prefix` e filtro de import (`prefix-list`) | `p003-gw` + `border1` + `frr-e11-ce` | **CONCLUÍDO (`PASS`)** | [`11-bgp-maxprefix-communities-bfd.md`](estudos/11-bgp-maxprefix-communities-bfd.md) |
+| `P005-S002` (Onda 2 — Braço A) | **E12** communities (`65400:100/200`), prepend e MED | `p003-gw` + `border1` + `frr-e12-ce` | **CONCLUÍDO (`PASS`)** | [`11-bgp-maxprefix-communities-bfd.md`](estudos/11-bgp-maxprefix-communities-bfd.md) |
+| `P005-S002` (Onda 2 — Braço A) | **E10** detecção de falha: Timers `3/9s`, `1/3s` e BFD `< 1 s` | `p003-gw` + `frr-e10-pe`/`ce` | **CONCLUÍDO (`PASS`)** | [`11-bgp-maxprefix-communities-bfd.md`](estudos/11-bgp-maxprefix-communities-bfd.md) |
+| `P005-S002` (Onda 2 — Braço B) | **E22** XLB L7 (`sockmap`/`bpf_sock_ops`/`sk_msg`) vs Envoy | `p003-gw` (BPF cgroup/sockops) | **CONCLUÍDO (`PASS`)** | [`22-xlb-ebpf-socket-lb-vs-envoy.md`](estudos/22-xlb-ebpf-socket-lb-vs-envoy.md) |
+| `P005-S003` (Onda 3 — Braço A) | **E13** redundância dual-border e failover s/ e c/ GR | `p003-gw` + `border1` + `frr-e13-border2` | **CONCLUÍDO (`PASS`)** | [`13-bgp-dual-border-gr-ipv6.md`](estudos/13-bgp-dual-border-gr-ipv6.md) |
+| `P005-S003` (Onda 3 — Braço A) | **E14** sessão eBGP IPv6 dedicada e VIP `fd14::a/128` | `p003-gw` + `border1` + `frr-e14-client` | **CONCLUÍDO (`PASS`)** | [`13-bgp-dual-border-gr-ipv6.md`](estudos/13-bgp-dual-border-gr-ipv6.md) |
+| `P005-S003` (Onda 3 — Braço B) | **E17** observabilidade contínua BGP (3 leituras) | `p003-gw` (`:9962/metrics`) + `border1` | **CONCLUÍDO (`PASS`)** | [`17-bgp-hubble-observability.md`](estudos/17-bgp-hubble-observability.md) |
+| `P005-S003` (Onda 3 — Braço B) | **E25** observabilidade de microsserviços com Hubble | `p003-gw` (Hubble L3/L4/L7/TLS + `:9965`) | **CONCLUÍDO (`PASS`)** | [`17-bgp-hubble-observability.md`](estudos/17-bgp-hubble-observability.md) |
+| `P005-S004` (Onda 4 — Braço A) | **E15** VRF por tenant no border via community | `p003-gw` + `frr-e15-pe` (`vrf-e15-a`/`b`) | **CONCLUÍDO (`PASS`)** | [`15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md`](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md) |
+| `P005-S004` (Onda 4 — Braço A) | **E16** desenho PE/CE, 3 modos de retorno e Egress GW | `p003-gw` + `frr-e16-pe`/`node` | **CONCLUÍDO (`PASS`)** | [`15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md`](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md) |
+| `P005-S004` (Onda 4 — Braço A) | **E18** MTU 9000 Jumbo/PMTU, QinQ `802.1ad` e MACsec `802.1AE` | `p003-gw` + `frr-e18-pe`/`client` | **CONCLUÍDO (`PASS`)** | [`15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md`](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md) |
+| `P005-S004` (Onda 4 — Braço B) | **E24** DRA (`resource.k8s.io/v1`) `NetworkDeviceData` no Cilium | `p003-gw` (`K8s v1.35.0` DRA GA) | **CONCLUÍDO (`PASS`)** | [`24-cilium-dra-network-device.md`](estudos/24-cilium-dra-network-device.md) |
+| `P004-S001..S008` | **E20** Cilium OSS + KubeVirt + OVN-K + MGC × INV | `mgc` + `evpn-fabric` + `ovnk` + `p003-gw` | **CONCLUÍDO (`PASS`)** | [`20-mgc-estado-parcial.md`](estudos/20-mgc-estado-parcial.md) |
 
 O FRR "cliente" é um container novo no sandbox, fora do cluster, com sessão
 ao border. Ele substitui o cliente HTTP nos ensaios de roteamento e permite
