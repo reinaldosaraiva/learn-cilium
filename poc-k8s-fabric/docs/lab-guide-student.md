@@ -27,7 +27,17 @@ dual-border + Graceful Restart, eBGP IPv6 nativo `fd14::a/128`, VRF por tenant v
 3 modos de retorno + `CiliumEgressGatewayPolicy`, e MTU 9000/QinQ/MACsec vs WireGuard) e
 Braço B Datapath eBPF (`E21–E25`: `netkit` vs `veth`, burst IPAM com warm pool, XLB L7 `sockmap`/`sk_msg` vs Envoy,
 DRA `resource.k8s.io/v1` `NetworkDeviceData`, e observabilidade contínua BGP + Hubble L3/L4/L7/TLS).
-Os módulos 12, 13 e 14 interpretam evidência
+O módulo 15 sintetiza os 8 estudos avançados de Fase 2 e o saneamento integral de
+`P006-S001` a `P006-S004` (todos concluídos com **PASS** em `v2.5.0`, totalizando `33/33`
+estudos `E01–E33` e `100%` de [`revisao-projeto-2026-09-26.md`](revisao-projeto-2026-09-26.md)):
+Braço A Datapath/BGP (`E26` LoadBalancer TCX/XDP + DSR & Maglev `M=16381`, `E27` BIG TCP
+`192 KiB` + `netkit` + MTU 9000, `E28` Bandwidth Manager EDT + `qdisc fq` + `TCP BBR` vs `CUBIC`,
+e `E29` BGP Unnumbered `RFC 5549`/`8950` + `CiliumL2AnnouncementPolicy`), Braço B Plataforma/Segurança
+(`E30` Cilium Cluster Mesh / MCS-API sobre BGP, `E31` SRv6 L3VPN `End.DT4` sem VXLAN, `E32`
+Tetragon Runtime Security `TracingPolicyNamespaced`, e `E33` KubeVirt Live Migration sob
+tráfego contínuo `50 pps` `Cilium B /32 BGP` vs `OVN-K EVPN Type-2`) e Braço C Saneamento
+(`Blocos C1–C4`, `Makefile` `make lint`/`test`/`pdf` e índices `s011/s012`).
+Os módulos 12, 13, 14 e 15 interpretam evidência
 histórica; não exigem acesso em tempo real a essas infraestruturas. Nenhum
 módulo mede desempenho de hardware de produção.
 
@@ -50,7 +60,7 @@ módulo mede desempenho de hardware de produção.
 15. [Módulo 12 — Nós reais na nuvem: o que muda](#módulo-12--nós-reais-na-nuvem-o-que-muda)
 16. [Módulo 13 — MGC, OVN, FRR e EVPN: o que os resultados provam](#módulo-13--mgc-ovn-frr-e-evpn-o-que-os-resultados-provam)
 17. [Módulo 14 — Estudos Avançados P005: Conexão Dedicada eBGP ∥ Datapath eBPF](#módulo-14--estudos-avançados-p005-conexão-dedicada-ebgp--datapath-ebpf)
-18. [Módulo 15 — Trilha P006: Datapath Avançado (`E26–E29`), Multi-Cluster & SRv6 (`E30–E33`) e Saneamento Integral (`C1–C4`)](#15-módulo-15--trilha-p006-datapath-avançado-e26e29-multi-cluster--srv6-e30e33-e-saneamento-integral-c1c4)
+18. [Módulo 15 — Trilha P006: Datapath Avançado (`E26–E29`), Multi-Cluster & SRv6 (`E30–E33`) e Saneamento Integral (`C1–C4`)](#módulo-15--trilha-p006-datapath-avançado-e26e29-multi-cluster--srv6-e30e33-e-saneamento-integral-c1c4)
 19. [Apêndice do instrutor](#apêndice-do-instrutor)
 20. [Limites do que foi demonstrado](#limites-do-que-foi-demonstrado)
 21. [Próximos estudos](#próximos-estudos)
@@ -893,7 +903,9 @@ A trilha **P005** executa os 16 estudos remanescentes (`E09–E19` e `E21–E25`
 4. Qual é a diferença de camada e escopo entre **MACsec (`802.1AE`, `0x88e5`)** e **Cilium WireGuard (`51820/UDP`)** demonstrada em `E18`, e por que o MACsec cifra inclusive a sessão TCP/179 do eBGP entre nó e ToR/PE?
 5. Como o estudo `E24` (`resource.k8s.io/v1` DRA) preserva a governança do Cilium na interface primária `eth0` (`CiliumNetworkPolicy` + BGP VIP) enquanto anexa interfaces secundárias dedicadas (`net1`/`net2`) publicadas em `status.devices[].networkData`?
 
-## 15. Módulo 15 — Trilha P006: Datapath Avançado (`E26–E29`), Multi-Cluster & SRv6 (`E30–E33`) e Saneamento Integral (`C1–C4`)
+## Módulo 15 — Trilha P006: Datapath Avançado (`E26–E29`), Multi-Cluster & SRv6 (`E30–E33`) e Saneamento Integral (`C1–C4`)
+
+A trilha **P006** conclui a Fase 2 do projeto em quatro ondas paralelas sobre `vm-cilium`, combinando o **Braço A (Datapath eBPF Avançado e Borda BGP `E26–E29`)**, o **Braço B (Multi-Cluster, SRv6 L3VPN, Runtime Security e Live Migration `E30–E33`)** e o **Braço C (Saneamento Integral de `revisao-projeto-2026-09-26.md` `Blocos C1–C4`)**, fechando `33/33` estudos (`E01–E33`) em `v2.5.0`.
 
 ### 15.1 Onda 1 (`P006-S001` — PASS): LoadBalancer TCX/XDP + DSR & Maglev (`E26`), Cilium Cluster Mesh / MCS-API sobre BGP (`E30`) e Saneamento `Bloco C1`
 

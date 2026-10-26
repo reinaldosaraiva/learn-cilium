@@ -53,10 +53,12 @@ para este laboratório.
 | `docs/diagramas/` | imagens da topologia e do fluxo para a aula |
 
 O builder do PDF fica em [`tools/build_guide.py`](tools/build_guide.py), no
-diretório `poc-k8s-fabric/tools`, mas é executado a partir da raiz do projeto:
+diretório `poc-k8s-fabric/tools`, e pode ser executado diretamente ou via `Makefile` (`v2.5.0`) a partir da raiz do projeto:
 
 ~~~bash
-python3 poc-k8s-fabric/tools/build_guide.py
+make pdf
+make lint
+make test
 ~~~
 
 O PDF sai em `output/pdf/cilium-lab-student-guide.pdf`. Para usar uma cópia do
