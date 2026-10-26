@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p007-e36
+  labels:
+    study: e36-local-redirect-policy
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: e36-cache-ds
+  namespace: p007-e36
+spec:
+  selector:
+    matchLabels:
+      app: e36-cache-ds
+  template:
+    metadata:
+      labels:
+        app: e36-cache-ds
+    spec:
+      terminationGracePeriodSeconds: 0
+      nodeSelector:
+        e36-lrp-node: "enabled"
+      containers:
+        - name: cache
+          image: python:3.11-alpine
+          command:
+            - python3
+            - -c
+            - |
+              import http.server, os, socket
+              node = os.environ.get("NODE_NAME", socket.gethostname())
+              pod = os.environ.get("POD_NAME", socket.gethostname())
+              class H(http.server.BaseHTTPRequestHandler):
+                  def do_GET(self):
+                      body = f"E36-CACHE node={node} pod={pod}\n".encode()
+                      self.send_response(200)
+                      self.send_header("Content-Length", str(len(body)))
+                      self.end_headers()
+                      self.wfile.write(body)
+                  def log_message(self, *args):
+                      pass
+              http.server.HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - containerPort: 8080
+              name: http-cache
+              protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e36-cache-svc
+  namespace: p007-e36
+spec:
+  type: ClusterIP
+  selector:
+    app: e36-cache-ds
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e36-cli-w1
+  namespace: p007-e36
+  labels:
+    app: e36-cli
+spec:
+  terminationGracePeriodSeconds: 0
+  nodeName: p003-gw-worker
+  containers:
+    - name: cli
+      image: python:3.11-alpine
+      command: ["sh", "-c", "sleep 3600"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e36-cli-w2
+  namespace: p007-e36
+  labels:
+    app: e36-cli
+spec:
+  terminationGracePeriodSeconds: 0
+  nodeName: p003-gw-worker2
+  containers:
+    - name: cli
+      image: python:3.11-alpine
+      command: ["sh", "-c", "sleep 3600"]

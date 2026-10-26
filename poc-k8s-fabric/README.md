@@ -1,7 +1,7 @@
 # Kit do laboratório Cilium + BGP
 
 Este diretório reúne materiais para os exercícios guiados dos módulos 1–11 do
-[guia do estudante 2.5](docs/lab-guide-student.md), baseados nos ambientes
+[guia do estudante 2.6](docs/lab-guide-student.md), baseados nos ambientes
 documentados em P001–P003. O módulo 12 é leitura histórica do estudo com nós
 reais na nuvem; essa infraestrutura fica fora da aula. O módulo 13 sintetiza os
 resultados empíricos completos da trilha P004 (sessões S001–S008 concluídas com **PASS**:
@@ -11,7 +11,7 @@ cenários híbridos `X01–X07`, Braço Cilium A `V00–V08-A` / `C-neg`, Braço
 síntese `INV × equivalente aberto` `G07`/`G08`;
 os perfis `labctl/labs/` e os artefatos de `studies/p004/` acompanham o checkout
 como referência de instrutor). O módulo 14 sintetiza os 16 estudos avançados da trilha P005
-(`P005-S001` a `P005-S004`, concluídos com **PASS** em `v2.4.0`, com scripts reproduzíveis em `studies/p005/`), e o módulo 15 sintetiza os 8 estudos avançados de Fase 2 (`E26–E33`) e o saneamento integral (`C1–C4`) da trilha P006 (`P006-S001` a `P006-S004`, concluídos com **PASS** em `v2.5.0`, com scripts em `studies/p006/`).
+(`P005-S001` a `P005-S004`, concluídos com **PASS** em `v2.4.0`, com scripts reproduzíveis em `studies/p005/`), o módulo 15 sintetiza os 8 estudos avançados de Fase 2 (`E26–E33`) e o saneamento integral (`C1–C4`) da trilha P006 (`P006-S001` a `P006-S004`, concluídos com **PASS** em `v2.5.0`, com scripts em `studies/p006/`), e o módulo 16 sintetiza os 4 estudos avançados de Fase 3 (`E34–E37`) da trilha P007 (`P007-S001` e `P007-S002`, concluídos com **PASS** em `v2.6.0`, fechando `37/37` estudos `E01–E37`, com scripts em `studies/p007/`).
 
 O objetivo didático começa por
 observar um cluster Kubernetes kind ligado a um fabric leaf–spine e entender a
@@ -53,7 +53,7 @@ para este laboratório.
 | `docs/diagramas/` | imagens da topologia e do fluxo para a aula |
 
 O builder do PDF fica em [`tools/build_guide.py`](tools/build_guide.py), no
-diretório `poc-k8s-fabric/tools`, e pode ser executado diretamente ou via `Makefile` (`v2.5.0`) a partir da raiz do projeto:
+diretório `poc-k8s-fabric/tools`, e pode ser executado diretamente ou via `Makefile` (`v2.6.0`) a partir da raiz do projeto:
 
 ~~~bash
 make pdf
@@ -124,4 +124,4 @@ e os oito dossiês publicados da trilha **P005** (`P005-S001` a `P005-S004`, tod
 [Onda 3 Braço A `E13`+`E14`](docs/estudos/13-bgp-dual-border-gr-ipv6.md),
 [Onda 3 Braço B `E17`+`E25`](docs/estudos/17-bgp-hubble-observability.md),
 [Onda 4 Braço A `E15`+`E16`+`E18`](docs/estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md) e
-[Onda 4 Braço B `E24`](docs/estudos/24-cilium-dra-network-device.md), com scripts em `studies/p005/`), bem como a trilha **P006** completa (`P006-S001` a `P006-S004`, concluída com **PASS** em `v2.5.0`: [Onda 1 `E26`+`E30`+`Bloco C1`](docs/estudos/26-lb-xdp-dsr-maglev-clustermesh.md), [Onda 2 `E27`+`E31`+`Bloco C2`](docs/estudos/27-big-tcp-netkit-srv6-l3vpn.md), [Onda 3 `E28`+`E32`+`Bloco C3`](docs/estudos/28-bandwidth-edt-bbr-tetragon.md) e [Onda 4 `E29`+`E33`+`Bloco C4`](docs/estudos/29-bgp-unnumbered-l2-live-migration.md), com scripts em `studies/p006/`).
+[Onda 4 Braço B `E24`](docs/estudos/24-cilium-dra-network-device.md), com scripts em `studies/p005/`), a trilha **P006** completa (`P006-S001` a `P006-S004`, concluída com **PASS** em `v2.5.0`: [Onda 1 `E26`+`E30`+`Bloco C1`](docs/estudos/26-lb-xdp-dsr-maglev-clustermesh.md), [Onda 2 `E27`+`E31`+`Bloco C2`](docs/estudos/27-big-tcp-netkit-srv6-l3vpn.md), [Onda 3 `E28`+`E32`+`Bloco C3`](docs/estudos/28-bandwidth-edt-bbr-tetragon.md) e [Onda 4 `E29`+`E33`+`Bloco C4`](docs/estudos/29-bgp-unnumbered-l2-live-migration.md), com scripts em `studies/p006/`), e a trilha **P007** completa (`P007-S001` e `P007-S002`, concluída com **PASS** em `v2.6.0`: [Onda 1 `E34`+`E35`](docs/estudos/30-bgp-gshut-spiffe-mtls-wireguard.md) e [Onda 2 `E36`+`E37`](docs/estudos/31-local-redirect-multus-ipvlan-dualhomed.md), com scripts em `studies/p007/`).

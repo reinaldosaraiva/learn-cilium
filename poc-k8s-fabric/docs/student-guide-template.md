@@ -1,8 +1,8 @@
 # Template Estrutural de Apostila — Cilium 1.20.x & Fabric BGP/EVPN
 
-> **Nota de Autoridade Documental (`v2.5.0`):**
+> **Nota de Autoridade Documental (`v2.6.0`):**
 > Este arquivo (`student-guide-template.md`) é o **esqueleto/template estrutural** utilizado para derivar novas apostilas e turmas de laboratório.
-> A **apostila viva, completa e atualizada** do projeto — cobrindo os **33 estudos experimentais (`E01` a `E33`)** em `P001`–`P006` — reside em **[`poc-k8s-fabric/docs/lab-guide-student.md`](lab-guide-student.md)** (e no PDF compilado `output/pdf/cilium-lab-student-guide.pdf`).
+> A **apostila viva, completa e atualizada** do projeto — cobrindo os **37 estudos experimentais (`E01` a `E37`)** em `P001`–`P007` — reside em **[`poc-k8s-fabric/docs/lab-guide-student.md`](lab-guide-student.md)** (e no PDF compilado `output/pdf/cilium-lab-student-guide.pdf`).
 > **Não edite este template para atualizar resultados do laboratório; atualize `lab-guide-student.md` e execute `make pdf`.**
 
 ---
@@ -13,7 +13,7 @@ Substitua os placeholders `{{VARIAVEL}}` abaixo antes de distribuir ou gerar o P
 
 | Placeholder | Descrição | Valor Canônico (`lab-guide-student.md`) |
 |---|---|---|
-| `{{VERSAO}}` | Versão da apostila | `v2.5.0` |
+| `{{VERSAO}}` | Versão da apostila | `v2.6.0` |
 | `{{DATA}}` | Data da edição | `2026-10-26` |
 | `{{HOST_SSH}}` | Alvo SSH do laboratório | `ubuntu@<IP_VM_CILIUM>` |
 | `{{CLUSTER_REF}}` | Cluster canário de referência | `k01` (`kind-k01`) |
@@ -52,11 +52,11 @@ Substitua os placeholders `{{VARIAVEL}}` abaixo antes de distribuir ou gerar o P
    - Plano OVN-Kubernetes (`UDN` + `EVPN` + `KubeVirt`: `K01`–`K04`, `X01`–`X07`).
    - Braço Cilium A (`KubeVirt` nativo: `V00`–`V08-A`) vs Braço Cilium B (`FRR 10.7.1` no nó: `H6`, `V09`/`H7`, `V07-B`, `V08-B`, invariante `R6=0`).
 
-### Parte IV — Segurança Avançada, Resiliência e Operação (`P005`: `E10`–`E25`)
-6. **BGP Avançado, Datapath e Plataforma (`E10`–`E25`)**
-   - `E10`–`E13`: Communities/LocalPref (`E10`), Graceful Restart (`E11`), BFD + ECMP (`E12`), Dual-Stack (`E13`).
-   - `E14`–`E17`: Egress Gateway (`E14`), Local Redirect Policy (`E15`), Host Firewall (`E16`), Mutual Auth SPIFFE (`E17`).
-   - `E18`–`E25`: Cilium Envoy L7 (`E18`), Hubble Golden Signals (`E19`), DNS Policy (`E21`), Multus Dual-Homing (`E22`), Multi-Pool Auto-Scale (`E23`), Upgrade Zero-Drop (`E24`) e Chaos Engineering (`E25`).
+### Parte IV — Segurança Avançada, Resiliência e Operação (`P005`: `E09`–`E19` e `E21`–`E25`)
+6. **BGP Avançado, Datapath e Plataforma (`E09`–`E19` e `E21`–`E25`)**
+   - `E09`–`E12` & `E19`: eBGP TCP MD5 `RFC 2385` + ASN 32 bits (`E09`), BFD `< 1s` vs Timers (`E10`), `max-prefix` e filtros de import (`E11`), Communities/AS-path/MED (`E12`) e Idempotência 10x BGP (`E19`).
+   - `E13`–`E18`: Dual-Border + Graceful Restart (`E13`), eBGP IPv6 `fd14::a/128` (`E14`), VRF por Tenant via Community (`E15`), Retorno PE/CE + `CiliumEgressGatewayPolicy` (`E16`), Observabilidade BGP Contínua (`E17`) e MTU 9000 + QinQ `802.1ad` + MACsec `802.1AE` vs WireGuard (`E18`).
+   - `E21`–`E25`: Escala de Burst IPAM `kubernetes` vs `multi-pool` (`E21`), XLB L7 eBPF (`sockmap`) vs `SocketLB` vs `Envoy` (`E22`), `netkit` vs `veth` (`E23`), Dynamic Resource Allocation `resource.k8s.io/v1` (`E24`) e Microsserviços com Hubble L3/L4/L7 + Prometheus (`E25`).
 
 ### Parte V — Fronteiras de Alta Performance, Multi-Cluster, SRv6 e Runtime eBPF (`P006`: `E26`–`E33`)
 7. **Datapath Avançado, SRv6, Tetragon e Live Migration (`E26`–`E33`)**
@@ -64,6 +64,11 @@ Substitua os placeholders `{{VARIAVEL}}` abaixo antes de distribuir ou gerar o P
    - `E27` & `E31`: BIG TCP (`GSO/GRO > 64 KiB`) + `netkit` vs SRv6 L3VPN (`seg6local End.DT4`).
    - `E28` & `E32`: Bandwidth Manager (`EDT` + `BBR`) vs Tetragon Runtime Security (`TracingPolicyNamespaced`).
    - `E29` & `E33`: BGP Unnumbered (`RFC 5549`/`8950`) + L2 Announcements vs KubeVirt Live Migration sob Tráfego Contínuo.
+
+### Parte VI — Operação Zero-Loss BGP, Zero-Trust SPIFFE mTLS, Local Redirect e Dual-Homing (`P007`: `E34`–`E37`)
+8. **Dreno BGP `RFC 8326`, Autenticação Mútua SPIFFE + WireGuard, `CiliumLocalRedirectPolicy` e Multus + `ipvlan L2/L3` (`E34`–`E37`)**
+   - `E34` & `E35`: BGP Graceful Shutdown (`RFC 8326` `65535:0`, `0/150` perda) vs Cilium Mutual Auth (`SPIFFE` X.509 SVID mTLS + `cilium_wg0` WireGuard).
+   - `E36` & `E37`: `CiliumLocalRedirectPolicy` (`serviceMatcher` + `addressMatcher` `169.254.20.10:8080`) vs Workloads Dual-Homed com Multus + `ipvlan mode l2/l3` vs `macvlan` (`MTU 9000` & Cloud L2 MAC Anti-Spoofing).
 
 ---
 

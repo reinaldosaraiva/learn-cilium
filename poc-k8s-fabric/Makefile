@@ -1,4 +1,4 @@
-# Makefile — poc-k8s-fabric (v2.5.0)
+# Makefile — poc-k8s-fabric (v2.6.0)
 # Alvos de validação estática (lint), dry-run de estudos (test) e geração de PDF (pdf).
 
 SHELL := /usr/bin/env bash
@@ -29,22 +29,26 @@ lint:
 	else \
 		echo "  -> SKIP (go não encontrado no PATH)"; \
 	fi
-	@echo "[lint 4/4] Verificando presença dos scripts de estudo P005/P006..."
+	@echo "[lint 4/4] Verificando presença dos scripts de estudo P005/P006/P007..."
 	@test -f studies/p006/arm-a-datapath/e29-bgp-unnumbered-l2.sh
 	@test -f studies/p006/arm-b-platform/e33-kubevirt-live-migration.sh
-	@echo "  -> OK (scripts P005/P006 presentes)"
+	@test -f studies/p007/arm-a-datapath/e34-bgp-gshut-zero-loss-drain.sh
+	@test -f studies/p007/arm-b-platform/e35-spiffe-mtls-wireguard-zerotrust.sh
+	@test -f studies/p007/arm-a-datapath/e36-local-redirect-policy-nodelocal.sh
+	@test -f studies/p007/arm-b-platform/e37-multus-ipvlan-macvlan-kubevirt-dualhomed.sh
+	@echo "  -> OK (scripts P005/P006/P007 presentes)"
 
 test:
 	@echo "[test 1/2] Executando suíte unitária Go da fixture ExternalAuth..."
 	@if command -v go >/dev/null 2>&1; then \
 		(cd studies/p003/fixtures/auth && go test -v ./...) || exit 1; \
 	fi
-	@echo "[test 2/2] Executando --dry-run em todos os scripts de estudo P005 e P006..."
-	@for s in studies/p005/*/*.sh studies/p006/*/*.sh; do \
+	@echo "[test 2/2] Executando --dry-run em todos os scripts de estudo P005, P006 e P007..."
+	@for s in studies/p005/*/*.sh studies/p006/*/*.sh studies/p007/*/*.sh; do \
 		echo "  -> dry-run: $$s"; \
 		bash "$$s" --dry-run >/dev/null || exit 1; \
 	done
-	@echo "  -> OK (todos os scripts P005/P006 passaram em --dry-run)"
+	@echo "  -> OK (todos os scripts P005/P006/P007 passaram em --dry-run)"
 
 pdf:
 	@echo "[pdf] Compilando apostila PDF via tools/build_guide.py..."

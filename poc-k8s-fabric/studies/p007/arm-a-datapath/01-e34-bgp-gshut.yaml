@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p007-e34
+  labels:
+    study: e34-bgp-gshut
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e34-backend
+  namespace: p007-e34
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: e34-backend
+  template:
+    metadata:
+      labels:
+        app: e34-backend
+    spec:
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: httpd
+          image: python:3.11-alpine
+          command:
+            - python3
+            - -c
+            - |
+              import http.server, os, socket
+              node = os.environ.get("NODE_NAME", socket.gethostname())
+              class H(http.server.BaseHTTPRequestHandler):
+                  def do_GET(self):
+                      body = f"E34-OK node={node}\n".encode()
+                      self.send_response(200)
+                      self.send_header("Content-Length", str(len(body)))
+                      self.end_headers()
+                      self.wfile.write(body)
+                  def log_message(self, *args):
+                      pass
+              http.server.HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 3"]
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e34-gshut-svc
+  namespace: p007-e34
+  labels:
+    app: e34-backend
+    bgp-e34: gshut
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: e34-backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: e34-gshut-pool
+spec:
+  blocks:
+    - cidr: 10.207.34.200/32
+  serviceSelector:
+    matchLabels:
+      bgp-e34: gshut
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: e34-gshut-adv
+  labels:
+    advertise: bgp
+spec:
+  advertisements:
+    - advertisementType: Service
+      service:
+        addresses:
+          - LoadBalancerIP
+      selector:
+        matchLabels:
+          bgp-e34: gshut
+      attributes:
+        communities:
+          standard:
+            - "65535:0"
+        localPreference: 0
