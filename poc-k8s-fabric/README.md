@@ -115,5 +115,7 @@ para uma PoC comercial do INV (`G07`) e a higiene final dos laboratórios (`G08`
 Consulte a [síntese pública completa de P004](docs/estudos/20-mgc-estado-parcial.md)
 e os dossiês publicados da trilha **P005** ([Onda 1 Braço A `E19`+`E09`](docs/estudos/19-bgp-idempotency-md5-asn32.md),
 [Onda 1 Braço B `E23`+`E21`](docs/estudos/21-netkit-vs-veth-ipam-burst.md),
-[Onda 2 Braço A `E11`+`E12`+`E10`](docs/estudos/11-bgp-maxprefix-communities-bfd.md) e
-[Onda 2 Braço B `E22`](docs/estudos/22-xlb-ebpf-socket-lb-vs-envoy.md), com scripts em `studies/p005/`).
+[Onda 2 Braço A `E11`+`E12`+`E10`](docs/estudos/11-bgp-maxprefix-communities-bfd.md),
+[Onda 2 Braço B `E22`](docs/estudos/22-xlb-ebpf-socket-lb-vs-envoy.md),
+[Onda 3 Braço A `E13`+`E14`](docs/estudos/13-bgp-dual-border-gr-ipv6.md) e
+[Onda 3 Braço B `E17`+`E25`](docs/estudos/17-bgp-hubble-observability.md), com scripts em `studies/p005/`).

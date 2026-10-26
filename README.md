@@ -80,9 +80,11 @@ dedicada com eBGP (BFD, autenticação de sessão, limite de prefixos,
 communities, redundância entre dois equipamentos, VRF por tenant e
 observabilidade por conexão) em paralelo com estudos avançados de datapath eBPF
 (`netkit` vs `veth`, escala de burst IPAM, XLB L7 eBPF, DRA e observabilidade Hubble),
-está em [próximos estudos](poc-k8s-fabric/docs/proximos-estudos.md). As **Ondas 1 e 2 (`P005-S001` e `P005-S002`)**
+está em [próximos estudos](poc-k8s-fabric/docs/proximos-estudos.md). As **Ondas 1, 2 e 3 (`P005-S001`, `P005-S002` e `P005-S003`)**
 já se encontram concluídas e documentadas em:
 - [19 — Ciclo de Vida e Idempotência BGP (`E19`) & Sessão eBGP Autenticada TCP MD5 com ASN 32 bits (`E09`)](poc-k8s-fabric/docs/estudos/19-bgp-idempotency-md5-asn32.md)
 - [21 — `netkit` vs `veth` no Datapath eBPF (`E23`) & Escala de Burst IPAM com Warm Pool (`E21`)](poc-k8s-fabric/docs/estudos/21-netkit-vs-veth-ipam-burst.md)
 - [11 — Limite de Prefixos (`E11`), Communities/Prepend/MED (`E12`) & Detecção de Falha com BFD `< 1 s` (`E10`)](poc-k8s-fabric/docs/estudos/11-bgp-maxprefix-communities-bfd.md)
 - [22 — XLB: Balanceamento L7 eBPF na Camada de Sockets (`sockmap`/`sk_msg`) vs `SocketLB L4` e `Envoy L7` (`E22`)](poc-k8s-fabric/docs/estudos/22-xlb-ebpf-socket-lb-vs-envoy.md)
+- [13 — Redundância Dual-Border, Failover Controlado com/sem Graceful Restart (`E13`) & Sessão eBGP IPv6 Nativa Fim a Fim (`E14`)](poc-k8s-fabric/docs/estudos/13-bgp-dual-border-gr-ipv6.md)
+- [17 — Observabilidade Contínua BGP (`ACTIVE`/`DOWN`/`UNKNOWN` por 3 Leituras, `E17`) & Microsserviços com Hubble (`L3/L4`, `L7 HTTP/DNS`, `TLS` e Prometheus, `E25`)](poc-k8s-fabric/docs/estudos/17-bgp-hubble-observability.md)

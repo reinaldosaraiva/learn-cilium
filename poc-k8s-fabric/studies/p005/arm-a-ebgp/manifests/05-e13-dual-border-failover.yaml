@@ -1,0 +1,121 @@
+# ==============================================================================
+# P005-S003 (Onda 3 — Braço A): E13 — Redundância em Dois Borders (border1 /
+# frr-e13-border2) e Failover Controlado com e sem Graceful Restart
+# ==============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p005-e13
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e13-echo-rack1
+  namespace: p005-e13
+  labels:
+    app: e13-echo
+    rack: rack1
+spec:
+  nodeName: p003-gw-worker
+  terminationGracePeriodSeconds: 0
+  containers:
+  - name: agnhost
+    image: registry.k8s.io/e2e-test-images/agnhost:2.47
+    imagePullPolicy: IfNotPresent
+    args: ["netexec", "--http-port=8080"]
+    ports:
+    - containerPort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e13-echo-rack2
+  namespace: p005-e13
+  labels:
+    app: e13-echo
+    rack: rack2
+spec:
+  nodeName: p003-gw-worker2
+  terminationGracePeriodSeconds: 0
+  containers:
+  - name: agnhost
+    image: registry.k8s.io/e2e-test-images/agnhost:2.47
+    imagePullPolicy: IfNotPresent
+    args: ["netexec", "--http-port=8080"]
+    ports:
+    - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e13-vip-svc
+  namespace: p005-e13
+  labels:
+    e13-bgp: "true"
+  annotations:
+    lbipam.cilium.io/ips: "10.202.255.193"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: e13-echo
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: e13-vip-adv
+  labels:
+    advertise: e13-bgp
+spec:
+  advertisements:
+  - advertisementType: "Service"
+    service:
+      addresses:
+      - LoadBalancerIP
+    selector:
+      matchLabels:
+        e13-bgp: "true"
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
+metadata:
+  name: e13-peer-rack1
+spec:
+  timers:
+    connectRetryTimeSeconds: 2
+    holdTimeSeconds: 9
+    keepAliveTimeSeconds: 3
+  ebgpMultihop: 1
+  gracefulRestart:
+    enabled: true
+    restartTimeSeconds: 30
+  families:
+  - afi: ipv4
+    safi: unicast
+    advertisements:
+      matchLabels:
+        advertise: e13-bgp
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
+metadata:
+  name: e13-peer-rack2
+spec:
+  timers:
+    connectRetryTimeSeconds: 2
+    holdTimeSeconds: 9
+    keepAliveTimeSeconds: 3
+  ebgpMultihop: 1
+  gracefulRestart:
+    enabled: true
+    restartTimeSeconds: 30
+  families:
+  - afi: ipv4
+    safi: unicast
+    advertisements:
+      matchLabels:
+        advertise: e13-bgp

@@ -1,0 +1,108 @@
+# ==============================================================================
+# P005-S003 (Onda 3 — Braço A): E14 — Sessão eBGP IPv6 Dedicada (fd00:10:255:214::/64)
+# e VIP IPv6 fd14::a/128 Fim a Fim
+# ==============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p005-e14
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e14-echo
+  namespace: p005-e14
+  labels:
+    app: e14-echo
+spec:
+  nodeName: p003-gw-worker2
+  terminationGracePeriodSeconds: 0
+  containers:
+  - name: agnhost
+    image: registry.k8s.io/e2e-test-images/agnhost:2.47
+    imagePullPolicy: IfNotPresent
+    args: ["netexec", "--http-port=8080"]
+    ports:
+    - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e14-vip-svc
+  namespace: p005-e14
+  labels:
+    e14-bgp: "true"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  externalIPs:
+  - "fd14::a"
+  selector:
+    app: e14-echo
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: e14-vip-adv
+  labels:
+    advertise: e14-bgp
+spec:
+  advertisements:
+  - advertisementType: "Interface"
+    interface:
+      name: "eth14vip"
+  - advertisementType: "Service"
+    service:
+      addresses:
+      - LoadBalancerIP
+      - ExternalIP
+    selector:
+      matchLabels:
+        e14-bgp: "true"
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
+metadata:
+  name: e14-peer-v4session
+spec:
+  timers:
+    connectRetryTimeSeconds: 2
+    holdTimeSeconds: 9
+    keepAliveTimeSeconds: 3
+  ebgpMultihop: 1
+  gracefulRestart:
+    enabled: false
+  families:
+  - afi: ipv4
+    safi: unicast
+    advertisements:
+      matchLabels:
+        advertise: e14-bgp
+  - afi: ipv6
+    safi: unicast
+    advertisements:
+      matchLabels:
+        advertise: e14-bgp
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
+metadata:
+  name: e14-peer-v6native
+spec:
+  timers:
+    connectRetryTimeSeconds: 2
+    holdTimeSeconds: 9
+    keepAliveTimeSeconds: 3
+  ebgpMultihop: 1
+  gracefulRestart:
+    enabled: false
+  families:
+  - afi: ipv6
+    safi: unicast
+    advertisements:
+      matchLabels:
+        advertise: e14-bgp

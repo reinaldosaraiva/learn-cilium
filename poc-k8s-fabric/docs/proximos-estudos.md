@@ -1,12 +1,14 @@
 # Próximos estudos — Cilium como motor de uma conexão dedicada com eBGP
 
 > Proposta de trilha (estudos E09–E25) escrita em 26/09/2026, depois do encerramento da
-> trilha P003. O estudo **E20 (`P004`) foi integralmente concluído com PASS (`P004-S001` a `P004-S008`, `G01` a `G08` fechados)** — veja a [síntese pública de P004](estudos/20-mgc-estado-parcial.md) — e o plano **P005 (Ondas Paralelas Braço A eBGP ∥ Braço B Datapath eBPF)** concluiu com **PASS** as **Ondas 1 e 2 (`P005-S001` e `P005-S002`)**:
+> trilha P003. O estudo **E20 (`P004`) foi integralmente concluído com PASS (`P004-S001` a `P004-S008`, `G01` a `G08` fechados)** — veja a [síntese pública de P004](estudos/20-mgc-estado-parcial.md) — e o plano **P005 (Ondas Paralelas Braço A eBGP ∥ Braço B Datapath eBPF)** concluiu com **PASS** as **Ondas 1, 2 e 3 (`P005-S001`, `P005-S002` e `P005-S003`)**:
 > - **Onda 1 — Braço A (`E19` + `E09`):** [19 — Idempotência BGP (10x), Zero Resíduo e eBGP Autenticado TCP MD5 com ASN 32 bits (`4200000001`)](estudos/19-bgp-idempotency-md5-asn32.md);
 > - **Onda 1 — Braço B (`E23` + `E21`):** [21 — `netkit` vs `veth` no Datapath eBPF & Escala de Burst IPAM com Warm Pool](estudos/21-netkit-vs-veth-ipam-burst.md);
 > - **Onda 2 — Braço A (`E11` + `E12` + `E10`):** [11 — Limite de Prefixos (`max-prefix`), Filtro de Import, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](estudos/11-bgp-maxprefix-communities-bfd.md);
-> - **Onda 2 — Braço B (`E22`):** [22 — XLB: Balanceamento L7 eBPF na Camada de Sockets (`sockmap` / `bpf_sock_ops` / `sk_msg`) vs `SocketLB L4` e `Envoy L7`](estudos/22-xlb-ebpf-socket-lb-vs-envoy.md).
-> Os estudos das Ondas 3 e 4 (`E13–E18`, `E24`, `E25`) seguem em execução estruturada sob `P005-S003` e `P005-S004`. Cada estudo nasce de uma lacuna
+> - **Onda 2 — Braço B (`E22`):** [22 — XLB: Balanceamento L7 eBPF na Camada de Sockets (`sockmap` / `bpf_sock_ops` / `sk_msg`) vs `SocketLB L4` e `Envoy L7`](estudos/22-xlb-ebpf-socket-lb-vs-envoy.md);
+> - **Onda 3 — Braço A (`E13` + `E14`):** [13 — Redundância Dual-Border, Failover Controlado com/sem Graceful Restart (`E13`) e Sessão eBGP IPv6 Nativa Fim a Fim (`E14`)](estudos/13-bgp-dual-border-gr-ipv6.md);
+> - **Onda 3 — Braço B (`E17` + `E25`):** [17 — Observabilidade Contínua BGP (`ACTIVE`/`DOWN`/`UNKNOWN` por 3 Leituras) e Microsserviços com Hubble (`L3/L4`, `L7 HTTP/DNS`, `TLS` e Prometheus)](estudos/17-bgp-hubble-observability.md).
+> Os estudos da Onda 4 (`E15`, `E16`, `E18`, `E24`) seguem em execução estruturada sob `P005-S004`. Cada estudo nasce de uma lacuna
 > registrada no [guia do estudante 2.3](lab-guide-student.md) ou de um
 > requisito técnico de um produto de conexão dedicada com eBGP (Direct
 > Connect), e cita a fonte primária que sustenta a hipótese. Dados
@@ -175,6 +177,8 @@ Gate: **PASS** (`03-e12-communities-prepend-med.txt`): a VIP `10.202.255.192/32`
 
 ### E13 — Redundância em dois equipamentos e teste de failover
 
+**Estado:** **CONCLUÍDO (`P005-S003` — PASS em 25/10/2026)** — publicado em [13 — Redundância Dual-Border, Failover Controlado com/sem Graceful Restart e Sessão eBGP IPv6 Nativa Fim a Fim](estudos/13-bgp-dual-border-gr-ipv6.md).
+
 Hipótese: com duas sessões eBGP para equipamentos distintos, o tráfego se
 distribui por ECMP e a queda de uma sessão converge sem ação, dentro do
 tempo de hold; um teste de failover controlado derruba uma sessão por tempo
@@ -187,10 +191,11 @@ ao FRR "cliente"; o dual-homing do nó Kubernetes fica para um cluster real
 distribuição por next-hop antes e depois e tempo até a sessão voltar.
 Negativo: failover com GR desligado.
 
-Gate: ambas as topologias (redundante no mesmo local e entre locais,
-simuladas por dois borders) medidas com e sem GR.
+Gate: **PASS** (`02-e13-dual-border-failover.txt`): em topologia Dual-Border ECMP (`border1` `AS 65400` + `frr-e13-border2` `AS 65401` anunciando `10.202.255.193/32` para `frr-e13-client` `AS 65513`), o cliente balanceou `rack1=12/30` e `rack2=18/30` antes do shutdown, convergiu para `rack2=20/20` durante `neighbor 10.255.213.10 shutdown` com **`0` falhas (`71/71` HTTP `200`, `max_gap_ms=115 ms`)** e restaurou o ECMP (`rack1=13/30`, `rack2=17/30`) após `no shutdown`. Em caminho único (`p003-gw-worker2 <-> frr-e13-border2`), o restart do `cilium-agent` com `gracefulRestart.enabled: true` (`restartTimeSeconds: 30` + `bgp graceful-restart preserve-fw-state`) preservou a rota `(stale)` e o datapath eBPF com **`139/139` HTTP `200` (`fail=0`, `max_gap_ms=117 ms`)**, enquanto o controle negativo sem GR (`enabled: false`) removeu imediatamente a rota e causou **`78` falhas (`max_gap_ms=8879 ms`)**.
 
 ### E14 — Sessão IPv6 e VIP IPv6 fim a fim
+
+**Estado:** **CONCLUÍDO (`P005-S003` — PASS em 25/10/2026)** — publicado em [13 — Redundância Dual-Border, Failover Controlado com/sem Graceful Restart e Sessão eBGP IPv6 Nativa Fim a Fim](estudos/13-bgp-dual-border-gr-ipv6.md).
 
 Hipótese: com o cliente e o underlay externo dual-stack, a VIP `fd14::a/128`
 é alcançável do cliente, fechando o limite de P002-S001.
@@ -200,8 +205,7 @@ Ensaio: cliente do sandbox com IPv6 na interface e rota; border com
 IPv4 com família v6) no `CiliumBGPClusterConfig`. Medir 30 requisições HTTP
 por IPv6 e a RIB IPv6 no FRR "cliente".
 
-Gate: 30/30 por IPv6 do cliente; tabela de quais famílias viajam em qual
-sessão.
+Gate: **PASS** (`03-e14-ipv6-e2e-vip.txt`): na Célula 1 (baseline `P002-S001`), o anúncio de `fd14::a/128` (`ipv6/unicast`) sobre sessão TCP IPv4 (`10.255.214.1 <-> 10.255.214.2`) gerou next-hop IPv4-mapped `::ffff:10.255.214.1` (`::ffff:aff:d601`) inutilizável para encaminhamento IPv6 nativo; na Célula 2 (sessão eBGP IPv6 dedicada `fd00:10:255:214::1 <-> fd00:10:255:214::2`), `border1` e `frr-e14-client` (`AS 65514`) instalaram `fd14::a/128` com next-hop IPv6 nativo e serviram **`30/30` requisições HTTP IPv6 (`http://[fd14::a]:8080/hostname`)**; na Célula 3 (controle negativo), a retirada do anúncio removeu `fd14::a/128` em `2 s` (`5/5` bloqueados) e a restauração reconvergiu `5/5` HTTP `200`.
 
 ### E15 — VRF por tenant: fabric com network-instance e Cilium atrás
 
@@ -241,6 +245,8 @@ cada opção de retorno.
 
 ### E17 — Observabilidade por conexão e estado operacional
 
+**Estado:** **CONCLUÍDO (`P005-S003` — PASS em 25/10/2026)** — publicado em [17 — Observabilidade Contínua BGP (`ACTIVE`/`DOWN`/`UNKNOWN` por 3 Leituras) e Microsserviços com Hubble (`L3/L4`, `L7 HTTP/DNS`, `TLS` e Prometheus)](estudos/17-bgp-hubble-observability.md).
+
 Hipótese: `session_state`, `advertised_routes` e `received_routes` do
 Cilium, somados à RIB do border, permitem derivar o estado "ativo,
 degradado, desconhecido" com regra de três leituras consecutivas e defasagem
@@ -251,8 +257,7 @@ implementa as três leituras; gerar flap de sessão de 5 s, 20 s e 90 s e
 comparar o estado derivado com o observado. Hubble com `--from-cidr` para
 contar fluxos por prefixo de "cliente".
 
-Gate: tabela flap → transição de estado → atraso medido; lista do que só a
-borda (FRR/SR Linux) consegue expor (AS path completo, BFD state).
+Gate: **PASS** (`04-e17-e25-observability.txt`): sob amostragem a cada `3 s`, um flap curto de `2` leituras `0` (`max_down_streak=2/3`) foi amortecido mantendo `derived=ACTIVE` (`false_down=0`); um flap sustentado (`>= 3` leituras `0`) transicionou deterministicamente `ACTIVE -> DOWN` em **`7596 ms`** e retornou `DOWN -> ACTIVE` em **`11166 ms`** após `3` leituras `1` consecutivas; `3/3` falhas consecutivas de scrape (`:19962`) transicionaram o estado para **`UNKNOWN`** sem falso `DOWN`; e a comparação com a RIB externa de `border1` comprovou que o `AS_PATH` completo (`65203 65600 65201 65301`) e as communities recebidas (`65301:100`) só são visíveis no roteador de borda.
 
 ### E18 — MTU 9000, MACsec e QinQ: a fronteira do Cilium
 
@@ -417,7 +422,7 @@ interfaces órfãos; rollback do cluster experimental comprovado.
 
 ### E25 — Cilium/Hubble no RKE2: observabilidade do tráfego de microserviços
 
-**Estado:** BACKLOG — adicionado em 13/10/2026; não executado.
+**Estado:** **CONCLUÍDO (`P005-S003` — PASS em 25/10/2026)** — publicado em [17 — Observabilidade Contínua BGP (`ACTIVE`/`DOWN`/`UNKNOWN` por 3 Leituras) e Microsserviços com Hubble (`L3/L4`, `L7 HTTP/DNS`, `TLS` e Prometheus)](estudos/17-bgp-hubble-observability.md).
 
 Referência sugerida: [Cilium Hubble on RKE2: Microservice Traffic Observability
 (Seeing the Invisible)](https://dev.to/ezejioforog/cilium-hubble-on-rke2-microservice-traffic-observability-seeing-the-invisible-5glb),
@@ -438,9 +443,7 @@ custo, retenção/perda de eventos e indisponibilidade do Relay; verificar
 compatibilidade com AppArmor/KubeArmor sem copiar exceções de segurança do
 relato como solução geral.
 
-Gate: diagnóstico sustentado por evidências correlacionadas, limites de
-visibilidade e retenção registrados, isolamento preservado e rollback
-comprovado. Preparar acesso e redação de dados dos fluxos antes da coleta.
+Gate: **PASS** (`04-e17-e25-observability.txt`): provadas no Hubble a correlação L3/L4 (`hubble_forwarded=302`, `hubble_dropped_policy=10` com razão `Policy denied` e `hubble_from_ip_198_19=120` norte-sul preservando `198.19.0.10` via `externalTrafficPolicy: Local`), a visibilidade L7 HTTP e DNS via Envoy (`hubble_l7_200=10` em `GET /hostname`, `hubble_l7_403=5` `DROPPED` em `GET /denied`, `hubble_l7_dns=20`), a fronteira TLS em `:8443` (`hubble_8443_l4_flows=92` com identidade SPIFFE/Cilium visível e `hubble_8443_l7_cleartext_leak=0` vazamentos de URL), e a correlação com métricas Prometheus (`:9962` / `:9965`: `hubble_flows_processed_total=2836`, `hubble_drop_total=65`, `hubble_http_requests_total=15`, `hubble_dns_queries_total=8`) mais a continuidade do ring buffer local (`Ok (3,015/4,095 flows)`) sob indisponibilidade do Relay (`:4245`).
 
 ## 5. Ordem sugerida e ambiente
 
