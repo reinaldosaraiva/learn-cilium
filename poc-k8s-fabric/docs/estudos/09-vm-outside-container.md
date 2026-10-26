@@ -142,9 +142,12 @@ export REFERENCE_SSH_TARGET='user@host'          # host onde a VM roda (KVM real
 export REFERENCE_SSH_KEY='/secure/path/reference-key'
 export REFERENCE_KUBECONFIG='/secure/path/sandbox-kubeconfig'
 export REFERENCE_CONTEXT='kind-sandbox'
+export STUDY_KUBECONFIG="$REFERENCE_KUBECONFIG"  # alias canônico do execution-protocol.md §3
+export STUDY_CONTEXT="$REFERENCE_CONTEXT"
 
 # valores do experimento (substitua pelo seu inventário)
-export STUDY_OS_CONTAINER='testbed-os'            # container do testbed OpenStack
+export STUDY_OS_CONTAINER='p003-os'               # container Docker do testbed OpenStack (hostname interno: devstack)
+export STUDY_QROUTER_NS='qrouter-<router-uuid>'   # namespace do roteador Neutron (descobrir via: ip netns list | grep qrouter-)
 export STUDY_CIRROS_IMG='/tmp/cirros.qcow2'       # imagem cirros no host
 export STUDY_VM_MAC='fa:16:3e:00:00:01'           # MAC da NIC da VM
 export STUDY_VM_IP='10.30.0.50'                   # IP fixo (subnet-a)

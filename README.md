@@ -16,7 +16,7 @@ O laboratório responde duas perguntas simples:
 - como um Service LoadBalancer recebe um VIP `/32` e pode ser alcançado por
   múltiplos caminhos ECMP.
 
-O [guia do estudante 2.4](poc-k8s-fabric/docs/lab-guide-student.md) organiza os
+O [guia do estudante 2.5](poc-k8s-fabric/docs/lab-guide-student.md) organiza os
 módulos 1–11 como exercícios guiados apoiados nos estudos P001–P003. O módulo
 12 é leitura histórica do estudo com nós reais na nuvem, cuja infraestrutura
 fica fora da aula; o módulo 13 sintetiza os resultados empíricos completos da trilha P004
@@ -31,6 +31,12 @@ O módulo 14 consolida os **16 estudos avançados da trilha P005** (`P005-S001` 
 - **14.2** — Onda 2 (`P005-S002`): Limite de prefixos `maximum-prefix 100` e filtro de import (`E11`), Communities `65400:100/200` + `AS-path prepend` + `MED` (`E12`), BFD sub-segundo `< 1 s` (`E10`) e XLB L7 eBPF (`sockmap`/`sk_msg`) vs `SocketLB L4` e `Envoy L7` (`E22`);
 - **14.3** — Onda 3 (`P005-S003`): Redundância Dual-Border ECMP + failover com/sem Graceful Restart (`E13`), sessão eBGP IPv6 dedicada servindo `fd14::a/128` (`E14`), e observabilidade contínua BGP por 3 leituras consecutivas (`E17`) + Hubble `L3/L4`, `L7 HTTP/DNS`, `TLS :8443` e Prometheus (`E25`);
 - **14.4** — Onda 4 (`P005-S004`): Isolamento de VRF por tenant via BGP community (`E15`), 3 modos de retorno PE/CE + `CiliumEgressGatewayPolicy` (`E16`), enlace L2 (`MTU 9000` Jumbo, `QinQ 802.1ad` e `MACsec 802.1AE` vs `WireGuard`, `E18`) e Dynamic Resource Allocation (`resource.k8s.io/v1` `NetworkDeviceData`, `E24`).
+
+O módulo 15 consolida os **8 estudos avançados de Fase 2 e o saneamento integral da trilha P006** (`P006-S001` a `P006-S004`, todos concluídos com **PASS** em `v2.5.0`, fechando `33/33` estudos `E01–E33` e `100%` de [`revisao-projeto-2026-09-26.md`](poc-k8s-fabric/docs/revisao-projeto-2026-09-26.md)):
+- **15.1** — Onda 1 (`P006-S001`): LoadBalancer TCX/XDP + DSR (`ETP=Local`) & Maglev Consistent Hashing (`M=16381`, `E26`), Cilium Cluster Mesh / MCS-API sobre BGP (`E30`) e Saneamento `Bloco C1` (`A4–A8`, `A10–A12`);
+- **15.2** — Onda 2 (`P006-S002`): BIG TCP (`gso_max_size=196608`, super-pacotes `188 KiB`) + `netkit` + Jumbo MTU 9000 (`E27`), SRv6 L3VPN (`seg6local action End.DT4`) sem VXLAN (`E31`) e Saneamento `Bloco C2` (`A1–A3`, `A9`, `M1–M6`);
+- **15.3** — Onda 3 (`P006-S003`): Bandwidth Manager (`EDT` + `qdisc fq`), Pacing eBPF por Pod & `TCP BBR` vs `CUBIC` (`E28`), Tetragon Runtime eBPF Security (`TracingPolicyNamespaced`, `E32`) e Saneamento `Bloco C3` (`M7–M15`);
+- **15.4** — Onda 4 (`P006-S004`): BGP Unnumbered (`RFC 5549`/`8950` Extended Next-Hop) & L2 Announcements (`CiliumL2AnnouncementPolicy`, `E29`), KubeVirt Live Migration sob Tráfego Contínuo (`Cilium B /32 BGP` `100,45 ms` vs `OVN-K EVPN Type-2` `60,25 ms`, `E33`) e Saneamento `Bloco C4` (`Makefile` `make lint`/`test`/`pdf`, índices `s011/s012` e fechamento `100%`).
 
 Os
 [diagramas](poc-k8s-fabric/docs/diagramas/README.md) mostram a topologia, o
@@ -81,13 +87,13 @@ Não é uma promessa de desempenho de hardware, alta disponibilidade de produç�
 round-robin perfeito ou isolamento de tenant equivalente a uma rede virtual
 completa.
 
-A trilha seguinte (**P005**), orientada pelos requisitos de um produto de conexão
+A trilha seguinte (**P005** e **P006**), orientada pelos requisitos de um produto de conexão
 dedicada com eBGP (BFD, autenticação de sessão, limite de prefixos,
 communities, redundância entre dois equipamentos, VRF por tenant, modos de retorno PE/CE,
-MTU 9000/QinQ/MACsec e observabilidade por conexão) em paralelo com estudos avançados de datapath eBPF
-(`netkit` vs `veth`, escala de burst IPAM, XLB L7 eBPF, DRA `resource.k8s.io/v1` e observabilidade Hubble),
-está em [próximos estudos](poc-k8s-fabric/docs/proximos-estudos.md). Todas as **4 Ondas (`P005-S001` a `P005-S004`, `16/16` estudos de P005 e `25/25` estudos totais do repositório)**
-encontram-se **concluídas com PASS (`v2.4.0`)** e documentadas em:
+MTU 9000/QinQ/MACsec, BGP Unnumbered `RFC 5549`/`8950`, L2 Announcements e observabilidade por conexão) em paralelo com estudos avançados de datapath eBPF, multi-cluster, SRv6, runtime security e virtualização
+(`netkit` vs `veth`, escala de burst IPAM, XLB L7 eBPF, DRA `resource.k8s.io/v1`, Hubble, LoadBalancer TCX/XDP + Maglev, Cilium Cluster Mesh, BIG TCP, SRv6 L3VPN `End.DT4`, Bandwidth Manager EDT + BBR, Tetragon `TracingPolicyNamespaced` e KubeVirt Live Migration sob tráfego contínuo),
+está em [próximos estudos](poc-k8s-fabric/docs/proximos-estudos.md). Todas as **4 Ondas de `P005` (`P005-S001` a `P005-S004`) e 4 Ondas de `P006` (`P006-S001` a `P006-S004`, somando `33/33` estudos `E01–E33` e `100%` de saneamento do repositório)**
+encontram-se **concluídas com PASS (`v2.5.0`)** e documentadas em:
 - [19 — Ciclo de Vida e Idempotência BGP (`E19`) & Sessão eBGP Autenticada TCP MD5 com ASN 32 bits (`E09`)](poc-k8s-fabric/docs/estudos/19-bgp-idempotency-md5-asn32.md)
 - [21 — `netkit` vs `veth` no Datapath eBPF (`E23`) & Escala de Burst IPAM com Warm Pool (`E21`)](poc-k8s-fabric/docs/estudos/21-netkit-vs-veth-ipam-burst.md)
 - [11 — Limite de Prefixos (`E11`), Communities/Prepend/MED (`E12`) & Detecção de Falha com BFD `< 1 s` (`E10`)](poc-k8s-fabric/docs/estudos/11-bgp-maxprefix-communities-bfd.md)
@@ -99,3 +105,4 @@ encontram-se **concluídas com PASS (`v2.4.0`)** e documentadas em:
 - [26 — LoadBalancer XDP/TCX + DSR & Maglev Consistent Hashing (`E26`) e Cilium Cluster Mesh / MCS-API sobre Fabric BGP (`E30`) (`P006-S001`)](poc-k8s-fabric/docs/estudos/26-lb-xdp-dsr-maglev-clustermesh.md)
 - [27 — BIG TCP (`enable-ipv4-big-tcp` / `enable-ipv6-big-tcp`) + `netkit` + Jumbo MTU 9000 (`E27`) e SRv6 L3VPN (`seg6local End.DT4`) sem VXLAN (`E31`) (`P006-S002`)](poc-k8s-fabric/docs/estudos/27-big-tcp-netkit-srv6-l3vpn.md)
 - [28 — Bandwidth Manager (EDT + `fq`), Pacing eBPF por Pod & `TCP BBR` vs `CUBIC` (`E28`) e Tetragon Runtime eBPF Security (`TracingPolicyNamespaced`, `E32`) (`P006-S003`)](poc-k8s-fabric/docs/estudos/28-bandwidth-edt-bbr-tetragon.md)
+- [29 — BGP Unnumbered (`RFC 5549`/`8950` Extended Next-Hop) & L2 Announcements (`E29`) e KubeVirt Live Migration sob Tráfego Contínuo (`Cilium B /32 BGP` vs `OVN-K EVPN Type-2`, `E33`) (`P006-S004`)](poc-k8s-fabric/docs/estudos/29-bgp-unnumbered-l2-live-migration.md)

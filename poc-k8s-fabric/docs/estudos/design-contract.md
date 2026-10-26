@@ -8,7 +8,7 @@ ambiente só congelam após descoberta indicada. Não fingir que um TBD é execu
 ## 1. File Naming
 
 A edição pública usa `README.md`, `design-contract.md`, `research.md`,
-`execution-protocol.md`, os dossiês `00`–`08` e `sessions/S002-preflight.md`.
+`execution-protocol.md`, os dossiês `00`–`09` (trilha P003; mais `10`–`29` para P004–P006) e `sessions/S002-preflight.md`.
 Uma execução local pode manter sessões, resultados, handoffs e evidências sob
 uma árvore privada; esses artefatos não são dependências deste clone.
 Implementação futura do kit fica em `poc-k8s-fabric/studies/p003/`, nunca

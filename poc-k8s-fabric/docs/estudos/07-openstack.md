@@ -64,7 +64,9 @@ Perguntas obrigatórias, com fonte de cada resposta:
 Saídas: `openstack-inventory.md`, `tenant-map.md`, `routing-decision.md`,
 `resource-plan.md`, `access-matrix.csv` e `rollback-plan.md`.
 Se não há acesso/infra, S011 BLOCKED; estudos Kubernetes anteriores mantêm suas
-evidências. Não criar cloud nem DevStack automaticamente para preencher a lacuna.
+evidências. Não criar cloud nem DevStack automaticamente para preencher a lacuna
+(somente mediante emenda explícita de escopo aprovada pelo dono — como a que autorizou
+o testbed local em container `p003-os` na `P003-S011` após ausência de endpoint externo).
 
 ## Decisão de arquitetura
 

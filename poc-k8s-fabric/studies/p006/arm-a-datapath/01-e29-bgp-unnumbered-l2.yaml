@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p006-e29
+  labels:
+    study: p006-e29
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e29-backend
+  namespace: p006-e29
+  labels:
+    app: e29-lb
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: e29-lb
+  template:
+    metadata:
+      labels:
+        app: e29-lb
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+        - name: http-echo
+          image: python:3.11-slim
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          command:
+            - python3
+            - -c
+            - |
+              import http.server, os, socketserver
+              pod = os.environ.get("POD_NAME", "unknown")
+              node = os.environ.get("NODE_NAME", "unknown")
+              class H(http.server.BaseHTTPRequestHandler):
+                  def do_GET(self):
+                      body = f"E29_L2_OK pod={pod} node={node}\n".encode()
+                      self.send_response(200)
+                      self.send_header("Content-Length", str(len(body)))
+                      self.end_headers()
+                      self.wfile.write(body)
+                  def log_message(self, fmt, *args):
+                      return
+              with socketserver.TCPServer(("0.0.0.0", 8080), H) as httpd:
+                  httpd.serve_forever()
+          ports:
+            - containerPort: 8080
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: e29-l2-pool
+spec:
+  allowFirstLastIPs: "Yes"
+  blocks:
+    - cidr: "172.18.0.242/32"
+  serviceSelector:
+    matchLabels:
+      e29-l2: enabled
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: e29-l2-policy
+spec:
+  serviceSelector:
+    matchLabels:
+      e29-l2: enabled
+  nodeSelector:
+    matchLabels:
+      kubernetes.io/os: linux
+  interfaces:
+    - eth0
+  externalIPs: true
+  loadBalancerIPs: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e29-lb-svc
+  namespace: p006-e29
+  labels:
+    app: e29-lb
+    e29-l2: enabled
+  annotations:
+    lbipam.cilium.io/ips: "172.18.0.242"
+    io.cilium/lb-ipam-ips: "172.18.0.242"
+spec:
+  type: LoadBalancer
+  selector:
+    app: e29-lb
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP

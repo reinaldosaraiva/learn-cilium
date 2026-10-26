@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p006-e33
+  labels:
+    study: p006-e33
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: virt-launcher-vm-e33-src
+  namespace: p006-e33
+  labels:
+    kubevirt.io: virt-launcher
+    vm.kubevirt.io/name: vm-e33-migrating
+    migration-role: source
+spec:
+  nodeName: p003-gw-worker
+  containers:
+    - name: compute
+      image: python:3.11-slim
+      imagePullPolicy: IfNotPresent
+      command:
+        - python3
+        - -c
+        - |
+          import http.server, socketserver
+          class H(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  body = b"VM_E33_OK host=p003-gw-worker role=source\n"
+                  self.send_response(200)
+                  self.send_header("Content-Length", str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+              def log_message(self, fmt, *args):
+                  return
+          with socketserver.TCPServer(("0.0.0.0", 8080), H) as httpd:
+              httpd.serve_forever()
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: virt-launcher-vm-e33-dst
+  namespace: p006-e33
+  labels:
+    kubevirt.io: virt-launcher
+    vm.kubevirt.io/name: vm-e33-migrating
+    migration-role: target
+spec:
+  nodeName: p003-gw-worker2
+  containers:
+    - name: compute
+      image: python:3.11-slim
+      imagePullPolicy: IfNotPresent
+      command:
+        - python3
+        - -c
+        - |
+          import http.server, socketserver
+          class H(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  body = b"VM_E33_OK host=p003-gw-worker2 role=target\n"
+                  self.send_response(200)
+                  self.send_header("Content-Length", str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+              def log_message(self, fmt, *args):
+                  return
+          with socketserver.TCPServer(("0.0.0.0", 8080), H) as httpd:
+              httpd.serve_forever()

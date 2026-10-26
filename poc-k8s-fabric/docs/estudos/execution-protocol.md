@@ -36,7 +36,7 @@ o sandbox. Eles não são endpoints publicados nem valores a escolher por palpit
 | vm-cilium / host | Inventário e sandbox autorizado | Que Docker/rotas estão exclusivos do experimento |
 | container de cliente | Probes e captura escopada | Que é uma VM externa à vm-cilium |
 | Kubernetes sandbox | Objetos da sessão | Que namespace protege mudanças Helm/CRD globais |
-| OpenStack experimental | Somente projetos/portas inventariados | Que CLI Magalu dá acesso ao Neutron |
+| OpenStack experimental | Somente projetos/portas inventariados | Que CLI da cloud hospedeira dá acesso ao Neutron |
 
 k01 e a VIP didática `10.201.255.10` são referência histórica protegida. Recursos de execuções anteriores ficam fora do escopo e não devem ser reutilizados por inferência.
 Não usar `scripts/99-destroy.sh` ou `clab destroy --all`. O script de instalação

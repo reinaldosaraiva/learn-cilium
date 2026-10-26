@@ -1,115 +1,24 @@
-# P003-S003 — Casos GW01–GW07 (comandos explícitos)
+# Scripts Reprodutíveis por Sessão — Trilha `P003` (`s004`..`s014`)
 
-Cliente: container `clab-p003-gw-fabric-client` (198.19.0.10), na vm-cilium.
-Todos os probes: conexão nova por requisição, `--retry 0`/`+tries=1`, sem `-f`.
-Evidência: `poc-k8s-fabric/evidence/P003/S003/<UTC-run>/<case>/` (protocolo §4).
+Cada subdiretório (ou script de topo) reproduz os casos experimentais da sessão correspondente no sandbox `p003-gw` (e `p003-os` para a trilha híbrida OpenStack), preservando o cluster `k01` intocado (`R1`).
 
-Variáveis (definir antes de executar):
-```bash
-STUDY_KUBECONFIG=/root/.kube/p003-gw.config
-STUDY_CONTEXT=kind-p003-gw
-STUDY_CLUSTER_UID=<registrado no bootstrap>
-STUDY_NS=p003-gateway
-STUDY_GATEWAY=p003-main
-VIP=10.202.255.10
-k() { kubectl --kubeconfig "$STUDY_KUBECONFIG" --context "$STUDY_CONTEXT" "$@"; }
-test "$(k get namespace kube-system -o jsonpath='{.metadata.uid}')" = "$STUDY_CLUSTER_UID"
-C="sudo docker exec clab-p003-gw-fabric-client"
-```
+## Índice de Sessões e Casos (`s004` a `s014`)
 
-## GW01 — HTTP VIP:8080 com Host correto (30 requisições)
+| Sessão / Diretório | Estudo | Escopo e Entregáveis Reprodutíveis | Dossiê Público |
+|---|---|---|---|
+| `s004-setup.sh`, `s004-probe.sh`, `s004-record-ports.sh`, `s004-cleanup.sh` | **`E02`** (`P003-S004`) | Matriz L4 (`TCPRoute`/`UDPRoute`) + `hostNetwork` vs Envoy listener e tabela de portas observadas | [`02-l4-hostnetwork.md`](../../../docs/estudos/02-l4-hostnetwork.md) |
+| `s005-setup.sh`, `s005-probe.sh` | **`E03` Parte 1** (`P003-S005`) | Fixture controlada HTTP/gRPC ExternalAuth (`ext_authz`) e correlação por `X-Lab-Request-ID` | [`03-externalauth.md`](../../../docs/estudos/03-externalauth.md) |
+| `s006-run.sh` | **`E03` Parte 2** (`P003-S006`) | Matriz fail-closed de ExternalAuth (timeout, serviço ausente, `ReferenceGrant` cross-namespace) | [`03-externalauth.md`](../../../docs/estudos/03-externalauth.md) |
+| `s007-run.sh` | **`E04` Parte 1** (`P003-S007`) | WireGuard Transparent Encryption (`cilium_wg0`) sobre Native Routing (`W0`/`W1`/`W2`) | [`04-wireguard.md`](../../../docs/estudos/04-wireguard.md) |
+| `s008-run.sh` | **`E04` Parte 2** (`P003-S008`) | WireGuard sobre VXLAN Overlay, overhead combinado de MTU e análise da issue `#41635` | [`04-wireguard.md`](../../../docs/estudos/04-wireguard.md) |
+| [`s009/`](s009/) (`s009-run.sh`, `01-namespaces-psa.yaml`..`10-tls.yaml`) | **`E05`** (`P003-S009`) | Isolamento Multi-Tenant L3/L4/L7, RBAC, PSA, anti-bypass e geração efêmera de TLS | [`05-tenants.md`](../../../docs/estudos/05-tenants.md) |
+| [`s010/`](s010/) (`s010-run.sh`, `values-m24.yaml`, `values-m32.yaml`) | **`E06`** (`P003-S010`) | Comparação controlada de IPAM (`M24` `/24` vs `M32` `/32` `multi-pool`) e impacto na FIB | [`06-ipam.md`](../../../docs/estudos/06-ipam.md) |
+| [`s011/`](s011/) ([`s011/README.md`](s011/README.md)) | **`E07` Descoberta & Testbed** (`P003-S011`) | Provisionamento e configuração do testbed OpenStack DevStack containerizado (`p003-os`) | [`07-openstack.md`](../../../docs/estudos/07-openstack.md) |
+| [`s012/`](s012/) ([`s012/README.md`](s012/README.md)) | **`E07` Matriz Híbrida** (`P003-S012`) | Pareamento BGP `qrouter` ↔ `border1`, diagnóstico KVM/OVS e matriz híbrida `C01–C11` | [`07-openstack.md`](../../../docs/estudos/07-openstack.md) |
+| [`s013/`](s013/) (`01-preflight.sh`, `02-c01-c03.sh`, `03-c04-c08.sh`, `04-rollback.sh`) | **`E08`** (`P003-S013`) | Ciclo de vida e revogação/reuso de IP (`fromCIDR` stale vs identidade Kubernetes) | [`08-lifecycle.md`](../../../docs/estudos/08-lifecycle.md) |
+| [`s014/`](s014/) (`01-relight-and-fix-dhcp.sh`..`04-c5-vm-outside-container.sh`) | **`E08` Síntese & `E09`/`C5`** (`P003-S014`..`S016`) | Remediação definitiva do RX da VM via KVM real no host (`C5`) e tráfego bidirecional `pod↔VM` | [`08-lifecycle-synthesis.md`](../../../docs/estudos/08-lifecycle-synthesis.md), [`09-vm-outside-container.md`](../../../docs/estudos/09-vm-outside-container.md) |
 
-```bash
-for i in $(seq 1 30); do
-  $C curl -sS --noproxy '*' --retry 0 --connect-timeout 3 --max-time 10 \
-    -H 'Connection: close' -H 'Host: echo.p003.study' \
-    -H "X-Lab-Request-ID: gw01-$i" \
-    -o /tmp/gw01_body_$i -w "%{http_code}\t%{time_total}\n" \
-    "http://$VIP:8080/hostname"
-  $C cat /tmp/gw01_body_$i
-done
-```
-Esperado: 30/30 HTTP 200 com hostname de pod `http-echo-*` no corpo
-(marcador). Controle negativo: Host errado → 404 do Envoy:
-`$C curl -sS --retry 0 -o /dev/null -w '%{http_code}\n' -H 'Host: wrong.example' http://$VIP:8080/hostname`
+## Pré-requisitos e Invariantes
 
-## GW02 — TCP VIP:15432 (30 requisições com nonce)
-
-```bash
-for i in $(seq 1 30); do
-  nonce="P003-gw02-$i-$(date +%s%N)"
-  $C sh -c "echo $nonce | nc -w 3 $VIP 15432"
-done
-```
-Esperado: 30/30 nonce devolvido idêntico.
-
-## GW03 — UDP VIP:15353, DNS sintético (30 consultas)
-
-```bash
-for i in $(seq 1 30); do
-  $C dig @$VIP -p 15353 study.p003 TXT +short +notcp +ignore +tries=1 +time=2
-done
-```
-Esperado: 30/30 `"P003-OK"`.
-
-## GW04 — Porta TCP não configurada (controle negativo)
-
-```bash
-$C sh -c "echo P003-gw04 | nc -w 3 $VIP 15433"   # sem listener/route
-```
-Esperado: sem resposta da fixture (timeout/reset); nenhuma chegada na app
-(verificar ausência de conexão nos pods da fixture).
-
-## GW05 — TCPRoute no listener HTTP (controle negativo)
-
-```bash
-k apply -f cases/gw05-tcp-on-http.yaml
-k -n $STUDY_NS get tcproute p003-gw05-tcp-on-http -o jsonpath='{range .status.parents[*]}{.conditions}{end}'
-$C curl -sS --retry 0 -o /dev/null -w '%{http_code}\n' -H 'Host: echo.p003.study' http://$VIP:8080/hostname  # GW01 continua OK
-k delete -f cases/gw05-tcp-on-http.yaml
-```
-Esperado: condition Rejected/ResolvingFailed (protocolo incompatível); GW01
-inalterado; backend tcp-echo não atendido via 8080.
-
-## GW06 — Backend removido e restaurado
-
-```bash
-k -n $STUDY_NS scale deployment http-echo --replicas=0
-k -n $STUDY_NS get endpointslices -l kubernetes.io/service-name=http-echo -o json
-$C curl -sS --retry 0 --max-time 5 -o /dev/null -w '%{http_code}\n' -H 'Host: echo.p003.study' http://$VIP:8080/hostname  # falha
-k -n $STUDY_NS scale deployment http-echo --replicas=3
-# aguardar ready; repetir GW01 (30x) — recuperação
-```
-Esperado: EndpointSlice vazio → falha (503/timeout); após restaurar, 30/30 200.
-
-## GW07 — Selector BGP da VIP deixa de casar
-
-```bash
-# RIB antes:
-sudo docker exec clab-p003-gw-fabric-spine1 sr_cli "show network-instance default route-table ipv4-unicast prefix 10.202.255.10/32"
-k apply -f cases/gw07-advertisement-nomatch.yaml
-# aguardar convergencia (~15s); RIB depois:
-sudo docker exec clab-p003-gw-fabric-spine1 sr_cli "show network-instance default route-table ipv4-unicast prefix 10.202.255.10/32"
-# controle interno: IP do pod continua alcancavel do client
-PODIP=$($C sh -c "true"; k -n $STUDY_NS get pods -l app=http-echo -o jsonpath='{.items[0].status.podIP}')
-$C curl -sS --retry 0 --max-time 5 -o /dev/null -w '%{http_code}\n' -H 'Host: echo.p003.study' http://$PODIP:8080/hostname
-# probe externo: VIP deve falhar
-$C curl -sS --retry 0 --max-time 5 -o /dev/null -w '%{http_code}\n' -H 'Host: echo.p003.study' http://$VIP:8080/hostname
-# restaurar:
-k apply -f base/bgp/02-advertisements.yaml
-# aguardar convergencia; repetir GW01–GW03 (30x cada)
-```
-Esperado: /32 presente antes, ausente depois (convergência); pod IP direto
-funciona (controle interno); VIP falha; após restaurar, GW01–03 recuperados.
-Não exigir que conexões antigas caiam instantaneamente (conntrack).
-
-## Observação (todos os casos)
-
-```bash
-k -n $STUDY_NS get gateway $STUDY_GATEWAY -o json
-k -n $STUDY_NS get httproutes,tcproutes,udproutes -o yaml
-k -n $STUDY_NS get services,endpointslices -o json
-k -n kube-system get pods -l k8s-app=cilium -o wide
-sudo KUBECONFIG=$STUDY_KUBECONFIG cilium --context $STUDY_CONTEXT bgp peers
-sudo KUBECONFIG=$STUDY_KUBECONFIG cilium --context $STUDY_CONTEXT bgp routes advertised ipv4 unicast
-```
+- **Cluster Sandbox:** `p003-gw` (`STUDY_KUBECONFIG=/root/.kube/p003-gw.config`, `STUDY_CONTEXT=kind-p003-gw`).
+- **Canário Protegido (`R1`):** `k01` (`10/10` HTTP `200` antes e depois de cada bateria).

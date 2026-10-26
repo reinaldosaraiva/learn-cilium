@@ -58,7 +58,7 @@ Cada seção: arquivo do kit (a) vs artefato do sandbox (b).
  # =============================================================================
  
  cluster:
--  name: magalu-poc
+-  name: poc-cluster
 -  id: 1
 +  name: p003-gw
 +  id: 2
@@ -93,7 +93,7 @@ Cada seção: arquivo do kit (a) vs artefato do sandbox (b).
  k8s:
    requireIPv4PodCIDR: true
  
--# MTU 1500: a VPC da Magalu nao entrega jumbo (medido 2026-09-16).
+-# MTU 1500: a VPC da cloud hospedeira nao entrega jumbo (medido 2026-09-16).
 -# No overlay isso custa 50 bytes = 3,3% do payload - e exatamente o que
 -# o Cenario D precisa medir.
  MTU: 1500
@@ -415,7 +415,7 @@ Cada seção: arquivo do kit (a) vs artefato do sandbox (b).
 +++ studies/p003/topo/p003-gw.clab.yml	2026-09-21 08:40:05
 @@ -1,16 +1,14 @@
  # =============================================================================
--# PoC Magalu Cloud - variante 100% autocontida (ensaio / dry-run)
+-# PoC K8s Fabric - variante 100% autocontida (ensaio / dry-run)
 -# Containerlab sobe o fabric E um cluster kind de 3 nos.
 -# Use esta topologia para ensaiar o roteiro antes de tocar no cluster real.
 -#
