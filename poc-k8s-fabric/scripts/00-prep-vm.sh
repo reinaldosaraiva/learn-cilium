@@ -13,11 +13,24 @@
 # =============================================================================
 set -euo pipefail
 
-[[ $EUID -eq 0 ]] || { echo "rode como root (sudo)"; exit 1; }
+DRY_RUN=0
+if [[ "${1:-}" == "--dry-run" ]]; then
+  DRY_RUN=1
+fi
 
 CILIUM_CLI_VERSION="${CILIUM_CLI_VERSION:-v0.18.8}"
 KIND_VERSION="${KIND_VERSION:-v0.30.0}"
-K8S_VERSION="${K8S_VERSION:-v1.34}"
+K8S_VERSION="${K8S_VERSION:-v1.35}"
+CONTAINERLAB_VERSION="${CONTAINERLAB_VERSION:-0.68.0}"
+HELM_VERSION="${HELM_VERSION:-v3.17.1}"
+MULTITOOL_IMAGE="${MULTITOOL_IMAGE:-ghcr.io/hellt/network-multitool@sha256:a8d96c19e593e227d7b16d320a04256ba00434028f0adb9f7da206bf098c7140}"
+
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  echo "[DRY-RUN] 00-prep-vm.sh: K8S_VERSION=${K8S_VERSION} KIND_VERSION=${KIND_VERSION} CILIUM_CLI_VERSION=${CILIUM_CLI_VERSION} CONTAINERLAB_VERSION=${CONTAINERLAB_VERSION} HELM_VERSION=${HELM_VERSION}"
+  exit 0
+fi
+
+[[ $EUID -eq 0 ]] || { echo "rode como root (sudo)"; exit 1; }
 
 hr(){ printf '\n\033[1m== %s ==\033[0m\n' "$*"; }
 
@@ -60,7 +73,7 @@ fi
 docker --version
 
 hr "4/7 Containerlab"
-command -v containerlab >/dev/null || bash -c "$(curl -sL https://get.containerlab.dev)"
+command -v containerlab >/dev/null || bash -c "$(curl -sL https://get.containerlab.dev)" -- -v "${CONTAINERLAB_VERSION}"
 containerlab version | head -3
 
 hr "5/7 kind, kubectl, helm, cilium-cli"
@@ -80,7 +93,7 @@ if ! command -v kubectl >/dev/null; then
   apt-get update -qq && apt-get install -y -qq kubectl
 fi
 
-command -v helm >/dev/null || curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+command -v helm >/dev/null || { curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | DESIRED_VERSION="${HELM_VERSION}" bash; }
 
 if ! command -v cilium >/dev/null; then
   curl -fsSL --remote-name-all \
@@ -94,7 +107,7 @@ for b in kind kubectl helm cilium; do printf '%-9s %s\n' "$b" "$($b version --cl
 hr "6/7 imagens do lab (pre-pull)"
 docker pull -q ghcr.io/nokia/srlinux:25.3.2
 docker pull -q frrouting/frr:v8.4.1
-docker pull -q ghcr.io/hellt/network-multitool
+docker pull -q "${MULTITOOL_IMAGE}"
 docker images --format '{{.Repository}}:{{.Tag}}\t{{.Size}}' | grep -E 'srlinux|frr|multitool'
 
 hr "7/7 validacao"

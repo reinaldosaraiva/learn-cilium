@@ -77,6 +77,24 @@ cat <<'EOF' | k apply -f - 2>&1 | sed 's/^/  /' | tee "$EV/03-c09-apply.txt"
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
+  name: p003-lc-default-deny-egress
+  namespace: p003-lc
+  labels: { study: P003 }
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: app
+        operator: NotIn
+        values:
+          - p003-pod-a
+          - p003-stale
+  egressDeny:
+    - toCIDR:
+        - 10.30.0.0/24
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
   name: p003-lc-stale-allow
   namespace: p003-lc
   labels: { study: P003 }
@@ -117,8 +135,9 @@ sleep 3
 PS=$(k -n p003-lc get pod -l app=p003-stale -o jsonpath='{.items[0].metadata.name}')
 PS_LOSS=$($FC true; k -n p003-lc exec "$PS" -- ping -c 2 -W 2 10.30.0.1 2>&1 | grep -oE '[0-9]+% packet loss' | grep -oE '^[0-9]+' || echo ERR)
 echo "COM regra stale: pod p003-stale ping_loss=$PS_LOSS (esperado 0 = vazamento: allow concede)" | tee "$EV/03-c09.txt"
-# remover a regra stale
+# remover a regra stale e restaurar o default-deny sem a excecao stale (D-S013-2)
 k -n p003-lc delete cnp p003-lc-stale-allow 2>&1 | sed 's/^/  /' | tee -a "$EV/03-c09.txt"
+k apply -f /opt/poc-k8s-fabric-studies/studies/p003/cases/s013/01a-ns-cnps.yaml 2>&1 | sed 's/^/  /' | tee -a "$EV/03-c09.txt"
 sleep 3
 PS_LOSS2=$(k -n p003-lc exec "$PS" -- ping -c 2 -W 2 10.30.0.1 2>&1 | grep -oE '[0-9]+% packet loss' | grep -oE '^[0-9]+' || echo ERR)
 echo "SEM regra stale: pod p003-stale ping_loss=$PS_LOSS2 (esperado 100 = negativo: default-deny)" | tee -a "$EV/03-c09.txt"

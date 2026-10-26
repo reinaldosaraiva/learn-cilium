@@ -3,9 +3,21 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "[1/3] rotulando os nos por rack (ajuste os nomes!)"
-: "${RACK1_NODES:=node1 node2}"
-: "${RACK2_NODES:=node3}"
+DRY_RUN=0
+if [[ "${1:-}" == "--dry-run" ]]; then
+  DRY_RUN=1
+fi
+
+: "${RACK1_NODES:=k01-control-plane k01-worker}"
+: "${RACK2_NODES:=k01-worker2}"
+
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  echo "[DRY-RUN] 03-apply-bgp.sh: RACK1_NODES='${RACK1_NODES}' RACK2_NODES='${RACK2_NODES}'"
+  echo "[DRY-RUN] kubectl apply -f k8s/bgp/01..05 + k8s/apps/10..13"
+  exit 0
+fi
+
+echo "[1/3] rotulando os nos por rack (RACK1_NODES='${RACK1_NODES}', RACK2_NODES='${RACK2_NODES}')"
 for n in ${RACK1_NODES}; do kubectl label node "$n" topology.kubernetes.io/rack=rack1 --overwrite; done
 for n in ${RACK2_NODES}; do kubectl label node "$n" topology.kubernetes.io/rack=rack2 --overwrite; done
 

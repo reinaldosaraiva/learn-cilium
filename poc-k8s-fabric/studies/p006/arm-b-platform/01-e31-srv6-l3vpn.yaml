@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p006-e31
+  labels:
+    study: P006
+    case: E31
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e31-workload-w1
+  namespace: p006-e31
+  labels:
+    app: e31-workload
+    node: worker1
+    study: P006
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: e31-workload
+      node: worker1
+  template:
+    metadata:
+      labels:
+        app: e31-workload
+        node: worker1
+        study: P006
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker
+      containers:
+        - name: agnhost
+          image: registry.k8s.io/e2e-test-images/agnhost:2.47
+          imagePullPolicy: IfNotPresent
+          args: ["netexec", "--http-port=8080"]
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e31-workload-w2
+  namespace: p006-e31
+  labels:
+    app: e31-workload
+    node: worker2
+    study: P006
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: e31-workload
+      node: worker2
+  template:
+    metadata:
+      labels:
+        app: e31-workload
+        node: worker2
+        study: P006
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker2
+      containers:
+        - name: agnhost
+          image: registry.k8s.io/e2e-test-images/agnhost:2.47
+          imagePullPolicy: IfNotPresent
+          args: ["netexec", "--http-port=8080"]
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi

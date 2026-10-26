@@ -1,7 +1,8 @@
 # P003-S009: CNP default deny + allows explícitos (aplicar APÓS baseline)
-# - client: ingress deny-all; egress só backend próprio :8080 + DNS 53
-# - backend: ingress só client próprio + host (edge/Envoy); egress deny-all
-#   (agnhost não inicia conexões)
+# - client: ingressDeny (all); egress só backend próprio :8080 + DNS 53
+# - backend: ingress só client próprio + host/ingress/remote-node; egressDeny (all)
+#   (agnhost não inicia conexões; D-S013-2: lista vazia `ingress: []` / `egress: []`
+#    não ativa default-deny na direção vazia quando combinada com regra na direção oposta)
 # fromEntities no backend:
 #   ingress      = tráfego do Gateway/Envoy (identidade reservada
 #                  reserved:ingress, ID 8 — NÃO é host: o Envoy roda no pod
@@ -23,7 +24,9 @@ spec:
   endpointSelector:
     matchLabels:
       app: p003-a-client
-  ingress: []
+  ingressDeny:
+    - fromEntities:
+        - all
   egress:
     - toEndpoints:
         - matchLabels:
@@ -64,7 +67,9 @@ spec:
       toPorts:
         - ports:
             - { port: "8080", protocol: TCP }
-  egress: []
+  egressDeny:
+    - toEntities:
+        - all
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -76,7 +81,9 @@ spec:
   endpointSelector:
     matchLabels:
       app: p003-b-client
-  ingress: []
+  ingressDeny:
+    - fromEntities:
+        - all
   egress:
     - toEndpoints:
         - matchLabels:
@@ -117,4 +124,6 @@ spec:
       toPorts:
         - ports:
             - { port: "8080", protocol: TCP }
-  egress: []
+  egressDeny:
+    - toEntities:
+        - all

@@ -1,10 +1,10 @@
 # OPCIONAL - ajuste por no. Util quando um no especifico precisa de
 # router-id proprio, porta local diferente ou source address explicito.
-# O metadata.name TEM que ser exatamente o nome do Node.
+# O metadata.name TEM que ser exatamente o nome do Node (ex.: k01-control-plane).
 apiVersion: cilium.io/v2
 kind: CiliumBGPNodeConfigOverride
 metadata:
-  name: node1
+  name: k01-control-plane
 spec:
   bgpInstances:
     - name: "rack1"

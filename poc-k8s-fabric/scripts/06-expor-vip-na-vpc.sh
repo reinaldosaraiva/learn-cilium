@@ -15,15 +15,27 @@
 #   sudo ./scripts/06-expor-vip-na-vpc.sh
 # =============================================================================
 set -euo pipefail
-[[ $EUID -eq 0 ]] || { echo "rode como root (sudo)"; exit 1; }
+
+DRY_RUN=0
+if [[ "${1:-}" == "--dry-run" ]]; then
+  DRY_RUN=1
+fi
 
 IFACE_HOST="${IFACE_HOST:-clab-ext}"    # ponta do veth criada pelo containerlab
 HOST_IP="${HOST_IP:-10.100.0.1/30}"
 FRR_IP="${FRR_IP:-10.100.0.2}"
 VIP_CIDR="${VIP_CIDR:-10.201.255.0/24}"
 LAB_CIDRS="${LAB_CIDRS:-10.0.0.0/16 10.10.0.0/16 10.244.0.0/16 203.0.113.0/24}"
-UPLINK="${UPLINK:-ens3}"                # VNIC da vm-cilium na VPC
+DEFAULT_UPLINK="$(ip -4 route show default 2>/dev/null | awk '{print $5; exit}' || true)"
+UPLINK="${UPLINK:-${DEFAULT_UPLINK:-ens3}}" # VNIC da vm-cilium na VPC
 MASQ="${MASQ:-no}"                      # yes = plano B, mascara a origem
+
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  echo "[DRY-RUN] 06-expor-vip-na-vpc.sh: IFACE_HOST=${IFACE_HOST} HOST_IP=${HOST_IP} FRR_IP=${FRR_IP} VIP_CIDR=${VIP_CIDR} UPLINK=${UPLINK} MASQ=${MASQ}"
+  exit 0
+fi
+
+[[ $EUID -eq 0 ]] || { echo "rode como root (sudo)"; exit 1; }
 
 hr(){ printf '\n\033[1m== %s ==\033[0m\n' "$*"; }
 
@@ -47,23 +59,24 @@ for c in ${VIP_CIDR} ${LAB_CIDRS}; do
 done
 
 if [[ "${MASQ}" == "yes" ]]; then
-  hr "2b/4 SNAT (plano B — só se o guard não puder ser desligado)"
+  hr "2b/4 SNAT (plano B — quando a VPC descarta origem fora do CIDR da VNIC)"
   iptables -t nat -C POSTROUTING -s "${VIP_CIDR}" -o "${UPLINK}" -j MASQUERADE 2>/dev/null \
     || iptables -t nat -A POSTROUTING -s "${VIP_CIDR}" -o "${UPLINK}" -j MASQUERADE
-  echo "  origem mascarada como \$(ip -4 -br addr show ${UPLINK} | awk '{print \$3}')"
-  echo "  ATENÇÃO: isto esconde o IP de origem e descaracteriza o teste."
+  echo "  origem mascarada como $(ip -4 -br addr show "${UPLINK}" | awk '{print $3}')"
+  echo "  ATENÇÃO: isto mascara o IP de origem na saída da VM."
 fi
 
 hr "3/4 o que falta fazer FORA desta VM"
 MYIP=$(ip -4 -br addr show "${UPLINK}" | awk '{print $3}' | cut -d/ -f1)
-PORT_HINT="mgc network ports list   # ache a porta da vm-cilium"
 cat <<EOF
-  a) Liberar IP de origem não registrado na porta desta VM:
-       ${PORT_HINT}
-       mgc network ports update <PORT_ID> --ip-spoofing-guard=false
-     (sem isto as RESPOSTAS do VIP são descartadas pela VPC)
+  a) Encaminhamento L3 na VPC:
+       Em nuvens cujo anti-spoofing da VNIC descarta pacotes com origem fora da
+       sub-rede da VM (${VIP_CIDR}), mantenha o guard ativo e utilize um par de
+       roteamento dedicado (GRE/VXLAN/BGP sobre Connect Gateway) ou MASQ=yes
+       apenas para testes funcionais de bancada. Nunca desative o anti-spoofing
+       em portas compartilhadas sem avaliação de segurança.
 
-  b) No cliente (outra VM da VPC, ou um nó do MKE via kubectl debug):
+  b) No cliente (outra VM da VPC):
        ip route replace ${VIP_CIDR} via ${MYIP}
 
   c) Security Group da vm-cilium: permitir o tráfego do cliente (ICMP/TCP 80).
@@ -74,14 +87,13 @@ printf '%-40s' "FRR responde em ${FRR_IP}"; ping -c1 -W2 "${FRR_IP}" >/dev/null 
 printf '%-40s' "rota para ${VIP_CIDR}";    ip route get "${VIP_CIDR%/*}" >/dev/null 2>&1 && echo OK || echo FALHOU
 printf '%-40s' "VIP responde do host";     curl -s -m3 -o /dev/null "http://${VIP_CIDR%.0/24}.10/" && echo OK || echo "FALHOU (o Service já subiu?)"
 
-cat <<'EOF'
+cat <<EOF
 
 Teste final, a partir do cliente na VPC:
-  curl http://10.201.255.10/hostname        # deve variar entre pods
-  for i in $(seq 20); do curl -s http://10.201.255.10/hostname; echo; done | sort | uniq -c
+  curl http://${VIP_CIDR%.0/24}.10/hostname        # deve variar entre pods
+  for i in \$(seq 20); do curl -s http://${VIP_CIDR%.0/24}.10/hostname; echo; done | sort | uniq -c
 
 Para desfazer:
-  sudo ip addr flush dev clab-ext
-  sudo iptables -t nat -D POSTROUTING -s 10.201.255.0/24 -o ens3 -j MASQUERADE 2>/dev/null
-  mgc network ports update <PORT_ID> --ip-spoofing-guard=true
+  sudo ip addr flush dev ${IFACE_HOST}
+  sudo iptables -t nat -D POSTROUTING -s ${VIP_CIDR} -o ${UPLINK} -j MASQUERADE 2>/dev/null || true
 EOF

@@ -1,8 +1,8 @@
 # =============================================================================
 # Cilium 1.20.x - CENARIO D : modo OVERLAY (VXLAN) para comparacao
 # -----------------------------------------------------------------------------
-# helm upgrade --install cilium cilium/cilium -n kube-system --version 1.20.1 \
-#   -f k8s/cilium/values-overlay.yaml
+# helm upgrade --install cilium cilium/cilium -n kube-system --version 1.20.2 \
+#   -f k8s/cilium/values-overlay-poc.yaml
 #
 # Diferenca essencial em relacao a values-native.yaml:
 #   - routingMode: tunnel (VXLAN, UDP/8472) -> o fabric so ve IP de NO
@@ -11,7 +11,7 @@
 # =============================================================================
 
 cluster:
-  name: magalu-poc
+  name: k8s-fabric-poc
   id: 1
 
 routingMode: tunnel
@@ -23,6 +23,8 @@ ipam:
 MTU: 1500
 
 kubeProxyReplacement: true
+k8sServiceHost: "10.10.1.11"
+k8sServicePort: 6443
 
 enableIPv4Masquerade: true
 bpf:
@@ -51,10 +53,11 @@ operator:
   prometheus:
     enabled: true
 
-
-# S09 fix: bpf-lb precisa estar em eth1 (fabric) - veth sem rota default e pulado pelo devices-controller
+# bpf-lb precisa estar em eth1 (fabric) - veth sem rota default e pulado pelo devices-controller
 devices: "eth+"
 
-# S13 (Cenário D): underlay do tunel via IP de fabric (eth1), nao docker bridge
-config:
-  nodeAddressSelector: "label=poc/fabric-ip"
+# Cenario D: em Kind + Containerlab, os nos possuem dois IPs (rede Docker/Kind
+# em eth0 e rede do fabric em eth1). Para forcar o VTEP VXLAN nos IPs do fabric
+# (10.10.1.0/24 e 10.10.2.0/24), atualize o InternalIP do Node ou ajuste as
+# rotas entre racks conforme documentado em docs/lab-results.md (§Cenario D).
+extraConfig: {}

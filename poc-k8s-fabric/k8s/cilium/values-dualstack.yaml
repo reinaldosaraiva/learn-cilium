@@ -1,16 +1,16 @@
 # =============================================================================
-# Cilium 1.20.x - CENARIOS A / B / C : NATIVE ROUTING + BGP Control Plane v2
+# Cilium 1.20.x - CENARIOS A / B / C : NATIVE ROUTING + BGP Control Plane v2 (Dual-Stack)
 # -----------------------------------------------------------------------------
 # helm repo add cilium https://helm.cilium.io
-# helm upgrade --install cilium cilium/cilium -n kube-system --version 1.20.1 \
-#   -f k8s/cilium/values-native.yaml
+# helm upgrade --install cilium cilium/cilium -n kube-system --version 1.20.2 \
+#   -f k8s/cilium/values-dualstack.yaml
 #
 # Sem encapsulamento: o IP do pod entra no fabric como esta. Quem sabe alcancar
 # cada PodCIDR e o leaf SR Linux, que aprendeu o prefixo por BGP do proprio no.
 # =============================================================================
 
 cluster:
-  name: magalu-poc
+  name: k8s-fabric-poc
   id: 1
 
 # ----------------------------------------------------------------- datapath
@@ -24,20 +24,20 @@ endpointRoutes:
   enabled: true
 
 ipam:
-  mode: kubernetes          # /24 por no, distribuido pelo kube-controller-manager
+  mode: kubernetes          # /24 IPv4 e /64 IPv6 por no, distribuidos pelo kube-controller-manager
 
 k8s:
   requireIPv4PodCIDR: true
   requireIPv6PodCIDR: true
 
-# MTU 1500: a VPC da Magalu nao entrega jumbo (medido 2026-09-16).
-# No overlay isso custa 50 bytes = 3,3% do payload - e exatamente o que
-# o Cenario D precisa medir.
+# MTU 1500: padrao da bancada (Jumbo MTU 9000 avaliado nos Estudos E23 e E27).
+# No overlay VXLAN isso custa 50 bytes = 3,3% do payload (medido no Cenario D).
 MTU: 1500
 
 # ------------------------------------------------- kube-proxy replacement (eBPF)
 kubeProxyReplacement: true
-# ajuste para o endereco/porta do seu API server (obrigatorio sem kube-proxy)
+# ajuste para o endereco/porta do seu API server (obrigatorio sem kube-proxy;
+# o script 02-install-cilium.sh detecta automaticamente o IP do control-plane)
 k8sServiceHost: "10.10.1.11"
 k8sServicePort: 6443
 
@@ -80,17 +80,15 @@ operator:
   prometheus:
     enabled: true
 
-# S09 fix: bpf-lb precisa estar em eth1 (fabric) - veth sem rota default e pulado pelo devices-controller
+# bpf-lb precisa estar em eth1 (fabric) - veth sem rota default e pulado pelo devices-controller
 devices: "eth+"
 
 # =============================================================================
-# P002-S001 S3 - DUAL-STACK (IPv6)
-# PodCIDR IPv6 roteado no fabric + VIP IPv6 anycast.
+# DUAL-STACK (IPv6)
+# PodCIDR IPv6 (fd13::/48) e ServiceCIDR IPv6 (fd12::/108) sao definidos no
+# manifesto do cluster kind (topo/kind-cluster.yaml) sob ipam.mode=kubernetes.
 # =============================================================================
 ipv6:
   enabled: true
 ipv6NativeRoutingCIDR: "fd13::/48"
-podIPv6CIDR: "fd13::/48"
-maskSizePodIPv6: 64
-clusterIPv6: "fd12::/108"
 enableIPv6Masquerade: true

@@ -1,9 +1,25 @@
 #!/usr/bin/env bash
 # Bateria de validacao fim-a-fim da PoC.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
-PFX="${PFX:-clab-poc-k8s-fabric}"
+DRY_RUN=0
+if [[ "${1:-}" == "--dry-run" ]]; then
+  DRY_RUN=1
+fi
+
+PFX="${PFX:-clab-poc-k8s-kind}"
+if [[ "${DRY_RUN}" -eq 0 ]] && ! docker inspect "${PFX}-leaf1" >/dev/null 2>&1; then
+  if docker inspect "clab-poc-k8s-fabric-leaf1" >/dev/null 2>&1; then
+    PFX="clab-poc-k8s-fabric"
+  fi
+fi
+
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  echo "[DRY-RUN] 04-validate.sh: PFX=${PFX} (validacao BGP/SR Linux/FRR/HTTP/ping)"
+  exit 0
+fi
+
 hr(){ printf '\n\033[1m== %s ==\033[0m\n' "$*"; }
 
 hr "1. Sessoes BGP no cluster (Cilium)"
@@ -27,7 +43,7 @@ docker exec "${PFX}-border1" vtysh -c 'show bgp ipv4 unicast summary'
 docker exec "${PFX}-border1" vtysh -c 'show bgp ipv4 unicast 10.201.255.10/32'
 
 hr "7. Acesso externo ao servico (10 requisicoes)"
-for i in $(seq 1 10); do
+for _ in $(seq 1 10); do
   docker exec "${PFX}-client-ext" curl -s --max-time 3 http://10.201.255.10/hostname || echo "FALHA"
   echo
 done

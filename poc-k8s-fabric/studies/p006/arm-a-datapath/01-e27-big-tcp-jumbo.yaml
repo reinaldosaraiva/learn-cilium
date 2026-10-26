@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p006-e27
+  labels:
+    study: P006
+    case: E27
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e27-probe-w1
+  namespace: p006-e27
+  labels:
+    app: e27-probe
+    node: worker1
+    study: P006
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: e27-probe
+      node: worker1
+  template:
+    metadata:
+      labels:
+        app: e27-probe
+        node: worker1
+        study: P006
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker
+      containers:
+        - name: agnhost
+          image: registry.k8s.io/e2e-test-images/agnhost:2.47
+          imagePullPolicy: IfNotPresent
+          args: ["netexec", "--http-port=8080"]
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e27-probe-w2
+  namespace: p006-e27
+  labels:
+    app: e27-probe
+    node: worker2
+    study: P006
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: e27-probe
+      node: worker2
+  template:
+    metadata:
+      labels:
+        app: e27-probe
+        node: worker2
+        study: P006
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker2
+      containers:
+        - name: agnhost
+          image: registry.k8s.io/e2e-test-images/agnhost:2.47
+          imagePullPolicy: IfNotPresent
+          args: ["netexec", "--http-port=8080"]
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e27-svc-w2
+  namespace: p006-e27
+  labels:
+    study: P006
+    case: E27
+spec:
+  type: ClusterIP
+  selector:
+    app: e27-probe
+    node: worker2
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

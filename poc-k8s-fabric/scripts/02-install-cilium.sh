@@ -8,9 +8,19 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-CILIUM_VERSION="${CILIUM_VERSION:-1.20.1}"
-VALUES="${VALUES:-k8s/cilium/values-native.yaml}"
+DRY_RUN=0
+if [[ "${1:-}" == "--dry-run" ]]; then
+  DRY_RUN=1
+fi
+
+CILIUM_VERSION="${CILIUM_VERSION:-1.20.2}"
+VALUES="${VALUES:-k8s/cilium/values-dualstack.yaml}"
 CP_CONTAINER="${CP_CONTAINER:-k01-control-plane}"
+
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  echo "[DRY-RUN] 02-install-cilium.sh: CILIUM_VERSION=${CILIUM_VERSION} VALUES=${VALUES} CP_CONTAINER=${CP_CONTAINER}"
+  exit 0
+fi
 
 if [[ -z "${K8S_SERVICE_HOST:-}" ]]; then
   if docker inspect "${CP_CONTAINER}" >/dev/null 2>&1; then

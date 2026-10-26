@@ -1,8 +1,8 @@
 # =============================================================================
-# Cilium 1.20.x - CENARIOS A / B / C : NATIVE ROUTING + BGP Control Plane v2
+# Cilium 1.20.x - CENARIOS A / B / C : NATIVE ROUTING + BGP Control Plane v2 (IPv4)
 # -----------------------------------------------------------------------------
 # helm repo add cilium https://helm.cilium.io
-# helm upgrade --install cilium cilium/cilium -n kube-system --version 1.20.1 \
+# helm upgrade --install cilium cilium/cilium -n kube-system --version 1.20.2 \
 #   -f k8s/cilium/values-native.yaml
 #
 # Sem encapsulamento: o IP do pod entra no fabric como esta. Quem sabe alcancar
@@ -10,7 +10,7 @@
 # =============================================================================
 
 cluster:
-  name: magalu-poc
+  name: k8s-fabric-poc
   id: 1
 
 # ----------------------------------------------------------------- datapath
@@ -28,9 +28,8 @@ endpointRoutes:
 # kubernetes-in-docker). No node kind a rota default e da rede kind (eth0); a
 # interface de fabric (eth1, veth p/ o leaf) NAO tem rota default -> auto-deteccao
 # a ignora e o bpf-lb nao e anexado nela. Resultado: VIP anycast nao responde a
-# tráfego externo (chega em eth1 sem DNAT e o kernel o roteia de volta p/ o fabric
-# em loop). Fix: declarar explicitamente as interfaces de fabric.
-# (Cenário B / S09 — ver evidence/REQ-009/root-cause-and-fix.txt)
+# trafego externo (chega em eth1 sem DNAT e o kernel o roteia de volta p/ o fabric
+# em loop). Fix: declarar explicitamente as interfaces de fabric (ver docs/lab-results.md).
 devices: "eth+"
 
 ipam:
@@ -39,9 +38,8 @@ ipam:
 k8s:
   requireIPv4PodCIDR: true
 
-# MTU 1500: a VPC da Magalu nao entrega jumbo (medido 2026-09-16).
-# No overlay isso custa 50 bytes = 3,3% do payload - e exatamente o que
-# o Cenario D precisa medir.
+# MTU 1500: padrao da bancada (Jumbo MTU 9000 avaliado nos Estudos E23 e E27).
+# No overlay VXLAN isso custa 50 bytes = 3,3% do payload (medido no Cenario D).
 MTU: 1500
 
 # ------------------------------------------------- kube-proxy replacement (eBPF)

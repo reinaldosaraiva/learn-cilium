@@ -4,12 +4,12 @@ Este diretório reúne os scripts reproduzíveis e manifestos declarativos do pl
 
 - **`arm-a-datapath/` (Braço A — Datapath eBPF, Aceleração de Borda e QoS — `E26–E29`):**
   - `e26-lb-xdp-dsr-maglev.sh` + `01-e26-lb-xdp-dsr-maglev.yaml` (**`E26`** — LoadBalancer XDP + DSR Direct Server Return & Maglev Consistent Hashing vs SNAT)
-  - `e27-big-tcp-netkit-jumbo.sh` + `01-e27-big-tcp-netkit-jumbo.yaml` (**`E27`** — BIG TCP GSO/GRO > 64 KiB + `netkit` + Jumbo MTU 9000)
+  - `e27-big-tcp-netkit-jumbo.sh` + `01-e27-big-tcp-jumbo.yaml` (**`E27`** — BIG TCP GSO/GRO > 64 KiB + `netkit` + Jumbo MTU 9000)
   - `e28-bandwidth-manager-edt-bbr.sh` + `01-e28-bandwidth-manager-edt-bbr.yaml` (**`E28`** — Bandwidth Manager EDT + BBR vs CUBIC e Pacing eBPF por Pod)
   - `e29-bgp-unnumbered-l2-announcements.sh` + `01-e29-bgp-unnumbered-l2-announcements.yaml` (**`E29`** — BGP Unnumbered RFC 5549/8950 Extended Next-Hop vs L2 Announcements)
 - **`arm-b-platform/` (Braço B — Multi-Cluster, SRv6, Segurança eBPF e Virtualização — `E30–E33`):**
   - `e30-clustermesh-bgp-mcs.sh` + `01-e30-clustermesh-bgp-mcs.yaml` (**`E30`** — Cilium Cluster Mesh, Serviços Globais `service.cilium.io/global` / MCS-API e `CiliumNetworkPolicy` Cross-Cluster sobre o Fabric BGP)
-  - `e31-srv6-l3vpn-frr.sh` (**`E31`** — SRv6 L3VPN `seg6local` / `encap seg6` Kernel Linux + FRR para Multi-Tenancy sem VXLAN `End.DT4`)
+  - `e31-srv6-l3vpn-frr.sh` + `01-e31-srv6-l3vpn.yaml` (**`E31`** — SRv6 L3VPN `seg6local` / `encap seg6` Kernel Linux + FRR para Multi-Tenancy sem VXLAN `End.DT4`)
   - `e32-tetragon-ebpf-runtime.sh` + `01-e32-tetragon-ebpf-runtime.yaml` (**`E32`** — Tetragon: Observabilidade e Enforcement eBPF em Runtime / Syscalls / Sockets `TracingPolicy`)
   - `e33-kubevirt-live-migration-bgp-evpn.sh` + `01-e33-kubevirt-live-migration.yaml` (**`E33`** — KubeVirt Live Migration sob Tráfego Contínuo: `Cilium B /32 BGP` vs `OVN-Kubernetes EVPN Type-2 MAC-IP Mobility`)
 

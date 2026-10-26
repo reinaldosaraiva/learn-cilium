@@ -1,7 +1,9 @@
 # P003-S013: namespace de lifecycle + CNPs
-# default-deny egress no ns (endpointSelector {}) + allow de egress para
-# app=p003-pod-a (10.30.0.0/24 = subnet-a do testbed). Sem o default-deny,
-# pods sem label seriam allow-all e o negativo de C03 não existiria.
+# D-S013-2: no Cilium 1.20.2, `egress: []` isolado é rejeitado por validação
+# ("must have at least one rule") e `egressDeny` sobrepõe `egress` allow.
+# Por isso, o default-deny de egress para 10.30.0.0/24 usa `egressDeny` com
+# `matchExpressions` selecionando todos os pods que NÃO possuem a label
+# autorizada (`app NotIn [p003-pod-a]`), garantindo o negativo de C03/C09.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -15,8 +17,15 @@ metadata:
   namespace: p003-lc
   labels: { study: P003 }
 spec:
-  endpointSelector: {}
-  egress: []
+  endpointSelector:
+    matchExpressions:
+      - key: app
+        operator: NotIn
+        values:
+          - p003-pod-a
+  egressDeny:
+    - toCIDR:
+        - 10.30.0.0/24
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

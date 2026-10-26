@@ -122,4 +122,4 @@ e os oito dossiês publicados da trilha **P005** (`P005-S001` a `P005-S004`, tod
 [Onda 3 Braço A `E13`+`E14`](docs/estudos/13-bgp-dual-border-gr-ipv6.md),
 [Onda 3 Braço B `E17`+`E25`](docs/estudos/17-bgp-hubble-observability.md),
 [Onda 4 Braço A `E15`+`E16`+`E18`](docs/estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md) e
-[Onda 4 Braço B `E24`](docs/estudos/24-cilium-dra-network-device.md), com scripts em `studies/p005/`), bem como a trilha **P006** ([Onda 1 `E26`+`E30`+`Bloco C1`](docs/estudos/26-lb-xdp-dsr-maglev-clustermesh.md), com scripts em `studies/p006/`).
+[Onda 4 Braço B `E24`](docs/estudos/24-cilium-dra-network-device.md), com scripts em `studies/p005/`), bem como a trilha **P006** ([Onda 1 `E26`+`E30`+`Bloco C1`](docs/estudos/26-lb-xdp-dsr-maglev-clustermesh.md) e [Onda 2 `E27`+`E31`+`Bloco C2`](docs/estudos/27-big-tcp-netkit-srv6-l3vpn.md), com scripts em `studies/p006/`).
