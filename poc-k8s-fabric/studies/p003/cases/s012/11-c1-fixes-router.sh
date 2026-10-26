@@ -6,6 +6,11 @@
 # não tem ping); (d) diagnóstico do registro dos agentes.
 set -uo pipefail
 
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo "[DRY-RUN] 11-c1-fixes-router.sh: moveria veth-ext1 para o netns de p003-os, habilitaria service_plugins=router em /etc/neutron/neutron.conf, reiniciaria neutron-server uwsgi, criaria router r-a (10.40.0.1 sem SNAT) e validaria L3 + canários."
+  exit 0
+fi
+
 echo "== [a] consertar veth cross-netns =="
 CPID=$(sudo docker inspect -f '{{.State.Pid}}' p003-os)
 if ip link show veth-ext1 >/dev/null 2>&1; then
@@ -52,7 +57,7 @@ fi
 timeout 60 openstack router set r-a --external-gateway ext-net --disable-snat \
   --fixed-ip subnet=ext-subnet,ip-address=10.40.0.1 2>&1 | sed "s/^/  gw-set: /" || true
 echo "  --- router show:"
-timeout 40 openstack router show r-a 2>&1 | grep -E "external_gateway_info|name|status|routes" | head -6 | sed "s/^/    /"'
+timeout 40 openstack router show r-a 2>&1 | grep -E "external_gateway_info|name|status|routes" | head -6 | sed "s/^/    /"
 echo "  --- portas do router (qg- no br-ex):"
 timeout 40 openstack port list --router r-a -f value -c Name -c "Fixed IP Addresses" 2>&1 | sed "s/^/    /"'
 sudo docker exec p003-os ovs-vsctl list-ports br-ex | sed 's/^/  br-ex port: /'

@@ -472,6 +472,17 @@ O FRR "cliente" é um container novo no sandbox, fora do cluster, com sessão
 ao border. Ele substitui o cliente HTTP nos ensaios de roteamento e permite
 os negativos de prefixo, senha e policy sem tocar no fabric de referência.
 
+## 5.1 Fase 2 (`Plano P006` — Estudos Avançados `E26–E33` ∥ Saneamento Integral `C1–C4`)
+
+Após o encerramento de `P005` (`25/25` estudos `E01–E25`), o plano **`P006`** executa em **4 Ondas Paralelas (`P006-S001` a `P006-S004`)** oito novos estudos experimentais (`E26–E33`) em paralelo com o saneamento integral do backlog de [`revisao-projeto-2026-09-26.md`](revisao-projeto-2026-09-26.md):
+
+| Onda (`P006`) | Braço A — Datapath & Borda Avançada (`E26–E29`) | Braço B — Multi-Cluster, SRv6, Segurança eBPF & Live Migration (`E30–E33`) | Braço C — Saneamento (`revisao-projeto-2026-09-26.md`) | Estado | Dossiê Público |
+|---|---|---|---|---|---|
+| **`P006-S001` (Onda 1)** | **E26** — LoadBalancer TCX/XDP, `externalTrafficPolicy: Local` vs `Cluster` (SNAT) e Maglev Consistent Hashing (`M=16381`, `0` rehash colateral) | **E30** — Cilium Cluster Mesh / MCS-API (`EndpointSlice` multi-cluster), Failover Global sobre BGP e `CiliumNetworkPolicy` Cross-Cluster | **Bloco C1 (`A4–A8`, `A10–A12`)** — Sintaxe `s012/11,81`, sanitização `e08`, TLS efêmero `s009`, senha `s011`, `$K`, `NR==1/2`, `s010` | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`26-lb-xdp-dsr-maglev-clustermesh.md`](estudos/26-lb-xdp-dsr-maglev-clustermesh.md) |
+| **`P006-S002` (Onda 2)** | **E27** — BIG TCP (`enable-ipv4-big-tcp`, GSO/GRO > 64 KiB) + `netkit` + Jumbo MTU 9000 | **E31** — SRv6 L3VPN (`seg6local` / `encap seg6` Kernel Linux + FRR `End.DT4`) sem VXLAN | **Bloco C2 (`A1–A3`, `A9`, `M1–M6`)** — Defaults `TOPO`/`PFX`/`k01-*`, `egressDeny`/`ingressDeny`, FRR/Helm/EVPN/prep | `EM EXECUÇÃO` | `27-big-tcp-netkit-srv6-l3vpn.md` (planejado) |
+| **`P006-S003` (Onda 3)** | **E28** — Bandwidth Manager (EDT + BBR vs CUBIC) e Pacing eBPF por Pod (`kubernetes.io/egress-bandwidth`) | **E32** — Tetragon Runtime eBPF Security & Enforcement (`TracingPolicy` syscalls/sockets) | **Bloco C3 (`M7–M15`)** — Guards `s012/05`, `s011/01`, `vhost_net`, `s007/s008`, `k01-canary`, `fixtures/auth`, refs privadas | `PLANEJADO` | `28-bandwidth-edt-bbr-tetragon.md` (planejado) |
+| **`P006-S004` (Onda 4)** | **E29** — BGP Unnumbered (`RFC 5549` / `RFC 8950` Extended Next-Hop) & L2 Announcements (`CiliumL2AnnouncementPolicy`) | **E33** — KubeVirt Live Migration sob Tráfego Contínuo (`Cilium B /32 BGP` vs `OVN-K EVPN Type-2`) | **Bloco C4 (Baixa + `Makefile` `make lint` + Release `v2.5.0`)** — Índices `s011/s012`, `student-guide-template.md`, lint global | `PLANEJADO` | `29-bgp-unnumbered-l2-live-migration.md` (planejado) |
+
 ## 6. Roteamento de execução
 
 | Tarefa | Motor | Justificativa |

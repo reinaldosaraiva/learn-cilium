@@ -4,6 +4,11 @@
 # API + DB migrations come up. ovsdb is already running on the UNIX socket.
 set -uo pipefail
 
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo "[DRY-RUN] reconf-ovs.sh: atualizaria mechanism_drivers = openvswitch em /etc/neutron/plugins/ml2/ml2_conf.ini, reiniciaria neutron-server uwsgi e verificaria as tabelas do banco neutron usando DATABASE_PASSWORD de /opt/stack/devstack/local.conf."
+  exit 0
+fi
+
 echo "### [1] mechanism_drivers -> openvswitch"
 sed -i 's/^mechanism_drivers = .*/mechanism_drivers = openvswitch/' \
   /etc/neutron/plugins/ml2/ml2_conf.ini
@@ -35,5 +40,6 @@ ls -la /var/run/uwsgi/neutron-api.socket 2>&1 | head -1
 echo "--- uwsgi log tail ---"
 tail -6 /tmp/neutron-server-uwsgi.log 2>/dev/null
 echo "--- DB tables now ---"
-mysql -uroot -pp003s011dbpass -e "USE neutron; SHOW TABLES;" 2>/dev/null \
+DB_PASS=$(awk -F= '/^DATABASE_PASSWORD=/{print $2}' /opt/stack/devstack/local.conf 2>/dev/null || true)
+mysql -uroot -p"${DB_PASS:?DATABASE_PASSWORD ausente em /opt/stack/devstack/local.conf}" -e "USE neutron; SHOW TABLES;" 2>/dev/null \
   | grep -icE "network|subnet|security_group|quota" | sed 's/^/table-count: /'

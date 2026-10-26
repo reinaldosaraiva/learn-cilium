@@ -1,0 +1,186 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p006-e30
+  labels:
+    study: P006
+    case: E30
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: e30-vip-advertisement
+  labels:
+    advertise: fabric
+    study: P006
+    case: E30
+spec:
+  advertisements:
+  - advertisementType: "Service"
+    service:
+      addresses:
+      - LoadBalancerIP
+    selector:
+      matchLabels:
+        study: P006
+        case: E30
+    attributes:
+      communities:
+        standard:
+        - "65301:100"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e30-global-local
+  namespace: p006-e30
+  labels:
+    app: e30-global-echo
+    cluster-origin: p003-gw-c1
+    study: P006
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: e30-global-echo
+      cluster-origin: p003-gw-c1
+  template:
+    metadata:
+      labels:
+        app: e30-global-echo
+        cluster-origin: p003-gw-c1
+        study: P006
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker
+      containers:
+      - name: agnhost
+        image: registry.k8s.io/e2e-test-images/agnhost:2.47
+        imagePullPolicy: IfNotPresent
+        args: ["netexec", "--http-port=8080"]
+        ports:
+        - name: http
+          containerPort: 8080
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+---
+# Backend que representa o endpoint exportado pelo Cluster 2 via ClusterMesh / MCS-API
+# Não possui a label app=e30-global-echo, portanto NÃO é selecionado pelo Service local;
+# entra no mapa eBPF LB exclusivamente via EndpointSlice sincronizado (cilium-clustermesh-mcs).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e30-global-remote-c2
+  namespace: p006-e30
+  labels:
+    app: e30-global-remote-c2
+    cluster-origin: remote-c2
+    study: P006
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: e30-global-remote-c2
+      cluster-origin: remote-c2
+  template:
+    metadata:
+      labels:
+        app: e30-global-remote-c2
+        cluster-origin: remote-c2
+        study: P006
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker2
+      containers:
+      - name: agnhost
+        image: registry.k8s.io/e2e-test-images/agnhost:2.47
+        imagePullPolicy: IfNotPresent
+        args: ["netexec", "--http-port=8080"]
+        ports:
+        - name: http
+          containerPort: 8080
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e30-client
+  namespace: p006-e30
+  labels:
+    app: e30-client
+    study: P006
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: p003-gw-worker
+  containers:
+  - name: agnhost
+    image: registry.k8s.io/e2e-test-images/agnhost:2.47
+    imagePullPolicy: IfNotPresent
+    command: ["sh", "-c", "sleep 36000"]
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e30-global-svc
+  namespace: p006-e30
+  labels:
+    app: e30-global-echo
+    bgp-advertise: "true"
+    study: P006
+    case: E30
+  annotations:
+    lbipam.cilium.io/ips: "10.202.255.30"
+    service.cilium.io/global: "true"
+    service.cilium.io/shared: "true"
+    service.cilium.io/affinity: "local"
+spec:
+  type: LoadBalancer
+  selector:
+    app: e30-global-echo
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 8080
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: e30-allow-cross-cluster-egress
+  namespace: p006-e30
+  labels:
+    study: P006
+    case: E30
+spec:
+  endpointSelector:
+    matchLabels:
+      app: e30-client
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app: e30-global-echo
+    - matchLabels:
+        app: e30-global-remote-c2
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP

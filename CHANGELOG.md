@@ -5,6 +5,19 @@ Todas as mudanças relevantes deste repositório de estudos e laboratório
 
 ---
 
+## [v2.5.0-dev] — 2026-10-26 (Plano `P006` em Execução — Estudos Avançados `E26–E33` ∥ Saneamento Integral `C1–C4`)
+
+### Adicionado
+- **P006-S001 — Onda 1 Paralela (`Braço A: E26` ∥ `Braço B: E30` ∥ `Braço C: Bloco C1`) (`Verdict: PASS`):**
+  - **Braço A (`poc-k8s-fabric/studies/p006/arm-a-datapath/`, dossiê [`26-lb-xdp-dsr-maglev-clustermesh.md`](poc-k8s-fabric/docs/estudos/26-lb-xdp-dsr-maglev-clustermesh.md)):**
+    - `E26`: avaliação empírica do datapath LoadBalancer norte-sul (`TCX` + `loadBalancer.algorithm=maglev`, `Table Size: 16381`) no Cilium `1.20.2`: anúncio seletivo BGP de `10.202.255.28/32` (`externalTrafficPolicy: Local`) exclusivamente a partir do nó com backend ativo (`p003-gw-worker2` `AS 65302`) contra o ECMP de 2 vias (`AS 65301` + `AS 65302`) em `.26` e `.27` (`ETP=Cluster`); preservação de **`100%` (`10/10`) do IP real do cliente (`198.19.0.10`)** em `.28` comprovada via `cilium-dbg monitor --type trace` contra o SNAT cross-node (`172.19.0.5`/`172.19.0.6`) em `.26`; e **zero rehash colateral (`0` diffs)** nos slots do anel primo Maglev (`[146..148]/v4`) pertencentes aos backends sobreviventes (`185` e `187`) após a remoção de `186`, mantendo `20/20` HTTP `200` (`R6=0`).
+  - **Braço B (`poc-k8s-fabric/studies/p006/arm-b-platform/`, dossiê [`26-lb-xdp-dsr-maglev-clustermesh.md`](poc-k8s-fabric/docs/estudos/26-lb-xdp-dsr-maglev-clustermesh.md)):**
+    - `E30`: federação multi-cluster Cilium Cluster Mesh / MCS-API (`EndpointSlice` multi-cluster `endpointslice.kubernetes.io/managed-by: cilium-clustermesh-mcs`) sobre o fabric BGP: separação de identidades (`k01` `cluster_id=1` vs `p003-gw` `cluster_id=2`, `max_connected_clusters=255`), reconciliação simultânea de backends locais (`e30-global-svc-rtdbn` `10.245.2.19:8080`) e remotos (`e30-global-svc-remote-c2` `10.245.1.180:8080`) nos mapas eBPF de LB (`ID 166` `ClusterIP` e `ID 167` `LoadBalancer` `10.202.255.30/32`), balanceamento ativo-ativo (`20/20` E-W e `20/20` N-S via BGP), **failover global automático (`20/20` E-W e `20/20` N-S servidos por `remote-c2`)** ao escalar o deployment local para `0`, e controles negativos **`3A`** (`CiliumNetworkPolicy` `egressDeny` em `cluster-origin=remote-c2` -> `5/5` bloqueados + `5/5` restaurados) e **`3B`** (unexport do `EndpointSlice` remoto -> `0` backends ativos no mapa BPF e `5/5` recusados).
+  - **Braço C (`Bloco C1` de [`poc-k8s-fabric/docs/revisao-projeto-2026-09-26.md`](poc-k8s-fabric/docs/revisao-projeto-2026-09-26.md)):**
+    - Resolução dos 8 achados críticos de segurança, sintaxe e sanitização (`A4`, `A5`, `A6`, `A7`, `A8`, `A10`, `A11`, `A12`), incluindo correção de `bash -n` em `s012/11-c1-fixes-router.sh` e `s012/81-tap-location-diag.sh`, sincronização integral de `studies/p003/e08-lifecycle-synthesis.md` (`diff=0`), substituição das 5 chaves privadas estáticas em `s009/10-tls.yaml` pelo gerador idempotente `s009/gen-tls.sh` e leitura de `DATABASE_PASSWORD` via `local.conf` em `s011/reconf-ovs.sh`.
+
+---
+
 ## [v2.4.0] — 2026-10-25 (Encerramento Integral do Plano `P005` — `16/16` Estudos de `P005` e `25/25` Estudos Totais `E01–E25`)
 
 ### Adicionado

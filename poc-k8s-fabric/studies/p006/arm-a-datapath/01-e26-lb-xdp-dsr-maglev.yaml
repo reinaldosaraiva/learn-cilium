@@ -1,0 +1,217 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p006-e26
+  labels:
+    study: P006
+    case: E26
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: e26-vip-advertisement
+  labels:
+    advertise: fabric
+    study: P006
+    case: E26
+spec:
+  advertisements:
+    - advertisementType: "Service"
+      service:
+        addresses:
+          - LoadBalancerIP
+      selector:
+        matchLabels:
+          e26-bgp-advertise: "true"
+      attributes:
+        communities:
+          standard:
+            - "65301:100"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e26-echo-w1
+  namespace: p006-e26
+  labels:
+    app: e26-echo
+    instance: w1
+    study: P006
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: e26-echo
+      instance: w1
+  template:
+    metadata:
+      labels:
+        app: e26-echo
+        instance: w1
+        study: P006
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker
+      containers:
+      - name: agnhost
+        image: registry.k8s.io/e2e-test-images/agnhost:2.47
+        imagePullPolicy: IfNotPresent
+        args: ["netexec", "--http-port=8080"]
+        ports:
+        - name: http
+          containerPort: 8080
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e26-echo-w2a
+  namespace: p006-e26
+  labels:
+    app: e26-echo
+    instance: w2a
+    study: P006
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: e26-echo
+      instance: w2a
+  template:
+    metadata:
+      labels:
+        app: e26-echo
+        instance: w2a
+        study: P006
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker2
+      containers:
+      - name: agnhost
+        image: registry.k8s.io/e2e-test-images/agnhost:2.47
+        imagePullPolicy: IfNotPresent
+        args: ["netexec", "--http-port=8080"]
+        ports:
+        - name: http
+          containerPort: 8080
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e26-echo-w2b
+  namespace: p006-e26
+  labels:
+    app: e26-echo
+    instance: w2b
+    study: P006
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: e26-echo
+      instance: w2b
+  template:
+    metadata:
+      labels:
+        app: e26-echo
+        instance: w2b
+        study: P006
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: p003-gw-worker2
+      containers:
+      - name: agnhost
+        image: registry.k8s.io/e2e-test-images/agnhost:2.47
+        imagePullPolicy: IfNotPresent
+        args: ["netexec", "--http-port=8080"]
+        ports:
+        - name: http
+          containerPort: 8080
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e26-svc-snat-random
+  namespace: p006-e26
+  labels:
+    study: P006
+    case: E26
+    bgp-advertise: "true"
+    e26-bgp-advertise: "true"
+    lb-mode: snat-random
+  annotations:
+    lbipam.cilium.io/ips: "10.202.255.26"
+    service.cilium.io/forwarding-mode: "snat"
+    service.cilium.io/lb-algorithm: "random"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  selector:
+    app: e26-echo
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e26-svc-dsr-maglev
+  namespace: p006-e26
+  labels:
+    study: P006
+    case: E26
+    bgp-advertise: "true"
+    e26-bgp-advertise: "true"
+    lb-mode: dsr-maglev
+  annotations:
+    lbipam.cilium.io/ips: "10.202.255.27"
+    service.cilium.io/forwarding-mode: "dsr"
+    service.cilium.io/lb-algorithm: "maglev"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  selector:
+    app: e26-echo
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e26-svc-local-only
+  namespace: p006-e26
+  labels:
+    study: P006
+    case: E26
+    bgp-advertise: "true"
+    e26-bgp-advertise: "true"
+    lb-mode: local-only
+  annotations:
+    lbipam.cilium.io/ips: "10.202.255.28"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: e26-echo
+    instance: w2a
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 8080

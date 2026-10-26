@@ -6,6 +6,11 @@
 # Evidência: ping (allow) / ping falha + drop cilium (deny). Authz é por LABEL, não IP/UID.
 set -uo pipefail
 
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo "[DRY-RUN] 02-c01-c03.sh: executaria os casos C01 (recriação Pod A), C02 (churn até 50x para reuso de IP) e C03 (Pod B com label distinto negado pelo default-deny) no namespace p003-lc."
+  exit 0
+fi
+
 RUN=2026-09-24T1145Z
 EV=/opt/poc-k8s-fabric-studies/studies/p003/evidence/P003/S013/$RUN
 mkdir -p "$EV"
@@ -39,14 +44,14 @@ read -r N I U <<<"$(pod_a)"
 record "$N" "$I" "$U" "C01"
 LOSS=$(ping_loss "$N")
 echo "C01: name=$N ip=$I uid=$U ping_loss=$LOSS" | tee -a "$EV/02-c01.txt"
-if [ "$I" != "$(awk 'NR==2{print $4}' "$HIST")" ]; then
-  echo "C01=IP-DIFERENTE (novo IP $I; antigo $(awk 'NR==2{print $4}' "$HIST"))" | tee -a "$EV/02-c01.txt"
+if [ "$I" != "$(awk 'NR==1{print $4}' "$HIST")" ]; then
+  echo "C01=IP-DIFERENTE (novo IP $I; antigo $(awk 'NR==1{print $4}' "$HIST"))" | tee -a "$EV/02-c01.txt"
 else
   echo "C01=IP-IGUAL (ver C02)" | tee -a "$EV/02-c01.txt"
 fi
 
 echo "### [C02] churn Pod A (até 50) — procurar reuso de IP com UID novo"
-BASE_IP=$(awk 'NR==2{print $4}' "$HIST")
+BASE_IP=$(awk 'NR==1{print $4}' "$HIST")
 SAME_IP_TRIAL=""
 for t in $(seq 1 50); do
   k -n "$NS" delete pod -l app=p003-pod-a --wait=false >/dev/null 2>&1
@@ -56,7 +61,7 @@ for t in $(seq 1 50); do
   if [ "$I" = "$BASE_IP" ]; then
     LOSS=$(ping_loss "$N")
     SAME_IP_TRIAL="t$t name=$N ip=$I uid=$U ping_loss=$LOSS"
-    echo "C02 t$t: REUSO-IP ip=$I uid=$U (base uid=$(awk 'NR==2{print $3}' "$HIST")) ping_loss=$LOSS" | tee -a "$EV/02-c02.txt"
+    echo "C02 t$t: REUSO-IP ip=$I uid=$U (base uid=$(awk 'NR==1{print $3}' "$HIST")) ping_loss=$LOSS" | tee -a "$EV/02-c02.txt"
     break
   fi
   echo "C02 t$t: ip=$I uid=$U (sem reuso)" | tee -a "$EV/02-c02.txt"

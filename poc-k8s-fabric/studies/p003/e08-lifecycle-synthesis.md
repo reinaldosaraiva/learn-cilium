@@ -1,15 +1,18 @@
-# E08 — Síntese: recriação, reuso de IP e revogação (guia didático local)
+# E08 — Síntese: recriação, reuso de IP e revogação (edição pública)
 
-> **Escopo:** consolidação didática da matriz E08 (C01–C09) — lado K8s
-> (P003-S013) + lado VM/OpenStack (P003-S014). Guia **local** (não é a
-> publicação sanitizada de `poc-k8s-fabric/docs/estudos/`). Cada afirmação
-> aponta para a evidência datada (results + artefatos); não re-executa nada.
+> **Escopo:** consolidação didática da matriz E08 (C01–C09) — lado K8s (S013)
+> + lado VM/OpenStack (S014). Edição **pública sanitizada**: sem credenciais,
+> sem paths pessoais e sem UIDs observados; os valores de rede são internos ao
+> laboratório e ilustrativos. Cada afirmação aponta para a evidência datada
+> mantida na árvore Reentry local (privada); este documento não re-executa nada.
 > **Versões fixas:** Cilium 1.20.2, Gateway API 1.6.1, K8s v1.35.0, OpenStack
 > (DevStack-in-container, neutron 34.x), cirros-0.6.0.
+>
+> **Dossiê canônico:** [`docs/estudos/08-lifecycle-synthesis.md`](../../docs/estudos/08-lifecycle-synthesis.md) e [`docs/estudos/08-lifecycle.md`](../../docs/estudos/08-lifecycle.md).
 
 ## 1. Visão geral — a pergunta de identidade
 
-**Hipótese crítica (do spec `plans/P003/08-lifecycle.md`):** IP pode mudar de
+**Hipótese crítica (do [dossiê E08](../../docs/estudos/08-lifecycle.md)):** IP pode mudar de
 dono. Uma regra IP/CIDR antiga pode autorizar o novo dono se não houver
 revogação/sincronização. Ver duas plataformas funcionando **não** demonstra que
 a transição de dono é segura.
@@ -30,13 +33,13 @@ automaticamente". Não há controlador novo nesta trilha — a revogação é ma
 ## 2. Fluxo L4 VM↔Pod e pontos de decisão de authz
 
 Caminho **VM→Pod** (medido em S014, **sem iptables** — rota do host
-`via 10.101.0.2 dev p003-ext`; `DOCKER-FORWARD -i docker0 -j ACCEPT` cobre):
+`via <next-hop> dev p003-ext`; `DOCKER-FORWARD -i docker0 -j ACCEPT` cobre):
 
 ```
 VM (tap) ──OVS br-int (tag 1)──▶ qr port ──▶ qrouter netns ──OVS br-ex──▶
   veth-ext1 (container) ──▶ veth-ext0 (host, master docker0) ──▶ host FORWARD
-  ──▶ p003-ext ──▶ fabric (spine/leaf) ──▶ worker2 eth1 (10.30.2.11) ──▶
-  [Cilium policy: CNP ingress] ──▶ pod (10.245.1.208)
+  ──▶ p003-ext ──▶ fabric (spine/leaf) ──▶ worker (10.30.2.x) ──▶
+  [Cilium policy: CNP ingress] ──▶ pod (10.245.x.x)
 ```
 
 **Pontos de decisão de authz (onde o deny é observado):**
@@ -72,9 +75,8 @@ direcionado) é mutação de testbed, revertido no rollback. Timeout/000 esperad
 | C08 | Conexão longa antes da revogação | K8s | **PASS-controle** | — | Híbrido pod↔VM bloqueado por D-S012-13; não inferir encerramento automático |
 | C09 | Regra stale (controle) | K8s | **PASS** | ~4s | COM allow → vazamento (0% loss); SEM allow +egressDeny → negativo (100% loss) |
 
-**Evidência:** S013 `plans/P003-S013-results.md` +
-`…/evidence/P003/S013/2026-09-24T1145Z/`; S014 `plans/P003-S014-results.md` +
-`…/evidence/P003/S014/2026-09-24T1830Z/` (samplers em `/tmp/s014-sampler-*.txt`).
+**Evidência:** mantida na árvore Reentry local (privada) — `P003-S013-results.md`
+(lado K8s) e `P003-S014-results.md` (lado VM), com artefatos datados.
 
 ## 4. Contraste central — C03 (label) vs C05 (IP)
 
@@ -117,7 +119,7 @@ manual (retratar o CIDR antes de reutilizar o IP) é o único mecanismo — daí
 | CNP `ingress: []` rejeitado / sem efeito | inválido no Cilium 1.20.2 (D-S014-2) | revogar setando `fromCIDR` p/ IP que a VM **não** tem |
 | CNP `egress: []` sem efeito | não é default-deny eficaz (D-S013-2) | usar `egressDeny` com `toCIDR` |
 | pod→VM timeout/000 (mesmo com RX vivo) | chain DOCKER isola docker0 (D-S013-1) | ACCEPT direcionado na FORWARD (mutação de testbed, revertida) |
-| VM envia mas não responde (RX) | KVM aninhado no container (D-S012-13) — **intermitente** | medir por VM; C5 (VM fora do container) para resolver |
+| VM envia mas não responde (RX) | KVM aninhado no container (D-S012-13) — **intermitente** | medir por VM; **resolvido por C5** (VM fora do container, KVM real no host) — ver [C5](../../docs/estudos/09-vm-outside-container.md) |
 | fonte do pod = IP fabric do nó | masquerade BPF expõe o IP do nó (D-S012-12) | SG de tenant cobre os IPs fabric dos nós |
 | counters do pod flat com a VM sondando | deny no CNP (drop antes do pod) — **esperado** em C04/C05 deny | confirmar com `cilium monitor` (action deny) |
 
@@ -126,33 +128,43 @@ manual (retratar o CIDR antes de reutilizar o IP) é o único mecanismo — daí
 campo 15** da linha `Tcp:`. Ler com `cut -d" " -fN` dentro de `sh -c`
 single-quoted (quoting aninhado de awk corrompe `\$10`).
 
-## 7. Instruções de reprodução (scripts reais entregues)
+## 7. Instruções de reprodução (scripts reais)
 
-**Ambiente:** testbed `p003-os` (DevStack-in-container na vm-cilium, cap 8GiB);
-sandbox `p003-gw` (kind + fabric, origem dos pods); k01 (protegido, somente
-leitura). Kubeconfig do sandbox: `/root/.kube/p003-gw.config`.
+**Ambiente:** testbed OpenStack-in-container (cap 8GiB, VMs); sandbox
+(kind + fabric, origem dos pods); k01 (protegido, somente leitura). No host,
+defina o kubeconfig do sandbox antes de qualquer `kubectl`/`cilium`:
 
-**Lado K8s (S013)** — `poc-k8s-fabric/studies/p003/cases/s013/`:
+```bash
+export REFERENCE_KUBECONFIG='/secure/path/sandbox-kubeconfig'
+export REFERENCE_CONTEXT='kind-p003-gw'
+sudo kubectl --kubeconfig "$REFERENCE_KUBECONFIG" --context "$REFERENCE_CONTEXT" get nodes -o wide
+```
+
+**Lado K8s (S013)** — [`cases/s013/`](cases/s013/):
 - `01-setup.sh` + `01a-ns-cnps.yaml` + `01b-pod-a.yaml` + `01c-auth.yaml` +
   `01d-auth-routes.yaml` — fixture (ns, CNPs, Pod A, auth, rotas).
 - `02-c01-c03.sh` — C01–C03 (recriação + reuso de IP + authz por label).
 - `03-c06-c09.sh` — C06–C09 (auth recriado, rota, conexão longa, regra stale).
 - `04-rollback.sh` — teardown.
 
-**Lado VM (S014)** — `poc-k8s-fabric/studies/p003/cases/s014/` + scripts no
-host `/tmp/s014-*.sh` (referenciados na evidência):
-- `01a-ns-pod-a.yaml` — fixture (ns p003-lc + Pod A + CNP `fromCIDR`).
-- `s014-01-setup-vm-a.sh` … `s014-09-rollback.sh` — spawn/delete de VMs, CNP,
-  sampler de counters, rollback (ver `plans/P003-S014-results.md` §Evidência).
+**Lado VM (S014):**
+- [`cases/s014/01a-ns-pod-a.yaml`](cases/s014/01a-ns-pod-a.yaml) — fixture (ns + Pod A + CNP `fromCIDR`).
+- Scripts no host (fora do repo; referenciados na evidência local):
+  `s014-01-setup-vm-a.sh` … `s014-09-rollback.sh` — spawn/delete de VMs, CNP,
+  sampler de counters, rollback (ver `P003-S014-results.md` §Evidência, na
+  árvore Reentry local).
 
-**Spawn de VM (padrão):**
+**Spawn de VM (padrão):** valores de exemplo — `$STUDY_IP` (IP fixo),
+`$STUDY_PORT_NAME`/`$STUDY_PORT_ID` (porta), `$STUDY_VM` (nome da VM),
+`$STUDY_INIT` (user-data); substitua pelos IDs do seu inventário (mesma
+convenção `STUDY_*` do [dossiê E07](../../docs/estudos/07-openstack.md)):
 ```bash
-openstack port create --network net-a --fixed-ip subnet=subnet-a,ip-address=IP \
-  --security-group sg-a <port-name>
-openstack server create <vm> --image cirros-0.6.0 --flavor m1.p003 \
-  --nic port-id=<UUID> --config-drive True --user-data /opt/stack/vm-s014-init.sh --wait
+openstack port create --network net-a --fixed-ip subnet=subnet-a,ip-address="$STUDY_IP" \
+  --security-group sg-a "$STUDY_PORT_NAME"
+openstack server create "$STUDY_VM" --image cirros-0.6.0 --flavor m1.p003 \
+  --nic port-id="$STUDY_PORT_ID" --config-drive True --user-data "$STUDY_INIT" --wait
 ```
-**Gate de memória por spawn:** container `p003-os` ≤ 6.8GiB (85%) **e** host ≥
+**Gate de memória por spawn:** container ≤ 6.8GiB (85%) **e** host ≥
 1GiB available; senão abortar/escalar.
 
 ## 8. Checklist de adoção (baseado na matriz — sem "pronto p/ produção")
@@ -176,25 +188,25 @@ openstack server create <vm> --image cirros-0.6.0 --flavor m1.p003 \
 
 ## 9. Estado final + retenção/cleanup
 
-- **Sandbox `p003-gw`:** NO AR (reutilizado entre sessões). UID
-  `8216d179-9eed-4dc1-ab9c-97c0c6612b32`. Fixtures de S013/S014 removidas no
-  rollback (ns p003-lc inexistente); só `p003-http` pré-existente resta.
+- **Sandbox:** NO AR (reutilizado entre sessões). UID `<uid-do-sandbox>`
+  (invariante de proteção). Fixtures de S013/S014 removidas no rollback
+  (namespace de estudo inexistente); só a rota pré-existente resta.
   **Retenção:** manter (base das sessões futuras).
-- **Testbed `p003-os`:** VMs da sessão deletadas; port a2-port deletado (back to
-  2 ports de infra). Cloud intacta (ext-net/r-a/net-a/sg-a/m1.p003/cirros).
-  **Retenção:** manter a infra C1 (reutilizável); custo = container 8GiB cap.
-- **k01:** protegido, UID `45cb3818-248b-4dd2-b65c-5909bde08fe6` inalterado.
-  **Retenção:** manter (baseline do lab).
-- **Evidência bruta:** no host `/opt/poc-k8s-fabric-studies/…/evidence/P003/
-  S01{3,4}/` — **retenção** (referenciada por path nos results).
+- **Testbed OpenStack:** VMs da sessão deletadas; port de teste deletado
+  (volta aos ports de infra). Cloud intacta (ext-net/r-a/net-a/sg-a/m1.p003/
+  cirros). **Retenção:** manter a infra (reutilizável); custo = container 8GiB cap.
+- **k01:** protegido, UID `<uid-do-k01>` inalterado. **Retenção:** manter
+  (baseline do lab).
+- **Evidência bruta:** na árvore Reentry local (privada) — **retenção**
+  (referenciada por path nos results).
 
 ## 10. Exercícios de leitura (estudante) + roteiro (instrutor)
 
 **Estudante (leitura segura, sem mutação):**
 1. Ler §3 (matriz) e §4 (contraste C03 vs C05) — identificar **por que** a
    authz por label não vaza e a por IP vaza.
-2. Abrir `plans/P003-S014-results.md` §Janelas — localizar os timestamps do
-   sampler e confirmar a janela de revogação (~1-7s).
+2. Abrir `P003-S014-results.md` §Janelas (árvore Reentry local) — localizar os
+   timestamps do sampler e confirmar a janela de revogação (~1-7s).
 3. Ler §6 (interpretação de fails) — para cada sinal, nomear a causa e a ação.
 4. Rastrear o caminho VM→Pod no §2 — marcar os dois pontos de decisão de authz.
 
@@ -212,19 +224,19 @@ openstack server create <vm> --image cirros-0.6.0 --flavor m1.p003 \
 
 ## 11. Perguntas do leitor novo (respostas sem contexto)
 
-- **Qual cluster usar?** Sandbox `p003-gw` (kubeconfig
-  `/root/.kube/p003-gw.config`) para os pods; testbed `p003-os` para as VMs;
-  k01 é **somente leitura** (protegido).
-- **Onde roda cada comando?** `kubectl` no host (com `sudo KUBECONFIG=…`);
-  `openstack` **dentro** do container (`docker exec -i p003-os bash -s`);
-  probes de counters **no pod** (`kubectl exec … /proc/net/snmp`).
+- **Qual cluster usar?** O sandbox (kubeconfig `$REFERENCE_KUBECONFIG`) para os
+  pods; o testbed OpenStack-in-container para as VMs; k01 é **somente leitura**
+  (protegido).
+- **Onde roda cada comando?** `kubectl` no host (com `--kubeconfig`/`--context`
+  explícitos); `openstack` **dentro** do container do testbed; probes de
+  counters **no pod** (`kubectl exec … /proc/net/snmp`).
 - **Como provar consulta auth?** `cilium monitor` no worker (action allow/deny)
   + counters do pod (InEchos/OutRsts) — o deny aparece como counters flat.
 - **Como detectar NodePort?** `kubectl get svc` (porta 30xxx); probe **do
-  client do fabric** com `-H 'Host: echo.p003.study'` (do host → 000, não é
+  client do fabric** com `-H 'Host: <gateway-hostname>'` (do host → 000, não é
   regressão).
 - **Como comprovar nó remoto?** `kubectl get pods -o wide` (NODE) + `cilium
-  monitor` naquele worker; o worker2 (10.30.2.11) é o nó dos backends.
+  monitor` naquele worker; o nó worker dos backends é o alvo da captura.
 - **O que fazer se o IP não é reutilizado?** Marcar o caso de reuso
   BLOCKED/INCONCLUSIVE — **não** substituir por dois IPs diferentes e declarar a
   propriedade provada (C02: IPAM k8s não reaproveita; o reuso só é reproduzível
@@ -235,7 +247,6 @@ openstack server create <vm> --image cirros-0.6.0 --flavor m1.p003 \
 
 ---
 
-**Referências:** `plans/P003/08-lifecycle.md` (spec), `plans/P003-S013-results.md`
-(lado K8s), `plans/P003-S014-results.md` (lado VM), `plans/P003-design-contract.md`
-(contrato), `plans/P003/publication-spec.md` (publicação futura). Sessões de
-contexto do estudo (S003–S012): ver `plans/INDEX.md`.
+**Referências:** [dossiê E08](../../docs/estudos/08-lifecycle.md), [dossiê E07](../../docs/estudos/07-openstack.md),
+[contrato técnico](../../docs/estudos/design-contract.md), [protocolo de execução](../../docs/estudos/execution-protocol.md).
+Results datados e evidência bruta: árvore Reentry local (privada).

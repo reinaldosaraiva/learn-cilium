@@ -11,11 +11,16 @@
 # Uso: rodar NO HOST (vm-cilium). Destrói a VM ao final (teardown).
 set -uo pipefail
 
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo "[DRY-RUN] 81-tap-location-diag.sh: limparia VMs/domínios residuais em p003-os, criaria vm-a em background, monitoraria taps container/host (18x5s), inspecionaria virsh dumpxml e executaria teardown completo + canário k01."
+  exit 0
+fi
+
 D=docker
 DX() { sudo $D exec p003-os bash -c "$1"; }
 
 echo "== [0] estado pré (sem domínios; taps residuais anotados) =="
-echo "  container taps: $(DX 'ip -o link show 2>/dev/null | grep -oiE "tap[a-z0-9-]+" | sort -u | tr "\n" " "') || echo sem"
+echo "  container taps: $(DX 'ip -o link show 2>/dev/null | grep -oiE "tap[a-z0-9-]+" | sort -u | tr "\n" " "' || echo sem)"
 echo "  host taps:      $(ip -o link show 2>/dev/null | grep -oiE 'tap[a-z0-9-]+' | sort -u | tr '\n' ' ')"
 echo "  container netns: $(DX 'readlink /proc/1/ns/net')"
 echo "  host netns:      $(readlink /proc/1/ns/net)"
@@ -70,5 +75,5 @@ DX 'source /opt/stack/devstack/openrc demo demo >/dev/null 2>&1
 timeout 60 openstack server delete vm-a --wait >/dev/null 2>&1 || timeout 20 openstack server delete vm-a --force >/dev/null 2>&1
 for d in $(virsh list --all --name 2>/dev/null); do timeout 15 virsh destroy $d >/dev/null 2>&1; timeout 10 virsh undefine $d >/dev/null 2>&1; done
 sleep 2
-echo "  pós-teardown container taps: $(ip -o link show 2>/dev/null | grep -oiE "tap[a-z0-9-]+" | sort -u | tr "\n" " ')"
+echo "  pós-teardown container taps: $(ip -o link show 2>/dev/null | grep -oiE "tap[a-z0-9-]+" | sort -u | tr "\n" " ")"'
 echo "  canário k01: $(curl -s -o /dev/null -w "%{http_code}" --max-time 5 --noproxy "*" http://10.201.255.10:80/)"

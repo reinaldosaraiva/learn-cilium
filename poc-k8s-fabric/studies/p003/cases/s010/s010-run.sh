@@ -4,6 +4,11 @@
 # Evidence: $EV (set by caller) with events.csv, allocation.csv, rib.log, probes.tsv
 set -uo pipefail
 
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo "[DRY-RUN] s010-run.sh: driver de medição S010 (IPAM Multi-Pool /24 vs /32) usando manifests em /opt/poc-k8s-fabric-studies/studies/p003/cases/s010/ sem mutar node.spec.podCIDR."
+  exit 0
+fi
+
 KC=/root/.kube/p003-gw.config
 CTX=kind-p003-gw
 UID_EXPECT=8216d179-9eed-4dc1-ab9c-97c0c6612b32
@@ -256,16 +261,13 @@ for n in d.get("items",[]):
 setup_m24() {
   local vals=$1
   uid_check
-  K apply -f /opt/poc-k8s-fabric-studies/studies/p003/s010/01-m24-setup.yaml
-  K apply -f /opt/poc-k8s-fabric-studies/studies/p003/s010/02-bgp-advertisement.yaml
+  K apply -f /opt/poc-k8s-fabric-studies/studies/p003/cases/s010/01-m24-setup.yaml
+  K apply -f /opt/poc-k8s-fabric-studies/studies/p003/cases/s010/02-bgp-advertisement.yaml
   sudo helm upgrade cilium "$CHART" -n kube-system -f "$vals" > "$EV/helm-upgrade-m24.log" 2>&1
   K rollout status deploy/cilium-operator -n kube-system --timeout=300s >> "$EV/helm-upgrade-m24.log" 2>&1
   K rollout status ds/cilium -n kube-system --timeout=300s >> "$EV/helm-upgrade-m24.log" 2>&1
-  # remove podCIDR from nodes (multi-pool: single source of allocation)
-  for n in $(K get nodes -o jsonpath='{.items[*].metadata.name}'); do
-    K patch node "$n" --type=json -p '[{"op":"remove","path":"/spec/podCIDR"},{"op":"remove","path":"/spec/podCIDRs"}]' 2>>"$EV/helm-upgrade-m24.log" || \
-    K patch node "$n" --type=merge -p '{"spec":{"podCIDR":null,"podCIDRs":null}}' 2>>"$EV/helm-upgrade-m24.log"
-  done
+  # NOTA (A12): node.spec.podCIDR / podCIDRs são imutáveis no Kubernetes; em
+  # ipam.mode=multi-pool o Cilium ignora spec.podCIDR e aloca via CiliumPodIPPool.
   sleep 20
   # verify
   {
@@ -296,7 +298,7 @@ for p in d["items"]:
 setup_m32() {
   local vals=$1
   uid_check
-  K apply -f /opt/poc-k8s-fabric-studies/studies/p003/s010/06-m32-setup.yaml
+  K apply -f /opt/poc-k8s-fabric-studies/studies/p003/cases/s010/06-m32-setup.yaml
   sudo helm upgrade cilium "$CHART" -n kube-system -f "$vals" > "$EV/helm-upgrade-m32.log" 2>&1
   K rollout status deploy/cilium-operator -n kube-system --timeout=300s >> "$EV/helm-upgrade-m32.log" 2>&1
   K rollout status ds/cilium -n kube-system --timeout=300s >> "$EV/helm-upgrade-m32.log" 2>&1
@@ -322,10 +324,7 @@ rollback() {
   sudo helm upgrade cilium "$CHART" -n kube-system -f "$vals" > "$EV/helm-rollback.log" 2>&1
   K rollout status deploy/cilium-operator -n kube-system --timeout=300s >> "$EV/helm-rollback.log" 2>&1
   K rollout status ds/cilium -n kube-system --timeout=300s >> "$EV/helm-rollback.log" 2>&1
-  # restore node podCIDRs (K24 reference)
-  K patch node p003-gw-control-plane --type=merge -p '{"spec":{"podCIDR":"10.245.0.0/24"}}' >> "$EV/rollback.log" 2>&1
-  K patch node p003-gw-worker --type=merge -p '{"spec":{"podCIDR":"10.245.2.0/24"}}' >> "$EV/rollback.log" 2>&1
-  K patch node p003-gw-worker2 --type=merge -p '{"spec":{"podCIDR":"10.245.1.0/24"}}' >> "$EV/rollback.log" 2>&1
+  # NOTA (A12): node.spec.podCIDR permanece preservado (imutável no K8s).
   sleep 30
   {
     echo "=== post-rollback verification $(ts) ==="
