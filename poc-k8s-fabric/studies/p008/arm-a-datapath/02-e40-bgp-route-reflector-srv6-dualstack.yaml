@@ -1,0 +1,61 @@
+# ==============================================================================
+# E40 — BGP Route Reflector (iBGP RR) & Dual-Stack SRv6 L3VPN (End.DT4 + End.DT6)
+# Plano P008-S002 (Braço A)
+# ==============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p008-e40
+  labels:
+    study: e40-bgp-rr-srv6-dualstack
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: e40-rr-dualstack-pool
+spec:
+  blocks:
+    - cidr: "10.208.40.200/32"
+    - cidr: "fd00:208:40::200/128"
+  serviceSelector:
+    matchLabels:
+      bgp-e40: rr-dualstack
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: e40-rr-dualstack-adv
+  labels:
+    advertise: e40-rr-dualstack
+spec:
+  advertisements:
+    - advertisementType: "Service"
+      service:
+        addresses:
+          - LoadBalancerIP
+      selector:
+        matchLabels:
+          bgp-e40: rr-dualstack
+      attributes:
+        communities:
+          standard: ["65400:400"]
+        localPreference: 150
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e40-rr-vip-svc
+  namespace: p008-e40
+  labels:
+    bgp-e40: rr-dualstack
+spec:
+  type: LoadBalancer
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+  selector:
+    app: e40-echo
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

@@ -1,0 +1,28 @@
+# ==============================================================================
+# E41 — Matriz Combinada (veth vs netkit l3 × MTU 1500 vs BIG TCP × WireGuard)
+# Plano P008-S002 (Braço B)
+# ==============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p008-e41
+  labels:
+    study: e41-netkit-bigtcp-wireguard-matrix
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e41-matrix-profile
+  namespace: p008-e41
+data:
+  regimes.json: |
+    {
+      "study": "E41",
+      "transfer_mib": 1024,
+      "regimes": [
+        {"id": "R1", "device": "veth", "mtu": 1500, "gso_max_size": 65536, "wireguard": false},
+        {"id": "R2", "device": "veth", "mtu": 1500, "gso_max_size": 65536, "wireguard": true, "wg_mtu": 1420},
+        {"id": "R3", "device": "netkit-l3", "mtu": 9000, "gso_max_size": 196608, "wireguard": false},
+        {"id": "R4", "device": "netkit-l3", "mtu": 9000, "gso_max_size": 196608, "wireguard": true, "wg_mtu": 8920}
+      ]
+    }

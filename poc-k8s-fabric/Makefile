@@ -1,11 +1,11 @@
-# Makefile — poc-k8s-fabric (v2.6.0)
-# Alvos de validação estática (lint), dry-run de estudos (test) e geração de PDF (pdf).
+# Makefile — poc-k8s-fabric (v2.7.0)
+# Alvos de validação estática (lint), dry-run de estudos (test), geração de PDF (pdf) e execução P008 (E38–E41).
 
 SHELL := /usr/bin/env bash
 REPO_ROOT := $(abspath ..)
 PYTHON_PDF ?= $(shell if [ -x "$(REPO_ROOT)/.venv/bin/python3" ]; then echo "$(REPO_ROOT)/.venv/bin/python3"; else command -v python3; fi)
 
-.PHONY: all lint test pdf help
+.PHONY: all lint test pdf help p008-e38 p008-e39 p008-e40 p008-e41 p008-s001 p008-s002 p008-all
 
 all: lint test
 
@@ -29,26 +29,48 @@ lint:
 	else \
 		echo "  -> SKIP (go não encontrado no PATH)"; \
 	fi
-	@echo "[lint 4/4] Verificando presença dos scripts de estudo P005/P006/P007..."
+	@echo "[lint 4/4] Verificando presença dos scripts de estudo P005/P006/P007/P008..."
 	@test -f studies/p006/arm-a-datapath/e29-bgp-unnumbered-l2.sh
 	@test -f studies/p006/arm-b-platform/e33-kubevirt-live-migration.sh
 	@test -f studies/p007/arm-a-datapath/e34-bgp-gshut-zero-loss-drain.sh
 	@test -f studies/p007/arm-b-platform/e35-spiffe-mtls-wireguard-zerotrust.sh
 	@test -f studies/p007/arm-a-datapath/e36-local-redirect-policy-nodelocal.sh
 	@test -f studies/p007/arm-b-platform/e37-multus-ipvlan-macvlan-kubevirt-dualhomed.sh
-	@echo "  -> OK (scripts P005/P006/P007 presentes)"
+	@test -f studies/p008/arm-a-datapath/e38-host-firewall-xdp-prefilter.sh
+	@test -f studies/p008/arm-b-platform/e39-cilium-envoy-l7-resilience.sh
+	@test -f studies/p008/arm-a-datapath/e40-bgp-route-reflector-srv6-dualstack.sh
+	@test -f studies/p008/arm-b-platform/e41-netkit-bigtcp-wireguard-matrix.sh
+	@echo "  -> OK (scripts P005/P006/P007/P008 presentes)"
 
 test:
 	@echo "[test 1/2] Executando suíte unitária Go da fixture ExternalAuth..."
 	@if command -v go >/dev/null 2>&1; then \
 		(cd studies/p003/fixtures/auth && go test -v ./...) || exit 1; \
 	fi
-	@echo "[test 2/2] Executando --dry-run em todos os scripts de estudo P005, P006 e P007..."
-	@for s in studies/p005/*/*.sh studies/p006/*/*.sh studies/p007/*/*.sh; do \
+	@echo "[test 2/2] Executando --dry-run em todos os scripts de estudo P005, P006, P007 e P008..."
+	@for s in studies/p005/*/*.sh studies/p006/*/*.sh studies/p007/*/*.sh studies/p008/*/*.sh; do \
 		echo "  -> dry-run: $$s"; \
 		bash "$$s" --dry-run >/dev/null || exit 1; \
 	done
-	@echo "  -> OK (todos os scripts P005/P006/P007 passaram em --dry-run)"
+	@echo "  -> OK (todos os scripts P005/P006/P007/P008 passaram em --dry-run)"
+
+p008-e38:
+	@bash studies/p008/arm-a-datapath/e38-host-firewall-xdp-prefilter.sh
+
+p008-e39:
+	@bash studies/p008/arm-b-platform/e39-cilium-envoy-l7-resilience.sh
+
+p008-e40:
+	@bash studies/p008/arm-a-datapath/e40-bgp-route-reflector-srv6-dualstack.sh
+
+p008-e41:
+	@bash studies/p008/arm-b-platform/e41-netkit-bigtcp-wireguard-matrix.sh
+
+p008-s001: p008-e38 p008-e39
+
+p008-s002: p008-e40 p008-e41
+
+p008-all: p008-s001 p008-s002
 
 pdf:
 	@echo "[pdf] Compilando apostila PDF via tools/build_guide.py..."

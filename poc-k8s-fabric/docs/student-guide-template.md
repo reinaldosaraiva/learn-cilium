@@ -1,8 +1,8 @@
 # Template Estrutural de Apostila — Cilium 1.20.x & Fabric BGP/EVPN
 
-> **Nota de Autoridade Documental (`v2.6.0`):**
+> **Nota de Autoridade Documental (`v2.7.0`):**
 > Este arquivo (`student-guide-template.md`) é o **esqueleto/template estrutural** utilizado para derivar novas apostilas e turmas de laboratório.
-> A **apostila viva, completa e atualizada** do projeto — cobrindo os **37 estudos experimentais (`E01` a `E37`)** em `P001`–`P007` — reside em **[`poc-k8s-fabric/docs/lab-guide-student.md`](lab-guide-student.md)** (e no PDF compilado `output/pdf/cilium-lab-student-guide.pdf`).
+> A **apostila viva, completa e atualizada** do projeto — cobrindo os **41 estudos experimentais (`E01` a `E41`)** em `P001`–`P008` — reside em **[`poc-k8s-fabric/docs/lab-guide-student.md`](lab-guide-student.md)** (e no PDF compilado `output/pdf/cilium-lab-student-guide.pdf`).
 > **Não edite este template para atualizar resultados do laboratório; atualize `lab-guide-student.md` e execute `make pdf`.**
 
 ---
@@ -13,7 +13,7 @@ Substitua os placeholders `{{VARIAVEL}}` abaixo antes de distribuir ou gerar o P
 
 | Placeholder | Descrição | Valor Canônico (`lab-guide-student.md`) |
 |---|---|---|
-| `{{VERSAO}}` | Versão da apostila | `v2.6.0` |
+| `{{VERSAO}}` | Versão da apostila | `v2.7.0` |
 | `{{DATA}}` | Data da edição | `2026-10-26` |
 | `{{HOST_SSH}}` | Alvo SSH do laboratório | `ubuntu@<IP_VM_CILIUM>` |
 | `{{CLUSTER_REF}}` | Cluster canário de referência | `k01` (`kind-k01`) |
@@ -69,6 +69,11 @@ Substitua os placeholders `{{VARIAVEL}}` abaixo antes de distribuir ou gerar o P
 8. **Dreno BGP `RFC 8326`, Autenticação Mútua SPIFFE + WireGuard, `CiliumLocalRedirectPolicy` e Multus + `ipvlan L2/L3` (`E34`–`E37`)**
    - `E34` & `E35`: BGP Graceful Shutdown (`RFC 8326` `65535:0`, `0/150` perda) vs Cilium Mutual Auth (`SPIFFE` X.509 SVID mTLS + `cilium_wg0` WireGuard).
    - `E36` & `E37`: `CiliumLocalRedirectPolicy` (`serviceMatcher` + `addressMatcher` `169.254.20.10:8080`) vs Workloads Dual-Homed com Multus + `ipvlan mode l2/l3` vs `macvlan` (`MTU 9000` & Cloud L2 MAC Anti-Spoofing).
+
+### Parte VII — Proteção de Nó XDP/Host-FW, Resiliência L7 Envoy, iBGP Route Reflector + SRv6 Dual-Stack e Sinergia `netkit` + BIG TCP + WireGuard (`P008`: `E38`–`E41`)
+9. **Host Firewall + XDP Prefilter, `CiliumEnvoyConfig` L7, iBGP Route Reflector + SRv6 `End.DT4`/`End.DT6` e Matriz 2×2 `netkit` + BIG TCP + WireGuard (`E38`–`E41`)**
+   - `E38` & `E39`: Cilium Host Firewall (`CiliumClusterwideNetworkPolicy` `nodeSelector`) + XDP DDoS Prefilter (`XDP_DROP`, `conntrack_flood_entries=0`) vs `CiliumEnvoyConfig` L7 Traffic Management (Canary `90/10`, Header Routing, Token-Bucket Rate Limiting `429` e Retries `503 -> 200`).
+   - `E40` & `E41`: iBGP Route Reflector (`RFC 4456`, `cluster-id`) + SRv6 L3VPN Dual-Stack (`End.DT4` + `End.DT6` sem VXLAN) vs Matriz 2×2 de Sinergia no Datapath (`netkit L3 MTU 9000 + BIG TCP 192 KiB + WireGuard MTU 8920` multiplicando o throughput cifrado em `5,59x` / `+459,0%` e reduzindo pacotes ChaCha20-Poly1305 em `-84,5%`).
 
 ---
 

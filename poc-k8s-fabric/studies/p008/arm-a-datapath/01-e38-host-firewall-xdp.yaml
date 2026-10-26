@@ -1,0 +1,66 @@
+# ==============================================================================
+# E38 — Cilium Host Firewall (CiliumClusterwideNetworkPolicy) & Node-Level XDP
+# Plano P008-S001 (Braço A)
+# ==============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p008-e38
+  labels:
+    study: e38-host-firewall-xdp
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e38-node-daemon
+  namespace: p008-e38
+  labels:
+    app: e38-node-daemon
+spec:
+  nodeName: p003-gw-worker
+  hostNetwork: true
+  terminationGracePeriodSeconds: 1
+  containers:
+    - name: daemon
+      image: registry.k8s.io/e2e-test-images/agnhost:2.47
+      args: ["netexec", "--http-port=19100"]
+      ports:
+        - containerPort: 19100
+          protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: e38-node-host-firewall
+spec:
+  description: "E38 Host Firewall policy protecting node interfaces while preserving K8s/BGP control plane"
+  nodeSelector:
+    matchLabels:
+      e38-host-fw: enabled
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+        - health
+        - kube-apiserver
+        - cluster
+    - toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+            - port: "10250"
+              protocol: TCP
+            - port: "179"
+              protocol: TCP
+            - port: "4240"
+              protocol: TCP
+            - port: "8472"
+              protocol: UDP
+            - port: "51871"
+              protocol: UDP
+    - fromCIDR:
+        - 10.208.38.10/32
+      toPorts:
+        - ports:
+            - port: "19100"
+              protocol: TCP
