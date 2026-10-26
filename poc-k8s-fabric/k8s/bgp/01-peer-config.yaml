@@ -4,7 +4,8 @@ kind: CiliumBGPPeerConfig
 metadata:
   name: fabric-peer
 spec:
-  # Timers agressivos: deteccao de falha em ~9s (o minimo aceito e 9/3).
+  # Timers agressivos: deteccao de falha em ~9s (o CRD do Cilium aceita minimo 3/1;
+  # adotamos 9/3 como piso estavel no lab para evitar falso-positivo sob CPU compartilhada).
   timers:
     connectRetryTimeSeconds: 5
     holdTimeSeconds: 9

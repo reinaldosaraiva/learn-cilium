@@ -11,6 +11,8 @@ spec:
     # 1) PodCIDR do proprio no (/24 vindo do IPAM do Kubernetes).
     #    CENARIO A - e isto que torna o pod roteavel no underlay.
     #    NO CENARIO D (overlay/VXLAN) remova este bloco.
+    #    Convencao de BGP Communities do fabric (ASN 65101 = leaf1 ToR de referencia):
+    #      65101:100 = prefixo de PodCIDR; 65101:200 = prefixo de Service VIP Anycast.
     - advertisementType: "PodCIDR"
       attributes:
         communities:
@@ -18,6 +20,8 @@ spec:
 
     # 2) VIPs de servico. CENARIO B - cada no anuncia o mesmo /32,
     #    o fabric faz ECMP e o resultado e um anycast de servico.
+    #    Ambos os racks (ASN 65101 e ASN 65102) usam a community semantica 65101:200
+    #    para tagging uniforme de VIPs de LoadBalancer no fabric.
     - advertisementType: "Service"
       service:
         addresses:

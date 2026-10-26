@@ -13,7 +13,7 @@ IFACE="${IFACE:-eth1}"          # NIC ligada ao leaf SR Linux
 NODE_IP="${NODE_IP:-10.10.1.11}"
 PREFIX="${PREFIX:-24}"
 GW="${GW:-10.10.1.1}"
-MTU="${MTU:-1500}"   # VPC da Magalu nao entrega jumbo
+MTU="${MTU:-1500}"   # VPC da cloud hospedeira nao entrega jumbo por default
 
 echo "[1/4] endereco e MTU em ${IFACE}"
 ip link set "${IFACE}" up
@@ -40,7 +40,7 @@ sysctl --system >/dev/null
 
 echo "[4/4] pronto. Confira:"
 ip -br addr show "${IFACE}"
-ip route | grep -E '10\.10\.|10\.244\.|172\.31\.255\.|203\.0\.113\.'
+ip route | grep -E '10\.10\.|10\.244\.|10\.201\.255\.|203\.0\.113\.'
 echo
 echo "Agora rotule o no no cluster, por exemplo:"
 echo "  kubectl label node \$(hostname) topology.kubernetes.io/rack=rack1 --overwrite"
