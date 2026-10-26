@@ -1,0 +1,96 @@
+# P006-S003 — Braço A (E28): Bandwidth Manager (EDT + BBR vs CUBIC) & Pacing eBPF por Pod
+# Aplicado exclusivamente no sandbox p003-gw (uid=6bb32e0f-71f9-4558-ae33-356ba2250c26)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p006-e28
+  labels:
+    study: p006-e28
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e28-sink
+  namespace: p006-e28
+  labels:
+    app: e28-sink
+spec:
+  nodeName: p003-gw-worker2
+  containers:
+    - name: sink
+      image: nicolaka/netshoot:latest
+      imagePullPolicy: IfNotPresent
+      command:
+        - python3
+        - -c
+        - |
+          import socket, threading
+          def handle(conn):
+              try:
+                  while conn.recv(65536):
+                      pass
+              except Exception:
+                  pass
+              finally:
+                  conn.close()
+          s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+          s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+          s.bind(("0.0.0.0", 5201))
+          s.listen(64)
+          while True:
+              c, _ = s.accept()
+              threading.Thread(target=handle, args=(c,), daemon=True).start()
+      ports:
+        - containerPort: 5201
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e28-sender-unlim
+  namespace: p006-e28
+  labels:
+    app: e28-sender
+    profile: unlim
+spec:
+  nodeName: p003-gw-worker
+  containers:
+    - name: sender
+      image: nicolaka/netshoot:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "3600"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e28-sender-50m
+  namespace: p006-e28
+  annotations:
+    kubernetes.io/egress-bandwidth: "50M"
+  labels:
+    app: e28-sender
+    profile: 50m
+spec:
+  nodeName: p003-gw-worker
+  containers:
+    - name: sender
+      image: nicolaka/netshoot:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "3600"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e28-sender-100m
+  namespace: p006-e28
+  annotations:
+    kubernetes.io/egress-bandwidth: "100M"
+  labels:
+    app: e28-sender
+    profile: 100m
+spec:
+  nodeName: p003-gw-worker
+  containers:
+    - name: sender
+      image: nicolaka/netshoot:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "3600"]

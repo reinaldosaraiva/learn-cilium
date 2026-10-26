@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # P003-S012 rodada 2 — TEARDOWN dos recursos de ESTUDO.
-# Remove: VMs, pod de probe, rotas de teste (worker2 + host). MANTÉM (infra
+# Remove: VMs, pod de probe, rotas de teste (worker2 + host), e restaura --cpus 4 no p003-os. MANTÉM (infra
 # C1 para a próxima rodada, documentado como desvio do rollback genérico):
 # net-a/subnet-a/sg-a/r-a/ext-net, br-ex+veth, agentes, nova/glance/placement.
 set -uo pipefail
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo "[DRY-RUN] 57-teardown-study.sh: delete VMs, probe pod, test routes, and restore --cpus 4 on p003-os"
+  exit 0
+fi
 
 echo "== [1] VMs =="
 sudo /usr/bin/docker exec p003-os bash -c 'source /opt/stack/devstack/openrc demo demo >/dev/null 2>&1
@@ -25,6 +29,12 @@ sudo /usr/bin/docker exec p003-gw-worker2 ip route del 10.40.0.0/24 via 172.19.0
 sudo ip route del 10.30.0.0/24 via 10.40.0.181 dev docker0 2>/dev/null && echo "  host: rota 10.30.0.0/24 removida" || echo "  host: rota já ausente"
 sudo /usr/bin/docker exec p003-gw-worker2 ip route | grep -E "10.30.0|10.40.0" || echo "  worker2: limpa"
 ip route | grep -E "^10.30.0|^10.40.0" || echo "  host: limpa"
+
+echo
+echo "== [3b] restaurar limite de CPU do container p003-os (--cpus 4, revertendo passo 41) =="
+OS_CPUS="${OS_CPUS:-4}"
+sudo /usr/bin/docker update --cpus "${OS_CPUS}" p003-os 2>&1 | sed 's/^/  docker update: /' || true
+echo "  NanoCpus p003-os: $(sudo /usr/bin/docker inspect -f '{{.HostConfig.NanoCpus}}' p003-os 2>/dev/null)"
 
 echo
 echo "== [4] estado final do lab =="

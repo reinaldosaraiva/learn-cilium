@@ -4,10 +4,20 @@
 set -uo pipefail
 POD=10.245.1.16
 KC="--kubeconfig /root/.kube/p003-gw.config --context kind-p003-gw"
+ALLOW_RMMOD_VHOST_NET="${ALLOW_RMMOD_VHOST_NET:-0}"
 
-echo "== [1] vhost_net OFF no host =="
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo "[DRY-RUN] 66-c6b-vhost-cpu.sh: ALLOW_RMMOD_VHOST_NET=${ALLOW_RMMOD_VHOST_NET} (set to 1 to unload host vhost_net; 68-c6b-teardown.sh reloads it via modprobe)"
+  exit 0
+fi
+
+echo "== [1] vhost_net OFF no host (requer ALLOW_RMMOD_VHOST_NET=1) =="
 lsmod | grep -E "^vhost_net" | sed 's/^/  antes: /' || echo "  antes: não carregado"
-sudo rmmod vhost_net 2>&1 | sed 's/^/  rmmod: /' || true
+if [[ "${ALLOW_RMMOD_VHOST_NET}" == "1" ]]; then
+  sudo rmmod vhost_net 2>&1 | sed 's/^/  rmmod: /' || true
+else
+  echo "  SKIP rmmod vhost_net (defina ALLOW_RMMOD_VHOST_NET=1 para descarregar no host)"
+fi
 lsmod | grep -E "^vhost_net" | sed 's/^/  depois: /' || echo "  depois: REMOVIDO"
 
 echo

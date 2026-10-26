@@ -7,9 +7,9 @@
 #
 #   sudo ./scripts/00-prep-vm.sh
 #
-# Baseado no veredito de checagem de 2026-09-16 (docs/11-veredito-ambiente.md):
-# kernel 6.8, cgroup v2, IPv6 habilitado e egress OK ja confirmados; faltavam
-# Docker e ip_forward.
+# Baseado no preflight de ambiente (docs/estudos/00-preflight.md e docs/lab-results.md):
+# kernel 6.8, cgroup v2, IPv6 habilitado e egress OK ja confirmados; instala
+# Docker, Containerlab, kind, kubectl, helm e cilium-cli e aplica sysctls.
 # =============================================================================
 set -euo pipefail
 

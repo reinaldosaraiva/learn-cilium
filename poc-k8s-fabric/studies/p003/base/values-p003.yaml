@@ -37,7 +37,10 @@ MTU: 1500
 kubeProxyReplacement: true
 # IP de kind do control-plane (nao o IP de fabric nem o service IP):
 # presente nos SANs do cert do apiserver e alcancavel pela rede kind.
-# Mesmo padrao do k01 (helm values: k8sServiceHost 172.19.0.3).
+# Em um deploy limpo, descubra dinamicamente o IP atribuido pelo Docker na bridge `kind` e
+# sobreponha via `--set k8sServiceHost="$CP_IP"`:
+#   CP_IP=$(docker inspect -f '{{with index .NetworkSettings.Networks "kind"}}{{.IPAddress}}{{end}}' p003-gw-control-plane)
+#   helm upgrade --install cilium ... -f base/values-p003.yaml --set k8sServiceHost="${CP_IP}"
 k8sServiceHost: "172.19.0.5"
 k8sServicePort: 6443
 

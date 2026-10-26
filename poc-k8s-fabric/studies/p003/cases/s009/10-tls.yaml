@@ -124,6 +124,9 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
+      # Pre-step — build and load the TLS echo fixture into the kind sandbox:
+      #   docker build -t p003-tlsecho:1.0.0 poc-k8s-fabric/studies/p003/fixtures/tlsecho
+      #   kind load docker-image p003-tlsecho:1.0.0 --name p003-gw
       - name: tlsecho
         image: p003-tlsecho:1.0.0
         imagePullPolicy: IfNotPresent

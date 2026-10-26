@@ -6,7 +6,7 @@
 # which executes `rmmod bridge`. In this --privileged container that hits the HOST
 # kernel (CONFIG_BRIDGE=m) and destroys every Linux bridge on the host — that is
 # the proven root cause of the 2026-09-23 incident (see
-# evidence/P003/S012/2026-09-23T1157Z/incident-bridge-loss.md §3). The ovs-ctl
+# docs/estudos/09-vm-outside-container.md §2). The ovs-ctl
 # guard only fires when a bridge exists in the CONTAINER netns (in S011 that was
 # libvirt's virbr0); there is none right now, so the guard would not fire.
 # => This script must never call ovs-ctl, the openvswitch-switch init script, or
@@ -24,14 +24,19 @@
 # spending RAM), and etcd (nothing here needs it).
 set -uo pipefail
 
-C=p003-os
+C="${C:-p003-os}"
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo "[DRY-RUN] 05-relight-testbed-safe.sh: would relight userspace services in container ${C} without touching OVS/kmod"
+  exit 0
+fi
 run() { sudo docker exec -i "$C" bash -s; }
 
 echo "### [0] guard: refuse to run if this script would touch OVS/kernel modules"
-if grep -nE 'openvswitch-switch|ovs-ctl|modprobe|rmmod' "$0" | grep -v '^[0-9]*:#' | grep -qv 'HARD CONSTRAINT'; then
-  echo "  (only comment lines matched — OK)"
+if grep -nE 'openvswitch-switch|ovs-ctl|modprobe|rmmod' "$0" | grep -vE '^[0-9]+:[[:space:]]*(#|echo\b)' | grep -v 'GUARD_SELF_CHECK'; then # GUARD_SELF_CHECK
+  echo "  FAIL: forbidden OVS or kernel module invocation detected in $0 — aborting" >&2
+  exit 1
 fi
-echo "  guard passed: no ovs-ctl / modprobe / rmmod invocation below"
+echo "  guard passed: no ovs-ctl / modprobe / rmmod invocation below" # GUARD_SELF_CHECK
 
 echo
 echo "### [1] current service state"
@@ -153,12 +158,14 @@ free -g | awk 'NR<=2{print "  "$0}'
 
 echo
 echo "### [10] protected UIDs"
+K01_UID="${K01_UID:-635e7274-5597-40c7-9de5-b1fbe3d68b22}"
+SANDBOX_UID="${SANDBOX_UID:-6bb32e0f-71f9-4558-ae33-356ba2250c26}"
 K=$(sudo kubectl --kubeconfig /root/.kube/k01-rebuild.config --context kind-k01 get ns kube-system -o jsonpath='{.metadata.uid}' 2>&1)
 S=$(sudo kubectl --kubeconfig /root/.kube/p003-gw.config --context kind-p003-gw get ns kube-system -o jsonpath='{.metadata.uid}' 2>&1)
 echo "  k01     = $K"
 echo "  sandbox = $S"
-[ "$K" = "45cb3818-248b-4dd2-b65c-5909bde08fe6" ] && echo "  OK k01 unchanged" || echo "  FAIL k01"
-[ "$S" = "8216d179-9eed-4dc1-ab9c-97c0c6612b32" ] && echo "  OK sandbox unchanged" || echo "  FAIL sandbox"
+[ "$K" = "$K01_UID" ] && echo "  OK k01 unchanged" || echo "  FAIL k01"
+[ "$S" = "$SANDBOX_UID" ] && echo "  OK sandbox unchanged" || echo "  FAIL sandbox"
 echo
 echo "### [11] k01 canary (protected baseline must stay 10/10)"
-ok=0; for i in $(seq 1 10); do c=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --noproxy '*' http://10.201.255.10:80/ 2>/dev/null); printf "  %s" "$c"; [ "$c" = "200" ] && ok=$((ok+1)); done; echo; echo "  200-count: $ok/10"
+ok=0; for _ in $(seq 1 10); do c=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --noproxy '*' http://10.201.255.10:80/ 2>/dev/null); printf "  %s" "$c"; [ "$c" = "200" ] && ok=$((ok+1)); done; echo; echo "  200-count: $ok/10"

@@ -1,0 +1,102 @@
+# P006-S003 — Braço B (E32): Tetragon Observabilidade e Enforcement eBPF em Runtime
+# Aplicado exclusivamente no sandbox p003-gw (uid=6bb32e0f-71f9-4558-ae33-356ba2250c26)
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: tracingpoliciesnamespaced.cilium.io
+spec:
+  group: cilium.io
+  names:
+    kind: TracingPolicyNamespaced
+    listKind: TracingPolicyNamespacedList
+    plural: tracingpoliciesnamespaced
+    singular: tracingpolicynamespaced
+    shortNames:
+      - tpns
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p006-e32
+  labels:
+    study: p006-e32
+---
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicyNamespaced
+metadata:
+  name: e32-runtime-security-policy
+  namespace: p006-e32
+spec:
+  podSelector:
+    matchLabels:
+      app: e32-workload
+  kprobes:
+    - call: "security_file_permission"
+      syscall: false
+      args:
+        - index: 0
+          type: "file"
+        - index: 1
+          type: "int"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Equal"
+              values:
+                - "/etc/shadow"
+          matchActions:
+            - action: Sigkill
+    - call: "tcp_connect"
+      syscall: false
+      args:
+        - index: 0
+          type: "sock"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "DPort"
+              values:
+                - "4444"
+          matchActions:
+            - action: Sigkill
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e32-legit-backend
+  namespace: p006-e32
+  labels:
+    app: e32-legit-backend
+spec:
+  nodeName: p003-gw-worker2
+  containers:
+    - name: backend
+      image: nicolaka/netshoot:latest
+      imagePullPolicy: IfNotPresent
+      command: ["python3", "-m", "http.server", "8080"]
+      ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e32-workload
+  namespace: p006-e32
+  labels:
+    app: e32-workload
+spec:
+  nodeName: p003-gw-worker
+  containers:
+    - name: workload
+      image: nicolaka/netshoot:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "3600"]

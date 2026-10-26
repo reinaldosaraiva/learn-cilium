@@ -27,6 +27,8 @@ ipam:
 ipv4NativeRoutingCIDR: 10.248.0.0/14
 k8s:
   requireIPv4PodCIDR: false
+# Em deploy limpo, descubra dinamicamente o IP do control-plane na rede `kind` e passe `--set k8sServiceHost="$CP_IP"`:
+#   CP_IP=$(docker inspect -f '{{with index .NetworkSettings.Networks "kind"}}{{.IPAddress}}{{end}}' p003-gw-control-plane)
 k8sServiceHost: 172.19.0.5
 k8sServicePort: 6443
 kubeProxyReplacement: true

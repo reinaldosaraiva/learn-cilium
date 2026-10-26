@@ -75,8 +75,7 @@ direcionado) é mutação de testbed, revertido no rollback. Timeout/000 esperad
 | C08 | Conexão longa antes da revogação | K8s | **PASS-controle** | — | Híbrido pod↔VM bloqueado por D-S012-13; não inferir encerramento automático |
 | C09 | Regra stale (controle) | K8s | **PASS** | ~4s | COM allow → vazamento (0% loss); SEM allow +egressDeny → negativo (100% loss) |
 
-**Evidência:** mantida na árvore Reentry local (privada) — `P003-S013-results.md`
-(lado K8s) e `P003-S014-results.md` (lado VM), com artefatos datados.
+**Evidência:** consolidada nas tabelas §3–§6 deste dossiê e reproduzível pelos scripts versionados em [`studies/p003/cases/s013/`](../../studies/p003/cases/s013/) (lado K8s) e [`studies/p003/cases/s014/`](../../studies/p003/cases/s014/) (lado VM).
 
 ## 4. Contraste central — C03 (label) vs C05 (IP)
 
@@ -135,9 +134,9 @@ single-quoted (quoting aninhado de awk corrompe `\$10`).
 defina o kubeconfig do sandbox antes de qualquer `kubectl`/`cilium`:
 
 ```bash
-export REFERENCE_KUBECONFIG='/secure/path/sandbox-kubeconfig'
-export REFERENCE_CONTEXT='kind-p003-gw'
-sudo kubectl --kubeconfig "$REFERENCE_KUBECONFIG" --context "$REFERENCE_CONTEXT" get nodes -o wide
+export STUDY_KUBECONFIG='/secure/path/sandbox-kubeconfig'
+export STUDY_CONTEXT='kind-p003-gw'
+sudo kubectl --kubeconfig "$STUDY_KUBECONFIG" --context "$STUDY_CONTEXT" get nodes -o wide
 ```
 
 **Lado K8s (S013)** — [`studies/p003/cases/s013/`](../../studies/p003/cases/s013/):
@@ -147,12 +146,9 @@ sudo kubectl --kubeconfig "$REFERENCE_KUBECONFIG" --context "$REFERENCE_CONTEXT"
 - `03-c06-c09.sh` — C06–C09 (auth recriado, rota, conexão longa, regra stale).
 - `04-rollback.sh` — teardown.
 
-**Lado VM (S014):**
+**Lado VM (S014)** — [`studies/p003/cases/s014/`](../../studies/p003/cases/s014/):
 - [`studies/p003/cases/s014/01a-ns-pod-a.yaml`](../../studies/p003/cases/s014/01a-ns-pod-a.yaml) — fixture (ns + Pod A + CNP `fromCIDR`).
-- Scripts no host (fora do repo; referenciados na evidência local):
-  `s014-01-setup-vm-a.sh` … `s014-09-rollback.sh` — spawn/delete de VMs, CNP,
-  sampler de counters, rollback (ver `P003-S014-results.md` §Evidência, na
-  árvore Reentry local).
+- [`studies/p003/cases/s014/run-s014-lifecycle.sh`](../../studies/p003/cases/s014/run-s014-lifecycle.sh) — driver versionado para C04/C05 (spawn/delete de VMs, CNP, sampler de counters e rollback, com suporte a `--dry-run`).
 
 **Spawn de VM (padrão):** valores de exemplo — `$STUDY_IP` (IP fixo),
 `$STUDY_PORT_NAME`/`$STUDY_PORT_ID` (porta), `$STUDY_VM` (nome da VM),
@@ -205,8 +201,7 @@ openstack server create "$STUDY_VM" --image cirros-0.6.0 --flavor m1.p003 \
 **Estudante (leitura segura, sem mutação):**
 1. Ler §3 (matriz) e §4 (contraste C03 vs C05) — identificar **por que** a
    authz por label não vaza e a por IP vaza.
-2. Abrir `P003-S014-results.md` §Janelas (árvore Reentry local) — localizar os
-   timestamps do sampler e confirmar a janela de revogação (~1-7s).
+2. Analisar as janelas medidas em §3 (`~4-9s` para reconvergência em C04 e `~1-7s` para revogação de `fromCIDR` em C05) e o driver [`run-s014-lifecycle.sh`](../../studies/p003/cases/s014/run-s014-lifecycle.sh).
 3. Ler §6 (interpretação de fails) — para cada sinal, nomear a causa e a ação.
 4. Rastrear o caminho VM→Pod no §2 — marcar os dois pontos de decisão de authz.
 
@@ -224,7 +219,7 @@ openstack server create "$STUDY_VM" --image cirros-0.6.0 --flavor m1.p003 \
 
 ## 11. Perguntas do leitor novo (respostas sem contexto)
 
-- **Qual cluster usar?** O sandbox (kubeconfig `$REFERENCE_KUBECONFIG`) para os
+- **Qual cluster usar?** O sandbox (kubeconfig `$STUDY_KUBECONFIG`) para os
   pods; o testbed OpenStack-in-container para as VMs; k01 é **somente leitura**
   (protegido).
 - **Onde roda cada comando?** `kubectl` no host (com `--kubeconfig`/`--context`

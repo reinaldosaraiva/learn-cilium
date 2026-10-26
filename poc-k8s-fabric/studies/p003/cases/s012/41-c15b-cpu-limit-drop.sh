@@ -3,8 +3,12 @@
 # scope (reconcile do --cpus=4) → filhos domain invalid de novo. Remover o
 # limite de CPU do container em runtime (docker update) faz dockerd parar de
 # reivindicar o controller. Cap de MEMÓRIA 8G permanece (proteção principal).
-# Reversível: docker update --cpus=4 (registrado para o teardown).
+# Reversível: docker update --cpus=4 (restaurado por 57-teardown-study.sh).
 set -uo pipefail
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo "[DRY-RUN] 41-c15b-cpu-limit-drop.sh: temporarily remove --cpus limit on p003-os while keeping 8G memory cap (restored in 57-teardown-study.sh)"
+  exit 0
+fi
 CPID=$(sudo /usr/bin/docker inspect -f '{{.State.Pid}}' p003-os)
 CG=$(awk -F: '/^0::/{print $3}' /proc/$CPID/cgroup)
 SCOPE=/sys/fs/cgroup$CG

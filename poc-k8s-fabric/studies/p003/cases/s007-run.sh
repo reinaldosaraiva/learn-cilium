@@ -3,23 +3,28 @@
 # Roda no host vm-cilium via nohup; progresso em $EV/progress.log.
 set -u
 
-EV="/opt/poc-k8s-fabric-studies/studies/p003/evidence/S007-2026-09-22T0048Z"
-STUDY="/opt/poc-k8s-fabric-studies/studies/p003"
-CHART="$STUDY/base/cilium-1.20.2.tgz"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+STUDY="${STUDY:-$(cd "$HERE/.." && pwd)}"
+EV="${EV:-$STUDY/../../evidence/P003/S007-$(date -u +%Y-%m-%dT%H%MZ)}"
+CHART="${CHART:-$STUDY/base/cilium-1.20.2.tgz}"
 K="sudo env KUBECONFIG=/root/.kube/p003-gw.config kubectl"
 K01="sudo env KUBECONFIG=/root/.kube/k01-rebuild.config kubectl"
 NS=p003-gateway
 NODEA=p003-gw-worker
 NODEB=p003-gw-worker2
 IP_A=10.30.1.12
-IP_B=10.30.2.11
+export IP_B=10.30.2.11
 NP=30676
 VIP=10.202.255.10
-UID_SANDBOX=8216d179-9eed-4dc1-ab9c-97c0c6612b32
-UID_K01=45cb3818-248b-4dd2-b65c-5909bde08fe6
+UID_SANDBOX="${UID_SANDBOX:-6bb32e0f-71f9-4558-ae33-356ba2250c26}"
+UID_K01="${UID_K01:-635e7274-5597-40c7-9de5-b1fbe3d68b22}"
 CLIENT=clab-p003-gw-fabric-client
-HERE="$(cd "$(dirname "$0")" && pwd)"
 USRV=/tmp/s007-user-values.yaml
+
+if [ "${1:-}" = "--dry-run" ]; then
+  echo "[DRY-RUN] s007-run.sh: STUDY=${STUDY} EV=${EV} CHART=${CHART} UID_SANDBOX=${UID_SANDBOX} UID_K01=${UID_K01}"
+  exit 0
+fi
 
 mkdir -p "$EV"
 plog() { echo "[$(date -u +%FT%TZ)] $*" | tee -a "$EV/progress.log"; }
@@ -39,7 +44,7 @@ k01_check() {
 }
 vip_canary() {
   local ok=0 code
-  for i in $(seq 1 10); do
+  for _ in $(seq 1 10); do
     code=$(sudo docker exec "$CLIENT" curl -s -o /dev/null -w '%{http_code}' --noproxy '*' --retry 0 --max-time 5 -H "Host: echo.p003.study" "http://$VIP:8080/" 2>&1)
     [ "$code" = "200" ] && ok=$((ok+1))
   done
@@ -48,7 +53,7 @@ vip_canary() {
 }
 k01_canary() {
   local ok=0 code
-  for i in $(seq 1 10); do
+  for _ in $(seq 1 10); do
     code=$(sudo docker exec "$CLIENT" curl -s -o /dev/null -w '%{http_code}' --noproxy '*' --retry 0 --max-time 5 "http://10.201.255.10:80/" 2>&1)
     [ "$code" = "200" ] && ok=$((ok+1))
   done
@@ -57,16 +62,18 @@ k01_canary() {
 }
 helm_snap() {
   local tag="$1"
-  sudo env KUBECONFIG=/root/.kube/p003-gw.config helm get values cilium -n kube-system > "$EV/values-$tag.yaml" 2>&1
+  { sudo env KUBECONFIG=/root/.kube/p003-gw.config helm get values cilium -n kube-system; } > "$EV/values-$tag.yaml" 2>&1
   plog "helm snapshot $tag ($(wc -l < "$EV/values-$tag.yaml") linhas)"
 }
 helm_upgrade() {
-  # $@ = flags --set extras
-  sudo env KUBECONFIG=/root/.kube/p003-gw.config helm upgrade cilium "$CHART" -n kube-system \
-    -f "$USRV" "$@" >>"$EV/helm-upgrade.log" 2>&1 \
+  # $@ = flags --set extras; encryption changes ConfigMap -> restart ds/cilium explicitly
+  { sudo env KUBECONFIG=/root/.kube/p003-gw.config helm upgrade cilium "$CHART" -n kube-system \
+    -f "$USRV" "$@"; } >>"$EV/helm-upgrade.log" 2>&1 \
     || abort "helm upgrade falhou (ver $EV/helm-upgrade.log)"
-  $K rollout status deploy/cilium -n kube-system --timeout=600s >>"$EV/helm-upgrade.log" 2>&1 \
-    || abort "rollout cilium falhou"
+  $K rollout restart ds/cilium -n kube-system >>"$EV/helm-upgrade.log" 2>&1 \
+    || abort "rollout restart ds/cilium falhou"
+  $K rollout status ds/cilium -n kube-system --timeout=600s >>"$EV/helm-upgrade.log" 2>&1 \
+    || abort "rollout ds/cilium falhou"
   $K rollout status deploy/cilium-operator -n kube-system --timeout=300s >>"$EV/helm-upgrade.log" 2>&1 \
     || plog "WARN rollout operator (pode ser esperado)"
   plog "helm upgrade OK: $*"
@@ -90,7 +97,7 @@ wg_absent() {
 }
 canaries() {
   # $1 = prefixo (ex. CANW0), $2 = ingress node, $3 = ingress ip
-  local pre="$1" ing="$2" ip="$3"
+  local pre="$1" ip="$3"
   bash "$HERE/s007-probes.sh" "$pre-A02" "http://$ip:$NP" /protected-http allow 10 1 >>"$EV/canaries.log" 2>&1
   bash "$HERE/s007-probes.sh" "$pre-A03" "http://$ip:$NP" /protected-http deny  10 1 >>"$EV/canaries.log" 2>&1
   bash "$HERE/s007-probes.sh" "$pre-A05" "http://$ip:$NP" /protected-grpc allow 10 1 >>"$EV/canaries.log" 2>&1
@@ -109,11 +116,11 @@ plog "=== S007 START ==="
 uid_check
 k01_check
 helm_snap pre
-sudo env KUBECONFIG=/root/.kube/p003-gw.config helm get values cilium -n kube-system > "$USRV" 2>&1
+{ sudo env KUBECONFIG=/root/.kube/p003-gw.config helm get values cilium -n kube-system; } > "$USRV" 2>&1
 cp "$USRV" "$EV/values-user-pre.yaml"
 # tcpdump nos workers (coleta wg0); idempotente
 for n in "$NODEA" "$NODEB"; do
-  sudo docker exec "$n" sh -c "which tcpdump >/dev/null 2>&1 || (apt-get update -qq && apt-get install -y -qq tcpdump)" >>"$EV/setup.log" 2>&1
+  { sudo docker exec "$n" sh -c "which tcpdump >/dev/null 2>&1 || (apt-get update -qq && apt-get install -y -qq tcpdump)"; } >>"$EV/setup.log" 2>&1
   plog "tcpdump $n: $(sudo docker exec "$n" which tcpdump 2>&1)"
 done
 $K get httproute p003-http -n "$NS" -o yaml > "$EV/route-p003-http.yaml" 2>&1

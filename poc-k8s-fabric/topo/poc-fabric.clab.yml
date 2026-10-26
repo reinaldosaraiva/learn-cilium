@@ -6,7 +6,7 @@
 #
 # Os caminhos de startup-config sao relativos a ESTE arquivo.
 # Os nos do cluster k8s NAO sao criados aqui: eles sao conectados atraves
-# de bridges Linux do host (br-node1/2/3) - ver docs/06-conectar-cluster-existente.md
+# de bridges Linux do host (br-node1/2/3) - ver docs/12-caminho-b-plus.md
 # =============================================================================
 name: poc-k8s-fabric
 

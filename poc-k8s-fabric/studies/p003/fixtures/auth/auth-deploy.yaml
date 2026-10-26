@@ -1,5 +1,9 @@
 # P003-S005: Auth fixture deployment + service
 # 1 replica, pinned to workerA (ingress node)
+#
+# Pre-step — build and load the local fixture image into the kind sandbox:
+#   docker build -t p003-authz:1.0.0 poc-k8s-fabric/studies/p003/fixtures/auth
+#   kind load docker-image p003-authz:1.0.0 --name p003-gw
 apiVersion: apps/v1
 kind: Deployment
 metadata:

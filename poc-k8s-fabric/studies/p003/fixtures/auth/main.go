@@ -100,8 +100,8 @@ func main() {
 		return nil
 	})
 
-	<-ctx.Done()
-	logger.Info("shutdown requested")
+	<-gctx.Done()
+	logger.Info("shutdown requested", "reason", gctx.Err())
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()

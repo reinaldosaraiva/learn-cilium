@@ -14,18 +14,18 @@
 # Only running processes are lost. `docker rm`+`run` would have destroyed all of
 # it — do not substitute that here.
 #
-# Authorized: evidence/P003/S012/2026-09-23T1157Z/authorization.md (D1 full
-# execution, D3 docker restart). Does NOT touch k01, the p003-gw sandbox, the
+# Context & incident analysis: see docs/estudos/09-vm-outside-container.md §2
+# (D1 full execution, D3 docker restart). Does NOT touch k01, the p003-gw sandbox, the
 # host NIC, or the container memory cap.
 set -uo pipefail
 
 C="${C:-p003-os}"
-SANDBOX_KCFG=/root/.kube/p003-gw.config
-SANDBOX_CTX=kind-p003-gw
-SANDBOX_UID=8216d179-9eed-4dc1-ab9c-97c0c6612b32
-K01_KCFG=/root/.kube/k01-rebuild.config
-K01_CTX=kind-k01
-K01_UID=45cb3818-248b-4dd2-b65c-5909bde08fe6
+SANDBOX_KCFG="${SANDBOX_KCFG:-/root/.kube/p003-gw.config}"
+SANDBOX_CTX="${SANDBOX_CTX:-kind-p003-gw}"
+SANDBOX_UID="${SANDBOX_UID:-6bb32e0f-71f9-4558-ae33-356ba2250c26}"
+K01_KCFG="${K01_KCFG:-/root/.kube/k01-rebuild.config}"
+K01_CTX="${K01_CTX:-kind-k01}"
+K01_UID="${K01_UID:-635e7274-5597-40c7-9de5-b1fbe3d68b22}"
 
 fail() { echo "FAIL: $*"; exit 1; }
 

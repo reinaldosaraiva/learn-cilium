@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
-# P003-S012 C6b — teardown: VM deletada, cpu_mode revertido (default), lab ok.
+# P003-S012 C6b — teardown: VM deletada, cpu_mode revertido (default), vhost_net recarregado no host, lab ok.
 set -uo pipefail
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo "[DRY-RUN] 68-c6b-teardown.sh: delete VMs, revert cpu_mode in nova.conf, and sudo modprobe vhost_net on host"
+  exit 0
+fi
+echo "== [0] Restaurar modulo vhost_net no kernel do host =="
+sudo modprobe vhost_net 2>&1 | sed 's/^/  modprobe: /' || true
+lsmod | grep -E "^vhost_net" | sed 's/^/  vhost_net: /' || echo "  WARN: vhost_net nao listado em lsmod"
 sudo /usr/bin/docker exec p003-os bash -c 'source /opt/stack/devstack/openrc demo demo >/dev/null 2>&1
 for id in $(openstack server list -f value -c ID 2>/dev/null); do timeout 60 openstack server delete $id --wait >/dev/null 2>&1 || timeout 20 openstack server delete $id --force >/dev/null 2>&1; echo "  deleted $id"; done
 for d in $(timeout 20 virsh list --all --name 2>/dev/null); do timeout 15 virsh destroy $d >/dev/null 2>&1; timeout 10 virsh undefine $d >/dev/null 2>&1; done

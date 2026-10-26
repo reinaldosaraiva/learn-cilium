@@ -98,3 +98,4 @@ encontram-se **concluídas com PASS (`v2.4.0`)** e documentadas em:
 - [24 — Dynamic Resource Allocation (DRA `resource.k8s.io/v1`) para Dispositivos de Rede no Cilium (`NetworkDeviceData`, `E24`)](poc-k8s-fabric/docs/estudos/24-cilium-dra-network-device.md)
 - [26 — LoadBalancer XDP/TCX + DSR & Maglev Consistent Hashing (`E26`) e Cilium Cluster Mesh / MCS-API sobre Fabric BGP (`E30`) (`P006-S001`)](poc-k8s-fabric/docs/estudos/26-lb-xdp-dsr-maglev-clustermesh.md)
 - [27 — BIG TCP (`enable-ipv4-big-tcp` / `enable-ipv6-big-tcp`) + `netkit` + Jumbo MTU 9000 (`E27`) e SRv6 L3VPN (`seg6local End.DT4`) sem VXLAN (`E31`) (`P006-S002`)](poc-k8s-fabric/docs/estudos/27-big-tcp-netkit-srv6-l3vpn.md)
+- [28 — Bandwidth Manager (EDT + `fq`), Pacing eBPF por Pod & `TCP BBR` vs `CUBIC` (`E28`) e Tetragon Runtime eBPF Security (`TracingPolicyNamespaced`, `E32`) (`P006-S003`)](poc-k8s-fabric/docs/estudos/28-bandwidth-edt-bbr-tetragon.md)

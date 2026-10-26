@@ -5,9 +5,10 @@
 # ds/cilium + dataplane_wait (lições S007).
 set -u
 
-EV="/opt/poc-k8s-fabric-studies/studies/p003/evidence/S008-2026-09-22T0210Z"
-STUDY="/opt/poc-k8s-fabric-studies/studies/p003"
-CHART="$STUDY/base/cilium-1.20.2.tgz"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+STUDY="${STUDY:-$(cd "$HERE/.." && pwd)}"
+EV="${EV:-$STUDY/../../evidence/P003/S008-$(date -u +%Y-%m-%dT%H%MZ)}"
+CHART="${CHART:-$STUDY/base/cilium-1.20.2.tgz}"
 K="sudo env KUBECONFIG=/root/.kube/p003-gw.config kubectl"
 K01="sudo env KUBECONFIG=/root/.kube/k01-rebuild.config kubectl"
 NS=p003-gateway
@@ -17,11 +18,15 @@ IP_A=10.30.1.12
 IP_B=10.30.2.11
 NP=30676
 VIP=10.202.255.10
-UID_SANDBOX=8216d179-9eed-4dc1-ab9c-97c0c6612b32
-UID_K01=45cb3818-248b-4dd2-b65c-5909bde08fe6
+UID_SANDBOX="${UID_SANDBOX:-6bb32e0f-71f9-4558-ae33-356ba2250c26}"
+UID_K01="${UID_K01:-635e7274-5597-40c7-9de5-b1fbe3d68b22}"
 CLIENT=clab-p003-gw-fabric-client
-HERE="$(cd "$(dirname "$0")" && pwd)"
 USRV=/tmp/s008-user-values.yaml
+
+if [ "${1:-}" = "--dry-run" ]; then
+  echo "[DRY-RUN] s008-run.sh: STUDY=${STUDY} EV=${EV} CHART=${CHART} UID_SANDBOX=${UID_SANDBOX} UID_K01=${UID_K01}"
+  exit 0
+fi
 
 mkdir -p "$EV"
 plog() { echo "[$(date -u +%FT%TZ)] $*" | tee -a "$EV/progress.log"; }
@@ -41,7 +46,7 @@ k01_check() {
 }
 vip_canary() {
   local ok=0 code
-  for i in $(seq 1 10); do
+  for _ in $(seq 1 10); do
     code=$(sudo docker exec "$CLIENT" curl -s -o /dev/null -w '%{http_code}' --noproxy '*' --retry 0 --max-time 5 -H "Host: echo.p003.study" "http://$VIP:8080/" 2>&1)
     [ "$code" = "200" ] && ok=$((ok+1))
   done
@@ -50,7 +55,7 @@ vip_canary() {
 }
 k01_canary() {
   local ok=0 code
-  for i in $(seq 1 10); do
+  for _ in $(seq 1 10); do
     code=$(sudo docker exec "$CLIENT" curl -s -o /dev/null -w '%{http_code}' --noproxy '*' --retry 0 --max-time 5 "http://10.201.255.10:80/" 2>&1)
     [ "$code" = "200" ] && ok=$((ok+1))
   done
@@ -59,13 +64,13 @@ k01_canary() {
 }
 helm_snap() {
   local tag="$1"
-  sudo env KUBECONFIG=/root/.kube/p003-gw.config helm get values cilium -n kube-system > "$EV/values-$tag.yaml" 2>&1
+  { sudo env KUBECONFIG=/root/.kube/p003-gw.config helm get values cilium -n kube-system; } > "$EV/values-$tag.yaml" 2>&1
   plog "helm snapshot $tag ($(wc -l < "$EV/values-$tag.yaml") linhas)"
 }
 helm_upgrade() {
   # $@ = flags --set extras; encryption/routingMode entram via ConfigMap -> restart explicit
-  sudo env KUBECONFIG=/root/.kube/p003-gw.config helm upgrade cilium "$CHART" -n kube-system \
-    -f "$USRV" "$@" >>"$EV/helm-upgrade.log" 2>&1 \
+  { sudo env KUBECONFIG=/root/.kube/p003-gw.config helm upgrade cilium "$CHART" -n kube-system \
+    -f "$USRV" "$@"; } >>"$EV/helm-upgrade.log" 2>&1 \
     || abort "helm upgrade falhou (ver $EV/helm-upgrade.log)"
   $K rollout restart ds/cilium -n kube-system >>"$EV/helm-upgrade.log" 2>&1 || abort "rollout restart ds/cilium"
   $K rollout status ds/cilium -n kube-system --timeout=600s >>"$EV/helm-upgrade.log" 2>&1 \
@@ -140,16 +145,17 @@ canaries() {
 plog "=== PHASE 0: preflight ==="
 uid_check
 helm_snap user-pre
-[ -f "$USRV" ] || sudo env KUBECONFIG=/root/.kube/p003-gw.config helm get values cilium -n kube-system > "$USRV" 2>&1
+[ -f "$USRV" ] || { sudo env KUBECONFIG=/root/.kube/p003-gw.config helm get values cilium -n kube-system; } > "$USRV" 2>&1
 grep -q "routingMode: native" "$USRV" || abort "user values sem routingMode: native (estado inesperado)"
 $K get gateway p003-main -n "$NS" -o jsonpath='{.status.conditions[?(@.type=="Programmed")].reason}' | grep -q Programmed || abort "Gateway nao Programmed no preflight"
 plog "preflight OK (native, W0, Gateway Programmed)"
 
-# ===================================================================== PHASE 1: routingMode=vxlan
-plog "=== PHASE 1: routingMode native -> vxlan ==="
+# ===================================================================== PHASE 1: routingMode=tunnel + tunnelProtocol=vxlan
+plog "=== PHASE 1: routingMode native -> tunnel (vxlan) ==="
 uid_check
 helm_snap pre-vxlan
-helm_upgrade --set routingMode=vxlan
+VXLAN_FLAGS=(--set routingMode=tunnel --set tunnelProtocol=vxlan --set autoDirectNodeRoutes=false --set ipv4NativeRoutingCIDR="")
+helm_upgrade "${VXLAN_FLAGS[@]}"
 vxlan_verify pre
 helm_snap post-vxlan
 # MTU medido (dossiê: medir, nao assumir 1500)
@@ -191,7 +197,7 @@ bash "$HERE/s008-cell.sh" W0P1INV "$NODEB" "$NODEA" "$NODEB" || abort "W0P1INV"
 plog "=== PHASE 5: W1 (vxlan + pod encryption) ==="
 uid_check
 helm_snap pre-W1
-helm_upgrade --set encryption.enabled=true --set encryption.type=wireguard
+helm_upgrade "${VXLAN_FLAGS[@]}" --set encryption.enabled=true --set encryption.type=wireguard
 wg_verify W1
 helm_snap post-W1
 canaries CANW1 "$NODEA" "$IP_A"
@@ -205,7 +211,7 @@ bash "$HERE/s008-cell.sh" W1P1INV "$NODEB" "$NODEA" "$NODEB" || abort "W1P1INV"
 plog "=== PHASE 6: W2 (vxlan + pod + node encryption) ==="
 uid_check
 helm_snap pre-W2
-helm_upgrade --set encryption.enabled=true --set encryption.type=wireguard --set nodeEncryption.enabled=true
+helm_upgrade "${VXLAN_FLAGS[@]}" --set encryption.enabled=true --set encryption.type=wireguard --set nodeEncryption.enabled=true
 wg_verify W2
 helm_snap post-W2
 canaries CANW2 "$NODEA" "$IP_A"
