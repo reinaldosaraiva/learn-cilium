@@ -5,7 +5,7 @@ Este diretório reúne materiais para os exercícios guiados dos módulos 1–11
 documentados em P001–P003. O módulo 12 é leitura histórica do estudo com nós
 reais na nuvem; essa infraestrutura fica fora da aula. O módulo 13 sintetiza os
 resultados empíricos completos da trilha P004 (sessões S001–S008 concluídas com **PASS**:
-réplica MGC/OVN/FRR `M01–M03` + `X05`, OVN-Kubernetes + KubeVirt `K01–K04`,
+réplica DCI/OVN/FRR `M01–M03` + `X05`, OVN-Kubernetes + KubeVirt `K01–K04`,
 cenários híbridos `X01–X07`, Braço Cilium A `V00–V08-A` / `C-neg`, Braço Cilium B
 `FRR 10.7.1` no nó `H6` / `V09` / `V07-B` / `V08-B` com `R6=0`, blueprint OVN-K `C/D` e
 síntese `INV × equivalente aberto` `G07`/`G08`;
@@ -100,8 +100,8 @@ pesquisa, contrato, protocolo e dossiês. A trilha P003 foi encerrada em
 da [E08](docs/estudos/08-lifecycle-synthesis.md) e do [caso
 C5](docs/estudos/09-vm-outside-container.md). O modelo S002 de preflight é
 somente documental e não descreve o estado atual de uma VM. P004 é uma trilha
-separada: o `labctl` comum foi validado em S001, a réplica MGC/OVN+FRR fechou
-com **PASS** em S002 (23/10/2026, com M01–M03 e X05 aceitos e perfil `labctl mgc`
+separada: o `labctl` comum foi validado em S001, a réplica DCI/OVN+FRR fechou
+com **PASS** em S002 (23/10/2026, com M01–M03 e X05 aceitos e perfil `labctl dci`
 publicado), o braço OVN-Kubernetes + KubeVirt + EVPN fechou com **PASS** em
 S003 (23/10/2026, com perfis `labctl evpn-fabric` e `labctl ovnk` e matriz
 `K01–K04` em `studies/p004/evpn-fabric/` e `studies/p004/ovnk/`), os casos

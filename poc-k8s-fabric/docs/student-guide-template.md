@@ -47,8 +47,8 @@ Substitua os placeholders `{{VARIAVEL}}` abaixo antes de distribuir ou gerar o P
    - `E07`–`E09`: Integração Híbrida Kubernetes + OpenStack Neutron (`p003-os`), Segurança de Ciclo de Vida (`E08`) e KVM Real no Host (`C5`/`E09`).
 
 ### Parte III — Convergência EVPN/VXLAN, KubeVirt e Equivalente Aberto (`P004`: `E20`)
-5. **Orquestração `labctl` e Arquitetura em 3 Planos (`mgc` × `evpn-fabric` × `ovnk` × `Cilium A/B`)**
-   - Plano MGC (`OVN 26.03.3` + `FRR` por VRF: `M01`–`M03`, `X05`).
+5. **Orquestração `labctl` e Arquitetura em 3 Planos (`dci` × `evpn-fabric` × `ovnk` × `Cilium A/B`)**
+   - Plano DCI (`OVN 26.03.3` + `FRR` por VRF: `M01`–`M03`, `X05`).
    - Plano OVN-Kubernetes (`UDN` + `EVPN` + `KubeVirt`: `K01`–`K04`, `X01`–`X07`).
    - Braço Cilium A (`KubeVirt` nativo: `V00`–`V08-A`) vs Braço Cilium B (`FRR 10.7.1` no nó: `H6`, `V09`/`H7`, `V07-B`, `V08-B`, invariante `R6=0`).
 

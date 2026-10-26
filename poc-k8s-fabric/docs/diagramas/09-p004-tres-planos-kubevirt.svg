@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 760" role="img" aria-labelledby="title desc">
-  <title id="title">Planos comparados de P004 (S002–S008): MGC/OVN, OVN-Kubernetes + KubeVirt e Cilium A/B + KubeVirt</title>
-  <desc id="desc">Arquitetura comparada medida em P004-S002 a S008: (1) Plano OVN-Kubernetes v1.4.0 + UDN + KubeVirt v1.9.0 com IP fixo na migração (K01–K04); (2) Plano MGC e Fabric EVPN com VRFs/VNIs isolados (X01–X07); (3) Braços Cilium A e B (Cilium 1.20.2 + KubeVirt v1.9.0 + FRR 10.7.1 no p003-gw, V00–V09, H1–H8, R6=0) e fronteira INV × Aberto (G07).</desc>
+  <title id="title">Planos comparados de P004 (S002–S008): DCI/OVN, OVN-Kubernetes + KubeVirt e Cilium A/B + KubeVirt</title>
+  <desc id="desc">Arquitetura comparada medida em P004-S002 a S008: (1) Plano OVN-Kubernetes v1.4.0 + UDN + KubeVirt v1.9.0 com IP fixo na migração (K01–K04); (2) Plano DCI e Fabric EVPN com VRFs/VNIs isolados (X01–X07); (3) Braços Cilium A e B (Cilium 1.20.2 + KubeVirt v1.9.0 + FRR 10.7.1 no p003-gw, V00–V09, H1–H8, R6=0) e fronteira INV × Aberto (G07).</desc>
   <defs>
     <style>
       text { font-family: Arial, Helvetica, sans-serif; fill: #142a3a; }
@@ -25,7 +25,7 @@
   <text x="36" y="42" class="title">Arquitetura comparada em P004 (S002–S008): OVN-K (C/D) × Fabric EVPN × Cilium A &amp; B + KubeVirt</text>
   <text x="36" y="68" class="subtitle">Quatro braços testados ao vivo na vm-cilium com KVM nativo (/dev/kvm), FRR 10.7.1 e Containerlab SR Linux</text>
 
-  <!-- Left column: OVN-K + Fabric EVPN / MGC (S002-S004) -->
+  <!-- Left column: OVN-K + Fabric EVPN / DCI (S002-S004) -->
   <rect x="36" y="90" width="490" height="295" rx="14" class="panel-ovnk"/>
   <text x="54" y="122" class="head">Braço C: OVN-Kubernetes v1.4.0 + KubeVirt (S003)</text>
   <text x="54" y="146" class="subhead">Isolamento por UDN/CUDN L2 + Live Migration transparente</text>
@@ -40,10 +40,10 @@
   <text x="68" y="355" class="mono">10.200.0.0/24 (VNI 10100) + VM 192.168.50.10/24</text>
 
   <rect x="36" y="401" width="490" height="307" rx="14" class="panel-fabric"/>
-  <text x="54" y="433" class="head">Braço MGC + Fabric EVPN Cruzado / D (S002 + S004)</text>
+  <text x="54" y="433" class="head">Braço DCI + Fabric EVPN Cruzado / D (S002 + S004)</text>
   <text x="54" y="457" class="subhead-green">Integração 3 planos e guardrails de sobreposição (X01–X07)</text>
   <rect x="54" y="473" width="454" height="66" rx="10" class="box-allow"/>
-  <text x="68" y="497" class="body">• X01 (G04): Tenant unificado MGC ↔ Fabric ↔ OVN-K</text>
+  <text x="68" y="497" class="body">• X01 (G04): Tenant unificado DCI ↔ Fabric ↔ OVN-K</text>
   <text x="68" y="520" class="mono">192.168.100.10 ↔ 10.0.0.10 ↔ VM 10.200.0.x (30/30)</text>
   <rect x="54" y="549" width="454" height="66" rx="10" class="box"/>
   <text x="68" y="573" class="body">• X02 / X05 / X07 (G05): Subnets sobrepostas isoladas</text>
@@ -88,5 +88,5 @@
   <text x="582" y="663" class="mono">Fase 2: Cilium A (Cloud-Native L7) + OVN-K C/D (VMs L2/EVPN/Same-CIDR)</text>
   <text x="582" y="681" class="mono">cobre 100% dos requisitos sem lock-in; PoC INV exige eth0 VRF + L2 migrate</text>
 
-  <text x="36" y="736" class="small">Figura 09 — Síntese arquitetural dos resultados medidos de P004-S002 a P004-S008 (MGC, OVN-K C/D, Cilium A e Cilium B).</text>
+  <text x="36" y="736" class="small">Figura 09 — Síntese arquitetural dos resultados medidos de P004-S002 a P004-S008 (DCI, OVN-K C/D, Cilium A e Cilium B).</text>
 </svg>

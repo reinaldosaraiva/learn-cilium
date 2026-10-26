@@ -21,7 +21,7 @@ módulos 1–11 como exercícios guiados apoiados nos estudos P001–P003. O mó
 12 é leitura histórica do estudo com nós reais na nuvem, cuja infraestrutura
 fica fora da aula; o módulo 13 sintetiza os resultados empíricos completos da trilha P004
 (sessões S001–S008 concluídas com **PASS**):
-- **13.1** — Réplica MGC/OVN/FRR (`M01–M03`), CIDRs sobrepostos em EVPN Type 5 (`X05`) e capacidade (`S001–S002`);
+- **13.1** — Réplica DCI/OVN/FRR (`M01–M03`), CIDRs sobrepostos em EVPN Type 5 (`X05`) e capacidade (`S001–S002`);
 - **13.2** — OVN-Kubernetes `v1.4.0` + KubeVirt `v1.9.0` (`K01–K04`) e cenários híbridos (`X01–X04`, `X06`, `X07` em `S003–S004`);
 - **13.3** — Braço Cilium A: Cilium `1.20.2` + KubeVirt `v1.9.0` no `p003-gw` (`C01–C06` / `V00–V06`: `CiliumEndpoint`, VIP BGP `/32`, `CiliumNetworkPolicy` por label, Gate `G01` de reuso de IP `10.253.0.100/32` vs identidade, live migration com mudança de podIP e Multi-Pool `/32` BGP em `S005`);
 - **13.4** — Negativos do Braço Cilium A (`V07-A`, `V08-A`, `C-neg` / `G02`), Braço Cilium B (`FRR 10.7.1` no nó sob `R6=0`, `H6`/`G06`, EVPN Type 5 `V09`/`H7`, `V07-B`, `V08-B`), blueprint de transição para a Fase 2 (`Braços C/D`), síntese `INV × equivalente aberto` (`G07`: critérios `INV-PoC-01` a `INV-PoC-06`) e higiene final dos laboratórios (`G08`, em `S006–S008`).

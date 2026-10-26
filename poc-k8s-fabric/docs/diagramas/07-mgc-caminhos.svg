@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 790" role="img" aria-labelledby="title desc">
-  <title id="title">Caminhos históricos da réplica MGC</title>
+  <title id="title">Caminhos históricos da réplica DCI</title>
   <desc id="desc">Diagrama lógico dos caminhos históricos M01/M02 do tenant pelos gateways até o cliente legado AS 200 e do caminho M03 entre tenant OVN e peer EVPN externo distinto. O Type 5 é controle; VXLAN é o caminho de dados. O desenho não representa disponibilidade atual.</desc>
   <defs>
     <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
@@ -33,7 +33,7 @@
     </style>
   </defs>
   <rect x="0" y="0" width="1120" height="790" fill="#f7f9fb"/>
-  <text x="40" y="48" class="title">Réplica MGC: dois caminhos medidos</text>
+  <text x="40" y="48" class="title">Réplica DCI: dois caminhos medidos</text>
   <text x="40" y="78" class="subtitle">Topologia lógica e resultados históricos de 27–29/09/2026; sem indicação de disponibilidade atual.</text>
 
   <rect x="24" y="104" width="1072" height="330" rx="16" class="zone"/>
@@ -61,7 +61,7 @@
   <text x="813" y="240" class="head">Cliente legado</text>
   <text x="813" y="272" class="body">FRR AS 200</text>
   <text x="813" y="301" class="body">Anuncia 10.0.0.0/16</text>
-  <text x="813" y="330" class="small">Par dos gateways MGC</text>
+  <text x="813" y="330" class="small">Par dos gateways DCI</text>
 
   <path d="M338 208 C365 208 374 207 405 207" class="data"/>
   <path d="M338 306 C365 306 374 338 405 338" class="data"/>

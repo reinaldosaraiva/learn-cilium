@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 720" role="img" aria-labelledby="title desc">
   <title id="title">Estado público de P004 concluído (S001 a S008 PASS)</title>
-  <desc id="desc">Trilha P004 concluída com PASS de S001 a S008: S001 (labctl), S002 (MGC M01 a M03 e X05), S003 (OVN-K K01 a K04 com KubeVirt em KVM nativo), S004 (cruzados X01 a X04, X06 e X07), S005 (Braço Cilium A V00 a V06), S006 (negativos V07-A, V08-A, C-neg e Braço B H6), S007 (Braço Cilium B V09, V07-B, V08-B e Blueprint OVN-K C/D) e S008 (Síntese INV × Aberto G07 e Higiene Final G08).</desc>
+  <desc id="desc">Trilha P004 concluída com PASS de S001 a S008: S001 (labctl), S002 (DCI M01 a M03 e X05), S003 (OVN-K K01 a K04 com KubeVirt em KVM nativo), S004 (cruzados X01 a X04, X06 e X07), S005 (Braço Cilium A V00 a V06), S006 (negativos V07-A, V08-A, C-neg e Braço B H6), S007 (Braço Cilium B V09, V07-B, V08-B e Blueprint OVN-K C/D) e S008 (Síntese INV × Aberto G07 e Higiene Final G08).</desc>
   <defs>
     <style>
       text { font-family: Arial, Helvetica, sans-serif; fill: #142a3a; }
@@ -16,17 +16,17 @@
   </defs>
   <rect x="0" y="0" width="1120" height="720" fill="#f7f9fb"/>
   <text x="40" y="44" class="title">P004: Trilha completa concluída (S001 a S008 · PASS · G01 a G08 fechados)</text>
-  <text x="40" y="72" class="subtitle">Checkpoint final P004 · MGC (S002), OVN-K (S003), Cruzados (S004), Cilium A/B + KubeVirt (S005–S007) e Síntese INV (S008)</text>
+  <text x="40" y="72" class="subtitle">Checkpoint final P004 · DCI (S002), OVN-K (S003), Cruzados (S004), Cilium A/B + KubeVirt (S005–S007) e Síntese INV (S008)</text>
 
   <rect x="40" y="100" width="330" height="280" rx="16" class="card pass"/>
-  <text x="60" y="136" class="head">1. MGC + OVN + FRR</text>
+  <text x="60" y="136" class="head">1. DCI + OVN + FRR</text>
   <text x="60" y="164" class="status">S001 + S002 COMPLETO · PASS</text>
   <text x="60" y="198" class="body">S001 · labctl comum PASS (27/09)</text>
   <text x="60" y="228" class="body">M01 · BGP/ECMP e falhas PASS</text>
   <text x="60" y="258" class="body">M02 · MTU 1500 vs 9000 PASS</text>
   <text x="60" y="288" class="body">M03 · EVPN Type 5 VNI 50100 PASS</text>
   <text x="60" y="318" class="body">X05 · CIDR sobreposto 50100/50200</text>
-  <text x="60" y="352" class="small">Pegada: 0,54 GiB (mgc + OVS host)</text>
+  <text x="60" y="352" class="small">Pegada: 0,54 GiB (dci + OVS host)</text>
 
   <rect x="395" y="100" width="330" height="280" rx="16" class="card pass"/>
   <text x="415" y="136" class="head">2. OVN-K + UDN + Cruzados</text>
@@ -63,7 +63,7 @@
   <text x="747" y="504" class="body">• G07: Matriz INV × Aberto e 6</text>
   <text x="747" y="530" class="body">  critérios objetivos de PoC (INV-PoC</text>
   <text x="747" y="556" class="body">  01 a 06) + Blueprint Fase 2 C/D.</text>
-  <text x="747" y="588" class="body">• G08: mgc/ovnk/evpn down (0 res.),</text>
+  <text x="747" y="588" class="body">• G08: dci/ovnk/evpn down (0 res.),</text>
   <text x="747" y="614" class="body">  k01 10/10, p003-gw limpo, RAM 4,95G.</text>
 
   <text x="42" y="686" class="small">Leitura histórica consolidada de P004 (S001–S008); sem afirmação sobre disponibilidade em tempo real da VM.</text>

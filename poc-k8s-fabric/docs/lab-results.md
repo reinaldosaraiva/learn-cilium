@@ -30,22 +30,22 @@ Também foi observado native routing com o IP real do pod no tráfego do fabric 
 ## P004 — resultados completos de S001 a S008 (PASS)
 
 O ciclo comum do `labctl` foi aprovado em 27/09/2026 (`P004-S001`). Na réplica
-MGC (`P004-S002`, **PASS** em 23/10/2026), no plano OVN-Kubernetes + UDN/EVPN +
+DCI (`P004-S002`, **PASS** em 23/10/2026), no plano OVN-Kubernetes + UDN/EVPN +
 KubeVirt (`P004-S003`, **PASS** em 23/10/2026), nos casos cruzados entre planos
 (`P004-S004`, **PASS** em 24/10/2026), no Braço Cilium A (`P004-S005` e
 `P004-S006`, **PASS** em 24/10/2026), no Braço Cilium B (`P004-S006` e
 consolidação `P004-S007`, **PASS** em 24–25/10/2026) e na síntese final `INV × Aberto` e higiene dos laboratórios (`P004-S008`, **PASS** em 25/10/2026), os ensaios abaixo foram aceitos com
 escopo e limites explícitos:
 
-### 1. Plano MGC Connect (`P004-S002` — OVN 26.03.3 + FRR multi-VRF)
+### 1. Plano DCI Connect (`P004-S002` — OVN 26.03.3 + FRR multi-VRF)
 
 | Caso | Estado documentado | Resultado e limite |
 |---|---|---|
 | M01 — sessão, ECMP e falhas | PASS com exceção (29/09) | Os daemons FRR foram parados dentro do gateway, sem container FRR dedicado; as versões medidas também diferiram das planejadas. A falha do chassis `ovn-chassis-1` não foi testada; esse host hospedava a fixture da VM fake e era distinto do plano central OVN. |
 | M02 — MTU/PMTU | PASS sob o escopo aceito (29/09) | Com MTU 1500, pacotes pequenos passaram 30/30 e o jumbo IPv4 9000 B/DF não recebeu resposta em 30 tentativas (0/30); houve ICMP Frag Needed. Com MTU 9000, ambos passaram 30/30; as MTUs foram restauradas a 1500. A reprodução literal do fragmento no tap físico permaneceu parcial. |
 | M03 — EVPN Type 5 | PASS com controle causal (29/09) | O peer externo recebeu `192.168.100.0/24` no VNI `50100`; o positivo respondeu 30/30. O override `dynamic-routing-redistribute=static` na LRP tenant filtrou anúncios de rotas `connected`, sem mudar a origem da rota. Isso retirou a rota-alvo do SB, a rota tenant, o Type 5 e a FIB, e o ping teve 0/3 respostas; BGP, VTEP e duas rotas colaterais permaneceram. Restaurar a chave ao estado ausente recuperou o caminho e o ping respondeu 3/3. Controle negativo literal do VNI: NOT_RUN. |
-| X05 — CIDRs sobrepostos (MGC) | **PASS** (23/10/2026) | Dois tenants com `192.168.100.0/24` e `169.254.254.0/30` sobrepostos em `ovnvrf100` (VNI `50100`) e `ovnvrf50200` (VNI `50200`, RT `65000:50200`): alcance intra-tenant 30/30 nos dois domínios, 0/3 nas quatro direções cross-tenant com 0 pacotes capturados no destino (`tcpdump`) e rollback canônico (`G7+G8`) com 0 resíduos (`run c9d0e1` + prova negativa `b8c9d0`). Exige alinhamento do `Router MAC` Type 5 com a bridge VXLAN do peer (`02:00:00:20:00:01`). |
-| Capacidade S002 | **PASS** (23/10/2026) | `mgc` (5 containers: `244,77 MiB`) + OVS host (`306,8 MiB`) = `0,539 GiB` (`13,5%` da estimativa de `4 GiB`); `MemAvailable = 6,38 GiB` com `k01` + `p003-gw` + `mgc` simultâneos (`D5 = NÃO`). |
+| X05 — CIDRs sobrepostos (DCI) | **PASS** (23/10/2026) | Dois tenants com `192.168.100.0/24` e `169.254.254.0/30` sobrepostos em `ovnvrf100` (VNI `50100`) e `ovnvrf50200` (VNI `50200`, RT `65000:50200`): alcance intra-tenant 30/30 nos dois domínios, 0/3 nas quatro direções cross-tenant com 0 pacotes capturados no destino (`tcpdump`) e rollback canônico (`G7+G8`) com 0 resíduos (`run c9d0e1` + prova negativa `b8c9d0`). Exige alinhamento do `Router MAC` Type 5 com a bridge VXLAN do peer (`02:00:00:20:00:01`). |
+| Capacidade S002 | **PASS** (23/10/2026) | `dci` (5 containers: `244,77 MiB`) + OVS host (`306,8 MiB`) = `0,539 GiB` (`13,5%` da estimativa de `4 GiB`); `MemAvailable = 6,38 GiB` com `k01` + `p003-gw` + `dci` simultâneos (`D5 = NÃO`). |
 
 ### 2. Plano OVN-Kubernetes + UDN/EVPN + KubeVirt e Casos Cruzados (`P004-S003` e `P004-S004`)
 
@@ -54,7 +54,7 @@ escopo e limites explícitos:
 | K01 — UDN com CIDR sobreposto | **PASS** (23/10/2026) | Duas `UserDefinedNetwork` primárias (`tenant-a` e `tenant-b`) com o mesmo CIDR `10.100.0.0/24` e VMs KubeVirt em KVM nativo (`/dev/kvm`) com o mesmo IP `10.100.0.14`: alcance intra-tenant `30/30` e bloqueio cross-tenant `0/30`. |
 | K02 — Live Migration em UDN | **PASS** (23/10/2026) | `virtctl migrate vm-a` entre `ovnk-worker` e `ovnk-worker2` (~16 s) preservou o IP `10.100.0.14/24`, com `0%` de perda de pacotes ICMP (`60/60`) e sobrevivência da sessão TCP longa. |
 | K03 / K04 — CUDN EVPN Type 5 e Lift-and-Shift | **PASS** (23/10/2026) | `K03`: `ClusterUserDefinedNetwork` (`10.200.0.0/24`) anunciada via `RouteAdvertisements` + `frr-k8s` (`v0.0.27`) ao `evpn-fabric` (VNI `10100`, `30/30` positivo, `0/10` negativo). `K04`: VM legada com IP fixo `192.168.50.10/24` preservado sem reendereçamento (`30/30` positivo, `0/10` negativo). |
-| X01 (`G04`) — Tenant unificado nos 3 planos | **PASS** (24/10/2026) | Conectividade fim a fim (`30/30`) entre `mgc` (`192.168.100.10`), `evpn-fabric` (`10.0.0.10`) e VM KubeVirt no `ovnk` (`10.200.0.x`), com withdraw negativo (`0/5`). |
+| X01 (`G04`) — Tenant unificado nos 3 planos | **PASS** (24/10/2026) | Conectividade fim a fim (`30/30`) entre `dci` (`192.168.100.10`), `evpn-fabric` (`10.0.0.10`) e VM KubeVirt no `ovnk` (`10.200.0.x`), com withdraw negativo (`0/5`). |
 | X02 / X03 / X04 / X06 / X07 (`G05`) | **PASS** (24/10/2026) | `X02`: isolamento 3 planos com `10.200.0.0/24` e `10.0.0.0/24` sobrepostos (`30/30` intra-tenant, `0/5` cruzado, `0` pacotes vazados). `X03`: policy por community (`65000:100` aceita, `65000:999` bloqueada). `X04`: guardrail de Route-Target incorreto (`0/30`). `X06`: admissão vs bloqueio de colisão de CIDR em VRF hub. `X07`: isolamento L2 em `MAC-VRF` EVPN Type 2 (VNIs `20100`/`20200` com `172.16.50.0/24`, `30/30` intra-VNI e `0` frames ARP/ICMP entre VNIs). |
 
 ### 3. Braço Cilium A: `Cilium 1.20.2` + `KubeVirt v1.9.0` no `p003-gw` (`P004-S005`)
@@ -76,10 +76,10 @@ escopo e limites explícitos:
 |---|---|---|
 | H6 (`G06`) — Sessão BGP local Cilium -> FRR no nó -> Fabric sob `R6` | **PASS** (24/10/2026) | `DaemonSet/frr-node` (`FRR 10.7.1`, `AS 65301/65302`) em `hostNetwork` pareando localmente com o GoBGP do Cilium (`10.255.255.1:1790`, `AS 65311/65312`) e via eBGP com `leaf1`/`leaf2` (`AS 65201/65202 -> border1`, `AS_PATH 65203 65600 65201 65301 65311 i`, convergência `10s`, withdraw `12s`, `30/30` HTTP para Pod VIP `.10` e VM VIP `.20`), mantendo **`r6_kernel_bgp_routes = 0`** (`table-map RM-NO-KERNEL`, `0` rotas `proto bgp` na tabela `main`) e concluindo rollback limpo (`MemAvailable = 4,23 GiB`). |
 | V09 (`H7`) / V07-B / V08-B — EVPN Type 5 por VRF, Overlap e Cutover FRR | **PASS** (25/10/2026) | `V09`: `vrf-tenant-a` (`VNI 10100`, `RT 65000:10100`) e `vrf-tenant-b` (`VNI 10200`, `RT 65000:10200`) anunciam EVPN Type 5 (`[5]`: `10.253.10.0/24`, `10.253.20.0/24`, `10.253.11.0/24`, `10.253.21.0/24`) entre `p003-gw-worker` e `p003-gw-worker2` (`30/30` intra-VRF, `0/10` cross-VRF, `RT 65000:99900` rejeitado, `R6=0`). `V07-B`: CIDR sobreposto `10.253.10.0/24` e IP `10.253.10.100/24` isolados por VRF/EVPN Type 5 no FRR (`30/30` intra-VRF, `0/10` cross-VRF, `R6=0`), mantendo o limite de colisão no endpoint map eBPF global do Cilium OSS (`eth0`). `V08-B`: cutover `10.60.0.50/32` via `Cilium -> FRR 10.7.1 no nó -> border1` (`AS_PATH 65203 65600 65201 65301 65311`, `rib_em=27s`, `cutover_total=40s`, `30/30` HTTP, `R6=0`) + rollback limpo (`MemAvailable = 4,95 GiB`). |
-| G07 / G08 (`P004-S008`) — Síntese `INV × Aberto` e Higiene Final | **PASS** (25/10/2026) | `G07`: Matriz comparativa `INV × Cilium A × Cilium B × OVN-K (C/D)` e 6 critérios objetivos de aceite (`INV-PoC-01` a `INV-PoC-06`) publicados em `20-mgc-estado-parcial.md` §4.2 e no Guia do Estudante (Ed. 2.3). `G08`: `mgc`, `evpn-fabric` e `ovnk` desligados (`up=nao`, `0` resíduos), `p003-os` preservado (`exited`), `p003-gw` em baseline (`ipam=kubernetes`, `0` pools, `R6=0`, `verify OK`), `k01` `10/10` (`verify OK`) e `MemAvailable = 4,95 GiB` (baseline S008) / `4,93 GiB` (pós-verify final `G08`, `>= 4,00 GiB`). |
+| G07 / G08 (`P004-S008`) — Síntese `INV × Aberto` e Higiene Final | **PASS** (25/10/2026) | `G07`: Matriz comparativa `INV × Cilium A × Cilium B × OVN-K (C/D)` e 6 critérios objetivos de aceite (`INV-PoC-01` a `INV-PoC-06`) publicados em `20-mgc-estado-parcial.md` §4.2 e no Guia do Estudante (Ed. 2.3). `G08`: `dci`, `evpn-fabric` e `ovnk` desligados (`up=nao`, `0` resíduos), `p003-os` preservado (`exited`), `p003-gw` em baseline (`ipam=kubernetes`, `0` pools, `R6=0`, `verify OK`), `k01` `10/10` (`verify OK`) e `MemAvailable = 4,95 GiB` (baseline S008) / `4,93 GiB` (pós-verify final `G08`, `>= 4,00 GiB`). |
 
 Consulte
-[MGC, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008 (§1–§8, G07 e G08)](estudos/20-mgc-estado-parcial.md)
+[DCI, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008 (§1–§8, G07 e G08)](estudos/20-mgc-estado-parcial.md)
 para a matriz comparativa completa **Cilium A vs Cilium B vs INV (`V00–V09` / `H1–H8`)**, os critérios **`INV-PoC-01` a `INV-PoC-06` (`G07`)**, o blueprint de transição para o Braço **OVN-Kubernetes (`C` / `D`)** e as perguntas de estudo.
 
 ## P005 — Estudos Avançados em Ondas Paralelas (Braço A eBGP ∥ Braço B Datapath eBPF)

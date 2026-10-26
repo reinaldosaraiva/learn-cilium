@@ -120,7 +120,7 @@ Todas as mudanças relevantes deste repositório de estudos e laboratório
 - **P004-S008 — Síntese `INV × Equivalente Aberto` (`G07`), Guia do Estudante Ed. 2.3 e Higiene Final (`G08`) (`Verdict: PASS`, Encerramento de `P004`):**
   - Seção **`§4.2 Síntese INV × Equivalente Aberto e Critérios de Aceite para uma PoC Comercial do INV (Gate G07)`** em [`poc-k8s-fabric/docs/estudos/20-mgc-estado-parcial.md`](poc-k8s-fabric/docs/estudos/20-mgc-estado-parcial.md), definindo os 6 critérios objetivos de aceite (`INV-PoC-01` a `INV-PoC-06`) e contrastando Cilium OSS (`Braço A`), Cilium + FRR (`Braço B`), OVN-Kubernetes (`Braço C/D`) e INV.
   - Atualização do [Guia do Estudante para a Edição 2.3](poc-k8s-fabric/docs/lab-guide-student.md) (nova seção `13.4` cobrindo `S006–S008`, exercícios de interpretação e limites), regeneração dos diagramas [`08-p004-estado.svg`](poc-k8s-fabric/docs/diagramas/08-p004-estado.svg) (`.png`) e [`09-p004-tres-planos-kubevirt.svg`](poc-k8s-fabric/docs/diagramas/09-p004-tres-planos-kubevirt.svg) (`.png`) e do PDF [`output/pdf/cilium-lab-student-guide.pdf`](output/pdf/cilium-lab-student-guide.pdf).
-  - Gate **`G08`** de higiene final comprovado em `vm-cilium` ([`poc-k8s-fabric/evidence/P004/S008/`](poc-k8s-fabric/evidence/P004/S008/)): `mgc`, `evpn-fabric` e `ovnk` desligados (`up=nao`, `0` resíduos), `p003-os` preservado (`exited`), `p003-gw` limpo em `ipam.mode=kubernetes` (`0` pools, `R6=0`, `verify OK`), canário `k01` `10/10` (`verify OK`) e `MemAvailable = 4,95 GiB` (baseline S008) / `4,93 GiB` (pós-verify final `G08`, `>= 4,00 GiB`).
+  - Gate **`G08`** de higiene final comprovado em `vm-cilium` ([`poc-k8s-fabric/evidence/P004/S008/`](poc-k8s-fabric/evidence/P004/S008/)): `dci`, `evpn-fabric` e `ovnk` desligados (`up=nao`, `0` resíduos), `p003-os` preservado (`exited`), `p003-gw` limpo em `ipam.mode=kubernetes` (`0` pools, `R6=0`, `verify OK`), canário `k01` `10/10` (`verify OK`) e `MemAvailable = 4,95 GiB` (baseline S008) / `4,93 GiB` (pós-verify final `G08`, `>= 4,00 GiB`).
 - **P004-S007 — Braço Cilium B (`V09`/`H7`, `V07-B`, `V08-B`), Matriz Final Cilium A vs B e Blueprint Fase 2 OVN-K (`C/D`) (`Verdict: PASS`):**
   - Execução ao vivo em `vm-cilium` dos scripts do Braço Cilium B ([`poc-k8s-fabric/studies/p004/cilium-b/`](poc-k8s-fabric/studies/p004/cilium-b/), evidências em [`poc-k8s-fabric/evidence/P004/S007/`](poc-k8s-fabric/evidence/P004/S007/)):
     - `V09 (H7)`: EVPN Type 5 (`[5]`) por VRF Linux (`vrf-tenant-a` `VNI 10100` `RT 65000:10100` e `vrf-tenant-b` `VNI 10200` `RT 65000:10200`) via `DaemonSet/frr-node` (`FRR 10.7.1`) com `30/30` intra-VRF, `0/10` cross-VRF, `RT 65000:99900` rejeitado e `R6=0`.
@@ -146,12 +146,12 @@ Todas as mudanças relevantes deste repositório de estudos e laboratório
   - `V06 (C06 / H4)`: Multi-Pool `/32` BGP por VM (`CiliumPodIPPool p004-vm`, `10.252.0.23/32` → `10.252.0.4/32` em `border1` após migração de `20 s`, retenção do `/32` antigo no `CiliumNode` pelo piso `multiPoolPreAllocation` `D-S010-1`), registro de `D-S010-4` estendido aos pods do control-plane KubeVirt e rollback completo a `ipam.mode=kubernetes` (`0` pools residuais, `labctl p003-gw verify` e `labctl k01 verify` `OK`, `MemAvailable = 4,97 GiB`).
 - **P004-S004 — Casos Cruzados entre Planos `X01–X04`, `X06`, `X07` (`Verdict: PASS`):**
   - Scripts e manifests em `poc-k8s-fabric/studies/p004/cases/` provando os gates **`G04`** e **`G05`**.
-  - `X01 (G04)`: Tenant unificado fim a fim entre o plano MGC (`192.168.100.10`), o fabric EVPN (`10.0.0.10`) e a VM KubeVirt no OVN-K (`10.200.0.x`, `30/30`).
+  - `X01 (G04)`: Tenant unificado fim a fim entre o plano DCI (`192.168.100.10`), o fabric EVPN (`10.0.0.10`) e a VM KubeVirt no OVN-K (`10.200.0.x`, `30/30`).
   - `X02`, `X03`, `X04`, `X06`, `X07 (G05)`: Isolamento em 3 planos com `10.200.0.0/24` e `10.0.0.0/24` sobrepostos (`0` pacotes vazados), filtro por BGP community (`65000:100` vs `65000:999`), bloqueio de Route-Target incorreto (`0/30`), guarda de colisão de CIDR em VRF hub e isolamento L2 em `MAC-VRF` EVPN Type 2 (`VNIs 20100/20200` com `172.16.50.0/24`).
 - **P004-S003 — Braço OVN-Kubernetes `v1.4.0` + KubeVirt `v1.9.0` + EVPN (`Verdict: PASS`):**
   - Perfis `labctl evpn-fabric` e `labctl ovnk` e matriz `K01–K04` em `poc-k8s-fabric/studies/p004/evpn-fabric/` e `poc-k8s-fabric/studies/p004/ovnk/` (`K01` UDN com CIDR sobreposto `10.100.0.0/24` e mesmo IP `.14` isolado; `K02` live migration preservando IP `.14` e sessão TCP com `0%` packet loss; `K03` `CUDN` + `EVPN Type 5` via `frr-k8s` `v0.0.27`; `K04` lift-and-shift de IP fixo `192.168.50.10/24`).
 - **Diagramas e Guia do Estudante (Edição 2.2):**
-  - Novo diagrama arquitetural [`09-p004-tres-planos-kubevirt.svg`](poc-k8s-fabric/docs/diagramas/09-p004-tres-planos-kubevirt.svg) (`.png`) comparando lado a lado os três planos de rede para VMs (OVN-K `K01–K04`, MGC + Fabric EVPN Cruzado `X01–X07` e Braço Cilium A + KubeVirt `V00–V06`).
+  - Novo diagrama arquitetural [`09-p004-tres-planos-kubevirt.svg`](poc-k8s-fabric/docs/diagramas/09-p004-tres-planos-kubevirt.svg) (`.png`) comparando lado a lado os três planos de rede para VMs (OVN-K `K01–K04`, DCI + Fabric EVPN Cruzado `X01–X07` e Braço Cilium A + KubeVirt `V00–V06`).
   - Atualização de [`08-p004-estado.svg`](poc-k8s-fabric/docs/diagramas/08-p004-estado.svg) (`.png`) com o progresso consolidado `S001–S005 PASS`.
   - Atualização do [Guia do Estudante para a Edição 2.2](poc-k8s-fabric/docs/lab-guide-student.md) (seções `13.1`, `13.2` e `13.3`) e regeneração de [`output/pdf/cilium-lab-student-guide.pdf`](output/pdf/cilium-lab-student-guide.pdf).
 
@@ -160,11 +160,11 @@ Todas as mudanças relevantes deste repositório de estudos e laboratório
 ## [v2.1.0] — 2026-10-23
 
 ### Adicionado
-- **P004-S001 & P004-S002 — `labctl` e Réplica MGC Connect (`OVN 26.03.3` + `OVS 3.7` + `FRR`) (`Verdict: PASS`):**
+- **P004-S001 & P004-S002 — `labctl` e Réplica DCI Connect (`OVN 26.03.3` + `OVS 3.7` + `FRR`) (`Verdict: PASS`):**
   - CLI [`poc-k8s-fabric/labctl/labctl`](poc-k8s-fabric/labctl/labctl) idempotente com `--dry-run`, `--evidence` e medição de memória antes/depois.
-  - Réplica em miniatura da PoC MGC Connect (`labctl mgc`): cenários `M01` (BGP/ECMP e falhas), `M02` (MTU `1500` vs `9000` / PMTU) e `M03` (EVPN Type 5 VNI `50100` com controle causal).
+  - Réplica em miniatura da PoC DCI Connect (`labctl dci`): cenários `M01` (BGP/ECMP e falhas), `M02` (MTU `1500` vs `9000` / PMTU) e `M03` (EVPN Type 5 VNI `50100` com controle causal).
   - Caso `X05`: dois tenants com `192.168.100.0/24` e `169.254.254.0/30` sobrepostos em `ovnvrf100` (VNI `50100`) e `ovnvrf50200` (VNI `50200`, RT `65000:50200`) isolados simultaneamente (`30/30` intra-tenant, `0/3` cross-tenant, `0` resíduos pós-rollback).
-  - Medição de capacidade pós-MGC (`0,539 GiB` somando containers `mgc` + OVS host; `MemAvailable = 6,38 GiB` com `k01`, `p003-gw` e `mgc` ativos simultaneamente).
+  - Medição de capacidade pós-DCI (`0,539 GiB` somando containers `dci` + OVS host; `MemAvailable = 6,38 GiB` com `k01`, `p003-gw` e `dci` ativos simultaneamente).
   - Edição 2.1 do [Guia do Estudante](poc-k8s-fabric/docs/lab-guide-student.md) com o Módulo 13 inicial e diagrama `08-p004-estado`.
 
 ---

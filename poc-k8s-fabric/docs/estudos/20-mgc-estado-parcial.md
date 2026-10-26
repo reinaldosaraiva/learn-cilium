@@ -1,19 +1,19 @@
-# 20 — MGC, OVN-Kubernetes, Cross-Plane e KubeVirt sobre Cilium (`A` vs `B`): Consolidação, Síntese `INV × Aberto` e Blueprint Fase 2 (`P004-S001` a `P004-S008`)
+# 20 — DCI, OVN-Kubernetes, Cross-Plane e KubeVirt sobre Cilium (`A` vs `B`): Consolidação, Síntese `INV × Aberto` e Blueprint Fase 2 (`P004-S001` a `P004-S008`)
 
 Este capítulo consolida as evidências empíricas obtidas no laboratório `vm-cilium` (kernel `6.8.0-139-generic`, `31,34 GiB` RAM, zero swap, piso operacional `MemAvailable >= 4 GiB` conforme `R3`) ao longo de todas as sessões **`P004-S001` a `P004-S008`** do plano [`P004`](../../../plans/P004.md). Ele fecha as seções **§1 a §8** previstas no contrato de desenho [`P004-design-contract.md`](../../../plans/P004-design-contract.md) e na investigação [`20-kubevirt-inv.md`](../../../plans/P004/20-kubevirt-inv.md), bem como os gates finais **`G07`** (síntese `INV × equivalente aberto` e critérios de aceite para PoC comercial) e **`G08`** (higiene final dos laboratórios), entregando:
 
-1. O histórico verificado dos braços **MGC** (`S001–S002`), **OVN-Kubernetes** (`S003`), **Cross-Plane** (`S004`) e **KubeVirt sobre Cilium (`A` e `B`)** (`S005–S007`);
+1. O histórico verificado dos braços **DCI** (`S001–S002`), **OVN-Kubernetes** (`S003`), **Cross-Plane** (`S004`) e **KubeVirt sobre Cilium (`A` e `B`)** (`S005–S007`);
 2. A **Matriz Comparativa Final `Cilium A` vs `Cilium B` vs `INV` (`V00–V09` / `H1–H8`)** e os **Critérios de Aceite para uma PoC Comercial do INV (`G07`, `S008`)**;
 3. O **Blueprint de Transição para o Braço OVN-Kubernetes (`C` / `D`)** na preparação da Fase 2 e o registro de **Higiene Final (`G08`, `S008`)**.
 
 ---
 
-## 1. `P004-S001` e `P004-S002`: Orquestrador `labctl` e Braço MGC (`M01–M03`, `X05`)
+## 1. `P004-S001` e `P004-S002`: Orquestrador `labctl` e Braço DCI (`M01–M03`, `X05`)
 
 - **Orquestrador `labctl` (`P004-S001`, 27/09/2026 — `PASS`):**
   - Implementado em [`poc-k8s-fabric/labctl/`](../../labctl/) com guarda de memória `R3` (`MemAvailable >= 4 GiB`), preservação do canário `k01` (`uid=635e7274-5597-40c7-9de5-b1fbe3d68b22`, `10/10`) e proteção `preserve-only` do container `p003-os` (`exited`).
   - Decisão `D5 = NÃO`: o `p003-os` (OpenStack) permaneceu desligado durante todo o ciclo `P004`, mantendo margem confortável de RAM.
-- **Braço MGC (`P004-S002`, 23/10/2026 — `PASS`):**
+- **Braço DCI (`P004-S002`, 23/10/2026 — `PASS`):**
   - **`M01` (Failover de Gateway e Reconvergência):** `failover_loss = 0%`, `reconvergence = 22 ms` (`<= 2 s`), retorno a `ovn-gw-1` como gateway ativo.
   - **`M02` (Teto de MTU no Túnel Geneve):** `1422 B` (`payload 1394 B`, `0% loss`) passa sem fragmentação; `1423 B` (`payload 1395 B`, `100% loss` com `DF`).
   - **`M03` (EVPN Type-5 Norte-Sul via FRR):** rota `10.250.0.0/24` anunciada em `L2VPN EVPN` (`[5]:[0]:[24]:[10.250.0.0]`, `VNI 10100`, `RT 65000:10100`) e instalada na `vrf-tenant-a` com `0%` perda norte-sul.
@@ -28,13 +28,13 @@ Este capítulo consolida as evidências empíricas obtidas no laboratório `vm-c
   - **`K02` (Live Migration KubeVirt sobre `UDN` Primária Layer2):** `VirtualMachineInstanceMigration` `Succeeded` (`ovnk-worker2 -> ovnk-worker`), IP do guest OS CirrOS `10.0.0.11/24` preservado (lido diretamente via `/dev/ttyS0` — `N5`), sessão TCP persistente na porta `9999` intacta, `max_gap_ms = 200,8 ms` e `0%` perda pós-migração.
   - **`K03` (`ClusterUserDefinedNetwork` `transport: EVPN` + `VTEP` + `RouteAdvertisements` + `frr-k8s` `v0.0.21`):** `RouteAdvertisements/ra-evpn` `Accepted=True`, BGP `Established` nos 3 nós com `ovnk-evpn-peer` (`AS 65000`), rotas EVPN Type-2 (`[2]`, `VNI 20100`, `RT 65000:20100`) e Type-5 (`[5]:[0]:[24]:[10.0.0.0]`, `VNI 10100`, `RT 65000:10100`) validadas em JSON estruturado (`R8`) e `5/5` pings norte-sul (`pod-evpn -> 10.253.0.1`).
   - **`K04` (Coexistência com Legado via `NetworkAttachmentDefinition` Secundária `localnet`):** `vmi/vm-legacy` dual-homed (`ovn-udn1` `10.0.0.99/24` + `net1` `192.168.100.11/24` em `evpn-nad-fabric` sobre `br-legacy` / `VNI 20400`), `5/5` pings simultâneos no plano UDN e no plano legado.
-- **Casos Cross-Plane MGC + OVN-Kubernetes (`P004-S004`, 24/10/2026 — `PASS`, `G04` e `G05` fechados):**
-  - **`X01` (Tenant Unificado EVPN Type-5 MGC + OVN-K, `G04`):** `10.250.0.0/24` (MGC `10.250.0.254`) e `10.0.0.0/24` (OVN-K `pod-evpn` `10.0.0.6` e `vmi/vm-x01-a` `10.0.0.51`) na mesma `VRF` (`VNI 10100`, `RT 65000:10100`), com `5/5` pings bidirecionais e `RTT` médio `1,001 ms` (pod) / `1,528 ms` (VM).
+- **Casos Cross-Plane DCI + OVN-Kubernetes (`P004-S004`, 24/10/2026 — `PASS`, `G04` e `G05` fechados):**
+  - **`X01` (Tenant Unificado EVPN Type-5 DCI + OVN-K, `G04`):** `10.250.0.0/24` (DCI `10.250.0.254`) e `10.0.0.0/24` (OVN-K `pod-evpn` `10.0.0.6` e `vmi/vm-x01-a` `10.0.0.51`) na mesma `VRF` (`VNI 10100`, `RT 65000:10100`), com `5/5` pings bidirecionais e `RTT` médio `1,001 ms` (pod) / `1,528 ms` (VM).
   - **`X02` (Isolamento Multi-VRF Cross-Plane):** `VNI 10100` (`RT 65000:10100`) vs `VNI 10200` (`RT 65000:10200`) com `5/5` controles positivos e `0` pacotes vazados no cruzamento (`rc=124`).
   - **`X03` (Política de Comunidades BGP):** `65000:100` define `LocalPref 200` no caminho primário; `65000:666` bloqueia anúncio para o coletor externo `x03-ext-peer` (`AS 65099`).
   - **`X04` (Guardrail de Route-Target Incorreto):** `RT 65000:99900` rejeitado por `vrf-tenant-a` (`0` rotas importadas, `0/5` pings); restaurado `RT 65000:10100` -> `5/5` pings OK.
   - **`X06` (Rejeição de Sub-redes Sobrepostas na Mesma VRF):** `route-map RM-X06-GUARD` (`prefix-list PL-TENANT-A-OWN` `deny 10`) bloqueia sequestro de `10.250.0.0/24` na mesma VRF (`0` pacotes desviados para `rogue-vtep`).
-  - **`X07` (MAC-VRF EVPN Type-2 L2 Estendido, `G05`):** domínio L2 estendido `10.253.200.0/24` (`VNI 20100`, `RT 65000:20100`) entre MGC (`.10`), `evpn-peer` (`.1`), Pod OVN-K (`.20`) e KubeVirt VMI (`.21`) com `ARP` + `5/5` pings L2 e rotas `[2]` MAC/IP com `MPLS label 20100`.
+  - **`X07` (MAC-VRF EVPN Type-2 L2 Estendido, `G05`):** domínio L2 estendido `10.253.200.0/24` (`VNI 20100`, `RT 65000:20100`) entre DCI (`.10`), `evpn-peer` (`.1`), Pod OVN-K (`.20`) e KubeVirt VMI (`.21`) com `ARP` + `5/5` pings L2 e rotas `[2]` MAC/IP com `MPLS label 20100`.
 
 ---
 
@@ -140,8 +140,8 @@ flowchart TB
     UDN --> NAD
   end
 
-  subgraph ArmD["Braço OVN-Kubernetes D (Coexistência Híbrida Cilium + OVN-K / MGC)"]
-    D1["Padrão D1 (Federado via Fabric EVPN):<br/>p003-gw (Workloads Cloud-Native + VMs L3 /32)<br/><--> EVPN VNI 10100/20100 <--><br/>ovnk (VMs L2, Same-CIDR, Live Migration) + MGC Legado"]
+  subgraph ArmD["Braço OVN-Kubernetes D (Coexistência Híbrida Cilium + OVN-K / DCI)"]
+    D1["Padrão D1 (Federado via Fabric EVPN):<br/>p003-gw (Workloads Cloud-Native + VMs L3 /32)<br/><--> EVPN VNI 10100/20100 <--><br/>ovnk (VMs L2, Same-CIDR, Live Migration) + DCI Legado"]
     D2["Padrão D2 (Dual-Plane via Multus):<br/>eth0 Primária (Políticas eBPF / VIP) +<br/>net1 Secundária (OVS localnet / EVPN VRF)"]
   end
 
@@ -173,7 +173,7 @@ Em ambientes reais que já operam **Cilium** (como `p003-gw` ou `k01`) para carg
 1. **Padrão `D1` — Coexistência Federada Multi-Cluster pelo Fabric EVPN (`Recomendado para Produção`):**
    - **Plano Cloud-Native & VMs L3 (`p003-gw` — Cilium A/B):** mantém `Cilium 1.20.2` (com ou sem `FRR 10.7.1` no nó) para microsserviços Kubernetes, `Gateway API`, `CiliumNetworkPolicy` L7 e VMs KubeVirt stateless/L3 que aceitam endereçamento `/32` único via `CiliumPodIPPool` (`V04`, `V06`, `V08`).
    - **Plano Virtualização L2/Multi-Tenant (`ovnk` — OVN-Kubernetes `C`):** hospeda VMs KubeVirt que exigem `same-CIDR` (`10.0.0.0/24`), Live Migration L2 sem VIP (`l2bridge`), EVPN Type-2 (`MAC-VRF` `VNI 20100`) e EVPN Type-5 (`IP-VRF` `VNI 10100`/`10200`).
-   - **Interconexão Norte-Sul/Leste-Oeste Unificada:** ambos os clusters pareiam com o mesmo fabric BGP/EVPN (`AS 65000` / `border1`) — exatamente como validado em `X01–X04` e `X06–X07` entre planos heterogêneos. Uma VRF EVPN no fabric (`vrf-tenant-a`, `VNI 10100`, `RT 65000:10100`) importa tanto os prefixos Type-5 das UDNs do cluster `ovnk` quanto os `/32` ou `/24` anunciados pelo Braço Cilium B (`V09`) e pelos gateways legados MGC (`M03`).
+   - **Interconexão Norte-Sul/Leste-Oeste Unificada:** ambos os clusters pareiam com o mesmo fabric BGP/EVPN (`AS 65000` / `border1`) — exatamente como validado em `X01–X04` e `X06–X07` entre planos heterogêneos. Uma VRF EVPN no fabric (`vrf-tenant-a`, `VNI 10100`, `RT 65000:10100`) importa tanto os prefixos Type-5 das UDNs do cluster `ovnk` quanto os `/32` ou `/24` anunciados pelo Braço Cilium B (`V09`) e pelos gateways legados DCI (`M03`).
 2. **Padrão `D2` — Coexistência Intra-Cluster via Multus (Cilium Primário `eth0` + Plano Secundário `net1` L2/EVPN):**
    - Quando um único cluster Cilium precisa anexar VMs a segmentos L2/EVPN sobrepostos sem esbarrar na colisão do mapa global `cilium_lxc` (`V07-A`), a interface primária `eth0` do `virt-launcher` permanece no Cilium (para telemetria, healthchecks e saída default), enquanto o tráfego do tenant usa uma interface secundária `net1` provida por Multus (`bridge`/`ovs-cni` ligada às VRFs/VXLAN do FRR no nó como em `V07-B`/`V09`).
    - *Trade-off documentado:* no Padrão `D2`, políticas `CiliumNetworkPolicy` e `Hubble` inspecionam apenas `eth0` (não `net1`), e a Live Migration de interfaces secundárias bridge exige suporte explícito do binding/CNI secundário; por isso, para virtualização KubeVirt de primeira classe, o **Braço `C` (ou `D1`)** é arquiteturalmente superior.
@@ -222,15 +222,15 @@ Como o host `vm-cilium` possui `31,34 GiB` de RAM total (zero swap) e mantém o 
 
 ---
 
-## 6. Comparação Global dos Cinco Caminhos do Estudo (`MGC` × `Cilium A` × `Cilium B` × `OVN-K C` × `Híbrido D`)
+## 6. Comparação Global dos Cinco Caminhos do Estudo (`DCI` × `Cilium A` × `Cilium B` × `OVN-K C` × `Híbrido D`)
 
-| Dimensão | 1. Braço MGC (`S002`) | 2. Braço Cilium A (`S005–S006`) | 3. Braço Cilium B (`S006–S007`) | 4. Braço OVN-K `C` (`S003–S004`) | 5. Braço Híbrido `D` (`Fase 2`) |
+| Dimensão | 1. Braço DCI (`S002`) | 2. Braço Cilium A (`S005–S006`) | 3. Braço Cilium B (`S006–S007`) | 4. Braço OVN-K `C` (`S003–S004`) | 5. Braço Híbrido `D` (`Fase 2`) |
 |---|---|---|---|---|---|
 | **Plano de Controle / CNI** | `ovn-central` + `ovn-controller` + FRR nos gateways (`ovn-gw-1/2`) | `Cilium 1.20.2` (`ipam=kubernetes` ou `multi-pool`) + `GoBGP` embarcado | `Cilium 1.20.2` + `DaemonSet/frr-node` (`FRR 10.7.1`, `10.255.255.1:1790`) | `OVN-Kubernetes release-1.4` + `frr-k8s v0.0.21` + Multus | Federado (`D1`: `p003-gw` + `ovnk` sobre EVPN) ou Dual-Plane (`D2`: Cilium `eth0` + Multus `net1`) |
 | **Encapsulamento Overlay** | Geneve (`6081`, MTU `1422 B`) + VXLAN EVPN (`4789`, `VNI 10100/10200`) | Roteamento nativo L3 (`veth` + `tcx` eBPF) + BGP IPv4 Unicast | `veth` + `tcx` eBPF (`main` `R6=0`) + VXLAN EVPN (`4789`) nas VRFs do FRR | Geneve (`6081`) intra-cluster + VXLAN SVD (`4789`, `VNI 10100/20100/20400`) | Combina roteamento eBPF L3/L7 no plano Cilium com EVPN Type-2/Type-5 no plano OVN-K |
 | **Suporte a `same-CIDR` Multi-Tenant** | Sim, por VRF/L3VNI (`X05` `10.200.0.0/24`) | **Não** (`V07-A`: flat routing + colisão `cilium_lxc`) | Parcial: isolado em VRFs auxiliares do FRR (`V07-B`), **não** em `eth0` | **Sim, nativo em `ovn-udn1`** (`K01` `10.0.0.0/24` em `tenant-a` e `tenant-b`) | **Sim** (alocando VMs multi-tenant no plano OVN-K `D1` ou interface secundária `D2`) |
 | **Live Migration KubeVirt** | N/A (workloads não-K8s / legado) | Apenas L3 via `Service` VIP (`masquerade`, `~2s`); `l2bridge` bloqueado (`V05`) | Igual ao Cilium A em `eth0` | **Nativo L2 sem troca de IP** (`K02`: `10.0.0.11/24` mantido, `max_gap_ms=200,8 ms`) | **Sim** para VMs hospedadas no domínio UDN Layer2 (`D1`) |
-| **Integração EVPN Type-2 / Type-5** | Type-2 (`X07`) e Type-5 (`M03`, `X01`) via FRR dedicado | Sem suporte a `l2vpn/evpn` no Cilium OSS | Type-5 (`[5]`) via VRFs do `frr-node` (`V09`/`H7`) sem CRD nativo | **Type-2 (`VNI 20100`) e Type-5 (`VNI 10100`) declarativos via `CUDN` + `VTEP` (`K03`)** | **Unificada no fabric EVPN (`AS 65000`)** compartilhando RTs/VNIs entre MGC, Cilium B e OVN-K |
+| **Integração EVPN Type-2 / Type-5** | Type-2 (`X07`) e Type-5 (`M03`, `X01`) via FRR dedicado | Sem suporte a `l2vpn/evpn` no Cilium OSS | Type-5 (`[5]`) via VRFs do `frr-node` (`V09`/`H7`) sem CRD nativo | **Type-2 (`VNI 20100`) e Type-5 (`VNI 10100`) declarativos via `CUDN` + `VTEP` (`K03`)** | **Unificada no fabric EVPN (`AS 65000`)** compartilhando RTs/VNIs entre DCI, Cilium B e OVN-K |
 | **Políticas L7 / Gateway API / eBPF** | Não (ACLs OVN L3/L4) | **Sim, nativo** (`CiliumNetworkPolicy` L3–L7, Envoy Gateway API, Hubble `V03`) | **Sim, nativo** (preservado integralmente por `R6=0`) | `NetworkPolicy` / `AdminNetworkPolicy` L3/L4 (via OVN ACLs) | **Máxima** (mantém Gateway API/Hubble no Cilium e UDN/EVPN no OVN-K) |
 
 ---
