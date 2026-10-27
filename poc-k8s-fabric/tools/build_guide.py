@@ -81,6 +81,20 @@ def _register_font() -> tuple[str, str]:
         if Path(regular_path).is_file() and Path(bold_path).is_file():
             pdfmetrics.registerFont(TTFont("GuideSans", regular_path))
             pdfmetrics.registerFont(TTFont("GuideSans-Bold", bold_path))
+            italic, bold_italic = "GuideSans", "GuideSans-Bold"
+            italic_path = regular_path.replace("Arial.ttf", "Arial Italic.ttf").replace("Sans.ttf", "Sans-Oblique.ttf").replace("Regular.ttf", "Italic.ttf")
+            bold_italic_path = bold_path.replace("Bold.ttf", "Bold Italic.ttf") if "Arial" in bold_path else bold_path.replace("Bold.ttf", "BoldOblique.ttf" if "DejaVu" in bold_path else "BoldItalic.ttf")
+            if Path(italic_path).is_file() and Path(bold_italic_path).is_file():
+                pdfmetrics.registerFont(TTFont("GuideSans-Italic", italic_path))
+                pdfmetrics.registerFont(TTFont("GuideSans-BoldItalic", bold_italic_path))
+                italic, bold_italic = "GuideSans-Italic", "GuideSans-BoldItalic"
+            pdfmetrics.registerFontFamily(
+                "GuideSans",
+                normal="GuideSans",
+                bold="GuideSans-Bold",
+                italic=italic,
+                boldItalic=bold_italic,
+            )
             return "GuideSans", "GuideSans-Bold"
     return "Helvetica", "Helvetica-Bold"
 
@@ -110,7 +124,17 @@ def _inline(text: str, regular_font: str, code_font: str = "Courier") -> str:
             return label
         return f'<link href="{html.escape(target, quote=True)}" color="#144B63"><u>{label}</u></link>'
 
-    text = re.sub(r"\[([^]]+)\]\(([^)]*)\)", link, text)
+    def protect_link(match: re.Match[str]) -> str:
+        marker = f"\x00CODE{len(code_fragments)}\x00"
+        code_fragments.append(link(match))
+        return marker
+
+    def bare_url(match: re.Match[str]) -> str:
+        url = match.group(0)
+        return f'<link href="{url}" color="#144B63">{url}</link>'
+
+    text = re.sub(r"\[([^]]+)\]\(([^)]*)\)", protect_link, text)
+    text = re.sub(r"https?://[^\s<]*[^\s<.,;:)]", bare_url, text)
     for index, fragment in enumerate(code_fragments):
         text = text.replace(f"\x00CODE{index}\x00", fragment)
     return text
@@ -151,9 +175,10 @@ def parse_markdown(path: Path) -> tuple[Block, ...]:
                     index += 1
                     while index < len(lines) and (
                         not lines[index].strip()
-                        or re.match(r"^\d+\.\s+", lines[index])
+                        or re.match(r"^(\d+\.|-)\s+", lines[index])
                     ):
                         index += 1
+                    blocks.append(Block("toc", None))
                     continue
                 blocks.append(Block("heading", Heading(len(match.group(1)), match.group(2))))
                 index += 1
@@ -323,7 +348,7 @@ class GuideDocTemplate(SimpleDocTemplate):
 
     def afterFlowable(self, flowable: Flowable) -> None:
         heading = getattr(flowable, "_guide_heading", None)
-        if heading is not None:
+        if heading is not None and not getattr(flowable, "_guide_pretextual", False):
             self.heading_pages.append((heading.level, heading.text, self.page))
 
 
@@ -417,6 +442,29 @@ def _styles(regular_font: str, bold_font: str) -> dict[str, ParagraphStyle]:
             leading=11,
             leftIndent=12,
             textColor=colors.HexColor("#49626B"),
+        ),
+        "caption": ParagraphStyle(
+            "GuideCaption",
+            parent=base["BodyText"],
+            fontName=bold_font,
+            fontSize=8.4,
+            leading=11,
+            textColor=colors.HexColor("#23343A"),
+            alignment=TA_CENTER,
+            spaceBefore=4,
+            spaceAfter=4,
+            keepWithNext=True,
+        ),
+        "source": ParagraphStyle(
+            "GuideSource",
+            parent=base["BodyText"],
+            fontName=regular_font,
+            fontSize=7.8,
+            leading=10,
+            textColor=colors.HexColor("#3E555D"),
+            alignment=TA_LEFT,
+            spaceBefore=2,
+            spaceAfter=7,
         ),
         "box": ParagraphStyle(
             "GuideBox",
@@ -514,9 +562,9 @@ def _heading_flowable(heading: Heading, styles: dict[str, ParagraphStyle]) -> Pa
 
 def _toc_table(entries: Sequence[tuple[int, str, int]], styles: dict[str, ParagraphStyle]) -> Table:
     header_style = ParagraphStyle("TOCHeader", parent=styles["toc"], textColor=colors.white)
-    rows = [[Paragraph("Capítulo", header_style), Paragraph("Página", header_style)]]
+    rows = [[Paragraph("Seção", header_style), Paragraph("Página", header_style)]]
     for level, text, page in entries:
-        if level != 2:
+        if level not in (2, 3):
             continue
         style = styles["toc"] if level <= 2 else styles["toc-sub"]
         rows.append(
@@ -552,7 +600,12 @@ class DocMetadata:
     subject: str
     footer: str
     edition: str
-    summary_box: tuple[str, ...]
+    place: str
+    year: str
+    audience: str
+
+
+FIELD = re.compile(r"\*\*([^*:]+):\*\*\s*([^·]+?)\s*(?=·|$)")
 
 
 def extract_metadata(
@@ -560,7 +613,7 @@ def extract_metadata(
     *,
     title: str | None = None,
     subtitle: str | None = None,
-    author: str = "Learn Cilium",
+    author: str | None = None,
     subject: str | None = None,
     footer: str | None = None,
 ) -> DocMetadata:
@@ -568,67 +621,35 @@ def extract_metadata(
 
     extracted_title = ""
     extracted_subtitle = ""
-    extracted_edition = ""
-    summary_lines: list[str] = []
-    sumario_seen = False
+    fields: dict[str, str] = {}
 
     for line in lines:
         stripped = line.strip()
         if not stripped:
             continue
-
-        if stripped.startswith("## ") and stripped[3:].strip() == "Sumário":
-            sumario_seen = True
-
         if not extracted_title and stripped.startswith("# "):
             extracted_title = stripped[2:].strip()
             continue
-
         if not extracted_subtitle and stripped.startswith("## ") and stripped[3:].strip() != "Sumário":
             extracted_subtitle = stripped[3:].strip()
             continue
-
-        if not extracted_edition and "**Edição:**" in stripped:
-            match = re.search(r"\*\*Edição:\*\*\s*([^·\n]+(?:·\s*[^·\n]+)?)", stripped)
-            if match:
-                extracted_edition = match.group(0).replace("**", "")
-            else:
-                extracted_edition = stripped.replace("**", "")
+        if not fields and "**Edição:**" in stripped:
+            fields = {key.strip(): value.strip() for key, value in FIELD.findall(stripped)}
             continue
-
-        if not sumario_seen and stripped.startswith(">"):
-            content = stripped[1:].strip()
-            if content and not content.startswith("**Resumo Executivo") and not content.startswith("**Regra"):
-                summary_lines.append(content)
+        if extracted_subtitle and stripped.startswith("## "):
+            break
 
     doc_title = title or extracted_title or "Livro do aluno: Cilium BGP no laboratório"
     doc_subtitle = subtitle or extracted_subtitle or "Estudo guiado e prática de laboratório"
-    doc_author = author or "Learn Cilium"
+    doc_author = author or fields.get("Autor") or "Learn Cilium"
     doc_subject = subject or (
         "Laboratório Kubernetes, Cilium e BGP"
-        if (path.resolve() == DEFAULT_SOURCE.resolve() and not subject)
+        if path.resolve() == DEFAULT_SOURCE.resolve()
         else (doc_subtitle or doc_title)
     )
-
-    if footer:
-        doc_footer = footer
-    elif path.resolve() == DEFAULT_SOURCE.resolve():
-        doc_footer = "Learn Cilium · Guia do estudante"
-    else:
-        label = doc_subtitle if doc_subtitle else doc_title
-        if len(label) > 36:
-            label = label[:33] + "..."
-        doc_footer = f"{doc_author} · {label}"
-
-    doc_edition = extracted_edition or "Edição 1.0 · laboratório guiado"
-
-    if summary_lines:
-        summary_tuple = tuple(summary_lines[:2])
-    else:
-        summary_tuple = (
-            "Objetivo: observar como o Cilium anuncia PodCIDRs e um VIP de serviço por BGP.",
-            "Resultado: um roteiro seguro para inspecionar o laboratório e explicar o caminho do tráfego.",
-        )
+    short_title = doc_title.split(":", 1)[0]
+    doc_footer = footer or f"{doc_author} · {short_title}"
+    edition = fields.get("Edição", "1.0")
 
     return DocMetadata(
         title=doc_title,
@@ -636,8 +657,10 @@ def extract_metadata(
         author=doc_author,
         subject=doc_subject,
         footer=doc_footer,
-        edition=doc_edition,
-        summary_box=summary_tuple,
+        edition=f"Edição {edition}",
+        place=fields.get("Local", "[S. l.]"),
+        year=fields.get("Ano", ""),
+        audience=fields.get("Público-alvo", ""),
     )
 
 
@@ -667,31 +690,49 @@ def _cover(
     label_style = ParagraphStyle(
         "CoverLabel",
         fontName=bold_font,
-        fontSize=9,
-        leading=12,
+        fontSize=11,
+        leading=14,
         textColor=colors.HexColor("#D47B2C"),
         alignment=TA_CENTER,
     )
-    cover_elements: list[Flowable] = [
-        Spacer(1, 28 * mm),
-        Paragraph(meta.author.upper(), label_style),
-        Spacer(1, 6 * mm),
+    text_style = ParagraphStyle(
+        "CoverText",
+        parent=subtitle_style,
+        fontSize=10,
+        leading=14,
+    )
+    imprint = f"{meta.place}<br/>{meta.year}" if meta.year else meta.place
+    cover = [
+        Spacer(1, 22 * mm),
+        Paragraph(_inline(meta.author.upper(), bold_font), label_style),
+        Spacer(1, 48 * mm),
         Paragraph(_inline(meta.title, bold_font), title_style),
         Paragraph(_inline(meta.subtitle, regular_font), subtitle_style),
-        Spacer(1, 12 * mm),
-    ]
-    cover_elements.append(Spacer(1, 8 * mm))
-
-    cover_elements.extend([
-        _box_flowable(meta.summary_box, styles),
-        Spacer(1, 14 * mm),
-        Paragraph(_inline(meta.edition, regular_font), subtitle_style),
+        Spacer(1, 10 * mm),
+        Paragraph(_inline(meta.edition, regular_font), text_style),
+        Spacer(1, 88 * mm),
+        Paragraph(imprint, text_style),
         PageBreak(),
-    ])
-    return cover_elements
+    ]
+    title_page = [
+        Spacer(1, 22 * mm),
+        Paragraph(_inline(meta.author.upper(), bold_font), label_style),
+        Spacer(1, 48 * mm),
+        Paragraph(_inline(meta.title, bold_font), title_style),
+        Paragraph(_inline(meta.subtitle, regular_font), subtitle_style),
+        Spacer(1, 10 * mm),
+        Paragraph(_inline(meta.edition, regular_font), text_style),
+    ]
+    if meta.audience:
+        title_page += [
+            Spacer(1, 14 * mm),
+            Paragraph(_inline(f"Público-alvo: {meta.audience}", regular_font), text_style),
+        ]
+    title_page += [Spacer(1, 60 * mm), Paragraph(imprint, text_style), PageBreak()]
+    return cover + title_page
 
 
-def _image_flowable(relative_path: str, base_dir: Path) -> Flowable | None:
+def _image_flowable(relative_path: str, base_dir: Path) -> Flowable:
     """Load a local image and scale it to the content width.
 
     A guide with a missing figure is incomplete.  Raising here keeps a typo in
@@ -710,33 +751,68 @@ def _image_flowable(relative_path: str, base_dir: Path) -> Flowable | None:
     return Image(str(img_path), width=width * scale, height=height * scale, hAlign="CENTER")
 
 
+CAPTION = re.compile(r"^\*\*(Figura|Quadro|Tabela) \d+ – .+\*\*$")
+SOURCE_NOTE = re.compile(r"^(Fonte|Nota):\s")
+
+
 def _body_story(
-    blocks: Sequence[Block], styles: dict[str, ParagraphStyle], base_dir: Path,
+    blocks: Sequence[Block],
+    styles: dict[str, ParagraphStyle],
+    base_dir: Path,
+    entries: Sequence[tuple[int, str, int]],
 ) -> list[Flowable]:
     story: list[Flowable] = []
-    skipped_title = False
+    front_matter = True
+    seen_subtitle = False
+    pretextual = True
     for block in blocks:
+        if front_matter:
+            if block.kind == "heading" and isinstance(block.value, Heading):
+                if block.value.level == 1:
+                    continue
+                if block.value.level == 2 and not seen_subtitle:
+                    seen_subtitle = True
+                    continue
+                front_matter = False
+            else:
+                continue
+        if block.kind == "toc":
+            story.append(PageBreak())
+            story.append(Paragraph("Sumário", styles["h2"]))
+            story.append(_toc_table(entries, styles))
+            pretextual = False
+            continue
         if block.kind == "heading":
             heading = block.value
-            if isinstance(heading, Heading) and heading.level == 1 and not skipped_title:
-                skipped_title = True
-                continue
-            story.append(_heading_flowable(heading, styles))
+            assert isinstance(heading, Heading)
+            if heading.level == 2 and story and not isinstance(story[-1], PageBreak):
+                story.append(PageBreak())
+            flowable = _heading_flowable(heading, styles)
+            flowable._guide_pretextual = pretextual
+            story.append(flowable)
         elif block.kind == "paragraph":
-            story.append(Paragraph(_inline(str(block.value), styles["body"].fontName), styles["body"]))
+            text = str(block.value)
+            if CAPTION.match(text):
+                caption = Paragraph(_inline(text.strip("*"), styles["caption"].fontName), styles["caption"])
+                caption._guide_caption = True
+                story.append(caption)
+            elif SOURCE_NOTE.match(text):
+                story.append(Paragraph(_inline(text, styles["source"].fontName), styles["source"]))
+            else:
+                story.append(Paragraph(_inline(text, styles["body"].fontName), styles["body"]))
         elif block.kind == "code":
             story.append(CodeBlock(_wrapped_code(block.value)))
             story.append(Spacer(1, 5))
         elif block.kind == "image":
-            image = _image_flowable(str(block.value), base_dir)
+            group: list[Flowable] = [_image_flowable(str(block.value), base_dir), Spacer(1, 3)]
+            if story and getattr(story[-1], "_guide_caption", False):
+                group.insert(0, story.pop())
             if story and getattr(story[-1], "_guide_heading", None) is not None:
-                heading = story.pop()
-                story.append(KeepTogether([heading, image, Spacer(1, 5)]))
-            else:
-                story.append(KeepTogether([image, Spacer(1, 5)]))
+                group.insert(0, story.pop())
+            story.append(KeepTogether(group))
         elif block.kind == "table":
             story.append(_table_flowable(block.value, styles))
-            story.append(Spacer(1, 6))
+            story.append(Spacer(1, 2))
         elif block.kind == "list":
             for item in block.value:
                 story.append(Paragraph(_inline(item, styles["bullet"].fontName), styles["bullet"], bulletText="•"))
@@ -754,10 +830,14 @@ def _body_story(
             story.append(Spacer(1, 6))
         elif block.kind == "rule":
             story.append(Spacer(1, 4))
+    if pretextual:
+        story[:0] = [Paragraph("Sumário", styles["h2"]), _toc_table(entries, styles), PageBreak()]
     return story
 
 
 def _page_decor(canvas, doc) -> None:
+    if doc.page < getattr(doc, "guide_first_page", 3):
+        return
     canvas.saveState()
     canvas.setStrokeColor(colors.HexColor("#C2D1D6"))
     canvas.setLineWidth(0.5)
@@ -776,7 +856,7 @@ def build_pdf(
     *,
     title: str | None = None,
     subtitle: str | None = None,
-    author: str = "Learn Cilium",
+    author: str | None = None,
     subject: str | None = None,
     footer: str | None = None,
 ) -> tuple[int, int]:
@@ -797,10 +877,7 @@ def build_pdf(
     final_doc = None
     for _ in range(4):
         story = _cover(styles, regular_font, bold_font, meta)
-        story.append(Paragraph("Sumário", styles["h2"]))
-        story.append(_toc_table(entries, styles))
-        story.append(PageBreak())
-        story.extend(_body_story(blocks, styles, source.parent))
+        story.extend(_body_story(blocks, styles, source.parent, entries))
         output.parent.mkdir(parents=True, exist_ok=True)
         doc = GuideDocTemplate(
             str(output),
@@ -816,6 +893,7 @@ def build_pdf(
         )
         doc.guide_font = regular_font
         doc.guide_footer = meta.footer
+        doc.guide_first_page = entries[0][2] if entries else 3
         doc.build(story, onFirstPage=_page_decor, onLaterPages=_page_decor)
         new_entries = tuple(doc.heading_pages)
         final_doc = doc
@@ -875,8 +953,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
                         help="Document title override")
     parser.add_argument("--subtitle", type=str, default=None,
                         help="Document subtitle override")
-    parser.add_argument("--author", type=str, default="Learn Cilium",
-                        help="Document author (default: Learn Cilium)")
+    parser.add_argument("--author", type=str, default=None,
+                        help="Document author (default: the **Autor:** field, else Learn Cilium)")
     parser.add_argument("--subject", type=str, default=None,
                         help="Document subject/topic (default derived from subtitle/title)")
     parser.add_argument("--footer", type=str, default=None,
