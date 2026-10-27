@@ -68,7 +68,7 @@ git clone https://github.com/reinaldosaraiva/learn-cilium.git
 cd learn-cilium
 ~~~
 
-Para gerar o PDF do guia em um ambiente limpo e rodar a suíte de lint/testes (`v2.7.0`):
+Para gerar o PDF do guia em um ambiente limpo e rodar a suíte de lint/testes (`v2.8.0`):
 
 ~~~bash
 make pdf

@@ -63,18 +63,32 @@ make test
 ~~~
 
 O PDF sai em `output/pdf/cilium-lab-student-guide.pdf`. Para criar o guia de
-outro laboratório a partir do molde, use o builder ReportLab
-[`tools/build_guide.py`](tools/build_guide.py):
+outro laboratório, copie o molde ABNT
+[`docs/student-guide-template.md`](docs/student-guide-template.md) para
+`docs/` (os caminhos das figuras são relativos a esse diretório), substitua os
+placeholders `{{...}}` e gere a edição ABNT:
 
 ~~~bash
-python3 poc-k8s-fabric/tools/build_guide.py \
-  --scaffold /tmp/meu-guia.md \
-  --title "Meu laboratório Cilium"
+cp poc-k8s-fabric/docs/student-guide-template.md poc-k8s-fabric/docs/meu-guia.md
+python3 -I poc-k8s-fabric/tools/build_latex.py --check-only \
+  --source poc-k8s-fabric/docs/meu-guia.md
+python3 -I poc-k8s-fabric/tools/build_latex.py \
+  --source poc-k8s-fabric/docs/meu-guia.md \
+  --tex poc-k8s-fabric/docs/latex/meu-guia.tex \
+  --pdf output/pdf/meu-guia.pdf
 ~~~
 
-Esse builder depende somente de ReportLab. Consulte
-[`tools/requirements-guide.txt`](tools/requirements-guide.txt) se precisar
-preparar um ambiente virtual.
+O `--check-only` confere se toda citação tem referência (e vice-versa), a
+ordem alfabética das referências e a numeração de módulos, figuras, quadros e
+tabelas. O molde segue as convenções do guia principal: legenda
+`**Figura N – título**` acima da ilustração, linha `Fonte:` abaixo, módulos
+`## Módulo N — título` com seções `### N.M`, citações autor-data e referências
+na ABNT NBR 6023.
+
+O builder ReportLab [`tools/build_guide.py`](tools/build_guide.py) continua
+disponível para rascunhos rápidos sem LaTeX (`--source`, `--output`,
+`--scaffold`); ele depende somente de ReportLab
+([`tools/requirements-guide.txt`](tools/requirements-guide.txt)).
 
 ## Modelo de anúncios
 

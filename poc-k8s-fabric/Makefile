@@ -1,4 +1,4 @@
-# Makefile — poc-k8s-fabric (v2.7.0)
+# Makefile — poc-k8s-fabric (v2.8.0)
 # Alvos de validação estática (lint), dry-run de estudos (test), geração de PDF (pdf) e execução P008 (E38–E41).
 
 SHELL := /usr/bin/env bash
@@ -24,6 +24,7 @@ lint:
 	@echo "  -> OK (zero chaves privadas estáticas)"
 	@echo "[lint ABNT] Verificando citações, referências e numeração do guia..."
 	@"$(PYTHON_PDF)" -I tools/build_latex.py --check-only
+	@"$(PYTHON_PDF)" -I tools/build_latex.py --check-only --source docs/student-guide-template.md
 	@echo "[lint 3/4] Executando go vet na fixture ExternalAuth (studies/p003/fixtures/auth)..."
 	@if command -v go >/dev/null 2>&1; then \
 		(cd studies/p003/fixtures/auth && go vet ./...); \
@@ -45,16 +46,28 @@ lint:
 	@echo "  -> OK (scripts P005/P006/P007/P008 presentes)"
 
 test:
-	@echo "[test 1/2] Executando suíte unitária Go da fixture ExternalAuth..."
+	@echo "[test 1/3] Executando suíte unitária Go da fixture ExternalAuth..."
 	@if command -v go >/dev/null 2>&1; then \
 		(cd studies/p003/fixtures/auth && go test -v ./...) || exit 1; \
 	fi
-	@echo "[test 2/2] Executando --dry-run em todos os scripts de estudo P005, P006, P007 e P008..."
+	@echo "[test 2/3] Executando --dry-run em todos os scripts de estudo P005, P006, P007 e P008..."
 	@for s in studies/p005/*/*.sh studies/p006/*/*.sh studies/p007/*/*.sh studies/p008/*/*.sh; do \
 		echo "  -> dry-run: $$s"; \
 		bash "$$s" --dry-run >/dev/null || exit 1; \
 	done
 	@echo "  -> OK (todos os scripts P005/P006/P007/P008 passaram em --dry-run)"
+	@echo "[test 3/3] Verificando se o LaTeX versionado está sincronizado com o Markdown..."
+	@if command -v pandoc >/dev/null 2>&1; then \
+		tmp=$$(mktemp -d); \
+		"$(PYTHON_PDF)" -I tools/build_latex.py --no-pdf --tex "$$tmp/lab-guide-student.tex" >/dev/null || exit 1; \
+		if ! diff -q "$$tmp/lab-guide-student.tex" docs/latex/lab-guide-student.tex >/dev/null; then \
+			echo "ERRO: docs/latex/lab-guide-student.tex desatualizado; rode make pdf" >&2; rm -r "$$tmp"; exit 1; \
+		fi; \
+		rm -r "$$tmp"; \
+		echo "  -> OK (LaTeX idêntico ao gerado a partir de docs/lab-guide-student.md)"; \
+	else \
+		echo "  -> SKIP (pandoc não encontrado no PATH)"; \
+	fi
 
 p008-e38:
 	@bash studies/p008/arm-a-datapath/e38-host-firewall-xdp-prefilter.sh
