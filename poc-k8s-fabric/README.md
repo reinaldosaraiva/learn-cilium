@@ -1,143 +1,58 @@
 # Kit do laboratório Cilium + BGP
 
-Este diretório reúne materiais para os exercícios guiados dos módulos 1–11 do
-[guia do estudante 2.7](docs/lab-guide-student.md), baseados nos ambientes
-documentados em P001–P003. O módulo 12 é leitura histórica do estudo com nós
-reais na nuvem; essa infraestrutura fica fora da aula. O módulo 13 sintetiza os
-resultados empíricos completos da trilha P004 (sessões S001–S008 concluídas com **PASS**:
-réplica DCI/OVN/FRR `M01–M03` + `X05`, OVN-Kubernetes + KubeVirt `K01–K04`,
-cenários híbridos `X01–X07`, Braço Cilium A `V00–V08-A` / `C-neg`, Braço Cilium B
-`FRR 10.7.1` no nó `H6` / `V09` / `V07-B` / `V08-B` com `R6=0`, blueprint OVN-K `C/D` e
-síntese `INV × equivalente aberto` `G07`/`G08`;
-os perfis `labctl/labs/` e os artefatos de `studies/p004/` acompanham o checkout
-como referência de instrutor). O módulo 14 sintetiza os 16 estudos avançados da trilha P005
-(`P005-S001` a `P005-S004`, concluídos com **PASS** em `v2.4.0`, com scripts reproduzíveis em `studies/p005/`), o módulo 15 sintetiza os 8 estudos avançados de Fase 2 (`E26–E33`) e o saneamento integral (`C1–C4`) da trilha P006 (`P006-S001` a `P006-S004`, concluídos com **PASS** em `v2.5.0`, com scripts em `studies/p006/`), o módulo 16 sintetiza os 4 estudos avançados de Fase 3 (`E34–E37`) da trilha P007 (`P007-S001` e `P007-S002`, concluídos com **PASS** em `v2.6.0`, com scripts em `studies/p007/`), e o módulo 17 sintetiza os 4 estudos avançados de Fase 4 (`E38–E41`) da trilha P008 (`P008-S001` e `P008-S002`, concluídos com **PASS** em `v2.7.0`, fechando `41/41` estudos `E01–E41`, com scripts em `studies/p008/`).
+Este diretório reúne o guia, os exercícios introdutórios, os dossiês dos
+estudos e as ferramentas para validar ou gerar a documentação.
 
-O objetivo didático começa por
-observar um cluster Kubernetes kind ligado a um fabric leaf–spine e entender a
-diferença entre o PodCIDR que o Cilium anuncia e a VIP `/32` de um Service; os
-módulos seguintes cobrem Gateway API, autorização, criptografia, tenants, IPAM
-e o tenant híbrido com VMs OpenStack, executados no sandbox `studies/p003/`.
+## Comece por aqui
 
-![Topologia inteira dentro da vm-cilium](docs/diagramas/05-laboratorio-vm-cilium-quadro-branco-v2.png)
+- [Guia do estudante](docs/lab-guide-student.md): fonte Markdown dos 17 módulos.
+- [PDF do guia](../output/pdf/cilium-lab-student-guide.pdf): versão para leitura.
+- [Índice E01–E41](studies/README.md): trilhas, scripts, manifestos e dossiês.
+- [Dossiês e resultados](docs/estudos/README.md): fotografias de planejamento e
+  links para material publicado.
+- [Histórico do projeto](docs/historico/README.md): documentos históricos
+  preservados fora do caminho de navegação atual.
 
-![Explicação visual para iniciantes](docs/diagramas/06-laboratorio-explicado-iniciantes.png)
-
-## Ambiente de referência
-
-Tudo roda dentro de uma única `vm-cilium` Linux:
-
-- Containerlab: dois spines e três leaves SR Linux `25.3.2`;
-- `border1`: FRR `8.4.1`, ligado ao `client-ext`;
-- kind `k01`: Kubernetes `v1.35.0`, três nós;
-- Cilium `1.20.1`, native routing, BGP Control Plane e IPv6 no plano de controle;
-- seis réplicas `echo` e VIP IPv4 `10.201.255.10`;
-- enlaces spine–leaf numerados em IPv4 `/31`.
-
-O `client-ext` é externo ao cluster Kubernetes, mas está dentro da VM. O
-computador da pessoa estudante acessa a VIP pelo túnel SSH local descrito no
-guia. O caminho de Kubernetes gerenciado é uma investigação separada e não é requisito
-para este laboratório.
+Os módulos 1–11 acompanham exercícios do laboratório. Os módulos 12–17 são
+leitura de resultados e limites documentados; não exigem acesso às
+infraestruturas descritas.
 
 ## Estrutura
 
 | Caminho | Conteúdo |
 |---|---|
-| `topo/` | topologia Containerlab `poc-kind.clab.yml` e cluster kind |
-| `configs/srl/` | configurações dos spines e leaves SR Linux |
-| `configs/frr/` | daemon e configuração do `border1` |
-| `k8s/cilium/` | values do Helm para native routing e dual-stack |
-| `k8s/bgp/` | peers, anúncios, racks e pool de VIPs |
-| `k8s/apps/` | deployment `echo`, Services e `netshoot` |
-| `scripts/` | preparação, deploy, Cilium, BGP, validação e exposição opcional |
-| `docs/diagramas/` | imagens da topologia e do fluxo para a aula |
+| `topo/` e `configs/` | topologia Containerlab e configurações dos nós de rede |
+| `k8s/` | recursos do cluster kind usados pelos exercícios |
+| `scripts/` | preparação, deploy, validação e limpeza do laboratório |
+| `studies/` | arquivos ligados às trilhas E01–E41 |
+| `docs/estudos/` | dossiês públicos e sínteses de resultados |
+| `docs/diagramas/` | diagramas usados no guia |
+| `tools/` | verificações e geração do guia |
+| `labctl/` | comandos documentados para o ciclo de vida dos labs |
 
-O PDF da apostila é gerado por [`tools/build_latex.py`](tools/build_latex.py)
-(abnTeX2 via pandoc + tectonic) e pode ser executado diretamente ou via
-`Makefile` a partir da raiz do projeto:
+## Como subir o laboratório
 
-~~~bash
-make pdf
+Para o roteiro de reconstrução e validação do laboratório, consulte o
+[Apêndice A – Roteiro do instrutor](docs/lab-guide-student.md#apêndice-a--roteiro-do-instrutor)
+e o [README do labctl](labctl/README.md). Esses documentos registram os
+parâmetros e comandos usados pelo kit.
+
+## Comandos
+
+Na raiz do repositório, consulte `make -C poc-k8s-fabric help` para os alvos do
+kit. Os alvos principais são:
+
+```bash
 make lint
 make test
-~~~
+make pdf
+```
 
-O PDF sai em `output/pdf/cilium-lab-student-guide.pdf`. Para criar o guia de
-outro laboratório, copie o molde ABNT
-[`docs/student-guide-template.md`](docs/student-guide-template.md) para
-`docs/` (os caminhos das figuras são relativos a esse diretório), substitua os
-placeholders `{{...}}` e gere a edição ABNT:
+`make lint` executa validações estáticas, incluindo referências relativas nos
+Markdown públicos. `make test` executa as verificações definidas no Makefile;
+`make pdf` gera o guia em `output/pdf/cilium-lab-student-guide.pdf` e requer
+`pandoc` e `tectonic`.
 
-~~~bash
-cp poc-k8s-fabric/docs/student-guide-template.md poc-k8s-fabric/docs/meu-guia.md
-python3 -I poc-k8s-fabric/tools/build_latex.py --check-only \
-  --source poc-k8s-fabric/docs/meu-guia.md
-python3 -I poc-k8s-fabric/tools/build_latex.py \
-  --source poc-k8s-fabric/docs/meu-guia.md \
-  --tex poc-k8s-fabric/docs/latex/meu-guia.tex \
-  --pdf output/pdf/meu-guia.pdf
-~~~
-
-O `--check-only` confere se toda citação tem referência (e vice-versa), a
-ordem alfabética das referências e a numeração de módulos, figuras, quadros e
-tabelas. O molde segue as convenções do guia principal: legenda
-`**Figura N – título**` acima da ilustração, linha `Fonte:` abaixo, módulos
-`## Módulo N — título` com seções `### N.M`, citações autor-data e referências
-na ABNT NBR 6023.
-
-O builder ReportLab [`tools/build_guide.py`](tools/build_guide.py) continua
-disponível para rascunhos rápidos sem LaTeX (`--source`, `--output`,
-`--scaffold`); ele depende somente de ReportLab
-([`tools/requirements-guide.txt`](tools/requirements-guide.txt)).
-
-## Modelo de anúncios
-
-Cada agente Cilium mantém sua sessão BGP com o leaf do rack e anuncia o
-PodCIDR IPv4 `/24` do próprio nó. O Service `echo-anycast`, com
-`externalTrafficPolicy: Cluster`, é anunciado como `10.201.255.10/32` por
-todos os três nós elegíveis. BGP troca prefixos; ele não executa HTTP nem
-instala automaticamente no kernel dos nós as rotas que aprende.
-
-## Estado operacional
-
-O guia pressupõe que o laboratório já esteja no ar. A reconstrução é um
-apêndice de instrutor e requer dois terminais: o deploy da topologia aguarda a
-API kind, enquanto o kubeconfig dedicado é exportado e o Cilium é instalado no
-segundo terminal. Não trate `scripts/99-destroy.sh` como exercício de aluno.
-
-Veja o [resumo público dos resultados](docs/lab-results.md) e as propostas de
-[próximos estudos](docs/proximos-estudos.md), agora orientadas aos requisitos
-de um produto de conexão dedicada com eBGP. A comparação `/24` × `/32` e o
-tenant híbrido com VMs OpenStack já foram executados e estão no guia.
-
-O [índice público dos estudos P003](docs/estudos/README.md) reúne planejamento,
-pesquisa, contrato, protocolo e dossiês. A trilha P003 foi encerrada em
-25/09/2026; seus resultados estão resumidos no guia e nas sínteses publicadas
-da [E08](docs/estudos/08-lifecycle-synthesis.md) e do [caso
-C5](docs/estudos/09-vm-outside-container.md). O modelo S002 de preflight é
-somente documental e não descreve o estado atual de uma VM. P004 é uma trilha
-separada: o `labctl` comum foi validado em S001, a réplica DCI/OVN+FRR fechou
-com **PASS** em S002 (23/10/2026, com M01–M03 e X05 aceitos e perfil `labctl dci`
-publicado), o braço OVN-Kubernetes + KubeVirt + EVPN fechou com **PASS** em
-S003 (23/10/2026, com perfis `labctl evpn-fabric` e `labctl ovnk` e matriz
-`K01–K04` em `studies/p004/evpn-fabric/` e `studies/p004/ovnk/`), os casos
-cruzados (`X01–X04`, `X06`, `X07`) fecharam com **PASS** em S004 (24/10/2026,
-em `studies/p004/cases/`), e o braço Cilium A (`1.20.2` + KubeVirt `v1.9.0` no
-`p003-gw`, casos `C01–C06` / `V00–V06`) fechou com **PASS** em S005 (24/10/2026,
-em `studies/p004/cilium-a/`). Em S006 e S007 (**PASS**), foram provados os
-negativos e limites estruturais do Braço Cilium A (`V07-A`, `V08-A`, `C-neg` / `G02`)
-e o Braço Cilium B completo com `FRR 10.7.1` no nó sob o invariante `R6=0`
-(`H6`/`G06`, `V09`/`H7` EVPN Type 5, `V07-B` e `V08-B`, em `studies/p004/cilium-b/`),
-além do blueprint de transição para o Braço OVN-Kubernetes (`C/D`). Em S008 (**PASS**),
-fecharam-se a síntese `INV × equivalente aberto` com os seis critérios de aceite
-para uma PoC comercial do INV (`G07`) e a higiene final dos laboratórios (`G08`).
-Consulte a [síntese pública completa de P004](docs/estudos/20-dci-estado-parcial.md)
-e os oito dossiês publicados da trilha **P005** (`P005-S001` a `P005-S004`, todos concluídos com **PASS** em `v2.4.0`:
-[Onda 1 Braço A `E19`+`E09`](docs/estudos/19-bgp-idempotency-md5-asn32.md),
-[Onda 1 Braço B `E23`+`E21`](docs/estudos/21-netkit-vs-veth-ipam-burst.md),
-[Onda 2 Braço A `E11`+`E12`+`E10`](docs/estudos/11-bgp-maxprefix-communities-bfd.md),
-[Onda 2 Braço B `E22`](docs/estudos/22-xlb-ebpf-socket-lb-vs-envoy.md),
-[Onda 3 Braço A `E13`+`E14`](docs/estudos/13-bgp-dual-border-gr-ipv6.md),
-[Onda 3 Braço B `E17`+`E25`](docs/estudos/17-bgp-hubble-observability.md),
-[Onda 4 Braço A `E15`+`E16`+`E18`](docs/estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md) e
-[Onda 4 Braço B `E24`](docs/estudos/24-cilium-dra-network-device.md), com scripts em `studies/p005/`), a trilha **P006** completa (`P006-S001` a `P006-S004`, concluída com **PASS** em `v2.5.0`: [Onda 1 `E26`+`E30`+`Bloco C1`](docs/estudos/26-lb-xdp-dsr-maglev-clustermesh.md), [Onda 2 `E27`+`E31`+`Bloco C2`](docs/estudos/27-big-tcp-netkit-srv6-l3vpn.md), [Onda 3 `E28`+`E32`+`Bloco C3`](docs/estudos/28-bandwidth-edt-bbr-tetragon.md) e [Onda 4 `E29`+`E33`+`Bloco C4`](docs/estudos/29-bgp-unnumbered-l2-live-migration.md), com scripts em `studies/p006/`), a trilha **P007** completa (`P007-S001` e `P007-S002`, concluída com **PASS** em `v2.6.0`: [Onda 1 `E34`+`E35`](docs/estudos/30-bgp-gshut-spiffe-mtls-wireguard.md) e [Onda 2 `E36`+`E37`](docs/estudos/31-local-redirect-multus-ipvlan-dualhomed.md), com scripts em `studies/p007/`), e a trilha **P008** completa (`P008-S001` e `P008-S002`, concluída com **PASS** em `v2.7.0`, fechando `41/41` estudos `E01–E41`: [Onda 1 `E38`+`E39`](docs/estudos/32-host-firewall-xdp-envoy-l7-resilience.md) e [Onda 2 `E40`+`E41`](docs/estudos/33-bgp-rr-srv6-dualstack-netkit-wg-matrix.md), com scripts em `studies/p008/`).
+O [índice de estudos](studies/README.md) aponta para arquivos existentes. O
+[registro histórico do laboratório](docs/lab-results.md) conserva medições e
+contexto de execução, enquanto os dossiês explicam o escopo de cada estudo.

@@ -6,7 +6,7 @@
 > **Artefatos Reprodutíveis:**
 > - **Braço A (`E29`):** [`studies/p006/arm-a-datapath/e29-bgp-unnumbered-l2.sh`](../../studies/p006/arm-a-datapath/e29-bgp-unnumbered-l2.sh) e [`01-e29-bgp-unnumbered-l2.yaml`](../../studies/p006/arm-a-datapath/01-e29-bgp-unnumbered-l2.yaml)
 > - **Braço B (`E33`):** [`studies/p006/arm-b-platform/e33-kubevirt-live-migration.sh`](../../studies/p006/arm-b-platform/e33-kubevirt-live-migration.sh) e [`01-e33-kubevirt-live-migration.yaml`](../../studies/p006/arm-b-platform/01-e33-kubevirt-live-migration.yaml)
-> - **Braço C (`Bloco C4`):** [`Makefile`](../../Makefile), [`studies/p003/cases/s011/README.md`](../../studies/p003/cases/s011/README.md), [`studies/p003/cases/s012/README.md`](../../studies/p003/cases/s012/README.md), [`docs/student-guide-template.md`](../student-guide-template.md) e [`docs/revisao-projeto-2026-09-26.md`](../revisao-projeto-2026-09-26.md) (`100%` concluído)
+> - **Braço C (`Bloco C4`):** [`Makefile`](../../Makefile), [`studies/p003/cases/s011/README.md`](../../studies/p003/cases/s011/README.md), [`studies/p003/cases/s012/README.md`](../../studies/p003/cases/s012/README.md), [`docs/student-guide-template.md`](../student-guide-template.md) e [`docs/revisao-projeto-2026-09-26.md`](../historico/revisao-projeto-2026-09-26.md) (`100%` concluído)
 
 ---
 
@@ -18,7 +18,7 @@ A Onda 4 (`P006-S004`) encerra o ciclo de **33 estudos (`E01–E33`)** do projet
    Em fabrics Spine-Leaf de larga escala, alocar, documentar e parear sub-redes IPv4 `/31` para cada enlace físico servidor-ToR e Leaf-Spine é uma das maiores fontes de erro humano (troca de cabos, IP errado em ` CiliumBGPPeerConfig`, exaustão de IPAM de infraestrutura). Com **BGP Unnumbered**, os enlaces operam sem nenhum endereço IPv4 configurado: o FRR descobre o vizinho automaticamente via **IPv6 Router Advertisements (RA `RFC 4861`)** em endereços link-local (`fe80::/64`) e negocia a **Extended Next-Hop Capability (`RFC 8950`, Capability Code `5`)**, permitindo anunciar prefixos IPv4 (`AFI 1, SAFI 1`) cujo Next-Hop é um endereço IPv6 link-local (`fe80::...`). O kernel Linux (`>= 5.3`) instala diretamente na FIB entradas IPv4 com gateway IPv6 (`10.206.29.0/24 via inet6 fe80::... dev veth-e29-tor`) e resolve o endereço MAC do vizinho via **ICMPv6 Neighbor Discovery (NDP)** em vez de ARP. Complementarmente, para ambientes bare-metal de borda sem ToR BGP (ou durante bootstrap), provamos o funcionamento de **`CiliumL2AnnouncementPolicy`**, a eleição de líder por serviço via `Lease` Kubernetes e o mapa eBPF `cilium_l2_responder_v4`.
 2. **Análise Quantitativa de Live Migration sob Tráfego Contínuo (`E33` — `Cilium B /32 BGP` vs `OVN-Kubernetes EVPN VXLAN / FDB MAC-IP Mobility`):**
    Nos estudos `E20` (`P004-S003` a `S008`), demonstramos que uma VM KubeVirt preserva seu IP após migração entre nós tanto no modelo **L3 `/32` BGP (`Cilium B`)** quanto no modelo **L2 Overlay (`OVN-K EVPN VXLAN`)**. Restava medir o comportamento **durante a transição em voo** sob tráfego contínuo de alta frequência (`50 pps`, intervalo de `20 ms`): quantos pacotes são perdidos, qual a janela exata de blackout (`blackout_ms`) na troca de next-hop BGP `/32` (`10.253.33.10/32`) versus a transição L2/EVPN (`10.253.34.10/24`, MAC `02:53:33:00:00:10` sobre `VNI 10033` com auto-descoberta BGP EVPN Type-3 `[3]:[0]:[32]:10.254.0.x` e atualização dinâmica `extern_learn` na tabela FDB VXLAN), e o que acontece quando a migração ocorre sem atualização dinâmica de rota.
-3. **Saneamento Integral do Backlog Técnico (`Bloco C4` — `100%` de [`revisao-projeto-2026-09-26.md`](../revisao-projeto-2026-09-26.md)):**
+3. **Saneamento Integral do Backlog Técnico (`Bloco C4` — `100%` de [`revisao-projeto-2026-09-26.md`](../historico/revisao-projeto-2026-09-26.md)):**
    Automação das travas estáticas via `Makefile` (`make lint`, `make test`, `make pdf`), criação dos catálogos canônicos de scripts de `s011` (`5` scripts/arquivos de bootstrap e OVS do container DevStack `p003-os`) e `s012` (`82` scripts numerados de `01` a `81` mais `60-bgp-policy.yaml`, destacando os `7` scripts canônicos `01`, `11`, `15`, `47`, `59`, `69`, `70`) e consolidação do template pedagógico.
 
 ```mermaid
@@ -157,7 +157,7 @@ O script [`e33-kubevirt-live-migration.sh`](../../studies/p006/arm-b-platform/e3
 
 ---
 
-## 4. Braço C (`Bloco C4`): Fechamento Integral (`100%`) de [`revisao-projeto-2026-09-26.md`](../revisao-projeto-2026-09-26.md)
+## 4. Braço C (`Bloco C4`): Fechamento Integral (`100%`) de [`revisao-projeto-2026-09-26.md`](../historico/revisao-projeto-2026-09-26.md)
 
 Com a conclusão do **Bloco C4**, todos os achados de Alta (`A1–A12`), Média (`M1–M15`) e Baixa Severidade mapeados na auditoria de `26/09/2026` estão **`100%` resolvidos e verificados automaticamente**:
 

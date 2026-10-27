@@ -1,27 +1,27 @@
 # Próximos estudos — Cilium como motor de uma conexão dedicada com eBGP
 
 > Proposta de trilha (estudos E09–E25) escrita em 26/09/2026, depois do encerramento da
-> trilha P003. O estudo **E20 (`P004`) foi integralmente concluído com PASS (`P004-S001` a `P004-S008`, `G01` a `G08` fechados)** — veja a [síntese pública de P004](estudos/20-dci-estado-parcial.md) — e o plano **P005 (Ondas Paralelas Braço A eBGP ∥ Braço B Datapath eBPF)** concluiu com **PASS** todas as **4 Ondas (`P005-S001` a `P005-S004`, `16/16` estudos de P005 e `25/25` estudos totais do roadmap)**:
-> - **Onda 1 — Braço A (`E19` + `E09`):** [19 — Idempotência BGP (10x), Zero Resíduo e eBGP Autenticado TCP MD5 com ASN 32 bits (`4200000001`)](estudos/19-bgp-idempotency-md5-asn32.md);
-> - **Onda 1 — Braço B (`E23` + `E21`):** [21 — `netkit` vs `veth` no Datapath eBPF & Escala de Burst IPAM com Warm Pool](estudos/21-netkit-vs-veth-ipam-burst.md);
-> - **Onda 2 — Braço A (`E11` + `E12` + `E10`):** [11 — Limite de Prefixos (`max-prefix`), Filtro de Import, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](estudos/11-bgp-maxprefix-communities-bfd.md);
-> - **Onda 2 — Braço B (`E22`):** [22 — XLB: Balanceamento L7 eBPF na Camada de Sockets (`sockmap` / `bpf_sock_ops` / `sk_msg`) vs `SocketLB L4` e `Envoy L7`](estudos/22-xlb-ebpf-socket-lb-vs-envoy.md);
-> - **Onda 3 — Braço A (`E13` + `E14`):** [13 — Redundância Dual-Border, Failover Controlado com/sem Graceful Restart (`E13`) e Sessão eBGP IPv6 Nativa Fim a Fim (`E14`)](estudos/13-bgp-dual-border-gr-ipv6.md);
-> - **Onda 3 — Braço B (`E17` + `E25`):** [17 — Observabilidade Contínua BGP (`ACTIVE`/`DOWN`/`UNKNOWN` por 3 Leituras) e Microsserviços com Hubble (`L3/L4`, `L7 HTTP/DNS`, `TLS` e Prometheus)](estudos/17-bgp-hubble-observability.md);
-> - **Onda 4 — Braço A (`E15` + `E16` + `E18`):** [15 — VRF por Tenant via BGP Community (`E15`), 3 Modos de Retorno PE/CE & `CiliumEgressGatewayPolicy` (`E16`) e Enlace L2: MTU 9000 Jumbo, QinQ `802.1ad` & MACsec `802.1AE` vs WireGuard (`E18`)](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md);
-> - **Onda 4 — Braço B (`E24`):** [24 — Dynamic Resource Allocation (DRA `resource.k8s.io/v1`) para Dispositivos de Rede no Cilium (`NetworkDeviceData`)](estudos/24-cilium-dra-network-device.md).
+> trilha P003. O estudo **E20 (`P004`) foi integralmente concluído com PASS (`P004-S001` a `P004-S008`, `G01` a `G08` fechados)** — veja a [síntese pública de P004](../estudos/20-dci-estado-parcial.md) — e o plano **P005 (Ondas Paralelas Braço A eBGP ∥ Braço B Datapath eBPF)** concluiu com **PASS** todas as **4 Ondas (`P005-S001` a `P005-S004`, `16/16` estudos de P005 e `25/25` estudos totais do roadmap)**:
+> - **Onda 1 — Braço A (`E19` + `E09`):** [19 — Idempotência BGP (10x), Zero Resíduo e eBGP Autenticado TCP MD5 com ASN 32 bits (`4200000001`)](../estudos/19-bgp-idempotency-md5-asn32.md);
+> - **Onda 1 — Braço B (`E23` + `E21`):** [21 — `netkit` vs `veth` no Datapath eBPF & Escala de Burst IPAM com Warm Pool](../estudos/21-netkit-vs-veth-ipam-burst.md);
+> - **Onda 2 — Braço A (`E11` + `E12` + `E10`):** [11 — Limite de Prefixos (`max-prefix`), Filtro de Import, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](../estudos/11-bgp-maxprefix-communities-bfd.md);
+> - **Onda 2 — Braço B (`E22`):** [22 — XLB: Balanceamento L7 eBPF na Camada de Sockets (`sockmap` / `bpf_sock_ops` / `sk_msg`) vs `SocketLB L4` e `Envoy L7`](../estudos/22-xlb-ebpf-socket-lb-vs-envoy.md);
+> - **Onda 3 — Braço A (`E13` + `E14`):** [13 — Redundância Dual-Border, Failover Controlado com/sem Graceful Restart (`E13`) e Sessão eBGP IPv6 Nativa Fim a Fim (`E14`)](../estudos/13-bgp-dual-border-gr-ipv6.md);
+> - **Onda 3 — Braço B (`E17` + `E25`):** [17 — Observabilidade Contínua BGP (`ACTIVE`/`DOWN`/`UNKNOWN` por 3 Leituras) e Microsserviços com Hubble (`L3/L4`, `L7 HTTP/DNS`, `TLS` e Prometheus)](../estudos/17-bgp-hubble-observability.md);
+> - **Onda 4 — Braço A (`E15` + `E16` + `E18`):** [15 — VRF por Tenant via BGP Community (`E15`), 3 Modos de Retorno PE/CE & `CiliumEgressGatewayPolicy` (`E16`) e Enlace L2: MTU 9000 Jumbo, QinQ `802.1ad` & MACsec `802.1AE` vs WireGuard (`E18`)](../estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md);
+> - **Onda 4 — Braço B (`E24`):** [24 — Dynamic Resource Allocation (DRA `resource.k8s.io/v1`) para Dispositivos de Rede no Cilium (`NetworkDeviceData`)](../estudos/24-cilium-dra-network-device.md).
 > Em seguida, o plano **P006 (Fase 2 — Estudos Avançados `E26–E33` ∥ Saneamento Integral `C1–C4`)** concluiu com **PASS** todas as **4 Ondas (`P006-S001` a `P006-S004`, fechando `33/33` estudos `E01–E33` e `100%` de [`revisao-projeto-2026-09-26.md`](revisao-projeto-2026-09-26.md) em `v2.5.0`)**:
-> - **Onda 1 (`P006-S001` — `E26` ∥ `E30` ∥ `C1`):** [26 — LoadBalancer TCX/XDP + DSR & Maglev (`E26`) e Cilium Cluster Mesh / MCS-API sobre Fabric BGP (`E30`)](estudos/26-lb-xdp-dsr-maglev-clustermesh.md);
-> - **Onda 2 (`P006-S002` — `E27` ∥ `E31` ∥ `C2`):** [27 — BIG TCP (`enable-ipv4-big-tcp`/`enable-ipv6-big-tcp`) + `netkit` + Jumbo MTU 9000 (`E27`) e SRv6 L3VPN (`seg6local End.DT4`) sem VXLAN (`E31`)](estudos/27-big-tcp-netkit-srv6-l3vpn.md);
-> - **Onda 3 (`P006-S003` — `E28` ∥ `E32` ∥ `C3`):** [28 — Bandwidth Manager (EDT + `fq`), Pacing eBPF por Pod & `TCP BBR` vs `CUBIC` (`E28`) e Tetragon Runtime eBPF Security (`TracingPolicyNamespaced`, `E32`)](estudos/28-bandwidth-edt-bbr-tetragon.md);
-> - **Onda 4 (`P006-S004` — `E29` ∥ `E33` ∥ `C4`):** [29 — BGP Unnumbered (`RFC 5549`/`8950` Extended Next-Hop) & L2 Announcements (`E29`) e KubeVirt Live Migration sob Tráfego Contínuo (`Cilium B /32 BGP` vs `OVN-K EVPN Type-2`, `E33`)](estudos/29-bgp-unnumbered-l2-live-migration.md).
+> - **Onda 1 (`P006-S001` — `E26` ∥ `E30` ∥ `C1`):** [26 — LoadBalancer TCX/XDP + DSR & Maglev (`E26`) e Cilium Cluster Mesh / MCS-API sobre Fabric BGP (`E30`)](../estudos/26-lb-xdp-dsr-maglev-clustermesh.md);
+> - **Onda 2 (`P006-S002` — `E27` ∥ `E31` ∥ `C2`):** [27 — BIG TCP (`enable-ipv4-big-tcp`/`enable-ipv6-big-tcp`) + `netkit` + Jumbo MTU 9000 (`E27`) e SRv6 L3VPN (`seg6local End.DT4`) sem VXLAN (`E31`)](../estudos/27-big-tcp-netkit-srv6-l3vpn.md);
+> - **Onda 3 (`P006-S003` — `E28` ∥ `E32` ∥ `C3`):** [28 — Bandwidth Manager (EDT + `fq`), Pacing eBPF por Pod & `TCP BBR` vs `CUBIC` (`E28`) e Tetragon Runtime eBPF Security (`TracingPolicyNamespaced`, `E32`)](../estudos/28-bandwidth-edt-bbr-tetragon.md);
+> - **Onda 4 (`P006-S004` — `E29` ∥ `E33` ∥ `C4`):** [29 — BGP Unnumbered (`RFC 5549`/`8950` Extended Next-Hop) & L2 Announcements (`E29`) e KubeVirt Live Migration sob Tráfego Contínuo (`Cilium B /32 BGP` vs `OVN-K EVPN Type-2`, `E33`)](../estudos/29-bgp-unnumbered-l2-live-migration.md).
 > Em seguida, o plano **P007 (Fase 3 — Estudos Avançados `E34–E37`)** concluiu com **PASS** as **2 Ondas (`P007-S001` e `P007-S002`, fechando `37/37` estudos `E01–E37` em `v2.6.0`)**:
-> - **Onda 1 (`P007-S001` — `E34` ∥ `E35`):** [30 — BGP Graceful Shutdown (`RFC 8326` `GSHUT` `65535:0`) & Zero-Loss K8s Node Drain (`E34`) e Cilium Mutual Authentication (`SPIFFE` SVID mTLS + `WireGuard` L3 `cilium_wg0`, `E35`)](estudos/30-bgp-gshut-spiffe-mtls-wireguard.md);
-> - **Onda 2 (`P007-S002` — `E36` ∥ `E37`):** [31 — Cilium Local Redirect Policy (`CiliumLocalRedirectPolicy` `serviceMatcher` & `addressMatcher`, `E36`) e Workloads / VMs KubeVirt Dual-Homed com Multus (`NetworkAttachmentDefinition`) + `ipvlan L2/L3` vs `macvlan` (`MTU 9000` & Anti-Spoofing L2 Cloud, `E37`)](estudos/31-local-redirect-multus-ipvlan-dualhomed.md).
+> - **Onda 1 (`P007-S001` — `E34` ∥ `E35`):** [30 — BGP Graceful Shutdown (`RFC 8326` `GSHUT` `65535:0`) & Zero-Loss K8s Node Drain (`E34`) e Cilium Mutual Authentication (`SPIFFE` SVID mTLS + `WireGuard` L3 `cilium_wg0`, `E35`)](../estudos/30-bgp-gshut-spiffe-mtls-wireguard.md);
+> - **Onda 2 (`P007-S002` — `E36` ∥ `E37`):** [31 — Cilium Local Redirect Policy (`CiliumLocalRedirectPolicy` `serviceMatcher` & `addressMatcher`, `E36`) e Workloads / VMs KubeVirt Dual-Homed com Multus (`NetworkAttachmentDefinition`) + `ipvlan L2/L3` vs `macvlan` (`MTU 9000` & Anti-Spoofing L2 Cloud, `E37`)](../estudos/31-local-redirect-multus-ipvlan-dualhomed.md).
 > Por fim, o plano **P008 (Fase 4 — Estudos Avançados `E38–E41`)** concluiu com **PASS** as **2 Ondas (`P008-S001` e `P008-S002`, fechando `41/41` estudos `E01–E41` em `v2.7.0`)**:
-> - **Onda 1 (`P008-S001` — `E38` ∥ `E39`):** [32 — Cilium Host Firewall (`CiliumClusterwideNetworkPolicy` `nodeSelector`) & XDP Early DDoS Prefilter (`E38`) e `CiliumEnvoyConfig` (`cilium.io/v2`) L7 Traffic Management & Resilience (`E39`)](estudos/32-host-firewall-xdp-envoy-l7-resilience.md);
-> - **Onda 2 (`P008-S002` — `E40` ∥ `E41`):** [33 — Escalabilidade iBGP Route Reflector (`RFC 4456`) & SRv6 L3VPN Dual-Stack (`End.DT4` + `End.DT6`, `E40`) e Matriz 2×2 `netkit` + BIG TCP + `WireGuard` (`E41`)](estudos/33-bgp-rr-srv6-dualstack-netkit-wg-matrix.md).
-> Todos os estudos (`E01` a `E41`) encontram-se concluídos e documentados no [guia do estudante 2.7](lab-guide-student.md). Cada estudo nasceu de uma lacuna
+> - **Onda 1 (`P008-S001` — `E38` ∥ `E39`):** [32 — Cilium Host Firewall (`CiliumClusterwideNetworkPolicy` `nodeSelector`) & XDP Early DDoS Prefilter (`E38`) e `CiliumEnvoyConfig` (`cilium.io/v2`) L7 Traffic Management & Resilience (`E39`)](../estudos/32-host-firewall-xdp-envoy-l7-resilience.md);
+> - **Onda 2 (`P008-S002` — `E40` ∥ `E41`):** [33 — Escalabilidade iBGP Route Reflector (`RFC 4456`) & SRv6 L3VPN Dual-Stack (`End.DT4` + `End.DT6`, `E40`) e Matriz 2×2 `netkit` + BIG TCP + `WireGuard` (`E41`)](../estudos/33-bgp-rr-srv6-dualstack-netkit-wg-matrix.md).
+> Todos os estudos (`E01` a `E41`) encontram-se concluídos e documentados no [guia do estudante 2.7](../lab-guide-student.md). Cada estudo nasceu de uma lacuna
 > registrada no guia ou de um
 > requisito técnico de um produto de conexão dedicada com eBGP (Direct
 > Connect), e cita a fonte primária que sustenta a hipótese. Dados
@@ -112,7 +112,7 @@ que aparecem no PRD interno (identificadores RF/RNF), sem dados comerciais.
 
 ## 4. Os estudos
 
-Cada estudo segue o [protocolo de execução](estudos/execution-protocol.md):
+Cada estudo segue o [protocolo de execução](../estudos/execution-protocol.md):
 sandbox `p003-gw` ou reconstituição equivalente, `k01` intocado, uma variável
 por vez, esperado e observado separados, controle negativo, coleta externa ao
 Cilium (RIB do border e captura) e rollback verificado. O executor não decide
@@ -120,7 +120,7 @@ o próprio aceite.
 
 ### E09 — Sessão eBGP autenticada com os parâmetros do produto
 
-**Estado:** **CONCLUÍDO (`P005-S001` — PASS em 25/10/2026)** — publicado em [19 — Idempotência BGP e eBGP Autenticado TCP MD5 com ASN 32 bits](estudos/19-bgp-idempotency-md5-asn32.md).
+**Estado:** **CONCLUÍDO (`P005-S001` — PASS em 25/10/2026)** — publicado em [19 — Idempotência BGP e eBGP Autenticado TCP MD5 com ASN 32 bits](../estudos/19-bgp-idempotency-md5-asn32.md).
 
 Hipótese: o Cilium estabelece eBGP com MD5 e ASN de 32 bits contra FRR e
 SR Linux, e uma senha divergente impede a sessão sem afetar as demais.
@@ -136,7 +136,7 @@ Gate: 4/4 células **PASS** em `vm-cilium` (`03-e09-bgp-md5-asn32.txt`): sessão
 
 ### E10 — Detecção de falha sem BFD: onde ela deve viver
 
-**Estado:** **CONCLUÍDO (`P005-S002` — PASS em 25/10/2026)** — publicado em [11 — Limite de Prefixos, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](estudos/11-bgp-maxprefix-communities-bfd.md).
+**Estado:** **CONCLUÍDO (`P005-S002` — PASS em 25/10/2026)** — publicado em [11 — Limite de Prefixos, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](../estudos/11-bgp-maxprefix-communities-bfd.md).
 
 Hipótese: com hold 9 s, uma falha silenciosa de enlace só é detectada entre
 6 e 9 s; BFD abaixo de 1 s só existe se o eBGP do cliente terminar em um
@@ -156,7 +156,7 @@ Gate: **PASS** (`04-e10-failure-detection-bfd.txt`): sob falha silenciosa de enl
 
 ### E11 — Limite de prefixos e filtro de import
 
-**Estado:** **CONCLUÍDO (`P005-S002` — PASS em 25/10/2026)** — publicado em [11 — Limite de Prefixos, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](estudos/11-bgp-maxprefix-communities-bfd.md).
+**Estado:** **CONCLUÍDO (`P005-S002` — PASS em 25/10/2026)** — publicado em [11 — Limite de Prefixos, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](../estudos/11-bgp-maxprefix-communities-bfd.md).
 
 Hipótese: o Cilium aceita qualquer quantidade de prefixos recebidos sem
 limite nem filtro, e não os instala no kernel (route learning foi recusado
@@ -174,7 +174,7 @@ Gate: **PASS** (`02-e11-maxprefix-import.txt`): o Cilium OSS `1.20.2` manteve a 
 
 ### E12 — Communities, prepend e MED: marcar na origem, decidir na borda
 
-**Estado:** **CONCLUÍDO (`P005-S002` — PASS em 25/10/2026)** — publicado em [11 — Limite de Prefixos, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](estudos/11-bgp-maxprefix-communities-bfd.md).
+**Estado:** **CONCLUÍDO (`P005-S002` — PASS em 25/10/2026)** — publicado em [11 — Limite de Prefixos, Communities/Prepend/MED e Detecção de Falha com BFD (`< 1 s`)](../estudos/11-bgp-maxprefix-communities-bfd.md).
 
 Hipótese: o Cilium só consegue **marcar** anúncios (communities); prepend e
 MED devem ser aplicados por route-policy no border, disparados pela community.
@@ -190,7 +190,7 @@ Gate: **PASS** (`03-e12-communities-prepend-med.txt`): a VIP `10.202.255.192/32`
 
 ### E13 — Redundância em dois equipamentos e teste de failover
 
-**Estado:** **CONCLUÍDO (`P005-S003` — PASS em 25/10/2026)** — publicado em [13 — Redundância Dual-Border, Failover Controlado com/sem Graceful Restart e Sessão eBGP IPv6 Nativa Fim a Fim](estudos/13-bgp-dual-border-gr-ipv6.md).
+**Estado:** **CONCLUÍDO (`P005-S003` — PASS em 25/10/2026)** — publicado em [13 — Redundância Dual-Border, Failover Controlado com/sem Graceful Restart e Sessão eBGP IPv6 Nativa Fim a Fim](../estudos/13-bgp-dual-border-gr-ipv6.md).
 
 Hipótese: com duas sessões eBGP para equipamentos distintos, o tráfego se
 distribui por ECMP e a queda de uma sessão converge sem ação, dentro do
@@ -208,7 +208,7 @@ Gate: **PASS** (`02-e13-dual-border-failover.txt`): em topologia Dual-Border ECM
 
 ### E14 — Sessão IPv6 e VIP IPv6 fim a fim
 
-**Estado:** **CONCLUÍDO (`P005-S003` — PASS em 25/10/2026)** — publicado em [13 — Redundância Dual-Border, Failover Controlado com/sem Graceful Restart e Sessão eBGP IPv6 Nativa Fim a Fim](estudos/13-bgp-dual-border-gr-ipv6.md).
+**Estado:** **CONCLUÍDO (`P005-S003` — PASS em 25/10/2026)** — publicado em [13 — Redundância Dual-Border, Failover Controlado com/sem Graceful Restart e Sessão eBGP IPv6 Nativa Fim a Fim](../estudos/13-bgp-dual-border-gr-ipv6.md).
 
 Hipótese: com o cliente e o underlay externo dual-stack, a VIP `fd14::a/128`
 é alcançável do cliente, fechando o limite de P002-S001.
@@ -222,7 +222,7 @@ Gate: **PASS** (`03-e14-ipv6-e2e-vip.txt`): na Célula 1 (baseline `P002-S001`),
 
 ### E15 — VRF por tenant: fabric com network-instance e Cilium atrás
 
-**Estado:** **CONCLUÍDO (`P005-S004` — PASS em 25/10/2026)** — publicado em [15 — VRF por Tenant via BGP Community (`E15`), 3 Modos de Retorno PE/CE & `CiliumEgressGatewayPolicy` (`E16`) e Enlace L2: MTU 9000 Jumbo, QinQ `802.1ad` & MACsec `802.1AE` vs WireGuard (`E18`)](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md).
+**Estado:** **CONCLUÍDO (`P005-S004` — PASS em 25/10/2026)** — publicado em [15 — VRF por Tenant via BGP Community (`E15`), 3 Modos de Retorno PE/CE & `CiliumEgressGatewayPolicy` (`E16`) e Enlace L2: MTU 9000 Jumbo, QinQ `802.1ad` & MACsec `802.1AE` vs WireGuard (`E18`)](../estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md).
 
 Hipótese: o Cilium OSS não tem VRF na BGP Control Plane; o isolamento por
 tenant com prefixos sem sobreposição pode ser feito com uma
@@ -239,7 +239,7 @@ Gate: **PASS** (`02-e15-vrf-per-tenant-live.txt`): provada a importação seleti
 
 ### E16 — Onde termina o eBGP do cliente e como o Cilium participa
 
-**Estado:** **CONCLUÍDO (`P005-S004` — PASS em 25/10/2026)** — publicado em [15 — VRF por Tenant via BGP Community (`E15`), 3 Modos de Retorno PE/CE & `CiliumEgressGatewayPolicy` (`E16`) e Enlace L2: MTU 9000 Jumbo, QinQ `802.1ad` & MACsec `802.1AE` vs WireGuard (`E18`)](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md).
+**Estado:** **CONCLUÍDO (`P005-S004` — PASS em 25/10/2026)** — publicado em [15 — VRF por Tenant via BGP Community (`E15`), 3 Modos de Retorno PE/CE & `CiliumEgressGatewayPolicy` (`E16`) e Enlace L2: MTU 9000 Jumbo, QinQ `802.1ad` & MACsec `802.1AE` vs WireGuard (`E18`)](../estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md).
 
 Hipótese: o roteador de borda termina a sessão do cliente (MD5, BFD,
 max-prefix, policies) e o Cilium é o motor do lado interno: anuncia VIPs e
@@ -258,7 +258,7 @@ Gate: **PASS** (`03-e16-pe-ce-return-paths-live.txt`): provados ao vivo os 3 mod
 
 ### E17 — Observabilidade por conexão e estado operacional
 
-**Estado:** **CONCLUÍDO (`P005-S003` — PASS em 25/10/2026)** — publicado em [17 — Observabilidade Contínua BGP (`ACTIVE`/`DOWN`/`UNKNOWN` por 3 Leituras) e Microsserviços com Hubble (`L3/L4`, `L7 HTTP/DNS`, `TLS` e Prometheus)](estudos/17-bgp-hubble-observability.md).
+**Estado:** **CONCLUÍDO (`P005-S003` — PASS em 25/10/2026)** — publicado em [17 — Observabilidade Contínua BGP (`ACTIVE`/`DOWN`/`UNKNOWN` por 3 Leituras) e Microsserviços com Hubble (`L3/L4`, `L7 HTTP/DNS`, `TLS` e Prometheus)](../estudos/17-bgp-hubble-observability.md).
 
 Hipótese: `session_state`, `advertised_routes` e `received_routes` do
 Cilium, somados à RIB do border, permitem derivar o estado "ativo,
@@ -274,7 +274,7 @@ Gate: **PASS** (`04-e17-e25-observability.txt`): sob amostragem a cada `3 s`, um
 
 ### E18 — MTU 9000, MACsec e QinQ: a fronteira do Cilium
 
-**Estado:** **CONCLUÍDO (`P005-S004` — PASS em 25/10/2026)** — publicado em [15 — VRF por Tenant via BGP Community (`E15`), 3 Modos de Retorno PE/CE & `CiliumEgressGatewayPolicy` (`E16`) e Enlace L2: MTU 9000 Jumbo, QinQ `802.1ad` & MACsec `802.1AE` vs WireGuard (`E18`)](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md).
+**Estado:** **CONCLUÍDO (`P005-S004` — PASS em 25/10/2026)** — publicado em [15 — VRF por Tenant via BGP Community (`E15`), 3 Modos de Retorno PE/CE & `CiliumEgressGatewayPolicy` (`E16`) e Enlace L2: MTU 9000 Jumbo, QinQ `802.1ad` & MACsec `802.1AE` vs WireGuard (`E18`)](../estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md).
 
 Hipótese: MTU 9000 funciona em native routing quando todo o caminho aceita;
 MACsec e QinQ são funções de enlace do switch e não têm contraparte no
@@ -290,7 +290,7 @@ Gate: **PASS** (`04-e18-l2-mtu9000-qinq-macsec-live.txt`): provados ao vivo (1) 
 
 ### E19 — Ciclo de vida da configuração BGP: idempotência e resíduo
 
-**Estado:** **CONCLUÍDO (`P005-S001` — PASS em 25/10/2026)** — publicado em [19 — Idempotência BGP e eBGP Autenticado TCP MD5 com ASN 32 bits](estudos/19-bgp-idempotency-md5-asn32.md).
+**Estado:** **CONCLUÍDO (`P005-S001` — PASS em 25/10/2026)** — publicado em [19 — Idempotência BGP e eBGP Autenticado TCP MD5 com ASN 32 bits](../estudos/19-bgp-idempotency-md5-asn32.md).
 
 Hipótese: aplicar o mesmo conjunto de CRDs BGP repetidamente não altera a
 RIB; remover os CRDs de uma "conexão" retira todos os prefixos e não deixa
@@ -334,7 +334,7 @@ Todas as oito sessões de `P004` (`P004-S001` a `P004-S008`) foram concluídas c
 - **P004-S005 (24/10/2026, PASS):** publicou o Braço Cilium A (`studies/p004/cilium-a/`) com `KubeVirt v1.9.0` no cluster `p003-gw` (`Cilium 1.20.2`) e provou os casos **`V00–V06` (`C01–C06`)**: `V00` datapath KVM nativo bidirecional (`30/30`), `V01` VM como `CiliumEndpoint` (`sec_identity=172890`), `V02` VIP BGP `/32` (`10.202.255.20/32`, withdraw em `8 s`), `V03` `CiliumNetworkPolicy` por label na VM (`30/30` `client-a`, `0/30` `client-b` com `18` drops `Policy denied`), `V04` (Gate `G01`: reuso determinístico do mesmo IP `10.253.0.100/32` entre `vm-a-reuse` `sec_id=163024` e `vm-b-reuse` `sec_id=133690`, provando `0/30 ALLOW` e `25` drops `Policy denied` sob `fromEndpoints` vs `30/30 ALLOW` sob ACL por IP), `V05` (`H3`: live migration altera o IP do `virt-launcher` `10.245.2.190 -> 10.245.1.23`, derruba sessão TCP para o podIP antigo e reconverge a VIP BGP em `~3 s`) e `V06` (`H4`: Multi-Pool `/32` por VM anunciado em `border1` `10.252.0.23/32 -> 10.252.0.4/32` após migração, seguido de rollback limpo a `ipam.mode=kubernetes`).
 - **P004-S006 (24/10/2026, PASS):** provou os negativos e limites estruturais do Braço Cilium A (`V07-A` / `C07` / `C-neg` / `H5`: dois namespaces compartilhando `10.253.10.0/24` operam sem VRF `vrf_count=0` com alcance direto entre `10.253.10.67` e `10.253.10.12`, enquanto dois pods exigindo o mesmo IP `10.253.10.100/32` falham com `putEndpointIdInvalid: IP ipv4:10.253.10.100 is already in use`; `V08-A` / `C08` / `H8`: cutover de VM legada QEMU/KVM `10.60.0.50/24` para VMI KubeVirt `10.60.0.50/32` em `pool-legacy-v08a` via BGP LPM em `cutover_total_s=39s`, `30/30` HTTP) e inaugurou o Braço Cilium B (**`H6` / Gate `G06`**: `DaemonSet/frr-node` `FRR 10.7.1` `AS 65301/65302` em peering iBGP `10.255.255.1:1790` com o Cilium `AS 65311/65312` e eBGP com o fabric, mantendo **`r6_kernel_bgp_routes = 0`** sob `table-map RM-NO-KERNEL` e concluindo rollback canônico com `MemAvailable = 4,23 GiB`).
 - **P004-S007 (25/10/2026, PASS):** executou ao vivo e provou os casos restantes do Braço Cilium B em `vm-cilium` (`V09`/`H7` EVPN Type 5 por VRF `vrf-tenant-a` `VNI 10100` e `vrf-tenant-b` `VNI 10200` com `30/30` intra-VRF, `0/10` cross-VRF e `R6=0`; `V07-B` CIDR sobreposto `10.253.10.0/24` e IP idêntico `10.253.10.100/24` isolados por VRF/EVPN Type 5 no FRR `30/30` vs limite global `cilium_lxc` na `eth0`; `V08-B` cutover de IP legado `10.60.0.50/32` via `Cilium -> FRR 10.7.1 no nó -> border1` com `AS_PATH 65203 65600 65201 65301 65311`, `rib_em=27s`, `cutover_total=40s`, `30/30` HTTP, `R6=0` e rollback limpo a `ipam.mode=kubernetes` com `MemAvailable = 4,95 GiB >= 4,0 GiB`) e fechou `docs/estudos/20-dci-estado-parcial.md` (§1–§8) com a matriz comparativa final **Cilium A vs Cilium B vs INV (`V00–V09` / `H1–H8`)** e o blueprint de transição para o Braço **OVN-Kubernetes (`C` / `D`)**.
-- **P004-S008 (25/10/2026, PASS):** fechou o gate **`G07`** com a matriz de equivalência `INV × Cilium A × Cilium B × OVN-K (C/D)` e os seis critérios objetivos de aceite para uma PoC comercial do INV (`INV-PoC-01` a `INV-PoC-06` em `20-dci-estado-parcial.md` §4.2), publicou a Edição 2.3 do Guia do Estudante e dos diagramas `08`/`09`, e aprovou o gate **`G08`** de higiene final dos laboratórios (`dci`, `evpn-fabric` e `ovnk` desligados com `0` resíduos; `p003-os` preservado `exited`; `p003-gw` em baseline limpo `ipam=kubernetes`, `0` pools, `R6=0`; `k01` `10/10` e `MemAvailable = 4,95 GiB / 4,93 GiB >= 4,00 GiB`). Consulte a [síntese pública de P004](estudos/20-dci-estado-parcial.md) para os resultados e limites completos.
+- **P004-S008 (25/10/2026, PASS):** fechou o gate **`G07`** com a matriz de equivalência `INV × Cilium A × Cilium B × OVN-K (C/D)` e os seis critérios objetivos de aceite para uma PoC comercial do INV (`INV-PoC-01` a `INV-PoC-06` em `20-dci-estado-parcial.md` §4.2), publicou a Edição 2.3 do Guia do Estudante e dos diagramas `08`/`09`, e aprovou o gate **`G08`** de higiene final dos laboratórios (`dci`, `evpn-fabric` e `ovnk` desligados com `0` resíduos; `p003-os` preservado `exited`; `p003-gw` em baseline limpo `ipam=kubernetes`, `0` pools, `R6=0`; `k01` `10/10` e `MemAvailable = 4,95 GiB / 4,93 GiB >= 4,00 GiB`). Consulte a [síntese pública de P004](../estudos/20-dci-estado-parcial.md) para os resultados e limites completos.
 
 Fontes: [INV GA](https://isovalent.com/blog/post/isovalent-networking-for-virtualization/),
 [INV com Nexus One](https://www.cisco.com/c/en/us/products/collateral/networking/cloud-networking/nx-os/isovalent-net-v12n-int-n-one-fabric-so.html),
@@ -343,7 +343,7 @@ Fontes: [INV GA](https://isovalent.com/blog/post/isovalent-networking-for-virtua
 
 ### E21 — IPAM e tempo de implantação: VPC-native versus overlay
 
-**Estado:** **CONCLUÍDO (`P005-S001` — PASS em 25/10/2026)** — publicado em [21 — `netkit` vs `veth` no Datapath eBPF & Escala de Burst IPAM com Warm Pool](estudos/21-netkit-vs-veth-ipam-burst.md).
+**Estado:** **CONCLUÍDO (`P005-S001` — PASS em 25/10/2026)** — publicado em [21 — `netkit` vs `veth` no Datapath eBPF & Escala de Burst IPAM com Warm Pool](../estudos/21-netkit-vs-veth-ipam-burst.md).
 
 Fonte: [Fleet-Scale Pod Deployment with VPC-Native Networking in Managed
 Kubernetes](https://arxiv.org/pdf/2608.22210). O artigo compara IPs secundários,
@@ -365,7 +365,7 @@ Gate: **PASS** (`05-e21-ipam-burst-scale.txt`): em rajadas de 16 pods (`registry
 
 ### E22 — XLB: balanceamento L7 com eBPF na camada de sockets
 
-**Estado:** **CONCLUÍDO (`P005-S002` — PASS em 25/10/2026)** — publicado em [22 — XLB: Balanceamento L7 eBPF na Camada de Sockets (`sockmap` / `bpf_sock_ops` / `sk_msg`) vs `SocketLB L4` e `Envoy L7`](estudos/22-xlb-ebpf-socket-lb-vs-envoy.md).
+**Estado:** **CONCLUÍDO (`P005-S002` — PASS em 25/10/2026)** — publicado em [22 — XLB: Balanceamento L7 eBPF na Camada de Sockets (`sockmap` / `bpf_sock_ops` / `sk_msg`) vs `SocketLB L4` e `Envoy L7`](../estudos/22-xlb-ebpf-socket-lb-vs-envoy.md).
 
 Fonte: [XLB: A High Performance Layer-7 Load Balancer for Microservices using
 eBPF-based In-kernel Interposition](https://arxiv.org/pdf/2602.09473). O artigo
@@ -386,7 +386,7 @@ Gate: **PASS** (`05-e22-xlb-socket-lb-vs-envoy.txt`): em `100` requisições HTT
 
 ### E23 — Netkit versus veth no datapath de containers
 
-**Estado:** **CONCLUÍDO (`P005-S001` — PASS em 25/10/2026)** — publicado em [21 — `netkit` vs `veth` no Datapath eBPF & Escala de Burst IPAM com Warm Pool](estudos/21-netkit-vs-veth-ipam-burst.md).
+**Estado:** **CONCLUÍDO (`P005-S001` — PASS em 25/10/2026)** — publicado em [21 — `netkit` vs `veth` no Datapath eBPF & Escala de Burst IPAM com Warm Pool](../estudos/21-netkit-vs-veth-ipam-burst.md).
 
 Fonte: [Netkit: Specializing Linux Packet Delivery for Container
 Networks](https://arxiv.org/pdf/2609.18633). O artigo especializa a entrega
@@ -408,7 +408,7 @@ Gate: **PASS** (`04-e23-netkit-vs-veth.txt`): provada a guarda fail-closed do Ci
 
 ### E24 — DRA no Cilium: alocação de recursos de rede por claim
 
-**Estado:** **CONCLUÍDO (`P005-S004` — PASS em 25/10/2026)** — publicado em [24 — Dynamic Resource Allocation (DRA `resource.k8s.io/v1`) para Dispositivos de Rede no Cilium (`NetworkDeviceData`)](estudos/24-cilium-dra-network-device.md).
+**Estado:** **CONCLUÍDO (`P005-S004` — PASS em 25/10/2026)** — publicado em [24 — Dynamic Resource Allocation (DRA `resource.k8s.io/v1`) para Dispositivos de Rede no Cilium (`NetworkDeviceData`)](../estudos/24-cilium-dra-network-device.md).
 
 Fonte: branch [Cilium `feature/dra-driver`](https://github.com/cilium/cilium/tree/feature/dra-driver),
 consultada em 30/09/2026 no commit
@@ -434,7 +434,7 @@ Gate: **PASS** (`05-e24-cilium-dra-live.txt`): provadas no Kubernetes `v1.35.0` 
 
 ### E25 — Cilium/Hubble no RKE2: observabilidade do tráfego de microserviços
 
-**Estado:** **CONCLUÍDO (`P005-S003` — PASS em 25/10/2026)** — publicado em [17 — Observabilidade Contínua BGP (`ACTIVE`/`DOWN`/`UNKNOWN` por 3 Leituras) e Microsserviços com Hubble (`L3/L4`, `L7 HTTP/DNS`, `TLS` e Prometheus)](estudos/17-bgp-hubble-observability.md).
+**Estado:** **CONCLUÍDO (`P005-S003` — PASS em 25/10/2026)** — publicado em [17 — Observabilidade Contínua BGP (`ACTIVE`/`DOWN`/`UNKNOWN` por 3 Leituras) e Microsserviços com Hubble (`L3/L4`, `L7 HTTP/DNS`, `TLS` e Prometheus)](../estudos/17-bgp-hubble-observability.md).
 
 Referência sugerida: [Cilium Hubble on RKE2: Microservice Traffic Observability
 (Seeing the Invisible)](https://dev.to/ezejioforog/cilium-hubble-on-rke2-microservice-traffic-observability-seeing-the-invisible-5glb),
@@ -461,23 +461,23 @@ Gate: **PASS** (`04-e17-e25-observability.txt`): provadas no Hubble a correlaç�
 
 | Ordem / Onda | Estudo | Ambiente | Estado Final | Dossiê Público |
 |---|---|---|---|---|
-| `P005-S001` (Onda 1 — Braço A) | **E19** idempotência BGP (`10x`) e zero resíduo | `p003-gw` + `border1` | **CONCLUÍDO (`PASS`)** | [`19-bgp-idempotency-md5-asn32.md`](estudos/19-bgp-idempotency-md5-asn32.md) |
-| `P005-S001` (Onda 1 — Braço A) | **E09** TCP MD5 + ASN 32 bits (`4200000001`) + rotação | `p003-gw` + `frr-e09` | **CONCLUÍDO (`PASS`)** | [`19-bgp-idempotency-md5-asn32.md`](estudos/19-bgp-idempotency-md5-asn32.md) |
-| `P005-S001` (Onda 1 — Braço B) | **E23** `netkit` vs `veth` no datapath eBPF | `p003-gw` (`netkit` L3) | **CONCLUÍDO (`PASS`)** | [`21-netkit-vs-veth-ipam-burst.md`](estudos/21-netkit-vs-veth-ipam-burst.md) |
-| `P005-S001` (Onda 1 — Braço B) | **E21** IPAM burst e warm pool (`preAllocate`) | `p003-gw` (`multi-pool`) | **CONCLUÍDO (`PASS`)** | [`21-netkit-vs-veth-ipam-burst.md`](estudos/21-netkit-vs-veth-ipam-burst.md) |
-| `P005-S002` (Onda 2 — Braço A) | **E11** `max-prefix` e filtro de import (`prefix-list`) | `p003-gw` + `border1` + `frr-e11-ce` | **CONCLUÍDO (`PASS`)** | [`11-bgp-maxprefix-communities-bfd.md`](estudos/11-bgp-maxprefix-communities-bfd.md) |
-| `P005-S002` (Onda 2 — Braço A) | **E12** communities (`65400:100/200`), prepend e MED | `p003-gw` + `border1` + `frr-e12-ce` | **CONCLUÍDO (`PASS`)** | [`11-bgp-maxprefix-communities-bfd.md`](estudos/11-bgp-maxprefix-communities-bfd.md) |
-| `P005-S002` (Onda 2 — Braço A) | **E10** detecção de falha: Timers `3/9s`, `1/3s` e BFD `< 1 s` | `p003-gw` + `frr-e10-pe`/`ce` | **CONCLUÍDO (`PASS`)** | [`11-bgp-maxprefix-communities-bfd.md`](estudos/11-bgp-maxprefix-communities-bfd.md) |
-| `P005-S002` (Onda 2 — Braço B) | **E22** XLB L7 (`sockmap`/`bpf_sock_ops`/`sk_msg`) vs Envoy | `p003-gw` (BPF cgroup/sockops) | **CONCLUÍDO (`PASS`)** | [`22-xlb-ebpf-socket-lb-vs-envoy.md`](estudos/22-xlb-ebpf-socket-lb-vs-envoy.md) |
-| `P005-S003` (Onda 3 — Braço A) | **E13** redundância dual-border e failover s/ e c/ GR | `p003-gw` + `border1` + `frr-e13-border2` | **CONCLUÍDO (`PASS`)** | [`13-bgp-dual-border-gr-ipv6.md`](estudos/13-bgp-dual-border-gr-ipv6.md) |
-| `P005-S003` (Onda 3 — Braço A) | **E14** sessão eBGP IPv6 dedicada e VIP `fd14::a/128` | `p003-gw` + `border1` + `frr-e14-client` | **CONCLUÍDO (`PASS`)** | [`13-bgp-dual-border-gr-ipv6.md`](estudos/13-bgp-dual-border-gr-ipv6.md) |
-| `P005-S003` (Onda 3 — Braço B) | **E17** observabilidade contínua BGP (3 leituras) | `p003-gw` (`:9962/metrics`) + `border1` | **CONCLUÍDO (`PASS`)** | [`17-bgp-hubble-observability.md`](estudos/17-bgp-hubble-observability.md) |
-| `P005-S003` (Onda 3 — Braço B) | **E25** observabilidade de microsserviços com Hubble | `p003-gw` (Hubble L3/L4/L7/TLS + `:9965`) | **CONCLUÍDO (`PASS`)** | [`17-bgp-hubble-observability.md`](estudos/17-bgp-hubble-observability.md) |
-| `P005-S004` (Onda 4 — Braço A) | **E15** VRF por tenant no border via community | `p003-gw` + `frr-e15-pe` (`vrf-e15-a`/`b`) | **CONCLUÍDO (`PASS`)** | [`15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md`](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md) |
-| `P005-S004` (Onda 4 — Braço A) | **E16** desenho PE/CE, 3 modos de retorno e Egress GW | `p003-gw` + `frr-e16-pe`/`node` | **CONCLUÍDO (`PASS`)** | [`15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md`](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md) |
-| `P005-S004` (Onda 4 — Braço A) | **E18** MTU 9000 Jumbo/PMTU, QinQ `802.1ad` e MACsec `802.1AE` | `p003-gw` + `frr-e18-pe`/`client` | **CONCLUÍDO (`PASS`)** | [`15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md`](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md) |
-| `P005-S004` (Onda 4 — Braço B) | **E24** DRA (`resource.k8s.io/v1`) `NetworkDeviceData` no Cilium | `p003-gw` (`K8s v1.35.0` DRA GA) | **CONCLUÍDO (`PASS`)** | [`24-cilium-dra-network-device.md`](estudos/24-cilium-dra-network-device.md) |
-| `P004-S001..S008` | **E20** Cilium OSS + KubeVirt + OVN-K + DCI × INV | `dci` + `evpn-fabric` + `ovnk` + `p003-gw` | **CONCLUÍDO (`PASS`)** | [`20-dci-estado-parcial.md`](estudos/20-dci-estado-parcial.md) |
+| `P005-S001` (Onda 1 — Braço A) | **E19** idempotência BGP (`10x`) e zero resíduo | `p003-gw` + `border1` | **CONCLUÍDO (`PASS`)** | [`19-bgp-idempotency-md5-asn32.md`](../estudos/19-bgp-idempotency-md5-asn32.md) |
+| `P005-S001` (Onda 1 — Braço A) | **E09** TCP MD5 + ASN 32 bits (`4200000001`) + rotação | `p003-gw` + `frr-e09` | **CONCLUÍDO (`PASS`)** | [`19-bgp-idempotency-md5-asn32.md`](../estudos/19-bgp-idempotency-md5-asn32.md) |
+| `P005-S001` (Onda 1 — Braço B) | **E23** `netkit` vs `veth` no datapath eBPF | `p003-gw` (`netkit` L3) | **CONCLUÍDO (`PASS`)** | [`21-netkit-vs-veth-ipam-burst.md`](../estudos/21-netkit-vs-veth-ipam-burst.md) |
+| `P005-S001` (Onda 1 — Braço B) | **E21** IPAM burst e warm pool (`preAllocate`) | `p003-gw` (`multi-pool`) | **CONCLUÍDO (`PASS`)** | [`21-netkit-vs-veth-ipam-burst.md`](../estudos/21-netkit-vs-veth-ipam-burst.md) |
+| `P005-S002` (Onda 2 — Braço A) | **E11** `max-prefix` e filtro de import (`prefix-list`) | `p003-gw` + `border1` + `frr-e11-ce` | **CONCLUÍDO (`PASS`)** | [`11-bgp-maxprefix-communities-bfd.md`](../estudos/11-bgp-maxprefix-communities-bfd.md) |
+| `P005-S002` (Onda 2 — Braço A) | **E12** communities (`65400:100/200`), prepend e MED | `p003-gw` + `border1` + `frr-e12-ce` | **CONCLUÍDO (`PASS`)** | [`11-bgp-maxprefix-communities-bfd.md`](../estudos/11-bgp-maxprefix-communities-bfd.md) |
+| `P005-S002` (Onda 2 — Braço A) | **E10** detecção de falha: Timers `3/9s`, `1/3s` e BFD `< 1 s` | `p003-gw` + `frr-e10-pe`/`ce` | **CONCLUÍDO (`PASS`)** | [`11-bgp-maxprefix-communities-bfd.md`](../estudos/11-bgp-maxprefix-communities-bfd.md) |
+| `P005-S002` (Onda 2 — Braço B) | **E22** XLB L7 (`sockmap`/`bpf_sock_ops`/`sk_msg`) vs Envoy | `p003-gw` (BPF cgroup/sockops) | **CONCLUÍDO (`PASS`)** | [`22-xlb-ebpf-socket-lb-vs-envoy.md`](../estudos/22-xlb-ebpf-socket-lb-vs-envoy.md) |
+| `P005-S003` (Onda 3 — Braço A) | **E13** redundância dual-border e failover s/ e c/ GR | `p003-gw` + `border1` + `frr-e13-border2` | **CONCLUÍDO (`PASS`)** | [`13-bgp-dual-border-gr-ipv6.md`](../estudos/13-bgp-dual-border-gr-ipv6.md) |
+| `P005-S003` (Onda 3 — Braço A) | **E14** sessão eBGP IPv6 dedicada e VIP `fd14::a/128` | `p003-gw` + `border1` + `frr-e14-client` | **CONCLUÍDO (`PASS`)** | [`13-bgp-dual-border-gr-ipv6.md`](../estudos/13-bgp-dual-border-gr-ipv6.md) |
+| `P005-S003` (Onda 3 — Braço B) | **E17** observabilidade contínua BGP (3 leituras) | `p003-gw` (`:9962/metrics`) + `border1` | **CONCLUÍDO (`PASS`)** | [`17-bgp-hubble-observability.md`](../estudos/17-bgp-hubble-observability.md) |
+| `P005-S003` (Onda 3 — Braço B) | **E25** observabilidade de microsserviços com Hubble | `p003-gw` (Hubble L3/L4/L7/TLS + `:9965`) | **CONCLUÍDO (`PASS`)** | [`17-bgp-hubble-observability.md`](../estudos/17-bgp-hubble-observability.md) |
+| `P005-S004` (Onda 4 — Braço A) | **E15** VRF por tenant no border via community | `p003-gw` + `frr-e15-pe` (`vrf-e15-a`/`b`) | **CONCLUÍDO (`PASS`)** | [`15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md`](../estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md) |
+| `P005-S004` (Onda 4 — Braço A) | **E16** desenho PE/CE, 3 modos de retorno e Egress GW | `p003-gw` + `frr-e16-pe`/`node` | **CONCLUÍDO (`PASS`)** | [`15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md`](../estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md) |
+| `P005-S004` (Onda 4 — Braço A) | **E18** MTU 9000 Jumbo/PMTU, QinQ `802.1ad` e MACsec `802.1AE` | `p003-gw` + `frr-e18-pe`/`client` | **CONCLUÍDO (`PASS`)** | [`15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md`](../estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md) |
+| `P005-S004` (Onda 4 — Braço B) | **E24** DRA (`resource.k8s.io/v1`) `NetworkDeviceData` no Cilium | `p003-gw` (`K8s v1.35.0` DRA GA) | **CONCLUÍDO (`PASS`)** | [`24-cilium-dra-network-device.md`](../estudos/24-cilium-dra-network-device.md) |
+| `P004-S001..S008` | **E20** Cilium OSS + KubeVirt + OVN-K + DCI × INV | `dci` + `evpn-fabric` + `ovnk` + `p003-gw` | **CONCLUÍDO (`PASS`)** | [`20-dci-estado-parcial.md`](../estudos/20-dci-estado-parcial.md) |
 
 O FRR "cliente" é um container novo no sandbox, fora do cluster, com sessão
 ao border. Ele substitui o cliente HTTP nos ensaios de roteamento e permite
@@ -489,10 +489,10 @@ Após o encerramento de `P005` (`25/25` estudos `E01–E25`), o plano **`P006`**
 
 | Onda (`P006`) | Braço A — Datapath & Borda Avançada (`E26–E29`) | Braço B — Multi-Cluster, SRv6, Segurança eBPF & Live Migration (`E30–E33`) | Braço C — Saneamento (`revisao-projeto-2026-09-26.md`) | Estado | Dossiê Público |
 |---|---|---|---|---|---|
-| **`P006-S001` (Onda 1)** | **E26** — LoadBalancer TCX/XDP, `externalTrafficPolicy: Local` vs `Cluster` (SNAT) e Maglev Consistent Hashing (`M=16381`, `0` rehash colateral) | **E30** — Cilium Cluster Mesh / MCS-API (`EndpointSlice` multi-cluster), Failover Global sobre BGP e `CiliumNetworkPolicy` Cross-Cluster | **Bloco C1 (`A4–A8`, `A10–A12`)** — Sintaxe `s012/11,81`, sanitização `e08`, TLS efêmero `s009`, senha `s011`, `$K`, `NR==1/2`, `s010` | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`26-lb-xdp-dsr-maglev-clustermesh.md`](estudos/26-lb-xdp-dsr-maglev-clustermesh.md) |
-| **`P006-S002` (Onda 2)** | **E27** — BIG TCP (`gso_max_size=196608`, super-pacotes `187,97 KiB` IPv4 / `187,58 KiB` IPv6, `46,31 Gbps` `veth` / `46,08 Gbps` `netkit`, `-51,6%` `NET_RX`) + `netkit mode l3` + Jumbo MTU 9000 e PMTU Blackhole (`RFC 4821`) | **E31** — SRv6 L3VPN (`seg6local` / `encap seg6` Kernel Linux + FRR `End.DT4`, `30/30` subnets sobrepostas `10.253.31.0/24`) sem VXLAN | **Bloco C2 (`A1–A3`, `A9`, `M1–M6`)** — Defaults `TOPO`/`PFX`/`k01-*`, `egressDeny`/`ingressDeny`, FRR/Helm/EVPN/prep | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`27-big-tcp-netkit-srv6-l3vpn.md`](estudos/27-big-tcp-netkit-srv6-l3vpn.md) |
-| **`P006-S003` (Onda 3)** | **E28** — Bandwidth Manager (`enable-bandwidth-manager=true`, `qdisc fq` + pacing por pod `50M` -> `49,70`/`49,62 Mbps`, `100M` -> `97,34`/`97,70 Mbps` vs `8,49`/`8,94 Gbps` s/ limite, `invalid-rate` resiliente e remoção dinâmica de `50M` -> `8,40`/`9,00 Gbps` em `2 s`) + `TCP BBR` vs `CUBIC` (`+37,5%` a `+43,8%` sob `10 ms / 0,5% loss`) | **E32** — Tetragon Runtime Security & Enforcement (`TracingPolicyNamespaced` `e32-runtime-security-policy` em `e32-workload`, `security_file_permission` `/etc/shadow` e `tcp_connect` `:4444` -> `Sigkill` `rc=137`, `0` bytes vazados, `10/10` HTTP `200` legítimo em `:8080`) | **Bloco C3 (`M7–M15`)** — Guards `s012/05`, `s011/01`, `vhost_net`, `s007/s008`, `k01-canary`, `fixtures/auth` + `tlsecho`, refs privadas, `k8sServiceHost` | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`28-bandwidth-edt-bbr-tetragon.md`](estudos/28-bandwidth-edt-bbr-tetragon.md) |
-| **`P006-S004` (Onda 4)** | **E29** — BGP Unnumbered (`RFC 5549`/`8950` Extended Next-Hop: `10.206.29.0/24 via inet6 fe80::ac7d:91ff:feff:53fb` c/ `0` IPv4 p2p, `10/10` pings) & L2 Announcements (`CiliumL2AnnouncementPolicy`: `Lease/cilium-l2announce-p006-e29-e29-lb-svc`, `cilium_l2_responder_v4` para `172.18.0.242`, `10/10` HTTP `200` e withdraw negativo) | **E33** — KubeVirt Live Migration sob Tráfego Contínuo (`50 pps` / `20 ms`): `Cilium B /32 BGP` (`blackout_ms=100,45 ms`, `lost_pkts=5/150`) vs `OVN-K EVPN Type-2` (`VNI 10033`, `blackout_ms=60,25 ms`, `lost_pkts=3/150`) + controle negativo (`0/10` stale vs `10/10` recuperado) | **Bloco C4 (Baixa + `Makefile` `make lint`/`test`/`pdf` + Release `v2.5.0`)** — Índices `s011/s012`, `student-guide-template.md`, `204/204` `.sh` OK, `100%` do backlog fechado | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`29-bgp-unnumbered-l2-live-migration.md`](estudos/29-bgp-unnumbered-l2-live-migration.md) |
+| **`P006-S001` (Onda 1)** | **E26** — LoadBalancer TCX/XDP, `externalTrafficPolicy: Local` vs `Cluster` (SNAT) e Maglev Consistent Hashing (`M=16381`, `0` rehash colateral) | **E30** — Cilium Cluster Mesh / MCS-API (`EndpointSlice` multi-cluster), Failover Global sobre BGP e `CiliumNetworkPolicy` Cross-Cluster | **Bloco C1 (`A4–A8`, `A10–A12`)** — Sintaxe `s012/11,81`, sanitização `e08`, TLS efêmero `s009`, senha `s011`, `$K`, `NR==1/2`, `s010` | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`26-lb-xdp-dsr-maglev-clustermesh.md`](../estudos/26-lb-xdp-dsr-maglev-clustermesh.md) |
+| **`P006-S002` (Onda 2)** | **E27** — BIG TCP (`gso_max_size=196608`, super-pacotes `187,97 KiB` IPv4 / `187,58 KiB` IPv6, `46,31 Gbps` `veth` / `46,08 Gbps` `netkit`, `-51,6%` `NET_RX`) + `netkit mode l3` + Jumbo MTU 9000 e PMTU Blackhole (`RFC 4821`) | **E31** — SRv6 L3VPN (`seg6local` / `encap seg6` Kernel Linux + FRR `End.DT4`, `30/30` subnets sobrepostas `10.253.31.0/24`) sem VXLAN | **Bloco C2 (`A1–A3`, `A9`, `M1–M6`)** — Defaults `TOPO`/`PFX`/`k01-*`, `egressDeny`/`ingressDeny`, FRR/Helm/EVPN/prep | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`27-big-tcp-netkit-srv6-l3vpn.md`](../estudos/27-big-tcp-netkit-srv6-l3vpn.md) |
+| **`P006-S003` (Onda 3)** | **E28** — Bandwidth Manager (`enable-bandwidth-manager=true`, `qdisc fq` + pacing por pod `50M` -> `49,70`/`49,62 Mbps`, `100M` -> `97,34`/`97,70 Mbps` vs `8,49`/`8,94 Gbps` s/ limite, `invalid-rate` resiliente e remoção dinâmica de `50M` -> `8,40`/`9,00 Gbps` em `2 s`) + `TCP BBR` vs `CUBIC` (`+37,5%` a `+43,8%` sob `10 ms / 0,5% loss`) | **E32** — Tetragon Runtime Security & Enforcement (`TracingPolicyNamespaced` `e32-runtime-security-policy` em `e32-workload`, `security_file_permission` `/etc/shadow` e `tcp_connect` `:4444` -> `Sigkill` `rc=137`, `0` bytes vazados, `10/10` HTTP `200` legítimo em `:8080`) | **Bloco C3 (`M7–M15`)** — Guards `s012/05`, `s011/01`, `vhost_net`, `s007/s008`, `k01-canary`, `fixtures/auth` + `tlsecho`, refs privadas, `k8sServiceHost` | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`28-bandwidth-edt-bbr-tetragon.md`](../estudos/28-bandwidth-edt-bbr-tetragon.md) |
+| **`P006-S004` (Onda 4)** | **E29** — BGP Unnumbered (`RFC 5549`/`8950` Extended Next-Hop: `10.206.29.0/24 via inet6 fe80::ac7d:91ff:feff:53fb` c/ `0` IPv4 p2p, `10/10` pings) & L2 Announcements (`CiliumL2AnnouncementPolicy`: `Lease/cilium-l2announce-p006-e29-e29-lb-svc`, `cilium_l2_responder_v4` para `172.18.0.242`, `10/10` HTTP `200` e withdraw negativo) | **E33** — KubeVirt Live Migration sob Tráfego Contínuo (`50 pps` / `20 ms`): `Cilium B /32 BGP` (`blackout_ms=100,45 ms`, `lost_pkts=5/150`) vs `OVN-K EVPN Type-2` (`VNI 10033`, `blackout_ms=60,25 ms`, `lost_pkts=3/150`) + controle negativo (`0/10` stale vs `10/10` recuperado) | **Bloco C4 (Baixa + `Makefile` `make lint`/`test`/`pdf` + Release `v2.5.0`)** — Índices `s011/s012`, `student-guide-template.md`, `204/204` `.sh` OK, `100%` do backlog fechado | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`29-bgp-unnumbered-l2-live-migration.md`](../estudos/29-bgp-unnumbered-l2-live-migration.md) |
 
 ## 5.2 Fase 3 (`Plano P007` — Estudos Avançados `E34–E37`, Release `v2.6.0`)
 
@@ -500,8 +500,8 @@ Após o encerramento de `P006` (`33/33` estudos `E01–E33`), o plano **`P007`**
 
 | Onda (`P007`) | Braço A — Borda BGP Zero-Loss & Local Redirect eBPF (`E34`, `E36`) | Braço B — Zero-Trust mTLS/WireGuard & Dual-Homed `ipvlan`/`macvlan` (`E35`, `E37`) | Estado | Dossiê Público |
 |---|---|---|---|---|
-| **`P007-S001` (Onda 1)** | **E34** — BGP Graceful Shutdown (`RFC 8326` well-known community `65535:0`, `LOCAL_PREF=0` no ToR FRR & CRD `CiliumBGPAdvertisement` `cilium.io/v2`) + `PreStop` K8s Node Drain (`0,00%` loss / `0,00 ms` blackout em `150` pkts UDP `50 pps` vs `5,33%` loss / `662,15 ms` blackout no drain abrupto; fallback `last-resort` `10/10`) | **E35** — Cilium Mutual Authentication (`SPIFFE` X.509 SVID mTLS `spiffe://spiffe.cilium/ns/p007-e35/sa/e35-client-trusted`, `TLSv1.3` `TLS_AES_256_GCM_SHA384` `10/10` HTTP `200`, `0/5` rogue SVID, `0/5` untrusted CA, `0/5` `CiliumNetworkPolicy` `ingressDeny`) & L3 `WireGuard` (`cilium_wg0` UDP `:51871`, `102` pkts cifrados, `0` vazamentos em claro vs `20` s/ WireGuard) | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`30-bgp-gshut-spiffe-mtls-wireguard.md`](estudos/30-bgp-gshut-spiffe-mtls-wireguard.md) |
-| **`P007-S002` (Onda 2)** | **E36** — Cilium Local Redirect Policy (`CiliumLocalRedirectPolicy` `serviceMatcher` & `addressMatcher` `169.254.20.10:8080/TCP`, `[LocalRedirect]` no mapa BPF LB, `20/20` `100%` node-local bypass vs `40%–60%` cross-node no baseline, e controles `3A=0/5` s/ réplica local e `3B=0/5` pós-remoção) | **E37** — Workloads / VMs KubeVirt Dual-Homed com Multus (`NetworkAttachmentDefinition` `k8s.cni.cncf.io/v1`) + `ipvlan mode l2/l3` vs `macvlan` (`MTU 9000` Jumbo `8980 B` `10/10` `RTT 0,069 ms`; `ipvlan l3` `36,76 Gbps`; `macvlan` `0/5` `dropped 10` bloqueado vs `ipvlan` `10/10` sob Port-Security L2 Cloud `tc flower`) | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`31-local-redirect-multus-ipvlan-dualhomed.md`](estudos/31-local-redirect-multus-ipvlan-dualhomed.md) |
+| **`P007-S001` (Onda 1)** | **E34** — BGP Graceful Shutdown (`RFC 8326` well-known community `65535:0`, `LOCAL_PREF=0` no ToR FRR & CRD `CiliumBGPAdvertisement` `cilium.io/v2`) + `PreStop` K8s Node Drain (`0,00%` loss / `0,00 ms` blackout em `150` pkts UDP `50 pps` vs `5,33%` loss / `662,15 ms` blackout no drain abrupto; fallback `last-resort` `10/10`) | **E35** — Cilium Mutual Authentication (`SPIFFE` X.509 SVID mTLS `spiffe://spiffe.cilium/ns/p007-e35/sa/e35-client-trusted`, `TLSv1.3` `TLS_AES_256_GCM_SHA384` `10/10` HTTP `200`, `0/5` rogue SVID, `0/5` untrusted CA, `0/5` `CiliumNetworkPolicy` `ingressDeny`) & L3 `WireGuard` (`cilium_wg0` UDP `:51871`, `102` pkts cifrados, `0` vazamentos em claro vs `20` s/ WireGuard) | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`30-bgp-gshut-spiffe-mtls-wireguard.md`](../estudos/30-bgp-gshut-spiffe-mtls-wireguard.md) |
+| **`P007-S002` (Onda 2)** | **E36** — Cilium Local Redirect Policy (`CiliumLocalRedirectPolicy` `serviceMatcher` & `addressMatcher` `169.254.20.10:8080/TCP`, `[LocalRedirect]` no mapa BPF LB, `20/20` `100%` node-local bypass vs `40%–60%` cross-node no baseline, e controles `3A=0/5` s/ réplica local e `3B=0/5` pós-remoção) | **E37** — Workloads / VMs KubeVirt Dual-Homed com Multus (`NetworkAttachmentDefinition` `k8s.cni.cncf.io/v1`) + `ipvlan mode l2/l3` vs `macvlan` (`MTU 9000` Jumbo `8980 B` `10/10` `RTT 0,069 ms`; `ipvlan l3` `36,76 Gbps`; `macvlan` `0/5` `dropped 10` bloqueado vs `ipvlan` `10/10` sob Port-Security L2 Cloud `tc flower`) | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`31-local-redirect-multus-ipvlan-dualhomed.md`](../estudos/31-local-redirect-multus-ipvlan-dualhomed.md) |
 
 ## 5.3 Fase 4 (`Plano P008` — Estudos Avançados `E38–E41`, Release `v2.7.0`)
 
@@ -509,8 +509,8 @@ Após o encerramento de `P007` (`37/37` estudos `E01–E37`), o plano **`P008`**
 
 | Onda (`P008`) | Braço A — Host Firewall + XDP Prefilter & iBGP Route Reflector + SRv6 Dual-Stack (`E38`, `E40`) | Braço B — CiliumEnvoyConfig L7 Resilience & Matriz 2×2 `netkit` + BIG TCP + `WireGuard` (`E39`, `E41`) | Estado | Dossiê Público |
 |---|---|---|---|---|
-| **`P008-S001` (Onda 1)** | **E38** — Cilium Host Firewall (`enable-host-firewall=true` + `CiliumClusterwideNetworkPolicy` `nodeSelector` bloqueando `0/5` em `:19100` c/ `tc_host_fw_drops=5` e preservando `10/10` `:10250` anti-lockout) & XDP Early DDoS Prefilter (`prog/xdp id 178974 tag 0416bbd05d9ed492 jited`, `200/200` pacotes UDP/IPv4 de flood L3 descartados antes de `sk_buff` com `conntrack_flood_entries=0` vs `120` entradas legítimas) | **E39** — CiliumEnvoyConfig (`cilium.io/v2`) L7 Traffic Management & Resilience (`cilium-envoy 1.37.6`: Weighted Canary `90/10` em `/version` -> `v1=86, v2=14`; Header `X-Canary: true` -> `10/10` `v2`; Token-Bucket Local Rate Limit `5 tokens` em `/ratelimited` -> `5/15` `200 OK` + `10/15` `429 Too Many Requests` `x-envoy-ratelimited: true`; Automatic Retries `retry_on: 5xx` em `/flaky-retry` recuperando `50%` `503` de `5/10` para `10/10` HTTP `200`) | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`32-host-firewall-xdp-envoy-l7-resilience.md`](estudos/32-host-firewall-xdp-envoy-l7-resilience.md) |
-| **`P008-S002` (Onda 2)** | **E40** — Escalabilidade iBGP Route Reflector (`RFC 4456` `route-reflector-client`, `cluster-id 10.255.40.1`, `Originator: 10.208.40.2`, `0` sessões full-mesh entre workers, `10/10` IPv4+IPv6) & SRv6 L3VPN Dual-Stack (`seg6local action End.DT4` + `End.DT6` sem VXLAN isolando `10.253.40.0/24` + `fd40:253:40::/64` 100% sobrepostos c/ `10/10` HTTP `200` v4/v6 e revogação seletiva `End.DT6` `0/5` preservando `End.DT4` `10/10`) | **E41** — Matriz 2×2 de Sinergia no Datapath (`veth MTU 1500` vs `netkit L3 MTU 9000 + BIG TCP 192 KiB` × `Cleartext` vs `WireGuard cilium_wg0 MTU 8920`): `R1=34,55 Gbps` (`47.776 pkts`), `R2=1,56 Gbps` (`1.569.813 pkts`), `R3=43,91 Gbps` (`23.922 pkts`, `+27,1%` vs `R1`), **`R4=8,72 Gbps` (`243.767 pkts`, `+459,0%` / `5,59x` sobre `R2` e `-84,5%` invocações ChaCha20-Poly1305)** + teto exato `8892 B` (`10/10`) vs `8893 B` (`0/5`, overhead WireGuard IPv4=`80 B`) | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`33-bgp-rr-srv6-dualstack-netkit-wg-matrix.md`](estudos/33-bgp-rr-srv6-dualstack-netkit-wg-matrix.md) |
+| **`P008-S001` (Onda 1)** | **E38** — Cilium Host Firewall (`enable-host-firewall=true` + `CiliumClusterwideNetworkPolicy` `nodeSelector` bloqueando `0/5` em `:19100` c/ `tc_host_fw_drops=5` e preservando `10/10` `:10250` anti-lockout) & XDP Early DDoS Prefilter (`prog/xdp id 178974 tag 0416bbd05d9ed492 jited`, `200/200` pacotes UDP/IPv4 de flood L3 descartados antes de `sk_buff` com `conntrack_flood_entries=0` vs `120` entradas legítimas) | **E39** — CiliumEnvoyConfig (`cilium.io/v2`) L7 Traffic Management & Resilience (`cilium-envoy 1.37.6`: Weighted Canary `90/10` em `/version` -> `v1=86, v2=14`; Header `X-Canary: true` -> `10/10` `v2`; Token-Bucket Local Rate Limit `5 tokens` em `/ratelimited` -> `5/15` `200 OK` + `10/15` `429 Too Many Requests` `x-envoy-ratelimited: true`; Automatic Retries `retry_on: 5xx` em `/flaky-retry` recuperando `50%` `503` de `5/10` para `10/10` HTTP `200`) | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`32-host-firewall-xdp-envoy-l7-resilience.md`](../estudos/32-host-firewall-xdp-envoy-l7-resilience.md) |
+| **`P008-S002` (Onda 2)** | **E40** — Escalabilidade iBGP Route Reflector (`RFC 4456` `route-reflector-client`, `cluster-id 10.255.40.1`, `Originator: 10.208.40.2`, `0` sessões full-mesh entre workers, `10/10` IPv4+IPv6) & SRv6 L3VPN Dual-Stack (`seg6local action End.DT4` + `End.DT6` sem VXLAN isolando `10.253.40.0/24` + `fd40:253:40::/64` 100% sobrepostos c/ `10/10` HTTP `200` v4/v6 e revogação seletiva `End.DT6` `0/5` preservando `End.DT4` `10/10`) | **E41** — Matriz 2×2 de Sinergia no Datapath (`veth MTU 1500` vs `netkit L3 MTU 9000 + BIG TCP 192 KiB` × `Cleartext` vs `WireGuard cilium_wg0 MTU 8920`): `R1=34,55 Gbps` (`47.776 pkts`), `R2=1,56 Gbps` (`1.569.813 pkts`), `R3=43,91 Gbps` (`23.922 pkts`, `+27,1%` vs `R1`), **`R4=8,72 Gbps` (`243.767 pkts`, `+459,0%` / `5,59x` sobre `R2` e `-84,5%` invocações ChaCha20-Poly1305)** + teto exato `8892 B` (`10/10`) vs `8893 B` (`0/5`, overhead WireGuard IPv4=`80 B`) | **CONCLUÍDO (`PASS` em 26/10/2026)** | [`33-bgp-rr-srv6-dualstack-netkit-wg-matrix.md`](../estudos/33-bgp-rr-srv6-dualstack-netkit-wg-matrix.md) |
 
 ## 6. Roteamento de execução
 

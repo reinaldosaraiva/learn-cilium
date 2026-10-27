@@ -1,4 +1,4 @@
-# Makefile — poc-k8s-fabric (v2.8.0)
+# Makefile — poc-k8s-fabric
 # Alvos de validação estática (lint), dry-run de estudos (test), geração de PDF (pdf) e execução P008 (E38–E41).
 
 SHELL := /usr/bin/env bash
@@ -10,6 +10,8 @@ PYTHON_PDF ?= $(shell if [ -x "$(REPO_ROOT)/.venv/bin/python3" ]; then echo "$(R
 all: lint test
 
 lint:
+	@echo "[lint Markdown] Verificando destinos relativos nos arquivos públicos..."
+	@"$(PYTHON_PDF)" -I tools/check_relative_links.py
 	@echo "[lint 1/4] Verificando sintaxe Bash (bash -n) em todos os scripts .sh..."
 	@count=0; \
 	while IFS= read -r -d '' f; do \
@@ -46,6 +48,8 @@ lint:
 	@echo "  -> OK (scripts P005/P006/P007/P008 presentes)"
 
 test:
+	@echo "[test Python] Verificando o checker de links Markdown..."
+	@"$(PYTHON_PDF)" -I tools/test_check_relative_links.py
 	@echo "[test 1/3] Executando suíte unitária Go da fixture ExternalAuth..."
 	@if command -v go >/dev/null 2>&1; then \
 		(cd studies/p003/fixtures/auth && go test -v ./...) || exit 1; \
@@ -95,3 +99,7 @@ pdf:
 latex:
 	@echo "[latex] Gerando edição ABNT (abnTeX2) em docs/latex/lab-guide-student.tex..."
 	@(cd "$(REPO_ROOT)" && "$(PYTHON_PDF)" -I poc-k8s-fabric/tools/build_latex.py --no-pdf)
+
+help:
+	@echo "Alvos do kit: lint, test, pdf, latex e p008-e38/e39/e40/e41, p008-s001/s002, p008-all."
+	@echo "Use 'make lint' e 'make test' para validar; 'make pdf' gera o guia (requer pandoc e tectonic)."

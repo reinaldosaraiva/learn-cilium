@@ -1,8 +1,8 @@
 # labctl — lab-as-code (P004)
 
 Sobe, verifica e desce os labs do `vm-cilium` por um único CLI idempotente,
-com `--dry-run` e prova de ausência de resíduo. Contrato:
-`plans/P004/labctl-spec.md`.
+com `--dry-run` e verificação de resíduos. Este README documenta os comandos,
+os parâmetros públicos e os limites de cada perfil.
 
 ## Uso
 
