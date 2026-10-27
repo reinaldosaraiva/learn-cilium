@@ -2,7 +2,7 @@
 
 ## Guia de estudo e prática
 
-**Autor:** Reinaldo Saraiva · **Edição:** 2.7 · **Local:** [S. l.] · **Ano:** 2026 · **Público-alvo:** estudantes de Kubernetes, redes e Cilium que já conhecem o vocabulário básico de IP e roteamento
+**Autor:** Reinaldo Saraiva · **Edição:** 2.8 · **Local:** Teresina · **Ano:** 2026 · **Público-alvo:** estudantes de Kubernetes, redes e Cilium que já conhecem o vocabulário básico de IP e roteamento
 
 ## Apresentação
 

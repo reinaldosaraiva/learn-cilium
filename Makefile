@@ -1,4 +1,4 @@
-# Makefile Raiz — Repositório learn-cilium (v2.7.0)
+# Makefile Raiz — Repositório learn-cilium (v2.8.0)
 # Delega para poc-k8s-fabric/Makefile mantendo conveniência na raiz do projeto.
 
 .PHONY: all lint test pdf latex help p008-e38 p008-e39 p008-e40 p008-e41 p008-s001 p008-s002 p008-all

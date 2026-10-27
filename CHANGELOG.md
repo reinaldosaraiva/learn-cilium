@@ -5,6 +5,25 @@ Todas as mudanças relevantes deste repositório de estudos e laboratório
 
 ---
 
+## [v2.8.0] — 2026-10-27 (Livro do Aluno Ed. 2.8 na ABNT, Edição LaTeX abnTeX2 e Introdução ao Cilium)
+
+### Adicionado
+- Edição LaTeX abnTeX2 do livro do aluno, gerada a partir do Markdown por [`poc-k8s-fabric/tools/build_latex.py`](poc-k8s-fabric/tools/build_latex.py) e pelo filtro pandoc [`poc-k8s-fabric/tools/abnt/guide.lua`](poc-k8s-fabric/tools/abnt/guide.lua), compilada com `tectonic`; `make latex` gera só o `.tex`.
+- Introdução do livro: o que é o Cilium, a Isovalent e o INV (*Isovalent Networking for Virtualization*), quando usar e quando não usar o Cilium, termos principais (26 termos) e códigos do projeto.
+- `make lint` valida citações, referências (ordem alfabética palavra por palavra) e numeração do guia e do molde; `make test` verifica se o LaTeX versionado está sincronizado com o Markdown.
+
+### Alterado
+- Livro do aluno (Edição 2.8) adequado à ABNT: estrutura de livro (NBR 6029) com capa, folha de rosto (local: Teresina), Apresentação, Introdução, Considerações finais, Referências e Apêndices; 42 referências na NBR 6023:2018 com citações autor-data (NBR 10520:2023); 22 figuras, 14 quadros e 4 tabelas com legenda e fonte.
+- `make pdf` passa a gerar um único PDF, a edição ABNT, em `output/pdf/cilium-lab-student-guide.pdf`; o builder ReportLab fica para rascunhos e guias derivados.
+- Textos densos reescritos: Apresentação, aberturas e estudos dos Módulos 13 a 17, limites e próximos estudos; figura-síntese no início de cada módulo.
+- [`student-guide-template.md`](poc-k8s-fabric/docs/student-guide-template.md) vira molde ABNT compilável.
+
+### Corrigido
+- Porta do WireGuard do Cilium (`51871/UDP`, não `51820`) no Módulo 14 e no estudo E18.
+- Negrito e itálico ausentes no PDF ReportLab (família de fonte não registrada).
+
+---
+
 ## [v2.7.0] — 2026-10-26 (Encerramento Integral do Plano `P008` — `4/4` Estudos de Fase 4 `E38–E41` & `41/41` Estudos Totais `E01–E41`)
 
 ### Adicionado

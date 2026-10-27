@@ -77,6 +77,12 @@ def _fold(value: str) -> str:
     return re.sub(r"\s+", " ", ascii_text).strip().casefold()
 
 
+def _sort_key(entry: str) -> tuple[str, str]:
+    author = re.split(r"\*\*|\. [A-Z][a-z]", entry, maxsplit=1)[0].strip()
+    lead = author or entry.replace("**", "")
+    return (re.sub(r"[^\w ]", "", _fold(lead)).strip(), _fold(entry))
+
+
 def reference_keys(references: str) -> list[tuple[str, str]]:
     keys = []
     for entry in (p.strip() for p in references.split("\n\n") if p.strip()):
@@ -116,7 +122,7 @@ def check_citations(guide: Guide) -> int:
     problems += [f"citação sem referência: {k}" for k in sorted(cited - refs)]
     duplicates = {k for k in references if references.count(k) > 1}
     problems += [f"referência ambígua (use a, b, c): {k}" for k in sorted(duplicates)]
-    ordered = [_fold(e) for e in guide.section("Referências").body.split("\n\n") if e.strip()]
+    ordered = [_sort_key(e) for e in guide.section("Referências").body.split("\n\n") if e.strip()]
     if ordered != sorted(ordered):
         problems.append("referências fora de ordem alfabética")
     if problems:
