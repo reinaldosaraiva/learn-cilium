@@ -10,7 +10,7 @@
 \usepackage{graphicx}
 \graphicspath{{../}}
 \usepackage{tabularx,array,booktabs}
-\usepackage[section]{placeins}
+\usepackage{placeins}
 \usepackage{fvextra}
 \RecustomVerbatimEnvironment{verbatim}{Verbatim}{breaklines,breakanywhere,fontsize=\footnotesize,frame=single,framesep=2mm}
 \usepackage{mdframed}
@@ -18,10 +18,15 @@
 \urlstyle{same}
 \usepackage{microtype}
 
-\renewcommand{\ABNTEXchapterfont}{\rmfamily\bfseries}
-\renewcommand{\ABNTEXsectionfont}{\rmfamily\bfseries}
+\renewcommand{\ABNTEXchapterfont}{\rmfamily\bfseries\raggedright\hyphenpenalty=10000\exhyphenpenalty=10000}
+\renewcommand{\ABNTEXsectionfont}{\rmfamily\bfseries\raggedright\hyphenpenalty=10000\exhyphenpenalty=10000}
 \renewcommand{\ABNTEXsubsectionfont}{\rmfamily}
 \renewcommand{\ABNTEXsubsubsectionfont}{\rmfamily\itshape}
+\makeatletter
+\renewcommand{\ABNTEXchapterupperifneeded}[1]{%
+  \ifthenelse{\boolean{abntex@innonumchapter}\OR\boolean{abntex@apendiceousecao}}{}{\raggedright}%
+  \ifthenelse{\boolean{ABNTEXupperchapter}}{\MakeTextUppercase{#1}}{#1}}
+\makeatother
 \providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \providecommand{\pandocbounded}[1]{#1}
 
@@ -34,7 +39,20 @@
 \counterwithout{quadro}{chapter}
 \renewcommand{\cftquadroname}{\quadroname\space}
 \renewcommand*{\cftquadroaftersnum}{\hfill--\hfill}
-\setfloatlocations{quadro}{htbp}
+\setfloatlocations{quadro}{!htbp}
+
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.8}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{4}
+\makeatletter
+\setlength{\@fptop}{0pt}
+\setlength{\@fpsep}{12pt}
+\setlength{\@fpbot}{0pt plus 1fil}
+\makeatother
 
 \newenvironment{referenciasabnt}
   {\begin{flushleft}\SingleSpacing\setlength{\parindent}{0pt}\setlength{\parskip}{\baselineskip}}
@@ -245,7 +263,7 @@ laboratórios, o vocabulário mínimo e a pergunta central do guia.
 \section*{Onde um comando roda}\label{onde-um-comando-roda}
 \addcontentsline{toc}{section}{Onde um comando roda}
 
-\begin{quadro}[htbp]
+\begin{quadro}[!htbp]
 \caption{Rótulos que indicam onde cada comando roda}
 \footnotesize
 \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.809\hsize}X|>{\raggedright\arraybackslash\hsize=1.191\hsize}X|}
@@ -291,7 +309,7 @@ exercício e pode alterar a referência.
 \section*{Mapa dos laboratórios}\label{mapa-dos-laboratuxf3rios}
 \addcontentsline{toc}{section}{Mapa dos laboratórios}
 
-\begin{figure}[htbp]
+\begin{figure}[!htbp]
 \caption{Visão geral do laboratório dentro da vm-cilium}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/05-laboratorio-vm-cilium-quadro-branco-v2.png}
 \fonte{elaborada pelo autor (2026).}
@@ -303,7 +321,7 @@ que não faz parte da aula; o módulo 13 lê resultados históricos completos da
 trilha P004 (DCI, OVN-Kubernetes + EVPN, casos cruzados e Braços Cilium A/B +
 KubeVirt). O Quadro 2 distingue esses estudos dos ambientes usados nos exercícios:
 
-\begin{quadro}[htbp]
+\begin{quadro}[!htbp]
 \caption{Ambientes e estudos documentados no guia}
 \footnotesize
 \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.843\hsize}X|>{\raggedright\arraybackslash\hsize=1.131\hsize}X|>{\raggedright\arraybackslash\hsize=0.961\hsize}X|>{\raggedright\arraybackslash\hsize=1.066\hsize}X|}
@@ -359,7 +377,7 @@ Braço B sob \texttt{R6=\allowbreak{}0}) & Cilium \texttt{1.\allowbreak{}20.\all
 O Quadro 2 descreve os ambientes e estudos documentados, sem indicar
 disponibilidade simultânea em tempo real (os perfis pesados operam em regime
 \emph{time-shared} via \texttt{labctl} para respeitar \texttt{R3:\allowbreak{} Mem\allowbreak{}Available \textgreater{}=\allowbreak{} 4,\allowbreak{}00 Gi\allowbreak{}B}). Os
-Figuras 1 e 2 ilustram os ambientes P001--P003; as Figuras 15, 16 e 17, no
+Figuras 1 e 2 ilustram os ambientes P001--P003; as Figuras 16, 17 e 18, no
 Módulo 13, ilustram a arquitetura e os resultados de P004.
 
 Os dois fabrics usam eBGP puro em dois níveis, no desenho de roteamento para
@@ -368,7 +386,7 @@ leaf do rack (AS 6510x para 6500x) e os leaves com os spines (AS 65500). No
 sandbox, os nós usam AS 65301/65302, os leaves 65201/65202/65203, os spines
 65600 e o border 65400. Os enlaces spine--leaf são IPv4 numerados em \texttt{/\allowbreak{}31}.
 
-\begin{figure}[htbp]
+\begin{figure}[!htbp]
 \caption{Explicação para iniciantes: entrega, rotas e VIP}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/06-laboratorio-explicado-iniciantes.png}
 \fonte{elaborada pelo autor (2026).}
@@ -376,7 +394,7 @@ sandbox, os nós usam AS 65301/65302, os leaves 65201/65202/65203, os spines
 
 Endereços que aparecem nos exercícios:
 
-\begin{quadro}[htbp]
+\begin{quadro}[!htbp]
 \caption{Endereços usados nos exercícios}
 \footnotesize
 \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=1.013\hsize}X|>{\raggedright\arraybackslash\hsize=0.487\hsize}X|>{\raggedright\arraybackslash\hsize=1.500\hsize}X|}
@@ -409,7 +427,7 @@ Rede do tenant OpenStack & não há & \texttt{10.\allowbreak{}30.\allowbreak{}0.
 \section*{Vocabulário mínimo}\label{vocabuluxe1rio-muxednimo}
 \addcontentsline{toc}{section}{Vocabulário mínimo}
 
-\begin{quadro}[htbp]
+\begin{quadro}[!htbp]
 \caption{Vocabulário mínimo do laboratório}
 \footnotesize
 \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.522\hsize}X|>{\raggedright\arraybackslash\hsize=1.478\hsize}X|}
@@ -473,7 +491,14 @@ quantidade de rotas e o momento em que um bloco é alocado e retirado.
 
 \chapter{Baseline e o que o Cilium anuncia}\label{baseline-e-o-que-o-cilium-anuncia}
 
-Ambiente: lab \texttt{k01}. Origem: P001 (REQ-001 a REQ-007).
+Ambiente: lab \texttt{k01}. Origem: P001 (REQ-001 a REQ-007). A Figura 3 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 1: Baseline BGP, 3 PodCIDRs /24,
+VIP /32 e Native Routing sem VXLAN}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m01-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{Conferir os containers}\label{conferir-os-containers}
 
@@ -530,7 +555,7 @@ o fabric vê o IP real do pod; a evidência histórica registra zero pacotes
 UDP/8472 no fio e um handshake \texttt{203.\allowbreak{}0.\allowbreak{}113.\allowbreak{}10 \textgreater{} 10.\allowbreak{}244.\allowbreak{}2.\allowbreak{}198:\allowbreak{}8080} direto ao
 pod.
 
-\begin{quadro}[htbp]
+\begin{quadro}[!htbp]
 \caption{Registro do Módulo 1: valores esperados e observados}
 \footnotesize
 \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=1.292\hsize}X|>{\raggedright\arraybackslash\hsize=0.932\hsize}X|>{\raggedright\arraybackslash\hsize=0.775\hsize}X|}
@@ -549,16 +574,16 @@ Next-hops da VIP no spine & 2 &  \\
 \fonte{elaborado pelo autor (2026).}
 \end{quadro}
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 1: Baseline BGP, 3 PodCIDRs /24,
-VIP /32 e Native Routing sem VXLAN}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m01-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{VIP anycast e caminho do tráfego}\label{vip-anycast-e-caminho-do-truxe1fego}
 
-Ambiente: lab \texttt{k01}. Origem: P001 (REQ-008 a REQ-010).
+Ambiente: lab \texttt{k01}. Origem: P001 (REQ-008 a REQ-010). A Figura 4 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 2: VIP Anycast ECMP + Maglev,
+ETP=Cluster vs ETP=Local e túnel SSH}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m02-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{Requisições a partir do client-ext}\label{requisiuxe7uxf5es-a-partir-do-client-ext}
 
@@ -609,16 +634,16 @@ requisição entra pelo fabric e a resposta volta pela bridge docker do host,
 porque o nó kind roteia a VPC por \texttt{eth0}. É uma propriedade da topologia, não
 uma falha.
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 2: VIP Anycast ECMP + Maglev,
-ETP=Cluster vs ETP=Local e túnel SSH}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m02-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{Dual-stack IPv6 no plano de controle}\label{dual-stack-ipv6-no-plano-de-controle}
 
-Ambiente: lab \texttt{k01} reconstruído com \texttt{values-{}\allowbreak{}dualstack.\allowbreak{}yaml}. Origem: P002-S001.
+Ambiente: lab \texttt{k01} reconstruído com \texttt{values-{}\allowbreak{}dualstack.\allowbreak{}yaml}. Origem: P002-S001. A Figura 5 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 3: Dual-Stack IPv6 no plano de
+controle BGP e fronteira do underlay L3}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m03-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{Ler o que foi provado}\label{ler-o-que-foi-provado}
 
@@ -646,17 +671,17 @@ Quatro configurações são obrigatórias e ficaram no kit: \texttt{ipv6.\allowb
 nos values, \texttt{ip\allowbreak{}Family:\allowbreak{} dual} com dois \texttt{pod\allowbreak{}Subnet} no kind, \texttt{afi-{}\allowbreak{}safi ipv6-{}\allowbreak{}unicast} nos grupos \texttt{rack*-{}\allowbreak{}k8s} dos leaves e \texttt{multipath ipv6-{}\allowbreak{}unicast} nos
 spines.
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 3: Dual-Stack IPv6 no plano de
-controle BGP e fronteira do underlay L3}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m03-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{Falhas, Graceful Restart e convergência}\label{falhas-graceful-restart-e-converguxeancia}
 
 Ambiente: lab \texttt{k01}. Origem: P001 REQ-011, P002-S002 e P002-S004. Os gatilhos
-de falha são tarefa do instrutor; a pessoa estudante lê e interpreta.
+de falha são tarefa do instrutor; a pessoa estudante lê e interpreta. A Figura 6 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 4: Resiliência a falhas de
+fabric, BGP Graceful Restart e convergência ECMP}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m04-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{Como se mede um blackhole}\label{como-se-mede-um-blackhole}
 
@@ -668,7 +693,7 @@ nunca com \texttt{docker stop}, que destrói a wiring veth (lição L2).
 
 \section{Resultados medidos}\label{resultados-medidos}
 
-\begin{table}[htbp]
+\begin{table}[!htbp]
 \caption{Efeito das falhas de fabric e de agente sobre a VIP anycast e o PodCIDR}
 \footnotesize
 \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash\hsize=0.942\hsize}X>{\raggedright\arraybackslash\hsize=1.008\hsize}X>{\raggedright\arraybackslash\hsize=1.149\hsize}X>{\raggedright\arraybackslash\hsize=0.901\hsize}X}
@@ -709,16 +734,16 @@ Leituras que a pessoa estudante deve conseguir explicar:
 falha de sessão hoje é hold 9 s e keepalive 3 s, o menor valor aceito na
 validação do lab. Essa lacuna é o ponto de partida de um dos próximos estudos.
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 4: Resiliência a falhas de
-fabric, BGP Graceful Restart e convergência ECMP}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m04-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{Escala e desempenho}\label{escala-e-desempenho}
 
-Ambiente: lab \texttt{k01}. Origem: P002-S003.
+Ambiente: lab \texttt{k01}. Origem: P002-S003. A Figura 7 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 5: Escala 6 a 40 pods sem crescer
+a RIB, burst de +30 VIPs e throughput Native vs VXLAN}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m05-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{O que a pessoa estudante confere}\label{o-que-a-pessoa-estudante-confere}
 
@@ -733,7 +758,7 @@ escalar o \texttt{echo} de 6 para 40 réplicas; repita o primeiro comando e comp
 
 \section{Resultados medidos}\label{resultados-medidos-1}
 
-\begin{table}[htbp]
+\begin{table}[!htbp]
 \caption{Resultados de escala e desempenho no lab \texttt{k01}}
 \footnotesize
 \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash\hsize=0.773\hsize}X>{\raggedright\arraybackslash\hsize=1.227\hsize}X}
@@ -758,17 +783,17 @@ A propriedade de escala é a agregação: pods escalam sem tocar no BGP e a RIB
 cresce apenas com VIPs vezes nós, de forma linear. Os números absolutos vêm de
 SR Linux em container e veths do kind; use apenas as relações.
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 5: Escala 6 a 40 pods sem crescer
-a RIB, burst de +30 VIPs e throughput Native vs VXLAN}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m05-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{Gateway API HTTP, TCP e UDP por VIP BGP}\label{gateway-api-http-tcp-e-udp-por-vip-bgp}
 
 Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw}. Origem: P003-S003 e P003-S004. A implementação
-da Gateway API pelo Cilium segue a documentação do projeto (Cilium Authors, 2026c).
+da Gateway API pelo Cilium segue a documentação do projeto (Cilium Authors, 2026c). A Figura 8 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 6: Gateway API HTTP, TCP e UDP
+sobre a VIP BGP 10.202.255.10/32}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m06-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{O Gateway e seu Service}\label{o-gateway-e-seu-service}
 
@@ -798,7 +823,7 @@ $C2 dig @"$VIP" -p 15353 study.p003 TXT +short +notcp +tries=1 +time=2
 $C2 sh -c "echo P003-gw04 | nc -w 3 $VIP 15433"
 \end{verbatim}
 
-\begin{quadro}[htbp]
+\begin{quadro}[!htbp]
 \caption{Registro do Módulo 6: listeners e controle negativo}
 \footnotesize
 \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=1.034\hsize}X|>{\raggedright\arraybackslash\hsize=1.304\hsize}X|>{\raggedright\arraybackslash\hsize=0.661\hsize}X|}
@@ -836,20 +861,20 @@ nessas portas deram 180/180 falhas; os \texttt{node\allowbreak{}Port} do Service
 180/180 sucessos. Para expor TCP/UDP no nó, o caminho suportado é o NodePort
 ou a VIP por BGP.
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 6: Gateway API HTTP, TCP e UDP
-sobre a VIP BGP 10.202.255.10/32}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m06-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{Autorização externa na borda}\label{autorizauxe7uxe3o-externa-na-borda}
 
 Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw}. Origem: P003-S005, P003-S006 e P003-S009 (T05).
 O ExternalAuth do Gateway API é experimental na 1.20.2; o CRD \texttt{HTTPRoute}
 recebeu o schema experimental por um patch de spec, porque o
 \texttt{experimental-{}\allowbreak{}install.\allowbreak{}yaml} estoura o limite de annotations no Kubernetes
-1.35.0.
+1.35.0. A Figura 9 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 7: ExternalAuth HTTP e gRPC na
+borda Envoy e garantia 100\% Fail-Closed}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m07-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{A fixture}\label{a-fixture}
 
@@ -871,7 +896,7 @@ $C2 curl -sS --retry 0 -o /dev/null -w 'public http=%{http_code}\n' \
   -H 'Host: echo.p003.study' http://10.202.255.10:8080/public
 \end{verbatim}
 
-\begin{table}[htbp]
+\begin{table}[!htbp]
 \caption{Código HTTP por decisão do autorizador externo}
 \footnotesize
 \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash\hsize=1.602\hsize}X>{\raggedright\arraybackslash\hsize=0.699\hsize}X>{\raggedright\arraybackslash\hsize=0.699\hsize}X}
@@ -894,7 +919,7 @@ rota pública não consulta o autorizador (A09).
 
 \section{Fail-closed sob degradação}\label{fail-closed-sob-degradauxe7uxe3o}
 
-\begin{table}[htbp]
+\begin{table}[!htbp]
 \caption{Comportamento fail-closed do ExternalAuth sob degradação}
 \footnotesize
 \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash\hsize=1.069\hsize}X>{\raggedright\arraybackslash\hsize=0.872\hsize}X>{\raggedright\arraybackslash\hsize=0.872\hsize}X>{\raggedright\arraybackslash\hsize=1.187\hsize}X}
@@ -919,23 +944,23 @@ Nenhum cenário liberou a aplicação. Dois defeitos ficaram registrados na
 decisões. \texttt{allowed\allowbreak{}Response\allowbreak{}Headers} não encaminhou os headers do autorizador ao
 cliente.
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 7: ExternalAuth HTTP e gRPC na
-borda Envoy e garantia 100\% Fail-Closed}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m07-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{WireGuard em native routing e VXLAN}\label{wireguard-em-native-routing-e-vxlan}
 
 Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw}. Origem: P003-S007 e P003-S008. Os perfis são
 trocados pelo instrutor com \texttt{helm upgrade}; a pessoa estudante confere
 interfaces e capturas. O Cilium usa o WireGuard (Donenfeld, 2017) na interface
-\texttt{cilium\_\allowbreak{}wg0}, na porta UDP 51871 (Cilium Authors, 2026g).
+\texttt{cilium\_\allowbreak{}wg0}, na porta UDP 51871 (Cilium Authors, 2026g). A Figura 10 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 8: WireGuard W0/W1/W2 em
+UDP/51871 e fronteira de criptografia do hostns no Native Routing}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m08-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{Três perfis}\label{truxeas-perfis}
 
-\begin{quadro}[htbp]
+\begin{quadro}[!htbp]
 \caption{Perfis de criptografia W0, W1 e W2}
 \footnotesize
 \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.489\hsize}X|>{\raggedright\arraybackslash\hsize=0.937\hsize}X|>{\raggedright\arraybackslash\hsize=1.573\hsize}X|}
@@ -973,20 +998,21 @@ mesma perna sai cifrada em W1 e W2. A exposição depende da topologia, não da
 decisão de auth. Ao desenhar criptografia, trate o tráfego originado pelo
 Envoy do nó como tráfego de nó.
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 8: WireGuard W0/W1/W2 em
-UDP/51871 e fronteira de criptografia do hostns no Native Routing}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m08-whiteboard-entregavel.png}
+\chapter{Tenants: rede, borda e configuração}\label{tenants-rede-borda-e-configurauxe7uxe3o}
+
+Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw}. Origem: P003-S009, matriz T01--T17. A Figura 11 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 9: Isolamento Multi-Tenant
+T01--T17 em 3 camadas (Rede CNP, Borda ExternalAuth/TLS e Governança
+K8s)}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m09-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
 
-\chapter{Tenants: rede, borda e configuração}\label{tenants-rede-borda-e-configurauxe7uxe3o}
-
-Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw}. Origem: P003-S009, matriz T01--T17.
-
 \section{Três controles diferentes}\label{truxeas-controles-diferentes}
 
-\begin{quadro}[htbp]
+\begin{quadro}[!htbp]
 \caption{Controles de isolamento de tenant}
 \footnotesize
 \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.588\hsize}X|>{\raggedright\arraybackslash\hsize=0.914\hsize}X|>{\raggedright\arraybackslash\hsize=1.499\hsize}X|}
@@ -1032,22 +1058,21 @@ Um detalhe que muda desenho: o ExternalAuth protege apenas o listener HTTP.
 O listener TCP sob a mesma VIP respondeu 200 para o tenant errado até uma CNP
 L4 ser aplicada (T07). Autorização L7 não é política L4.
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 9: Isolamento Multi-Tenant
-T01--T17 em 3 camadas (Rede CNP, Borda ExternalAuth/TLS e Governança
-K8s)}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m09-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{Multi-Pool IPAM: /24 versus /32}\label{multi-pool-ipam-24-versus-32}
 
 Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw}, com IPAM trocado para \texttt{multi-{}\allowbreak{}pool} pelo instrutor
-e restaurado ao final. Origem: P003-S010, matriz I01--I10.
+e restaurado ao final. Origem: P003-S010, matriz I01--I10. A Figura 12 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 10: Multi-Pool IPAM /24 vs /32,
+BGP Communities e retenção preAllocate=8}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m10-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{Dois braços com a mesma variável}\label{dois-brauxe7os-com-a-mesma-variuxe1vel}
 
-\begin{quadro}[htbp]
+\begin{quadro}[!htbp]
 \caption{Braços M24 e M32 do estudo Multi-Pool IPAM}
 \footnotesize
 \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.923\hsize}X|>{\raggedright\arraybackslash\hsize=0.826\hsize}X|>{\raggedright\arraybackslash\hsize=0.826\hsize}X|>{\raggedright\arraybackslash\hsize=0.826\hsize}X|>{\raggedright\arraybackslash\hsize=1.599\hsize}X|}
@@ -1071,7 +1096,7 @@ sudo docker exec clab-p003-gw-fabric-border1 vtysh -c 'show ip bgp' | grep -E '1
 
 \section{\texorpdfstring{O que muda entre \texttt{/\allowbreak{}24} e \texttt{/\allowbreak{}32}}{O que muda entre  e }}\label{o-que-muda-entre-24-e-32}
 
-\begin{quadro}[htbp]
+\begin{quadro}[!htbp]
 \caption{Comportamento dos blocos \texttt{/\allowbreak{}24} e
 \texttt{/\allowbreak{}32} no Multi-Pool IPAM}
 \footnotesize
@@ -1106,18 +1131,18 @@ existem enquanto o IP existir, e só o Service respeita \texttt{Ready}. A retira
 um bloco depende de \texttt{pre\allowbreak{}Allocate}, não da morte do pod; um \texttt{/\allowbreak{}32} não é
 ``retirado quando o pod morre''.
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 10: Multi-Pool IPAM /24 vs /32,
-BGP Communities e retenção preAllocate=8}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m10-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{Tenant híbrido: pods e VMs OpenStack}\label{tenant-huxedbrido-pods-e-vms-openstack}
 
 Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw} + testbed OpenStack + VM em KVM real. Origem:
 P003-S011 a S016. As sínteses públicas completas estão em
-E08 e C5.
+E08 e C5. A Figura 13 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 11: Tenant híbrido Pod K8s ↔ VM
+KVM/OpenStack e contraste Identidade (fromEndpoints) vs IP (fromCIDR)}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m11-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{A pergunta}\label{a-pergunta}
 
@@ -1139,7 +1164,7 @@ flat). Para provar que o deny foi na policy e não na rede, use \texttt{cilium-{
 
 \section{O contraste que importa}\label{o-contraste-que-importa}
 
-\begin{quadro}[htbp]
+\begin{quadro}[!htbp]
 \caption{Autorização por identidade versus por endereço (C03 e C05)}
 \footnotesize
 \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.985\hsize}X|>{\raggedright\arraybackslash\hsize=0.969\hsize}X|>{\raggedright\arraybackslash\hsize=1.046\hsize}X|}
@@ -1192,17 +1217,17 @@ Se a VM cair em \texttt{169.\allowbreak{}254.\allowbreak{}x.\allowbreak{}x}, a c
 VLAN no veth do container, ou o dnsmasq do \texttt{qdhcp} não recarregou o
 \texttt{dhcp-{}\allowbreak{}hostsfile} (\texttt{kill -{}\allowbreak{}HUP}). Capture o DHCP nas duas pontas para isolar.
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 11: Tenant híbrido Pod K8s ↔ VM
-KVM/OpenStack e contraste Identidade (fromEndpoints) vs IP (fromCIDR)}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m11-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{Nós reais na nuvem: o que muda}\label{nuxf3s-reais-na-nuvem-o-que-muda}
 
 Origem: P002-S005 e P002-S006. Este módulo é leitura; a infraestrutura de
-nuvem não faz parte da aula.
+nuvem não faz parte da aula. A Figura 14 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 12: Nós reais na nuvem, eBGP na
+VPC e impacto do IP Spoofing Guard da NIC}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m12-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 Em três VMs reais da nuvem, \texttt{kubeadm} 1.35.2 sem kube-proxy e Cilium 1.20.1
 funcionaram 1:1 com overlay VXLAN (MTU 1450, RTT \textasciitilde0,9 ms). Um FRR externo na
@@ -1222,13 +1247,6 @@ origens e destinos além do seu próprio IP, por allowed-address-pairs ou guard
 desligado. Isso é uma decisão de postura de segurança da VPC, não um ajuste
 do Cilium.
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 12: Nós reais na nuvem, eBGP na
-VPC e impacto do IP Spoofing Guard da NIC}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m12-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{DCI, OVN, FRR e EVPN: o que os resultados provam}\label{dci-ovn-frr-e-evpn-o-que-os-resultados-provam}
 
 Este módulo é uma leitura guiada dos resultados históricos completos de \texttt{P004-{}\allowbreak{}S001} a
@@ -1236,11 +1254,19 @@ Este módulo é uma leitura guiada dos resultados históricos completos de \text
 \texttt{labctl/\allowbreak{}labs/\allowbreak{}\{dci,\allowbreak{}evpn-{}\allowbreak{}fabric,\allowbreak{}ovnk,\allowbreak{}p003-{}\allowbreak{}gw\}.\allowbreak{}sh} e os artefatos de
 \texttt{studies/\allowbreak{}p004/\allowbreak{}\{ovn,\allowbreak{}evpn-{}\allowbreak{}fabric,\allowbreak{}ovnk,\allowbreak{}cases,\allowbreak{}cilium-{}\allowbreak{}a,\allowbreak{}cilium-{}\allowbreak{}b\}/\allowbreak{}} estão no repositório como
 referência de instrutor, mas a atividade deste módulo é interpretar as medições
-comparadas sem depender do estado atual da VM.
+comparadas sem depender do estado atual da VM. A Figura 15 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 13: Síntese P004 (DCI Connect,
+OVN-Kubernetes + EVPN, Braços Cilium A/B + KubeVirt, R6=0 e
+INV-PoC-01..06)}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m13-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{Plano DCI Connect (P004-S002): OVN, FRR multi-VRF e X05}\label{plano-dci-connect-p004-s002-ovn-frr-multi-vrf-e-x05}
 
-\begin{figure}[htbp]
+\begin{figure}[!htbp]
 \caption{Caminhos históricos da réplica DCI, com o cliente legado e o peer EVPN
 separados}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/07-dci-caminhos.png}
@@ -1262,7 +1288,7 @@ e pelo VNI \texttt{50200} (tenant B em X05); não era o cliente legado
 nas VLANs 100 e 200.}
 \end{figure}
 
-\begin{figure}[htbp]
+\begin{figure}[!htbp]
 \caption{Estado histórico consolidado das trilhas e gates de P004 (S001 a S008
 PASS)}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/08-p004-estado.png}
@@ -1317,7 +1343,7 @@ NB e os VRFs, encerrando com \texttt{0} resíduos.
 
 \section{OVN-Kubernetes, UDN/EVPN, KubeVirt e casos cruzados (P004-S003 e P004-S004)}\label{ovn-kubernetes-udnevpn-kubevirt-e-casos-cruzados-p004-s003-e-p004-s004}
 
-\begin{figure}[htbp]
+\begin{figure}[!htbp]
 \caption{Arquitetura comparada de P004 (S002 a S008): OVN-K, Fabric EVPN e Braços
 Cilium A e B + KubeVirt}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/09-p004-tres-planos-kubevirt.png}
@@ -1434,17 +1460,16 @@ Nas sessões \texttt{P004-{}\allowbreak{}S006}, \texttt{P004-{}\allowbreak{}S007
 
 As respostas comentadas, a matriz comparativa completa (\texttt{Cilium A} × \texttt{Cilium B} × \texttt{OVN-{}\allowbreak{}K C/\allowbreak{}D} × \texttt{INV}), os critérios de aceite \texttt{INV-{}\allowbreak{}Po\allowbreak{}C-{}\allowbreak{}01} a \texttt{INV-{}\allowbreak{}Po\allowbreak{}C-{}\allowbreak{}06} (\texttt{G07}) e o mapa de evidências estão em DCI, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001--S008.
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 13: Síntese P004 (DCI Connect,
-OVN-Kubernetes + EVPN, Braços Cilium A/B + KubeVirt, R6=0 e
-INV-PoC-01..06)}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m13-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{Estudos avançados P005: conexão dedicada eBGP e datapath eBPF}\label{estudos-avanuxe7ados-p005-conexuxe3o-dedicada-ebgp-e-datapath-ebpf}
 
-A trilha \textbf{P005} executa os 16 estudos remanescentes (\texttt{E09–E19} e \texttt{E21–E25}) em quatro ondas paralelas sobre \texttt{vm-{}\allowbreak{}cilium}, combinando o \textbf{Braço A (Plano de Controle eBGP / Direct Connect)} com o \textbf{Braço B (Datapath eBPF, Escala e Observabilidade)}.
+A trilha \textbf{P005} executa os 16 estudos remanescentes (\texttt{E09–E19} e \texttt{E21–E25}) em quatro ondas paralelas sobre \texttt{vm-{}\allowbreak{}cilium}, combinando o \textbf{Braço A (Plano de Controle eBGP / Direct Connect)} com o \textbf{Braço B (Datapath eBPF, Escala e Observabilidade)}. A Figura 19 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 14: Estudos Avançados P005 (16/16
+PASS --- Borda eBGP Dedicada ∥ Datapath eBPF, Observabilidade e DRA)}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m14-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{Onda 1 (P005-S001): idempotência BGP, TCP MD5, netkit e burst IPAM}\label{onda-1-p005-s001-idempotuxeancia-bgp-tcp-md5-netkit-e-burst-ipam}
 
@@ -1595,16 +1620,17 @@ Onda concluída com \textbf{PASS}; estudos \texttt{E15}, \texttt{E16}, \texttt{E
   Como o estudo \texttt{E24} (\texttt{resource.\allowbreak{}k8s.\allowbreak{}io/\allowbreak{}v1} DRA) preserva a governança do Cilium na interface primária \texttt{eth0} (\texttt{Cilium\allowbreak{}Network\allowbreak{}Policy} + BGP VIP) enquanto anexa interfaces secundárias dedicadas (\texttt{net1}/\texttt{net2}) publicadas em \texttt{status.\allowbreak{}devices[].\allowbreak{}network\allowbreak{}Data}?
 \end{enumerate}
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 14: Estudos Avançados P005 (16/16
-PASS --- Borda eBGP Dedicada ∥ Datapath eBPF, Observabilidade e DRA)}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m14-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{Trilha P006: datapath avançado, multicluster, SRv6 e saneamento}\label{trilha-p006-datapath-avanuxe7ado-multicluster-srv6-e-saneamento}
 
-A trilha \textbf{P006} conclui a Fase 2 do projeto em quatro ondas paralelas sobre \texttt{vm-{}\allowbreak{}cilium}, combinando o \textbf{Braço A (Datapath eBPF Avançado e Borda BGP \texttt{E26–E29})}, o \textbf{Braço B (Multi-Cluster, SRv6 L3VPN, Runtime Security e Live Migration \texttt{E30–E33})} e o \textbf{Braço C (Saneamento Integral de \texttt{revisao-{}\allowbreak{}projeto-{}\allowbreak{}2026-{}\allowbreak{}09-{}\allowbreak{}26.\allowbreak{}md} \texttt{Blocos C1–C4})}, fechando \texttt{33/\allowbreak{}33} estudos (\texttt{E01–E33}) em \texttt{v2.\allowbreak{}5.\allowbreak{}0}.
+A trilha \textbf{P006} conclui a Fase 2 do projeto em quatro ondas paralelas sobre \texttt{vm-{}\allowbreak{}cilium}, combinando o \textbf{Braço A (Datapath eBPF Avançado e Borda BGP \texttt{E26–E29})}, o \textbf{Braço B (Multi-Cluster, SRv6 L3VPN, Runtime Security e Live Migration \texttt{E30–E33})} e o \textbf{Braço C (Saneamento Integral de \texttt{revisao-{}\allowbreak{}projeto-{}\allowbreak{}2026-{}\allowbreak{}09-{}\allowbreak{}26.\allowbreak{}md} \texttt{Blocos C1–C4})}, fechando \texttt{33/\allowbreak{}33} estudos (\texttt{E01–E33}) em \texttt{v2.\allowbreak{}5.\allowbreak{}0}. A Figura 20 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 15: Trilha P006 (E26--E33 +
+Saneamento C1--C4 --- Maglev, BIG TCP, EDT/BBR, Unnumbered, Cluster
+Mesh, SRv6, Tetragon e Live Migration)}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m15-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{Onda 1 (P006-S001): LoadBalancer TCX/XDP com Maglev e Cluster Mesh}\label{onda-1-p006-s001-loadbalancer-tcxxdp-com-maglev-e-cluster-mesh}
 
@@ -1751,17 +1777,17 @@ Onda concluída com \textbf{PASS} na versão \texttt{v2.\allowbreak{}5.\allowbre
   No estudo \texttt{E33} (\textbf{KubeVirt Live Migration sob Tráfego Contínuo}), por que a migração com \textbf{OVN-Kubernetes EVPN Type-2 (\texttt{VNI 10033})} apresentou menor tempo de blackout (\texttt{60,\allowbreak{}25 ms}, \texttt{3} pacotes perdidos) e preservou conexões L2 em comparação ao cutover \textbf{Cilium B L3 \texttt{/\allowbreak{}32} BGP} (\texttt{100,\allowbreak{}45 ms}, \texttt{5} pacotes perdidos), e o que ocorre (\texttt{0/\allowbreak{}10}) se o anúncio \texttt{/\allowbreak{}32} não acompanhar a VM migrada?
 \end{enumerate}
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 15: Trilha P006 (E26--E33 +
-Saneamento C1--C4 --- Maglev, BIG TCP, EDT/BBR, Unnumbered, Cluster
-Mesh, SRv6, Tetragon e Live Migration)}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m15-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{Trilha P007: BGP sem perda, SPIFFE com WireGuard, Local Redirect e Multus}\label{trilha-p007-bgp-sem-perda-spiffe-com-wireguard-local-redirect-e-multus}
 
-A trilha \textbf{P007} conclui a Fase 3 do projeto em duas ondas paralelas sobre \texttt{vm-{}\allowbreak{}cilium}, combinando o \textbf{Braço A (Operação BGP Zero-Loss na Borda e Roteamento Node-Local eBPF \texttt{E34}, \texttt{E36})} e o \textbf{Braço B (Zero-Trust SPIFFE mTLS + WireGuard e Workloads Dual-Homed com Multus + \texttt{ipvlan L2/\allowbreak{}L3} \texttt{E35}, \texttt{E37})}, fechando \textbf{\texttt{37/\allowbreak{}37} estudos (\texttt{E01–E37})} em \texttt{v2.\allowbreak{}6.\allowbreak{}0}.
+A trilha \textbf{P007} conclui a Fase 3 do projeto em duas ondas paralelas sobre \texttt{vm-{}\allowbreak{}cilium}, combinando o \textbf{Braço A (Operação BGP Zero-Loss na Borda e Roteamento Node-Local eBPF \texttt{E34}, \texttt{E36})} e o \textbf{Braço B (Zero-Trust SPIFFE mTLS + WireGuard e Workloads Dual-Homed com Multus + \texttt{ipvlan L2/\allowbreak{}L3} \texttt{E35}, \texttt{E37})}, fechando \textbf{\texttt{37/\allowbreak{}37} estudos (\texttt{E01–E37})} em \texttt{v2.\allowbreak{}6.\allowbreak{}0}. A Figura 21 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 16: Trilha P007 (E34--E37 --- BGP
+Graceful Shutdown Zero-Loss, SPIFFE mTLS + WireGuard, Local Redirect
+eBPF e Multus ipvlan L2/L3)}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m16-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{Onda 1 (P007-S001): BGP Graceful Shutdown e autenticação mútua SPIFFE}\label{onda-1-p007-s001-bgp-graceful-shutdown-e-autenticauxe7uxe3o-muxfatua-spiffe}
 
@@ -1826,17 +1852,17 @@ Onda concluída com \textbf{PASS} na versão \texttt{v2.\allowbreak{}6.\allowbre
   No estudo \texttt{E37} (\textbf{Multus + \texttt{ipvlan L2/\allowbreak{}L3} vs \texttt{macvlan}}), por que switches de nuvem pública (VPC / SDN com \emph{Port-Security} / \emph{MAC Anti-Spoofing}) bloqueiam pacotes de interfaces \texttt{macvlan} (\texttt{0/\allowbreak{}5} no controle \texttt{3A}) mas permitem \texttt{ipvlan mode l2/\allowbreak{}l3} (\texttt{10/\allowbreak{}10}), e por que o \texttt{ipvlan mode l3} (\texttt{NOARP}, \texttt{MTU 9000}) atingiu o maior throughput (\texttt{36,\allowbreak{}76 Gbps}, \texttt{+11,\allowbreak{}4\%} sobre \texttt{veth 1500})?
 \end{enumerate}
 
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 16: Trilha P007 (E34--E37 --- BGP
-Graceful Shutdown Zero-Loss, SPIFFE mTLS + WireGuard, Local Redirect
-eBPF e Multus ipvlan L2/L3)}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m16-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
-
 \chapter{Trilha P008: Host Firewall, CiliumEnvoyConfig, Route Reflector e matriz netkit}\label{trilha-p008-host-firewall-ciliumenvoyconfig-route-reflector-e-matriz-netkit}
 
-A trilha \textbf{P008} conclui a Fase 4 do projeto em duas ondas paralelas sobre \texttt{vm-{}\allowbreak{}cilium}, combinando o \textbf{Braço A (Proteção de Nó com Cilium Host Firewall + XDP Early DDoS Prefilter e Escalabilidade iBGP Route Reflector \texttt{RFC 4456} + SRv6 L3VPN Dual-Stack \texttt{End.\allowbreak{}DT4}/\texttt{End.\allowbreak{}DT6} \texttt{E38}, \texttt{E40})} e o \textbf{Braço B (Engenharia de Tráfego e Resiliência L7 com \texttt{Cilium\allowbreak{}Envoy\allowbreak{}Config} e Matriz 2×2 de Sinergia no Datapath \texttt{netkit L3} + BIG TCP + \texttt{Wire\allowbreak{}Guard} \texttt{E39}, \texttt{E41})}, fechando \textbf{\texttt{41/\allowbreak{}41} estudos (\texttt{E01–E41})} em \texttt{v2.\allowbreak{}7.\allowbreak{}0}.
+A trilha \textbf{P008} conclui a Fase 4 do projeto em duas ondas paralelas sobre \texttt{vm-{}\allowbreak{}cilium}, combinando o \textbf{Braço A (Proteção de Nó com Cilium Host Firewall + XDP Early DDoS Prefilter e Escalabilidade iBGP Route Reflector \texttt{RFC 4456} + SRv6 L3VPN Dual-Stack \texttt{End.\allowbreak{}DT4}/\texttt{End.\allowbreak{}DT6} \texttt{E38}, \texttt{E40})} e o \textbf{Braço B (Engenharia de Tráfego e Resiliência L7 com \texttt{Cilium\allowbreak{}Envoy\allowbreak{}Config} e Matriz 2×2 de Sinergia no Datapath \texttt{netkit L3} + BIG TCP + \texttt{Wire\allowbreak{}Guard} \texttt{E39}, \texttt{E41})}, fechando \textbf{\texttt{41/\allowbreak{}41} estudos (\texttt{E01–E41})} em \texttt{v2.\allowbreak{}7.\allowbreak{}0}. A Figura 22 sintetiza o entregável do módulo.
+
+\begin{figure}[!htbp]
+\caption{Síntese visual do entregável do Módulo 17: Trilha P008 (E38--E41 ---
+Host Firewall + XDP\_DROP, CiliumEnvoyConfig L7, iBGP RR + SRv6
+Dual-Stack e Matriz netkit + BIG TCP + WireGuard 5,59x)}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m17-whiteboard-entregavel.png}
+\fonte{elaborada pelo autor (2026).}
+\end{figure}
 
 \section{Onda 1 (P008-S001): Host Firewall com XDP e resiliência L7 com CiliumEnvoyConfig}\label{onda-1-p008-s001-host-firewall-com-xdp-e-resiliuxeancia-l7-com-ciliumenvoyconfig}
 
@@ -1900,14 +1926,6 @@ Onda concluída com \textbf{PASS} na versão \texttt{v2.\allowbreak{}7.\allowbre
 \item
   No estudo \texttt{E41} (\textbf{Matriz 2×2 \texttt{netkit} + BIG TCP + \texttt{Wire\allowbreak{}Guard}}), por que o throughput do \texttt{cilium\_\allowbreak{}wg0} cai para \texttt{1,\allowbreak{}56 Gbps} sobre \texttt{veth MTU 1500} (\texttt{R2}, \texttt{1.\allowbreak{}569.\allowbreak{}813} pacotes para \texttt{2 Gi\allowbreak{}B}) mas salta \textbf{\texttt{+459,\allowbreak{}0\%} (\texttt{5,\allowbreak{}59x}, para \texttt{8,\allowbreak{}72 Gbps} e \texttt{243.\allowbreak{}767} pacotes)} sobre \texttt{netkit L3 MTU 9000} (\texttt{R4}), e por que \texttt{ping -{}\allowbreak{}M do -{}\allowbreak{}s 8892} passa (\texttt{10/\allowbreak{}10}) enquanto \texttt{-{}\allowbreak{}s 8893} falha (\texttt{0/\allowbreak{}5}) em um link de underlay com \texttt{MTU 9000}?
 \end{enumerate}
-
-\begin{figure}[htbp]
-\caption{Síntese visual do entregável do Módulo 17: Trilha P008 (E38--E41 ---
-Host Firewall + XDP\_DROP, CiliumEnvoyConfig L7, iBGP RR + SRv6
-Dual-Stack e Matriz netkit + BIG TCP + WireGuard 5,59x)}
-\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m17-whiteboard-entregavel.png}
-\fonte{elaborada pelo autor (2026).}
-\end{figure}
 
 \chapter*{Considerações finais}
 \addcontentsline{toc}{chapter}{Considerações finais}
@@ -2096,7 +2114,7 @@ IPAM \texttt{kubernetes}, sem pools) e remova objetos de teste por nome exato.
 \section*{Lições operacionais}\label{liuxe7uxf5es-operacionais}
 \addcontentsline{toc}{section}{Lições operacionais}
 
-\begin{quadro}[htbp]
+\begin{quadro}[!htbp]
 \caption{Lições operacionais e gates correspondentes}
 \footnotesize
 \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.399\hsize}X|>{\raggedright\arraybackslash\hsize=1.262\hsize}X|>{\raggedright\arraybackslash\hsize=1.339\hsize}X|}

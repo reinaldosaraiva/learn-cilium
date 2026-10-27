@@ -22,7 +22,7 @@ from typing import Sequence
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SOURCE = ROOT / "poc-k8s-fabric" / "docs" / "lab-guide-student.md"
 DEFAULT_TEX = ROOT / "poc-k8s-fabric" / "docs" / "latex" / "lab-guide-student.tex"
-DEFAULT_PDF = ROOT / "output" / "pdf" / "cilium-lab-student-guide-abnt.pdf"
+DEFAULT_PDF = ROOT / "output" / "pdf" / "cilium-lab-student-guide.pdf"
 FILTER = Path(__file__).resolve().parent / "abnt" / "guide.lua"
 FIELD = re.compile(r"\*\*([^*:]+):\*\*\s*([^·]+?)\s*(?=·|$)")
 YEAR = r"\[?c?\d{4}[a-z]?\]?"
@@ -220,7 +220,7 @@ PREAMBLE = r"""\documentclass[12pt,openany,oneside,a4paper,chapter=TITLE,english
 \usepackage{graphicx}
 \graphicspath{{../}}
 \usepackage{tabularx,array,booktabs}
-\usepackage[section]{placeins}
+\usepackage{placeins}
 \usepackage{fvextra}
 \RecustomVerbatimEnvironment{verbatim}{Verbatim}{breaklines,breakanywhere,fontsize=\footnotesize,frame=single,framesep=2mm}
 \usepackage{mdframed}
@@ -228,10 +228,15 @@ PREAMBLE = r"""\documentclass[12pt,openany,oneside,a4paper,chapter=TITLE,english
 \urlstyle{same}
 \usepackage{microtype}
 
-\renewcommand{\ABNTEXchapterfont}{\rmfamily\bfseries}
-\renewcommand{\ABNTEXsectionfont}{\rmfamily\bfseries}
+\renewcommand{\ABNTEXchapterfont}{\rmfamily\bfseries\raggedright\hyphenpenalty=10000\exhyphenpenalty=10000}
+\renewcommand{\ABNTEXsectionfont}{\rmfamily\bfseries\raggedright\hyphenpenalty=10000\exhyphenpenalty=10000}
 \renewcommand{\ABNTEXsubsectionfont}{\rmfamily}
 \renewcommand{\ABNTEXsubsubsectionfont}{\rmfamily\itshape}
+\makeatletter
+\renewcommand{\ABNTEXchapterupperifneeded}[1]{%
+  \ifthenelse{\boolean{abntex@innonumchapter}\OR\boolean{abntex@apendiceousecao}}{}{\raggedright}%
+  \ifthenelse{\boolean{ABNTEXupperchapter}}{\MakeTextUppercase{#1}}{#1}}
+\makeatother
 \providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \providecommand{\pandocbounded}[1]{#1}
 
@@ -244,7 +249,20 @@ PREAMBLE = r"""\documentclass[12pt,openany,oneside,a4paper,chapter=TITLE,english
 \counterwithout{quadro}{chapter}
 \renewcommand{\cftquadroname}{\quadroname\space}
 \renewcommand*{\cftquadroaftersnum}{\hfill--\hfill}
-\setfloatlocations{quadro}{htbp}
+\setfloatlocations{quadro}{!htbp}
+
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.8}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{4}
+\makeatletter
+\setlength{\@fptop}{0pt}
+\setlength{\@fpsep}{12pt}
+\setlength{\@fpbot}{0pt plus 1fil}
+\makeatother
 
 \newenvironment{referenciasabnt}
   {\begin{flushleft}\SingleSpacing\setlength{\parindent}{0pt}\setlength{\parskip}{\baselineskip}}

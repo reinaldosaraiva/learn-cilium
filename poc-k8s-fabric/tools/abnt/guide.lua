@@ -114,7 +114,7 @@ local function table_latex(tbl, kind, title, source, note)
   local spec, rows, nhead = column_spec(tbl, quadro)
   local lines = {}
   local env = quadro and "quadro" or "table"
-  lines[#lines + 1] = "\\begin{" .. env .. "}[htbp]"
+  lines[#lines + 1] = "\\begin{" .. env .. "}[!htbp]"
   lines[#lines + 1] = "\\caption{" .. title .. "}"
   lines[#lines + 1] = "\\footnotesize"
   lines[#lines + 1] = "\\begin{tabularx}{\\textwidth}{" .. spec .. "}"
@@ -143,7 +143,7 @@ end
 
 local function figure_latex(img, title, source, note)
   local lines = {
-    "\\begin{figure}[htbp]",
+    "\\begin{figure}[!htbp]",
     "\\caption{" .. title .. "}",
     "\\includegraphics[width=\\textwidth,height=0.72\\textheight,keepaspectratio]{" .. img.src .. "}",
     "\\fonte{" .. source .. "}",

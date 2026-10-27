@@ -52,8 +52,9 @@ para este laboratório.
 | `scripts/` | preparação, deploy, Cilium, BGP, validação e exposição opcional |
 | `docs/diagramas/` | imagens da topologia e do fluxo para a aula |
 
-O builder do PDF fica em [`tools/build_guide.py`](tools/build_guide.py), no
-diretório `poc-k8s-fabric/tools`, e pode ser executado diretamente ou via `Makefile` (`v2.7.0`) a partir da raiz do projeto:
+O PDF da apostila é gerado por [`tools/build_latex.py`](tools/build_latex.py)
+(abnTeX2 via pandoc + tectonic) e pode ser executado diretamente ou via
+`Makefile` a partir da raiz do projeto:
 
 ~~~bash
 make pdf
@@ -61,8 +62,9 @@ make lint
 make test
 ~~~
 
-O PDF sai em `output/pdf/cilium-lab-student-guide.pdf`. Para usar uma cópia do
-molde:
+O PDF sai em `output/pdf/cilium-lab-student-guide.pdf`. Para criar o guia de
+outro laboratório a partir do molde, use o builder ReportLab
+[`tools/build_guide.py`](tools/build_guide.py):
 
 ~~~bash
 python3 poc-k8s-fabric/tools/build_guide.py \
@@ -70,7 +72,7 @@ python3 poc-k8s-fabric/tools/build_guide.py \
   --title "Meu laboratório Cilium"
 ~~~
 
-O builder depende somente de ReportLab. Consulte
+Esse builder depende somente de ReportLab. Consulte
 [`tools/requirements-guide.txt`](tools/requirements-guide.txt) se precisar
 preparar um ambiente virtual.
 
