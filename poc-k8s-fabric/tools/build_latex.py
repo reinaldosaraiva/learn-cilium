@@ -92,10 +92,11 @@ def reference_keys(references: str) -> list[tuple[str, str]]:
 
 def citation_keys(text: str) -> set[tuple[str, str]]:
     found: set[tuple[str, str]] = set()
+    text = re.sub(r"\s+", " ", text)
     for content in re.findall(r"\(([^()]*" + YEAR + r")\)", text):
         for names, year in re.findall(r"(.+?),\s*(" + YEAR + r")(?:;\s*|$)", content):
             first = names.split(";")[0].replace(" et al.", "").strip()
-            if re.fullmatch(r"[A-Z][\w\-]*(?: [A-Za-z][\w\-]*)*", first):
+            if re.fullmatch(r"[A-Za-z][\w\-]*(?: [A-Za-z][\w\-]*)*", first) and not first.islower():
                 found.add((_fold(first), year))
     word = r"[A-Z][^\W\d_]+"
     narrative = rf"({word}(?: {word})?)(?:,? (?:e )?{word})*(?: et al\.)? \((" + YEAR + r")\)"
