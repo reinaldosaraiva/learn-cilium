@@ -13,7 +13,7 @@
 
 ## 1. Contexto e Perguntas de Engenharia
 
-Ao conectar um cliente corporativo via **Conexão Dedicada (Direct Connect / Interconnect)** usando eBGP, três garantias de plano de controle são exigidas pelos requisitos funcionais e não funcionais (`RF05`, `RF07`, `RNF03`, `RNF05` de [`docs/proximos-estudos.md`](../proximos-estudos.md)):
+Ao conectar um cliente corporativo via **Conexão Dedicada (Direct Connect / Interconnect)** usando eBGP, três garantias de plano de controle são exigidas pelos requisitos funcionais e não funcionais (`RF05`, `RF07`, `RNF03`, `RNF05` de [`docs/proximos-estudos.md`](../historico/proximos-estudos.md)):
 
 1. **Proteção de Borda — `maximum-prefix` e Filtro de Import (`E11`):**
    - *O Cilium BGP Control Plane v2 (`CiliumBGPPeerConfig`) possui campos para `maximum-prefix` ou filtro de importação de rotas recebidas?*

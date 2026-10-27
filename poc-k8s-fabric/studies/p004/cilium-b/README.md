@@ -1,6 +1,6 @@
 # Braço Cilium B — Cilium `1.20.2` + FRR `10.7.1` no Nó (`H6`, `H7`/`V09`, `V07-B`, `V08-B` e Invariante `R6`)
 
-Este diretório contém os manifestos e scripts reproduzíveis do **Braço Cilium B** da investigação [`plans/P004/20-kubevirt-inv.md`](../../../../plans/P004/20-kubevirt-inv.md) no cluster `p003-gw` (`Cilium 1.20.2` + `KubeVirt v1.9.0`), cobrindo a execução da [`P004-S006`](../../../../plans/P004-S006-results.md) (`H6`) e os artefatos de `V09`/`H7`, `V07-B` e `V08-B` + transição para **OVN-Kubernetes (`C` / `D`)** na [`P004-S007`](../../../../plans/P004-S007.md).
+Este diretório contém os manifestos e scripts reproduzíveis do **Braço Cilium B** da investigação [`plans/P004/20-kubevirt-inv.md`] no cluster `p003-gw` (`Cilium 1.20.2` + `KubeVirt v1.9.0`), cobrindo a execução da [`P004-S006`] (`H6`) e os artefatos de `V09`/`H7`, `V07-B` e `V08-B` + transição para **OVN-Kubernetes (`C` / `D`)** na [`P004-S007`].
 
 ## Arquitetura do Braço Cilium B
 
@@ -39,11 +39,13 @@ No **Braço Cilium A**, o agente Cilium (`GoBGP` embarcado via BGP Control Plane
 
 ## Evidências
 
-- [`evidence/P004/S006/05-cilium-b-frr-h6.txt`](../../../evidence/P004/S006/05-cilium-b-frr-h6.txt) — Execução ao vivo de `H6` (`PASS`).
-- [`evidence/P004/S007/01-baseline-s007.txt`](../../../evidence/P004/S007/01-baseline-s007.txt) — Baseline read-only de `vm-cilium` na `P004-S007`.
-- [`evidence/P004/S007/02-static-dryrun-s007.txt`](../../../evidence/P004/S007/02-static-dryrun-s007.txt) — Validação estática (`bash -n`, `shellcheck -x`) e `--dry-run` dos 4 scripts do Braço Cilium B.
-- [`evidence/P004/S007/03-v09-evpn-type5.txt`](../../../evidence/P004/S007/03-v09-evpn-type5.txt) — Execução ao vivo de `V09`/`H7` (`PASS`).
-- [`evidence/P004/S007/04-v07b-overlapping-vrf.txt`](../../../evidence/P004/S007/04-v07b-overlapping-vrf.txt) — Execução ao vivo de `V07-B` (`PASS`).
-- [`evidence/P004/S007/05-v08b-legacy-cutover-frr.txt`](../../../evidence/P004/S007/05-v08b-legacy-cutover-frr.txt) — Execução ao vivo de `V08-B` (`PASS`).
-- [`evidence/P004/S007/06-post-verify-capacity.txt`](../../../evidence/P004/S007/06-post-verify-capacity.txt) e [`evidence/P004/S008/02-final-verify-g08.txt`](../../../evidence/P004/S008/02-final-verify-g08.txt) — Verificação pós-rollback e higiene operacional final (`G08`).
+- [`evidence/P004/S006/05-cilium-b-frr-h6.txt`] — Execução ao vivo de `H6` (`PASS`).
+- [`evidence/P004/S007/01-baseline-s007.txt`] — Baseline read-only de `vm-cilium` na `P004-S007`.
+- [`evidence/P004/S007/02-static-dryrun-s007.txt`] — Validação estática (`bash -n`, `shellcheck -x`) e `--dry-run` dos 4 scripts do Braço Cilium B.
+- [`evidence/P004/S007/03-v09-evpn-type5.txt`] — Execução ao vivo de `V09`/`H7` (`PASS`).
+- [`evidence/P004/S007/04-v07b-overlapping-vrf.txt`] — Execução ao vivo de `V07-B` (`PASS`).
+- [`evidence/P004/S007/05-v08b-legacy-cutover-frr.txt`] — Execução ao vivo de `V08-B` (`PASS`).
+- [`evidence/P004/S007/06-post-verify-capacity.txt`] e [`evidence/P004/S008/02-final-verify-g08.txt`] — Verificação pós-rollback e higiene operacional final (`G08`).
 - Matriz Comparativa Final **Cilium A vs Cilium B**, **Blueprint de Transição para OVN-Kubernetes (`C` / `D`)** e **Síntese `INV × Equivalente Aberto` (`G07`)**: [`docs/estudos/20-dci-estado-parcial.md`](../../../docs/estudos/20-dci-estado-parcial.md) (§4–§8).
+
+> **Referência privada.** Os identificadores de planos e evidências citados permanecem apenas como texto; os arquivos de origem são privados e não são publicados neste documento.

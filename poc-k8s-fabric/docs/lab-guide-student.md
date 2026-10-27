@@ -2,7 +2,7 @@
 
 ## Guia de estudo e prática
 
-**Autor:** Reinaldo Saraiva · **Edição:** 2.8 · **Local:** Teresina · **Ano:** 2026 · **Público-alvo:** estudantes de Kubernetes, redes e Cilium que já conhecem o vocabulário básico de IP e roteamento
+**Autor:** Reinaldo Saraiva · **Edição:** 2.9 · **Local:** Teresina · **Ano:** 2026 · **Público-alvo:** estudantes de Kubernetes, redes e Cilium que já conhecem o vocabulário básico de IP e roteamento
 
 ## Apresentação
 
@@ -1469,7 +1469,7 @@ Fonte: elaborado pelo autor (2026).
 
 ### Próximos estudos
 
-As propostas de estudos futuros estão em [`docs/proximos-estudos.md`](proximos-estudos.md), e a revisão técnica está em [`docs/revisao-projeto-2026-09-26.md`](revisao-projeto-2026-09-26.md). Os dossiês atuais estão reunidos no Apêndice B.
+As propostas anteriores estão preservadas no [planejamento histórico de estudos](historico/proximos-estudos.md), junto à [revisão técnica histórica de 26/09/2026](historico/revisao-projeto-2026-09-26.md). Esses arquivos são registros históricos; o [índice atual dos estudos](../studies/README.md) reúne a navegação vigente. Os dossiês estão reunidos no Apêndice B.
 
 As lições operacionais e os gates de segurança estão no **Quadro 27**, no Apêndice A.
 
@@ -1614,7 +1614,7 @@ Os artefatos ficam em `studies/p003/`: topologia (`topo/`), configs SR Linux
 (`configs/srl/`), values e chart fixado (`base/values-p003.yaml`,
 `base/cilium-1.20.2.tgz`), BGP (`base/bgp/`), Gateway e rotas
 (`base/gateway.yaml`), fixtures (`fixtures/`) e os casos por sessão (`cases/`).
-O diff em relação ao kit está em `studies/p003/diff-vs-kit.md`. O deploy do
+O diff em relação ao kit está em [`diff-vs-kit.md`](historico/diff-vs-kit.md). O deploy do
 containerlab deve rodar com `nohup` e log, nunca em foreground com timeout de
 canal SSH: uma interrupção deixa os SR Linux sem startup-config.
 

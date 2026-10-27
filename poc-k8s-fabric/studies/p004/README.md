@@ -18,4 +18,4 @@ Artefatos reprodutíveis (scripts idempotentes com `--dry-run`, manifests YAML e
 
 - **Dossiê e Síntese Consolidada (§1–§8, Matriz `INV × Equivalente Aberto` `G07` e Critérios `INV-PoC-01..06`):** [`docs/estudos/20-dci-estado-parcial.md`](../../docs/estudos/20-dci-estado-parcial.md)
 - **Resultados Numéricos Consolidados:** [`docs/lab-results.md`](../../docs/lab-results.md)
-- **Guia do Estudante v2.3 (Módulos 15 e 16):** [`docs/lab-guide-student.md`](../../docs/lab-guide-student.md)
+- **Módulo 13 do guia do estudante:** [`docs/lab-guide-student.md`](../../docs/lab-guide-student.md)

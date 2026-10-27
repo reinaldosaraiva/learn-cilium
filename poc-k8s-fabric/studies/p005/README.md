@@ -1,6 +1,6 @@
 # Estudos P005 — Execução em 4 Ondas Paralelas (`Braço A: eBGP` ∥ `Braço B: Datapath, Escala e Observabilidade`)
 
-Este diretório armazena os scripts automatizados, idempotentes (com suporte a `--dry-run` e `trap cleanup EXIT`) e manifests declarativos do plano **`P005`**, cobrindo os 16 estudos avançados (`E09–E19` e `E21–E25`) do roadmap ([`docs/proximos-estudos.md`](../../docs/proximos-estudos.md)).
+Este diretório armazena os scripts automatizados, idempotentes (com suporte a `--dry-run` e `trap cleanup EXIT`) e manifests declarativos do plano **`P005`**, cobrindo os 16 estudos avançados (`E09–E19` e `E21–E25`) do registro histórico de propostas ([`proximos-estudos.md`](../../docs/historico/proximos-estudos.md)).
 
 ---
 
