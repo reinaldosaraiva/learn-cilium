@@ -1,5 +1,5 @@
 # =============================================================================
-# PoC Magalu Cloud - Fabric SR Linux + FRR para cluster Kubernetes EXISTENTE
+# PoC DCI Cloud - Fabric SR Linux + FRR para cluster Kubernetes EXISTENTE
 # -----------------------------------------------------------------------------
 # Deploy:  sudo clab deploy -t topo/poc-fabric.clab.yml
 # Destroy: sudo clab destroy -t topo/poc-fabric.clab.yml --cleanup

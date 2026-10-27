@@ -26,8 +26,8 @@ from typing import Any, Callable, Mapping
 
 PRODUCTION_ROOT = "/opt/poc-k8s-fabric"
 PRODUCTION_LOG_ROOT = "/var/lib/p004-host-installation"
-PRODUCTION_LOCK = "/var/lock/labctl-mgc-m03.lock"
-PRODUCTION_LOCK_FILE = "/run/lock/labctl-mgc-m03.lock"
+PRODUCTION_LOCK = "/var/lock/labctl-dci-m03.lock"
+PRODUCTION_LOCK_FILE = "/run/lock/labctl-dci-m03.lock"
 PRODUCTION_LOCK_VAR = "/var"
 PRODUCTION_LOCK_ALIAS = "/var/lock"
 PRODUCTION_LOCK_RUN = "/run"
@@ -1149,7 +1149,7 @@ def _production_config(baseline: Mapping[str, Any]) -> _Config:
         lock_run_path=PRODUCTION_LOCK_RUN,
         lock_real_path=PRODUCTION_LOCK_REAL,
         lock_alias_target=PRODUCTION_LOCK_REAL,
-        marker_paths=("/run/labctl/mgc-m03/active", "/run/labctl/mgc-x05/active"),
+        marker_paths=("/run/labctl/dci-m03/active", "/run/labctl/dci-x05/active"),
         canonical_paths=canonical_paths,
     )
 
@@ -1182,7 +1182,7 @@ def _fixture_config(base: str | os.PathLike[str]) -> _Config:
         lock_run_path=str(lock_run),
         lock_real_path=str(lock_real),
         lock_alias_target=str(lock_real),
-        marker_paths=(str(base_path / "markers/mgc-m03/active"), str(base_path / "markers/mgc-x05/active")),
+        marker_paths=(str(base_path / "markers/dci-m03/active"), str(base_path / "markers/dci-x05/active")),
         canonical_paths=canonical_paths,
         fixture_base=str(base_path),
     )

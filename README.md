@@ -51,7 +51,7 @@ Os
 quadro de conclusão de P004 e a comparação visual dos planos de rede para VMs.
 O [resumo de resultados](poc-k8s-fabric/docs/lab-results.md) e o
 [CHANGELOG](CHANGELOG.md) registram as entregas por versão; veja também a
-[síntese pública completa de P004](poc-k8s-fabric/docs/estudos/20-mgc-estado-parcial.md).
+[síntese pública completa de P004](poc-k8s-fabric/docs/estudos/20-dci-estado-parcial.md).
 
 O [índice de estudos P003](poc-k8s-fabric/docs/estudos/README.md) conserva o
 planejamento, as matrizes e o processo. Os resultados publicados incluem a

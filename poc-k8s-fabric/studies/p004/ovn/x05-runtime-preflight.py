@@ -40,12 +40,12 @@ CLUSTER_NAMES = (
     "ovn-chassis-1",
     "ovn-chassis-2",
 )
-FIXED_X05_DOCKER_NAMES = ("mgc-client-2", "mgc-x05-peer-2")
+FIXED_X05_DOCKER_NAMES = ("dci-client-2", "dci-x05-peer-2")
 MUTABLE_IMAGE_TAGS = ("frrouting/frr:v8.4.1", "ovn/ovn-multi-node:latest")
 EXPECTED_RUNTIME_FIXTURES = {
     "x05-client2.conf": (
         1388,
-        "73cb785be4beb61693de52e33440ade774b4d4cb66fa51f06e86703e9583ced9",
+        "c4f928c4f84e794c29bb4660e171cd84e6c924a4dad3056866dccaf128982589",
     ),
     "x05-chassis.conf": (
         1043,
@@ -53,12 +53,12 @@ EXPECTED_RUNTIME_FIXTURES = {
     ),
     "x05-peer.conf": (
         1083,
-        "9fc6033e407e85f9d03f89c77fedf31a1ac777ed938f06a75737167f969e39de",
+        "f047d33f87ea87b94ad0e964bd63325218ad5ba6312fef6627cb9b4e7aef828f",
     ),
 }
 REQUIRED_SECTIONS = (
     "m03",
-    "mgc",
+    "dci",
     "docker",
     "gateway_frr",
     "chassis2",
@@ -93,24 +93,24 @@ M03_LINKS = (
     ("br-evpn-tenant", "bridge", "chassis", "ovn-chassis-1", None),
     ("vxlan-tenant", "vxlan", "chassis", "ovn-chassis-1", ("vni", 50100)),
     ("evpn-tenant", "dummy", "chassis", "ovn-chassis-1", None),
-    ("vrf-evpn-client", "vrf", "peer", "mgc-evpn-client-1", ("table", 50100)),
-    ("br-evpn-client", "bridge", "peer", "mgc-evpn-client-1", None),
-    ("vxlan-m03-peer", "vxlan", "peer", "mgc-evpn-client-1", ("vni", 50100)),
-    ("evpn-client", "dummy", "peer", "mgc-evpn-client-1", None),
+    ("vrf-evpn-client", "vrf", "peer", "dci-evpn-client-1", ("table", 50100)),
+    ("br-evpn-client", "bridge", "peer", "dci-evpn-client-1", None),
+    ("vxlan-m03-peer", "vxlan", "peer", "dci-evpn-client-1", ("vni", 50100)),
+    ("evpn-client", "dummy", "peer", "dci-evpn-client-1", None),
 )
-MGC_ID_KEYS = {
+DCI_ID_KEYS = {
     "ovn-central-az1": "owner_id_ovn_central_az1",
     "ovn-gw-1": "owner_id_ovn_gw_1",
     "ovn-gw-2": "owner_id_ovn_gw_2",
     "ovn-chassis-1": "owner_id_ovn_chassis_1",
     "ovn-chassis-2": "owner_id_ovn_chassis_2",
-    "mgc-client-1": "client_id_mgc_client_1",
+    "dci-client-1": "client_id_dci_client_1",
 }
-MGC_CONTAINER_NAMES = (*CLUSTER_NAMES, "mgc-client-1")
+DCI_CONTAINER_NAMES = (*CLUSTER_NAMES, "dci-client-1")
 ORIGINAL_OWNERSHIP_LABELS = frozenset(
-    {"labctl.mgc.owner", "labctl-m03-owner", "labctl-x05-owner"}
+    {"labctl.dci.owner", "labctl-m03-owner", "labctl-x05-owner"}
 )
-MGC_BRIDGE_ID_KEYS = {
+DCI_BRIDGE_ID_KEYS = {
     "br-ovn": "owner_bridge_br_ovn_uuid",
     "br-ovn-ext": "owner_bridge_br_ovn_ext_uuid",
 }
@@ -480,7 +480,7 @@ def _marker_fields(raw: str) -> tuple[str, str, list[str]]:
     )
     require(
         fields["central"] == "ovn-central-az1"
-        and fields["lrp"] == "lrp-mgc-tenant"
+        and fields["lrp"] == "lrp-dci-tenant"
         and fields["tenant_vrf"] == "ovnvrf-tenant"
         and fields["intent"] == "maintain-vrf"
         and fields["baseline_lrp_maintain_vrf"] == "absent"
@@ -607,7 +607,7 @@ def validate_marker(section: Any, profile_owner: str) -> tuple[str, str, str]:
             "labels",
             "ovs",
         }
-        and peer.get("name") == "mgc-evpn-client-1"
+        and peer.get("name") == "dci-evpn-client-1"
         and peer.get("state") == "running"
         and isinstance(peer.get("id"), str)
         and DOCKER_ID_RE.fullmatch(peer["id"]) is not None,
@@ -615,8 +615,8 @@ def validate_marker(section: Any, profile_owner: str) -> tuple[str, str, str]:
     )
     labels = peer.get("labels")
     require(
-        labels == {"labctl.mgc.owner": profile_owner, "labctl-m03-owner": token},
-        "M03 peer labels are not bound to MGC and marker owners",
+        labels == {"labctl.dci.owner": profile_owner, "labctl-m03-owner": token},
+        "M03 peer labels are not bound to DCI and marker owners",
     )
     ovs = peer.get("ovs")
     require(
@@ -634,7 +634,7 @@ def validate_marker(section: Any, profile_owner: str) -> tuple[str, str, str]:
             "interface_uuid",
             "port_interfaces",
         }
-        and ovs.get("container_id") == "mgc-evpn-client-1"
+        and ovs.get("container_id") == "dci-evpn-client-1"
         and ovs.get("container_iface") == "eth1"
         and ovs.get("owner") == token
         and ovs.get("bridge") == "br-ovn"
@@ -662,7 +662,7 @@ def validate_marker(section: Any, profile_owner: str) -> tuple[str, str, str]:
             "mapping",
         }
         and filter_row.get("port_name") == expected_filter
-        and filter_row.get("lrp") == "lrp-mgc-tenant"
+        and filter_row.get("lrp") == "lrp-dci-tenant"
         and filter_row.get("dynamic-routing-port-name") == expected_filter
         and filter_row.get("mapping") == expected_filter + "=br-evpn-tenant",
         "M03 return filter is not bound to marker",
@@ -813,20 +813,20 @@ def validate_marker(section: Any, profile_owner: str) -> tuple[str, str, str]:
             "ports",
             "other_config",
         }
-        and switch.get("name") == "ls-mgc-tenant"
+        and switch.get("name") == "ls-dci-tenant"
         and switch.get("other_config") == {"dynamic-routing-vni": "50100"},
         "M03 A logical switch fingerprint is incomplete",
     )
     require(
         isinstance(router, dict)
         and set(router) == {"_uuid", "name", "ports"}
-        and router.get("name") == "lr-mgc-tenant",
+        and router.get("name") == "lr-dci-tenant",
         "M03 A logical router fingerprint is incomplete",
     )
     require(
         isinstance(lrp, dict)
         and set(lrp) == {"_uuid", "name", "options"}
-        and lrp.get("name") == "lrp-mgc-tenant"
+        and lrp.get("name") == "lrp-dci-tenant"
         and lrp.get("options")
         == {
             "dynamic-routing-maintain-vrf": "true",
@@ -857,61 +857,61 @@ def validate_marker(section: Any, profile_owner: str) -> tuple[str, str, str]:
     return token, run_token, digest
 
 
-def validate_mgc(section: Any) -> str:
+def validate_dci(section: Any) -> str:
     """Validate recorded IDs, observed IDs, labels, bridges, and ownership."""
     require(
         isinstance(section, dict) and section.get("status") == "PASS",
-        "MGC ownership section is not PASS",
+        "DCI ownership section is not PASS",
     )
     owner = section.get("profile_owner")
     require(
         isinstance(owner, str) and owner and "<" not in owner,
-        "MGC profile owner is missing",
+        "DCI profile owner is missing",
     )
     require(
         section.get("expected_cluster_names") == list(CLUSTER_NAMES),
-        "MGC expected cluster names are incomplete",
+        "DCI expected cluster names are incomplete",
     )
     require(
-        section.get("foreign_names") == [], "foreign MGC container name was observed"
+        section.get("foreign_names") == [], "foreign DCI container name was observed"
     )
     ids = section.get("container_ids")
     recorded = section.get("recorded_ids")
     require(
-        isinstance(ids, dict) and set(ids) == set(MGC_CONTAINER_NAMES),
-        "MGC observed container IDs are incomplete",
+        isinstance(ids, dict) and set(ids) == set(DCI_CONTAINER_NAMES),
+        "DCI observed container IDs are incomplete",
     )
     require(
-        isinstance(recorded, dict) and set(recorded) == set(MGC_ID_KEYS.values()),
-        "MGC recorded state IDs are incomplete",
+        isinstance(recorded, dict) and set(recorded) == set(DCI_ID_KEYS.values()),
+        "DCI recorded state IDs are incomplete",
     )
-    for name, state_key in MGC_ID_KEYS.items():
+    for name, state_key in DCI_ID_KEYS.items():
         value = ids[name]
         require(
             isinstance(value, str)
             and DOCKER_ID_RE.fullmatch(value) is not None
             and value == recorded[state_key],
-            "MGC observed ID does not equal recorded state ID: " + name,
+            "DCI observed ID does not equal recorded state ID: " + name,
         )
-    require(len(set(ids.values())) == len(ids), "MGC observed IDs are duplicated")
+    require(len(set(ids.values())) == len(ids), "DCI observed IDs are duplicated")
     states = section.get("container_states")
     require(
         isinstance(states, dict)
         and set(states) == set(ids)
         and all(value == "running" for value in states.values()),
-        "MGC containers are not all running",
+        "DCI containers are not all running",
     )
     labels = section.get("container_labels")
     require(
         isinstance(labels, dict) and set(labels) == set(ids),
-        "MGC container labels are incomplete",
+        "DCI container labels are incomplete",
     )
-    for name in MGC_CONTAINER_NAMES:
+    for name in DCI_CONTAINER_NAMES:
         row = labels[name]
         require(
             isinstance(row, dict)
             and all(isinstance(key, str) and isinstance(value, str) for key, value in row.items()),
-            "MGC container labels are malformed: " + name,
+            "DCI container labels are malformed: " + name,
         )
     image_bindings = section.get("original_image_bindings")
     require(
@@ -947,35 +947,35 @@ def validate_mgc(section: Any) -> str:
             and not ORIGINAL_OWNERSHIP_LABELS.intersection(row),
             "original image carries an ownership label: " + name,
         )
-    client_labels = labels["mgc-client-1"]
+    client_labels = labels["dci-client-1"]
     require(
-        client_labels == {"labctl.mgc.owner": owner},
-        "MGC client profile label is missing",
+        client_labels == {"labctl.dci.owner": owner},
+        "DCI client profile label is missing",
     )
 
     bridge_ids = section.get("recorded_bridge_uuids")
     bridges = section.get("bridges")
     require(
         isinstance(bridge_ids, dict)
-        and set(bridge_ids) == set(MGC_BRIDGE_ID_KEYS.values())
+        and set(bridge_ids) == set(DCI_BRIDGE_ID_KEYS.values())
         and isinstance(bridges, dict)
-        and set(bridges) == set(MGC_BRIDGE_ID_KEYS),
-        "MGC bridge UUID records are incomplete",
+        and set(bridges) == set(DCI_BRIDGE_ID_KEYS),
+        "DCI bridge UUID records are incomplete",
     )
-    for name, state_key in MGC_BRIDGE_ID_KEYS.items():
+    for name, state_key in DCI_BRIDGE_ID_KEYS.items():
         row = bridges[name]
         require(
             isinstance(row, dict)
             and isinstance(row.get("uuid"), str)
             and UUID_RE.fullmatch(row["uuid"]) is not None
             and row["uuid"] == bridge_ids[state_key],
-            "MGC bridge UUID does not equal recorded state UUID: " + name,
+            "DCI bridge UUID does not equal recorded state UUID: " + name,
         )
         external_ids = row.get("external_ids")
         require(
             isinstance(external_ids, dict)
-            and external_ids.get("labctl-mgc-owner-token") == owner,
-            "MGC bridge owner external-id is missing: " + name,
+            and external_ids.get("labctl-dci-owner-token") == owner,
+            "DCI bridge owner external-id is missing: " + name,
         )
     return owner
 
@@ -1032,13 +1032,13 @@ def validate_runtime_fixtures(resources: dict[str, dict[str, Any]]) -> None:
     """Cross-bind the three runtime FRR files to their inventory rows."""
     desired_by_fixture = {
         "x05-client2.conf": resources[
-            "host:vm-cilium/docker-container/mgc-client-2"
+            "host:vm-cilium/docker-container/dci-client-2"
         ]["desired"],
         "x05-chassis.conf": resources[
             "container:ovn-chassis-2/frr-pathspace/x05"
         ]["desired"],
         "x05-peer.conf": resources[
-            "container:mgc-x05-peer-2/frr-pathspace/x05"
+            "container:dci-x05-peer-2/frr-pathspace/x05"
         ]["desired"],
     }
     for filename, expected in EXPECTED_RUNTIME_FIXTURES.items():
@@ -1076,12 +1076,12 @@ def validate_gateway_frr(section: Any, resources: dict[str, dict[str, Any]]) -> 
         "ovn-gw-1": (
             "frr-gw1.conf",
             1030,
-            "8ea15ebfc376e36b980586471e6532cb54cd26b6e8e2295363dbc2762bb40655",
+            "2838c8687b8d45dba49a3d6c488780cf8e3a00f281e5eb26c16d6fa7c6ebbbb7",
         ),
         "ovn-gw-2": (
             "frr-gw2.conf",
             964,
-            "df039572ba709947239b94e8a7512864fc09e48cfc9d4effa4f4e785b4f3bfb9",
+            "d464ddc249ae61a58a0df3058ae482d75ebb8e768ebd00c772e6a50fa5fee6c9",
         ),
     }
     frr_resources = {
@@ -1431,8 +1431,8 @@ def validate_snapshot(snapshot: Any, *, allow_fixture: bool = False) -> dict[str
             "snapshot section is not PASS: " + name,
         )
 
-    profile_owner = sections["mgc"].get("profile_owner")
-    require(isinstance(profile_owner, str), "MGC profile owner is missing")
+    profile_owner = sections["dci"].get("profile_owner")
+    require(isinstance(profile_owner, str), "DCI profile owner is missing")
     context = {
         "run_hex": run_hex,
         "owner": owner,
@@ -1448,10 +1448,10 @@ def validate_snapshot(snapshot: Any, *, allow_fixture: bool = False) -> dict[str
     marker_token, marker_run, marker_digest = validate_marker(
         sections["m03"], profile_owner
     )
-    validate_mgc(sections["mgc"])
+    validate_dci(sections["dci"])
     require(
         sections["m03"].get("profile_owner") == profile_owner,
-        "M03 profile owner does not match MGC owner",
+        "M03 profile owner does not match DCI owner",
     )
     resolved_images, resolved_images_digest = validate_docker(
         sections["docker"], resources
@@ -1463,20 +1463,20 @@ def validate_snapshot(snapshot: Any, *, allow_fixture: bool = False) -> dict[str
     validate_evidence(sections["evidence"])
     validate_before(snapshot["before"], resources, owner)
     expected_namespaces = {
-        **sections["mgc"]["container_ids"],
-        "mgc-evpn-client-1": sections["m03"]["peer"]["id"],
+        **sections["dci"]["container_ids"],
+        "dci-evpn-client-1": sections["m03"]["peer"]["id"],
     }
     for row in [*sections["m03"]["links"], sections["m03"]["tenant_vrf"]]:
         namespace = row["namespace"]
         require(
             namespace["container_id"] == expected_namespaces[namespace["container"]],
-            "M03 Linux namespace ID differs from the recorded MGC ID: " + row["name"],
+            "M03 Linux namespace ID differs from the recorded DCI ID: " + row["name"],
         )
     x05_marker = snapshot["x05_marker"]
     require(
         isinstance(x05_marker, dict)
         and set(x05_marker) == {"path", "exists"}
-        and x05_marker.get("path") == "/run/labctl/mgc-x05/active"
+        and x05_marker.get("path") == "/run/labctl/dci-x05/active"
         and x05_marker.get("exists") is False,
         "X05 marker must be absent before preflight",
     )
@@ -1557,7 +1557,7 @@ def synthetic_fixture() -> dict[str, Any]:
     run_hex = "a1b2c3"
     owner = "labctl-x05-" + run_hex
     evidence_path = f"/workspace/evidence/P004/S002/{run_hex}/08-x05"
-    profile_owner = "mgc-profile-fixture"
+    profile_owner = "dci-profile-fixture"
     context = {
         "run_hex": run_hex,
         "owner": owner,
@@ -1573,7 +1573,7 @@ def synthetic_fixture() -> dict[str, Any]:
         f"token={marker_token}",
         f"run_token={marker_run}",
         "central=ovn-central-az1",
-        "lrp=lrp-mgc-tenant",
+        "lrp=lrp-dci-tenant",
         "tenant_vrf=ovnvrf-tenant",
         "intent=maintain-vrf",
         "baseline_lrp_maintain_vrf=absent",
@@ -1585,7 +1585,7 @@ def synthetic_fixture() -> dict[str, Any]:
     marker_raw = "\n".join(marker_lines) + "\n"
     marker_digest = sha256(marker_raw.encode("utf-8"))
     container_ids = {
-        name: sha256(("mgc:" + name).encode("utf-8")) for name in MGC_CONTAINER_NAMES
+        name: sha256(("dci:" + name).encode("utf-8")) for name in DCI_CONTAINER_NAMES
     }
     original_image_id = "sha256:" + sha256(b"fixture-original-image")
     original_image_labels = {
@@ -1593,7 +1593,7 @@ def synthetic_fixture() -> dict[str, Any]:
         "org.example.version": "1",
     }
     peer_id = sha256(b"m03-peer")
-    namespace_ids = {**container_ids, "mgc-evpn-client-1": peer_id}
+    namespace_ids = {**container_ids, "dci-evpn-client-1": peer_id}
 
     before: dict[str, Any] = {}
     for resource_id, resource in resources.items():
@@ -1660,17 +1660,17 @@ def synthetic_fixture() -> dict[str, Any]:
         }
 
     recorded_ids = {
-        MGC_ID_KEYS[name]: container_ids[name] for name in MGC_CONTAINER_NAMES
+        DCI_ID_KEYS[name]: container_ids[name] for name in DCI_CONTAINER_NAMES
     }
     bridges = {
         name: {
             "uuid": _fixture_uuid(name),
-            "external_ids": {"labctl-mgc-owner-token": profile_owner},
+            "external_ids": {"labctl-dci-owner-token": profile_owner},
         }
-        for name in MGC_BRIDGE_ID_KEYS
+        for name in DCI_BRIDGE_ID_KEYS
     }
     recorded_bridges = {
-        MGC_BRIDGE_ID_KEYS[name]: bridges[name]["uuid"] for name in MGC_BRIDGE_ID_KEYS
+        DCI_BRIDGE_ID_KEYS[name]: bridges[name]["uuid"] for name in DCI_BRIDGE_ID_KEYS
     }
     m03 = {
         "status": "PASS",
@@ -1689,15 +1689,15 @@ def synthetic_fixture() -> dict[str, Any]:
             "sha256": marker_digest,
         },
         "peer": {
-            "name": "mgc-evpn-client-1",
+            "name": "dci-evpn-client-1",
             "id": peer_id,
             "state": "running",
             "labels": {
-                "labctl.mgc.owner": profile_owner,
+                "labctl.dci.owner": profile_owner,
                 "labctl-m03-owner": marker_token,
             },
             "ovs": {
-                "container_id": "mgc-evpn-client-1",
+                "container_id": "dci-evpn-client-1",
                 "container_iface": "eth1",
                 "owner": marker_token,
                 "bridge": "br-ovn",
@@ -1711,7 +1711,7 @@ def synthetic_fixture() -> dict[str, Any]:
         },
         "return_filter": {
             "port_name": f"m03-evpn-{marker_run}",
-            "lrp": "lrp-mgc-tenant",
+            "lrp": "lrp-dci-tenant",
             "dynamic-routing-port-name": f"m03-evpn-{marker_run}",
             "mapping": f"m03-evpn-{marker_run}=br-evpn-tenant",
         },
@@ -1766,19 +1766,19 @@ def synthetic_fixture() -> dict[str, Any]:
         },
         "a_fingerprint": {
             "Logical_Switch": {
-                "_uuid": _fixture_uuid("ls-mgc-tenant"),
-                "name": "ls-mgc-tenant",
-                "ports": [_fixture_uuid("lsp-mgc-tenant")],
+                "_uuid": _fixture_uuid("ls-dci-tenant"),
+                "name": "ls-dci-tenant",
+                "ports": [_fixture_uuid("lsp-dci-tenant")],
                 "other_config": {"dynamic-routing-vni": "50100"},
             },
             "Logical_Router": {
-                "_uuid": _fixture_uuid("lr-mgc-tenant"),
-                "name": "lr-mgc-tenant",
-                "ports": [_fixture_uuid("lrp-mgc-tenant")],
+                "_uuid": _fixture_uuid("lr-dci-tenant"),
+                "name": "lr-dci-tenant",
+                "ports": [_fixture_uuid("lrp-dci-tenant")],
             },
             "Logical_Router_Port": {
-                "_uuid": _fixture_uuid("lrp-mgc-tenant"),
-                "name": "lrp-mgc-tenant",
+                "_uuid": _fixture_uuid("lrp-dci-tenant"),
+                "name": "lrp-dci-tenant",
                 "options": {
                     "dynamic-routing-maintain-vrf": "true",
                     "dynamic-routing-port-name": f"m03-evpn-{marker_run}",
@@ -1808,20 +1808,20 @@ def synthetic_fixture() -> dict[str, Any]:
         }
     sections = {
         "m03": m03,
-        "mgc": {
+        "dci": {
             "status": "PASS",
             "profile_owner": profile_owner,
             "expected_cluster_names": list(CLUSTER_NAMES),
             "foreign_names": [],
             "container_ids": container_ids,
             "recorded_ids": recorded_ids,
-            "container_states": {name: "running" for name in MGC_CONTAINER_NAMES},
+            "container_states": {name: "running" for name in DCI_CONTAINER_NAMES},
             "container_labels": {
                 **{
                     name: copy.deepcopy(original_image_labels)
                     for name in CLUSTER_NAMES
                 },
-                "mgc-client-1": {"labctl.mgc.owner": profile_owner},
+                "dci-client-1": {"labctl.dci.owner": profile_owner},
             },
             "original_image_bindings": {
                 name: {
@@ -1890,7 +1890,7 @@ def synthetic_fixture() -> dict[str, Any]:
         "snapshot_sha256": "0" * 64,
         "sections": sections,
         "before": before,
-        "x05_marker": {"path": "/run/labctl/mgc-x05/active", "exists": False},
+        "x05_marker": {"path": "/run/labctl/dci-x05/active", "exists": False},
         "journal_seed": {},
     }
     snapshot["sections"]["docker"]["resolved_images_sha256"] = canonical_hash(
@@ -1966,7 +1966,7 @@ def selftest() -> int:
     missing["before"].pop(next(iter(missing["before"])))
     cases.append((missing, "missing inventory item"))
     foreign = copy.deepcopy(fixture)
-    foreign["sections"]["docker"]["names_absent"]["mgc-client-2"] = False
+    foreign["sections"]["docker"]["names_absent"]["dci-client-2"] = False
     cases.append((foreign, "foreign Docker name"))
     wrong_frr = copy.deepcopy(fixture)
     wrong_frr["sections"]["gateway_frr"]["gateways"]["ovn-gw-1"]["sha256"] = "0" * 64
@@ -1975,20 +1975,20 @@ def selftest() -> int:
     chassis_drift["sections"]["chassis2"]["ovn-evpn-local-ip"] = "50100-170.168.0.7"
     cases.append((chassis_drift, "chassis local-ip drift"))
     id_drift = copy.deepcopy(fixture)
-    id_drift["sections"]["mgc"]["container_ids"]["ovn-gw-1"] = "1" * 64
-    cases.append((id_drift, "recorded MGC ID drift"))
+    id_drift["sections"]["dci"]["container_ids"]["ovn-gw-1"] = "1" * 64
+    cases.append((id_drift, "recorded DCI ID drift"))
     uuid_drift = copy.deepcopy(fixture)
-    uuid_drift["sections"]["mgc"]["bridges"]["br-ovn"]["uuid"] = _fixture_uuid(
+    uuid_drift["sections"]["dci"]["bridges"]["br-ovn"]["uuid"] = _fixture_uuid(
         "foreign"
     )
     cases.append((uuid_drift, "recorded bridge UUID drift"))
     label_drift = copy.deepcopy(fixture)
-    label_drift["sections"]["mgc"]["container_labels"]["ovn-gw-1"] = {
-        "labctl.mgc.owner": "foreign"
+    label_drift["sections"]["dci"]["container_labels"]["ovn-gw-1"] = {
+        "labctl.dci.owner": "foreign"
     }
-    cases.append((label_drift, "original node MGC label"))
+    cases.append((label_drift, "original node DCI label"))
     missing_image_binding = copy.deepcopy(fixture)
-    missing_image_binding["sections"]["mgc"]["original_image_bindings"].pop(
+    missing_image_binding["sections"]["dci"]["original_image_bindings"].pop(
         "ovn-gw-1"
     )
     missing_image_binding["snapshot_sha256"] = snapshot_digest(missing_image_binding)
@@ -1997,7 +1997,7 @@ def selftest() -> int:
     ]
     cases.append((missing_image_binding, "missing original image binding"))
     malformed_image_binding = copy.deepcopy(fixture)
-    malformed_image_binding["sections"]["mgc"]["original_image_bindings"][
+    malformed_image_binding["sections"]["dci"]["original_image_bindings"][
         "ovn-gw-1"
     ]["image_id"] = "malformed"
     malformed_image_binding["snapshot_sha256"] = snapshot_digest(
@@ -2008,7 +2008,7 @@ def selftest() -> int:
     ]
     cases.append((malformed_image_binding, "malformed original image binding"))
     mismatched_image_binding = copy.deepcopy(fixture)
-    mismatched_image_binding["sections"]["mgc"]["original_image_bindings"][
+    mismatched_image_binding["sections"]["dci"]["original_image_bindings"][
         "ovn-gw-1"
     ]["image_labels"] = {"org.example.foreign": "label"}
     mismatched_image_binding["snapshot_sha256"] = snapshot_digest(
@@ -2019,8 +2019,8 @@ def selftest() -> int:
     ]
     cases.append((mismatched_image_binding, "mismatched original image labels"))
     peer_profile_label = copy.deepcopy(fixture)
-    del peer_profile_label["sections"]["m03"]["peer"]["labels"]["labctl.mgc.owner"]
-    cases.append((peer_profile_label, "M03 peer missing MGC profile label"))
+    del peer_profile_label["sections"]["m03"]["peer"]["labels"]["labctl.dci.owner"]
+    cases.append((peer_profile_label, "M03 peer missing DCI profile label"))
     peer_ovs_identity = copy.deepcopy(fixture)
     peer_ovs_identity["sections"]["m03"]["peer"]["ovs"]["container_iface"] = "eth2"
     cases.append((peer_ovs_identity, "M03 peer OVS interface identity"))

@@ -13,7 +13,7 @@
       "uid": 0
     },
     {
-      "destination": "/opt/poc-k8s-fabric/labs/mgc.sh",
+      "destination": "/opt/poc-k8s-fabric/labs/dci.sh",
       "dev": 64769,
       "gid": 0,
       "inode": 3742888,
@@ -21,7 +21,7 @@
       "nlink": 1,
       "sha256": "c24962a4382b9f905a448a2621bdf0a5ef0167a12147563a0509c224a33d92bc",
       "size": 103202,
-      "source": "poc-k8s-fabric/labctl/labs/mgc.sh",
+      "source": "poc-k8s-fabric/labctl/labs/dci.sh",
       "uid": 0
     },
     {

@@ -2,7 +2,7 @@
 
 O OVN 26.03.3 considera o logical switch um domínio EVPN L2 quando o VNI
 e os nomes dos três dispositivos estão presentes. A fixture NB aplica esses
-campos ao `ls-mgc-tenant`:
+campos ao `ls-dci-tenant`:
 
 ```text
 other_config:dynamic-routing-vni=50100

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Perfil labctl da réplica MGC Connect (P004-S002).
+# Perfil labctl da réplica DCI Connect (P004-S002).
 #
 # O cluster OVN é o ovn-fake-multinode v0.4 com uma central, dois gateways e
 # dois chassis. Os gateways carregam FRR e o cliente AS 200 é o único
 # container adicional criado por este perfil.
 set -euo pipefail
 
-LAB_NAME="mgc"
-MGC_M03_MODE="${MGC_M03_MODE:-0}"
+LAB_NAME="dci"
+DCI_M03_MODE="${DCI_M03_MODE:-0}"
 
 OVN_TAG="v26.03.3"
 OVN_COMMIT="4c5118fc40d54f2f8d52781bc205ba185808d7d0"
@@ -18,11 +18,11 @@ FAKE_MN_COMMIT_PREFIX="653e7b2"
 FRR_IMAGE="frrouting/frr:v8.4.1"
 RUNC_CMD="docker"
 
-MGC_SRC="${MGC_SRC:-/opt/mgc-src}"
-MGC_OVN_SRC="${MGC_SRC}/ovn"
-MGC_OVS_SRC="${MGC_SRC}/ovs"
-MGC_FAKE_MN="${MGC_SRC}/ovn-fake-multinode"
-MGC_FIXTURE_DIR="${LAB_ROOT:-/opt/poc-k8s-fabric}/studies/p004/ovn"
+DCI_SRC="${DCI_SRC:-/opt/dci-src}"
+DCI_OVN_SRC="${DCI_SRC}/ovn"
+DCI_OVS_SRC="${DCI_SRC}/ovs"
+DCI_FAKE_MN="${DCI_SRC}/ovn-fake-multinode"
+DCI_FIXTURE_DIR="${LAB_ROOT:-/opt/poc-k8s-fabric}/studies/p004/ovn"
 
 MG_CENTRAL="ovn-central-az1"
 MG_GATEWAY_1="ovn-gw-1"
@@ -32,16 +32,16 @@ MG_CHASSIS_2="ovn-chassis-2"
 MG_CENTRAL_PREFIX="ovn-central-az"
 MG_GATEWAY_PREFIX="ovn-gw-"
 MG_CHASSIS_PREFIX="ovn-chassis-"
-MG_CLIENT_NAME="${MGC_CLIENT_NAME:-mgc-client-1}"
-MG_PREFIX="mgc-"
+MG_CLIENT_NAME="${DCI_CLIENT_NAME:-dci-client-1}"
+MG_PREFIX="dci-"
 
 # M03 is an owned, temporary extension of this profile.  The lifecycle keeps
 # its names visible and refuses residue whose ownership cannot be proved.
-MG_M03_PEER="mgc-evpn-client-1"
+MG_M03_PEER="dci-evpn-client-1"
 MG_M03_OWNER_LABEL="labctl-m03-owner"
 MG_M03_CHASSIS="ovn-chassis-1"
 MG_M03_CENTRAL="ovn-central-az1"
-MG_M03_TENANT_LRP="lrp-mgc-tenant"
+MG_M03_TENANT_LRP="lrp-dci-tenant"
 MG_M03_TENANT_VRF="ovnvrf-tenant"
 MG_M03_TENANT_TABLE=300
 MG_M03_TENANT_BR="br-evpn-tenant"
@@ -52,9 +52,9 @@ MG_M03_LEGACY_CLIENT_VRF="ovnvrf-evpn-client"
 MG_M03_CLIENT_BR="br-evpn-client"
 MG_M03_CLIENT_VXLAN="vxlan-m03-peer"
 MG_M03_CLIENT_ADVERTISE="evpn-client"
-MG_M03_LOCK_FILE=/var/lock/labctl-mgc-m03.lock
-MG_M03_MARKER_FILE="${MG_M03_MARKER_FILE:-/run/labctl/mgc-m03/active}"
-MG_X05_MARKER_FILE=/run/labctl/mgc-x05/active
+MG_M03_LOCK_FILE=/var/lock/labctl-dci-m03.lock
+MG_M03_MARKER_FILE="${MG_M03_MARKER_FILE:-/run/labctl/dci-m03/active}"
+MG_X05_MARKER_FILE=/run/labctl/dci-x05/active
 
 MG_GW_VRF_1=100
 MG_GW_VRF_2=200
@@ -63,24 +63,24 @@ MG_GW_VLAN_2=200
 MG_GW_AS=100
 MG_CLIENT_AS=200
 MG_CLIENT_CIDR="10.0.0.0/16"
-MG_CLIENT_LOOPBACK_IP="${MGC_CLIENT_LOOPBACK_IP:-10.0.0.1/32}"
-MG_CLIENT_MTU="${MGC_CLIENT_MTU:-1500}"
+MG_CLIENT_LOOPBACK_IP="${DCI_CLIENT_LOOPBACK_IP:-10.0.0.1/32}"
+MG_CLIENT_MTU="${DCI_CLIENT_MTU:-1500}"
 MG_GATEWAY_MTU=1500
 MG_GW1_P2P="169.254.254.1"
 MG_CLI1_P2P="169.254.254.2"
 MG_GW2_P2P="169.254.254.5"
 MG_CLI2_P2P="169.254.254.6"
 
-MG_TENANT_LS="ls-mgc-tenant"
-MG_TENANT_LR="lr-mgc-tenant"
+MG_TENANT_LS="ls-dci-tenant"
+MG_TENANT_LR="lr-dci-tenant"
 MG_TENANT_CIDR="192.168.100.0/24"
 MG_TENANT_LRP_IP="192.168.100.1"
 MG_TENANT_VM_IP="192.168.100.10"
 MG_TENANT_VM_MAC="02:00:00:10:00:10"
-MG_TENANT_VM_LSP="mgc-tenant-vm"
-MG_TENANT_VM_NS="mgc-tenant-vm"
-MG_TENANT_VM_IF="mgc-tenant-vm"
-MG_TENANT_VM_PORT="mgc-tenant-vm-p"
+MG_TENANT_VM_LSP="dci-tenant-vm"
+MG_TENANT_VM_NS="dci-tenant-vm"
+MG_TENANT_VM_IF="dci-tenant-vm"
+MG_TENANT_VM_PORT="dci-tenant-vm-p"
 MG_TENANT_VNI=50100
 
 MG_CHASSIS_1_UNDERLAY="170.168.0.5"
@@ -88,16 +88,16 @@ MG_CHASSIS_2_UNDERLAY="170.168.0.6"
 MG_GATEWAY_1_UNDERLAY="170.168.0.3"
 MG_GATEWAY_2_UNDERLAY="170.168.0.4"
 
-MG_NB_FIXTURE="${MGC_FIXTURE_DIR}/nb-topology.sh"
-MG_GW1_FRR="${MGC_FIXTURE_DIR}/frr-gw1.conf"
-MG_GW2_FRR="${MGC_FIXTURE_DIR}/frr-gw2.conf"
-MG_CLIENT_FRR="${MGC_FIXTURE_DIR}/frr-client.conf"
+MG_NB_FIXTURE="${DCI_FIXTURE_DIR}/nb-topology.sh"
+MG_GW1_FRR="${DCI_FIXTURE_DIR}/frr-gw1.conf"
+MG_GW2_FRR="${DCI_FIXTURE_DIR}/frr-gw2.conf"
+MG_CLIENT_FRR="${DCI_FIXTURE_DIR}/frr-client.conf"
 
-mgc_vrf_package() {
+dci_vrf_package() {
   printf 'linux-modules-extra-%s\n' "$(uname -r)"
 }
 
-mgc_count_named() {
+dci_count_named() {
   local name="$1" all="${2:-all}"
   if [[ "${all}" == "running" ]]; then
     docker ps --format '{{.Names}}' 2>/dev/null \
@@ -108,32 +108,32 @@ mgc_count_named() {
   fi
 }
 
-mgc_fixture_file() {
+dci_fixture_file() {
   local fixture="$1"
-  echo "${MGC_FIXTURE_DIR}/${fixture}"
+  echo "${DCI_FIXTURE_DIR}/${fixture}"
 }
 
-mgc_image_exists() {
+dci_image_exists() {
   local image="$1"
   docker image inspect "${image}" >/dev/null 2>&1
 }
 
-mgc_image_id() {
+dci_image_id() {
   local image="$1"
   docker image inspect -f '{{.Id}}' "${image}" 2>/dev/null || true
 }
 
-mgc_images_provenance_matches() {
+dci_images_provenance_matches() {
   local cinc_id multi_id ovn_commit ovs_commit fake_commit current_ovn current_ovs current_fake
-  cinc_id="$(mgc_image_id ovn/cinc:latest)"
-  multi_id="$(mgc_image_id ovn/ovn-multi-node:latest)"
+  cinc_id="$(dci_image_id ovn/cinc:latest)"
+  multi_id="$(dci_image_id ovn/ovn-multi-node:latest)"
   [[ -n "${cinc_id}" && -n "${multi_id}" ]] || return 1
   ovn_commit="$(state_get "${LAB_NAME}" image_ovn_commit 2>/dev/null || true)"
   ovs_commit="$(state_get "${LAB_NAME}" image_ovs_commit 2>/dev/null || true)"
   fake_commit="$(state_get "${LAB_NAME}" image_fake_multinode_commit 2>/dev/null || true)"
-  current_ovn="$(git -C "${MGC_OVN_SRC}" rev-parse HEAD 2>/dev/null || true)"
-  current_ovs="$(git -C "${MGC_OVS_SRC}" rev-parse HEAD 2>/dev/null || true)"
-  current_fake="$(git -C "${MGC_FAKE_MN}" rev-parse HEAD 2>/dev/null || true)"
+  current_ovn="$(git -C "${DCI_OVN_SRC}" rev-parse HEAD 2>/dev/null || true)"
+  current_ovs="$(git -C "${DCI_OVS_SRC}" rev-parse HEAD 2>/dev/null || true)"
+  current_fake="$(git -C "${DCI_FAKE_MN}" rev-parse HEAD 2>/dev/null || true)"
   [[ "${cinc_id}" == "$(state_get "${LAB_NAME}" image_ovn_cinc_id 2>/dev/null || true)" \
     && "${multi_id}" == "$(state_get "${LAB_NAME}" image_ovn_multi_id 2>/dev/null || true)" \
     && -n "${current_ovn}" && "${ovn_commit}" == "${current_ovn}" \
@@ -141,13 +141,13 @@ mgc_images_provenance_matches() {
     && -n "${current_fake}" && "${fake_commit}" == "${current_fake}" ]]
 }
 
-mgc_record_image_provenance() {
+dci_record_image_provenance() {
   local cinc_id multi_id ovn_commit ovs_commit fake_commit
-  cinc_id="$(mgc_image_id ovn/cinc:latest)"
-  multi_id="$(mgc_image_id ovn/ovn-multi-node:latest)"
-  ovn_commit="$(git -C "${MGC_OVN_SRC}" rev-parse HEAD)"
-  ovs_commit="$(git -C "${MGC_OVS_SRC}" rev-parse HEAD)"
-  fake_commit="$(git -C "${MGC_FAKE_MN}" rev-parse HEAD)"
+  cinc_id="$(dci_image_id ovn/cinc:latest)"
+  multi_id="$(dci_image_id ovn/ovn-multi-node:latest)"
+  ovn_commit="$(git -C "${DCI_OVN_SRC}" rev-parse HEAD)"
+  ovs_commit="$(git -C "${DCI_OVS_SRC}" rev-parse HEAD)"
+  fake_commit="$(git -C "${DCI_FAKE_MN}" rev-parse HEAD)"
   [[ -n "${cinc_id}" && -n "${multi_id}" ]] \
     || die "build OVN terminou sem as duas imagens esperadas"
   state_set "${LAB_NAME}" image_ovn_cinc_id "${cinc_id}"
@@ -159,29 +159,29 @@ mgc_record_image_provenance() {
   state_set "${LAB_NAME}" image_provenance_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 
-mgc_cluster_count() {
+dci_cluster_count() {
   local mode="${1:-all}"
   local total=0 name
   for name in "${MG_CENTRAL}" "${MG_GATEWAY_1}" "${MG_GATEWAY_2}" \
     "${MG_CHASSIS_1}" "${MG_CHASSIS_2}"; do
-    total=$((total + $(mgc_count_named "${name}" "${mode}")))
+    total=$((total + $(dci_count_named "${name}" "${mode}")))
   done
   echo "${total}"
 }
 
-mgc_expected_cluster_names() {
+dci_expected_cluster_names() {
   printf '%s\n' "${MG_CENTRAL}" "${MG_GATEWAY_1}" "${MG_GATEWAY_2}" \
     "${MG_CHASSIS_1}" "${MG_CHASSIS_2}"
 }
 
-mgc_assert_no_extra_ovn_containers() {
+dci_assert_no_extra_ovn_containers() {
   local id name expected
   while IFS= read -r id; do
     [[ -n "${id}" ]] || continue
     name="$(docker inspect -f '{{.Name}}' "${id}" 2>/dev/null | sed 's#^/##')"
     case "${name}" in
       "${MG_CENTRAL}"|"${MG_GATEWAY_1}"|"${MG_GATEWAY_2}"|"${MG_CHASSIS_1}"|"${MG_CHASSIS_2}")
-        expected="$(state_get "${LAB_NAME}" "$(mgc_owner_key "${name}")" 2>/dev/null || true)"
+        expected="$(state_get "${LAB_NAME}" "$(dci_owner_key "${name}")" 2>/dev/null || true)"
         [[ -n "${expected}" && "${id}" == "${expected}" ]] \
           || die "container OVN ${name} não corresponde ao ID próprio registrado"
         ;;
@@ -193,40 +193,40 @@ mgc_assert_no_extra_ovn_containers() {
     --filter "name=${MG_CENTRAL_PREFIX}|${MG_GATEWAY_PREFIX}|${MG_CHASSIS_PREFIX}" 2>/dev/null)
 }
 
-mgc_bridge_exists() {
+dci_bridge_exists() {
   local bridge="$1"
   ovs-vsctl br-exists "${bridge}" >/dev/null 2>&1
 }
 
-mgc_bridge_uuid() {
+dci_bridge_uuid() {
   local bridge="$1"
   ovs-vsctl get Bridge "${bridge}" _uuid 2>/dev/null | tr -d '"'
 }
 
-mgc_bridge_owner_token() {
+dci_bridge_owner_token() {
   local bridge="$1"
-  ovs-vsctl get Bridge "${bridge}" external_ids:labctl-mgc-owner-token \
+  ovs-vsctl get Bridge "${bridge}" external_ids:labctl-dci-owner-token \
     2>/dev/null | tr -d '"'
 }
 
-mgc_any_bridge_exists() {
-  mgc_bridge_exists br-ovn || mgc_bridge_exists br-ovn-ext
+dci_any_bridge_exists() {
+  dci_bridge_exists br-ovn || dci_bridge_exists br-ovn-ext
 }
 
-mgc_assert_bridges_absent() {
-  mgc_bridge_exists br-ovn \
+dci_assert_bridges_absent() {
+  dci_bridge_exists br-ovn \
     && die "bridge br-ovn existe onde o perfil exige ausência"
-  mgc_bridge_exists br-ovn-ext \
+  dci_bridge_exists br-ovn-ext \
     && die "bridge br-ovn-ext existe onde o perfil exige ausência"
   return 0
 }
 
-mgc_assert_bridges_owned() {
+dci_assert_bridges_owned() {
   local allow_missing="${1:-no}" token bridge expected_uuid actual_uuid actual_token
   token="$(state_get "${LAB_NAME}" owner_token 2>/dev/null || true)"
   [[ -n "${token}" ]] || die "bridges OVN sem token de ownership no estado"
   for bridge in br-ovn br-ovn-ext; do
-    if ! mgc_bridge_exists "${bridge}"; then
+    if ! dci_bridge_exists "${bridge}"; then
       [[ "${allow_missing}" == "yes" ]] \
         || die "bridge ${bridge} ausente; ownership não pode ser provada antes do stop"
       continue
@@ -237,8 +237,8 @@ mgc_assert_bridges_owned() {
     esac
     [[ -n "${expected_uuid}" ]] \
       || die "UUID de ownership ausente para ${bridge}"
-    actual_uuid="$(mgc_bridge_uuid "${bridge}")"
-    actual_token="$(mgc_bridge_owner_token "${bridge}")"
+    actual_uuid="$(dci_bridge_uuid "${bridge}")"
+    actual_token="$(dci_bridge_owner_token "${bridge}")"
     [[ "${actual_uuid}" == "${expected_uuid}" ]] \
       || die "UUID da bridge ${bridge} não corresponde ao estado do perfil"
     [[ "${actual_token}" == "${token}" ]] \
@@ -246,8 +246,8 @@ mgc_assert_bridges_owned() {
   done
 }
 
-mgc_remove_owned_bridges() {
-  mgc_assert_bridges_owned yes
+dci_remove_owned_bridges() {
+  dci_assert_bridges_owned yes
   if [[ "${DRY_RUN}" == "1" ]]; then
     echo "DRY: ovs-vsctl --if-exists del-br br-ovn"
     echo "DRY: ovs-vsctl --if-exists del-br br-ovn-ext"
@@ -255,86 +255,86 @@ mgc_remove_owned_bridges() {
   fi
   run ovs-vsctl --if-exists del-br br-ovn
   run ovs-vsctl --if-exists del-br br-ovn-ext
-  mgc_assert_bridges_absent
+  dci_assert_bridges_absent
 }
 
-mgc_create_owned_bridges() {
+dci_create_owned_bridges() {
   local token uuid
   token="$(state_get "${LAB_NAME}" owner_token 2>/dev/null || true)"
   if [[ "${DRY_RUN}" == "1" ]]; then
-    token="${token:-DRY-MGC-OWNER}"
+    token="${token:-DRY-DCI-OWNER}"
   fi
   [[ -n "${token}" ]] || die "não há token de ownership para criar bridges"
   if [[ "${DRY_RUN}" == "1" ]]; then
     echo "DRY: ovs-vsctl add-br br-ovn"
-    echo "DRY: ovs-vsctl set Bridge br-ovn external_ids:labctl-mgc-owner-token=${token}"
+    echo "DRY: ovs-vsctl set Bridge br-ovn external_ids:labctl-dci-owner-token=${token}"
     echo "DRY: ovs-vsctl add-br br-ovn-ext"
-    echo "DRY: ovs-vsctl set Bridge br-ovn-ext external_ids:labctl-mgc-owner-token=${token}"
+    echo "DRY: ovs-vsctl set Bridge br-ovn-ext external_ids:labctl-dci-owner-token=${token}"
     return 0
   fi
-  mgc_assert_bridges_absent
+  dci_assert_bridges_absent
   run ovs-vsctl add-br br-ovn
   run ovs-vsctl set Bridge br-ovn \
-    "external_ids:labctl-mgc-owner-token=${token}"
+    "external_ids:labctl-dci-owner-token=${token}"
   run ovs-vsctl add-br br-ovn-ext
   run ovs-vsctl set Bridge br-ovn-ext \
-    "external_ids:labctl-mgc-owner-token=${token}"
-  uuid="$(mgc_bridge_uuid br-ovn)"
+    "external_ids:labctl-dci-owner-token=${token}"
+  uuid="$(dci_bridge_uuid br-ovn)"
   [[ -n "${uuid}" ]] || die "não foi possível obter UUID da bridge br-ovn"
   state_set "${LAB_NAME}" owner_bridge_br_ovn_uuid "${uuid}"
-  uuid="$(mgc_bridge_uuid br-ovn-ext)"
+  uuid="$(dci_bridge_uuid br-ovn-ext)"
   [[ -n "${uuid}" ]] || die "não foi possível obter UUID da bridge br-ovn-ext"
   state_set "${LAB_NAME}" owner_bridge_br_ovn_ext_uuid "${uuid}"
-  mgc_assert_bridges_owned
+  dci_assert_bridges_owned
 }
 
-mgc_owner_key() {
+dci_owner_key() {
   local name="$1"
   name="${name//-/_}"
   echo "owner_id_${name}"
 }
 
-mgc_container_id() {
+dci_container_id() {
   local name="$1"
   docker inspect -f '{{.Id}}' "${name}" 2>/dev/null || true
 }
 
-mgc_client_owner_key() {
+dci_client_owner_key() {
   local name="$1"
   name="${name//-/_}"
   echo "client_id_${name}"
 }
 
-mgc_assert_client_ownership() {
+dci_assert_client_ownership() {
   local client="$1" token expected actual label
-  [[ "$(mgc_count_named "${client}")" -gt 0 ]] \
+  [[ "$(dci_count_named "${client}")" -gt 0 ]] \
     || die "cliente ${client} não existe para conferir ownership"
   token="$(state_get "${LAB_NAME}" owner_token 2>/dev/null || true)"
-  expected="$(state_get "${LAB_NAME}" "$(mgc_client_owner_key "${client}")" 2>/dev/null || true)"
-  actual="$(mgc_container_id "${client}")"
-  label="$(docker inspect -f '{{index .Config.Labels "labctl.mgc.owner"}}' "${client}" 2>/dev/null || true)"
+  expected="$(state_get "${LAB_NAME}" "$(dci_client_owner_key "${client}")" 2>/dev/null || true)"
+  actual="$(dci_container_id "${client}")"
+  label="$(docker inspect -f '{{index .Config.Labels "labctl.dci.owner"}}' "${client}" 2>/dev/null || true)"
   [[ -n "${token}" && -n "${expected}" && "${actual}" == "${expected}" \
     && "${label}" == "${token}" ]] \
     || die "cliente ${client} existe sem ownership comprovada para ${LAB_NAME}"
 }
 
-mgc_record_client_ownership() {
+dci_record_client_ownership() {
   local client="$1" id token
-  id="$(mgc_container_id "${client}")"
+  id="$(dci_container_id "${client}")"
   token="$(state_get "${LAB_NAME}" owner_token 2>/dev/null || true)"
   [[ -n "${id}" && -n "${token}" ]] \
     || die "não foi possível registrar ownership do cliente ${client}"
-  state_set "${LAB_NAME}" "$(mgc_client_owner_key "${client}")" "${id}"
-  state_set "${LAB_NAME}" "$(mgc_client_owner_key "${client}")_label" "${token}"
+  state_set "${LAB_NAME}" "$(dci_client_owner_key "${client}")" "${id}"
+  state_set "${LAB_NAME}" "$(dci_client_owner_key "${client}")_label" "${token}"
 }
 
-mgc_expected_ovs_commit() {
-  [[ -d "${MGC_OVN_SRC}/.git" ]] || return 0
-  git -C "${MGC_OVN_SRC}" ls-tree HEAD ovs 2>/dev/null \
+dci_expected_ovs_commit() {
+  [[ -d "${DCI_OVN_SRC}/.git" ]] || return 0
+  git -C "${DCI_OVN_SRC}" ls-tree HEAD ovs 2>/dev/null \
     | awk '$1 == "160000" && $NF == "ovs" {print $3; exit}'
 }
 
-mgc_assert_cluster_ownership() {
+dci_assert_cluster_ownership() {
   local owner_state owner_token owner_expected name actual expected present=0
   owner_state="$(state_get "${LAB_NAME}" owner_state 2>/dev/null || true)"
   owner_token="$(state_get "${LAB_NAME}" owner_token 2>/dev/null || true)"
@@ -348,44 +348,44 @@ mgc_assert_cluster_ownership() {
     || die "ownership do cluster OVN sem lista esperada de nomes no estado"
 
   while IFS= read -r name; do
-    if [[ "$(mgc_count_named "${name}")" -gt 0 ]]; then
+    if [[ "$(dci_count_named "${name}")" -gt 0 ]]; then
       present=$((present + 1))
-      expected="$(state_get "${LAB_NAME}" "$(mgc_owner_key "${name}")" 2>/dev/null || true)"
+      expected="$(state_get "${LAB_NAME}" "$(dci_owner_key "${name}")" 2>/dev/null || true)"
       [[ -n "${expected}" ]] \
         || die "container ${name} existe, mas seu ID não está registrado para ${LAB_NAME}"
-      actual="$(mgc_container_id "${name}")"
+      actual="$(dci_container_id "${name}")"
       [[ -n "${actual}" && "${actual}" == "${expected}" ]] \
         || die "container ${name} não corresponde ao ID de ownership registrado"
     fi
-  done < <(mgc_expected_cluster_names)
+  done < <(dci_expected_cluster_names)
   [[ "${present}" -gt 0 ]] \
     || die "ownership consultada sem nenhum container OVN presente"
 }
 
-mgc_record_cluster_ids() {
+dci_record_cluster_ids() {
   local owner_state="$1" name id
   while IFS= read -r name; do
-    if [[ "$(mgc_count_named "${name}")" -gt 0 ]]; then
-      id="$(mgc_container_id "${name}")"
+    if [[ "$(dci_count_named "${name}")" -gt 0 ]]; then
+      id="$(dci_container_id "${name}")"
       [[ -n "${id}" ]] || die "não foi possível obter o ID de ${name}"
-      state_set "${LAB_NAME}" "$(mgc_owner_key "${name}")" "${id}"
+      state_set "${LAB_NAME}" "$(dci_owner_key "${name}")" "${id}"
     fi
-  done < <(mgc_expected_cluster_names)
+  done < <(dci_expected_cluster_names)
   state_set "${LAB_NAME}" owner_state "${owner_state}"
   state_set "${LAB_NAME}" owner_observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 
-mgc_record_discovered_cluster_ids() {
+dci_record_discovered_cluster_ids() {
   local name id found=0
   while IFS= read -r name; do
-    if [[ "$(mgc_count_named "${name}" running)" -gt 0 ]]; then
-      id="$(mgc_container_id "${name}")"
+    if [[ "$(dci_count_named "${name}" running)" -gt 0 ]]; then
+      id="$(dci_container_id "${name}")"
       if [[ -n "${id}" ]]; then
-        state_set "${LAB_NAME}" "$(mgc_owner_key "${name}")" "${id}"
+        state_set "${LAB_NAME}" "$(dci_owner_key "${name}")" "${id}"
         found=1
       fi
     fi
-  done < <(mgc_expected_cluster_names)
+  done < <(dci_expected_cluster_names)
   if [[ "${found}" -eq 1 ]]; then
     state_set "${LAB_NAME}" owner_state partial
     state_set "${LAB_NAME}" owner_observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -394,58 +394,58 @@ mgc_record_discovered_cluster_ids() {
   return 1
 }
 
-mgc_stop_owned_cluster() {
+dci_stop_owned_cluster() {
   local cluster_all ev stop_log
-  cluster_all="$(mgc_cluster_count all)"
+  cluster_all="$(dci_cluster_count all)"
   [[ "${cluster_all}" -eq 0 ]] && return 0
-  mgc_assert_no_extra_ovn_containers
-  mgc_assert_cluster_ownership
-  mgc_assert_bridges_owned yes
+  dci_assert_no_extra_ovn_containers
+  dci_assert_cluster_ownership
+  dci_assert_bridges_owned yes
   if [[ "${DRY_RUN}" == "1" ]]; then
-    echo "DRY: (cd ${MGC_FAKE_MN} && RUNC_CMD=${RUNC_CMD} CENTRAL_COUNT=1 CHASSIS_COUNT=2 GW_COUNT=2 CREATE_FAKE_VMS=no ./ovn_cluster.sh stop)"
+    echo "DRY: (cd ${DCI_FAKE_MN} && RUNC_CMD=${RUNC_CMD} CENTRAL_COUNT=1 CHASSIS_COUNT=2 GW_COUNT=2 CREATE_FAKE_VMS=no ./ovn_cluster.sh stop)"
     return 0
   fi
   ev="$(evidence_dir "${LAB_NAME}")"
   stop_log="${ev}/ovn-stop-recovery.log"
   run env RUNC_CMD="${RUNC_CMD}" CENTRAL_COUNT=1 CHASSIS_COUNT=2 \
     GW_COUNT=2 CREATE_FAKE_VMS=no bash -c \
-    "cd '${MGC_FAKE_MN}' && ./ovn_cluster.sh stop" >"${stop_log}" 2>&1
-  [[ "$(mgc_cluster_count all)" -eq 0 ]] \
+    "cd '${DCI_FAKE_MN}' && ./ovn_cluster.sh stop" >"${stop_log}" 2>&1
+  [[ "$(dci_cluster_count all)" -eq 0 ]] \
     || die "stop do cluster próprio deixou containers OVN residuais"
-  mgc_assert_no_extra_ovn_containers
-  mgc_assert_bridges_absent
+  dci_assert_no_extra_ovn_containers
+  dci_assert_bridges_absent
   state_set "${LAB_NAME}" owner_state stopped
   state_set "${LAB_NAME}" owner_stopped_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 
-mgc_prepare_cluster_ownership() {
+dci_prepare_cluster_ownership() {
   local cluster_all cluster_running owner_token name
-  mgc_assert_no_extra_ovn_containers
-  cluster_all="$(mgc_cluster_count all)"
-  cluster_running="$(mgc_cluster_count running)"
+  dci_assert_no_extra_ovn_containers
+  cluster_all="$(dci_cluster_count all)"
+  cluster_running="$(dci_cluster_count running)"
   if [[ "${cluster_all}" -gt 0 ]]; then
-    mgc_assert_cluster_ownership
+    dci_assert_cluster_ownership
     if [[ "${cluster_running}" -eq 5 ]]; then
-      mgc_assert_bridges_owned
+      dci_assert_bridges_owned
       return 0
     fi
     log "  cluster parcial do próprio perfil; recuperação por stop seguro"
-    mgc_stop_owned_cluster
+    dci_stop_owned_cluster
     [[ "${DRY_RUN}" == "1" ]] && return 0
   fi
-  if mgc_any_bridge_exists; then
-    mgc_remove_owned_bridges
+  if dci_any_bridge_exists; then
+    dci_remove_owned_bridges
     [[ "${DRY_RUN}" == "1" ]] && return 0
   fi
-  [[ "$(mgc_cluster_count all)" -eq 0 ]] \
+  [[ "$(dci_cluster_count all)" -eq 0 ]] \
     || die "não foi possível provar ausência do cluster antes do start"
-  mgc_assert_no_extra_ovn_containers
-  mgc_assert_bridges_absent
+  dci_assert_no_extra_ovn_containers
+  dci_assert_bridges_absent
 
   owner_token="$(date -u +%Y%m%dT%H%M%SZ)-$$"
   while IFS= read -r name; do
-    state_set "${LAB_NAME}" "$(mgc_owner_key "${name}")" ""
-  done < <(mgc_expected_cluster_names)
+    state_set "${LAB_NAME}" "$(dci_owner_key "${name}")" ""
+  done < <(dci_expected_cluster_names)
   state_set "${LAB_NAME}" owner_state starting
   state_set "${LAB_NAME}" owner_token "${owner_token}"
   state_set "${LAB_NAME}" owner_expected_names \
@@ -456,7 +456,7 @@ mgc_prepare_cluster_ownership() {
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 
-mgc_ovs_port() {
+dci_ovs_port() {
   local container="$1" interface="$2"
   ovs-vsctl --data=bare --no-heading --columns=name find interface \
     external_ids:container_id="${container}" \
@@ -464,11 +464,11 @@ mgc_ovs_port() {
     | awk 'NF {print; exit}'
 }
 
-mgc_m03_marker_present() {
+dci_m03_marker_present() {
   [[ -e "${MG_M03_MARKER_FILE}" ]]
 }
 
-mgc_m03_marker_valid() {
+dci_m03_marker_valid() {
   local key count mode resource_count version line_count
   [[ -f "${MG_M03_MARKER_FILE}" && -O "${MG_M03_MARKER_FILE}" \
     && ! -g "${MG_M03_MARKER_FILE}" ]] || return 1
@@ -492,7 +492,7 @@ mgc_m03_marker_valid() {
     grep -Fqx 'baseline_chassis_port_mapping=absent' "${MG_M03_MARKER_FILE}" || return 1
   fi
   grep -Eq '^central=ovn-central-az1$' "${MG_M03_MARKER_FILE}" || return 1
-  grep -Eq '^lrp=lrp-mgc-tenant$' "${MG_M03_MARKER_FILE}" || return 1
+  grep -Eq '^lrp=lrp-dci-tenant$' "${MG_M03_MARKER_FILE}" || return 1
   grep -Eq '^tenant_vrf=ovnvrf-tenant$' "${MG_M03_MARKER_FILE}" || return 1
   grep -Eq '^intent=maintain-vrf$' "${MG_M03_MARKER_FILE}" || return 1
   grep -Eq '^baseline_lrp_maintain_vrf=absent$' "${MG_M03_MARKER_FILE}" || return 1
@@ -527,33 +527,33 @@ mgc_m03_marker_valid() {
   return 0
 }
 
-mgc_m03_port_name() {
+dci_m03_port_name() {
   local run_token
-  mgc_m03_marker_valid || return 1
+  dci_m03_marker_valid || return 1
   run_token="$(sed -n 's/^run_token=//p' "${MG_M03_MARKER_FILE}")"
   printf 'm03-evpn-%s\n' "$run_token"
 }
 
-mgc_m03_lrp_port_name() {
+dci_m03_lrp_port_name() {
   docker exec "$MG_M03_CENTRAL" ovn-nbctl --if-exists get \
     logical_router_port "$MG_M03_TENANT_LRP" \
     options:dynamic-routing-port-name | tr -d '"'
 }
 
-mgc_m03_chassis_port_mapping() {
+dci_m03_chassis_port_mapping() {
   docker exec "$MG_M03_CHASSIS" ovs-vsctl --if-exists get \
     Open_vSwitch . external_ids:dynamic-routing-port-mapping | tr -d '"'
 }
 
-mgc_m03_validate_return_filter_owned() {
+dci_m03_validate_return_filter_owned() {
   local port_name expected lrp_value mapping_value
-  mgc_m03_marker_valid || die 'marker M03 inválido; filtro de retorno preservado'
+  dci_m03_marker_valid || die 'marker M03 inválido; filtro de retorno preservado'
   grep -Fqx 'version=2' "$MG_M03_MARKER_FILE" || return 0
-  port_name="$(mgc_m03_port_name)"
+  port_name="$(dci_m03_port_name)"
   expected="${port_name}=${MG_M03_TENANT_BR}"
-  lrp_value="$(mgc_m03_lrp_port_name)" \
+  lrp_value="$(dci_m03_lrp_port_name)" \
     || die 'não foi possível ler dynamic-routing-port-name antes do cleanup'
-  mapping_value="$(mgc_m03_chassis_port_mapping)" \
+  mapping_value="$(dci_m03_chassis_port_mapping)" \
     || die 'não foi possível ler dynamic-routing-port-mapping antes do cleanup'
   [[ -z "$lrp_value" || "$lrp_value" == "$port_name" ]] \
     || die "dynamic-routing-port-name divergiu do marker M03: $lrp_value"
@@ -561,15 +561,15 @@ mgc_m03_validate_return_filter_owned() {
     || die "dynamic-routing-port-mapping divergiu do marker M03: $mapping_value"
 }
 
-mgc_m03_restore_return_filter() {
+dci_m03_restore_return_filter() {
   local port_name expected lrp_value mapping_value
-  mgc_m03_validate_return_filter_owned
+  dci_m03_validate_return_filter_owned
   grep -Fqx 'version=2' "$MG_M03_MARKER_FILE" || return 0
-  port_name="$(mgc_m03_port_name)"
+  port_name="$(dci_m03_port_name)"
   expected="${port_name}=${MG_M03_TENANT_BR}"
-  lrp_value="$(mgc_m03_lrp_port_name)" \
+  lrp_value="$(dci_m03_lrp_port_name)" \
     || die 'não foi possível ler dynamic-routing-port-name antes do cleanup'
-  mapping_value="$(mgc_m03_chassis_port_mapping)" \
+  mapping_value="$(dci_m03_chassis_port_mapping)" \
     || die 'não foi possível ler dynamic-routing-port-mapping antes do cleanup'
   [[ -z "$lrp_value" || "$lrp_value" == "$port_name" ]] \
     || die "dynamic-routing-port-name divergiu do marker M03: $lrp_value"
@@ -585,64 +585,64 @@ mgc_m03_restore_return_filter() {
       Open_vSwitch . external_ids dynamic-routing-port-mapping
   fi
   if [[ "$DRY_RUN" != 1 ]]; then
-    lrp_value="$(mgc_m03_lrp_port_name)" \
+    lrp_value="$(dci_m03_lrp_port_name)" \
       || die 'não foi possível confirmar remoção de dynamic-routing-port-name'
-    mapping_value="$(mgc_m03_chassis_port_mapping)" \
+    mapping_value="$(dci_m03_chassis_port_mapping)" \
       || die 'não foi possível confirmar remoção de dynamic-routing-port-mapping'
     [[ -z "$lrp_value" && -z "$mapping_value" ]] \
       || die 'filtro de retorno M03 permaneceu após cleanup'
   fi
 }
 
-mgc_m03_marker_uses_legacy_vrf() {
-  mgc_m03_marker_valid \
+dci_m03_marker_uses_legacy_vrf() {
+  dci_m03_marker_valid \
     && [[ "$(grep -Fxc "resource=peer:${MG_M03_LEGACY_CLIENT_VRF}:vrf" \
       "${MG_M03_MARKER_FILE}" || true)" -eq 1 ]]
 }
 
-mgc_m03_marker_owner() {
+dci_m03_marker_owner() {
   local token run_token
-  mgc_m03_marker_valid || return 1
+  dci_m03_marker_valid || return 1
   token="$(sed -n 's/^token=//p' "${MG_M03_MARKER_FILE}")"
   run_token="$(sed -n 's/^run_token=//p' "${MG_M03_MARKER_FILE}")"
   [[ "${token}" == "labctl-m03-${run_token}" ]] || return 1
   printf '%s\n' "${token}"
 }
 
-mgc_m03_marker_has_resource() {
+dci_m03_marker_has_resource() {
   local role="$1" link="$2" kind="$3"
-  mgc_m03_marker_valid \
+  dci_m03_marker_valid \
     && grep -Fqx "resource=${role}:${link}:${kind}" "${MG_M03_MARKER_FILE}"
 }
 
-mgc_m03_remove_marker() {
+dci_m03_remove_marker() {
   local expected="${1:-}" actual
   [[ -e "${MG_M03_MARKER_FILE}" ]] || return 0
-  actual="$(mgc_m03_marker_owner || true)"
+  actual="$(dci_m03_marker_owner || true)"
   [[ -n "${expected}" && "${actual}" == "${expected}" ]] || return 1
   rm -f -- "${MG_M03_MARKER_FILE}" || return 1
   [[ ! -e "${MG_M03_MARKER_FILE}" ]]
 }
 
-mgc_m03_peer_label() {
+dci_m03_peer_label() {
   docker inspect -f "{{index .Config.Labels \"${MG_M03_OWNER_LABEL}\"}}" \
     "${MG_M03_PEER}" 2>/dev/null || true
 }
 
-mgc_m03_peer_profile_owner() {
-  docker inspect -f '{{index .Config.Labels "labctl.mgc.owner"}}' \
+dci_m03_peer_profile_owner() {
+  docker inspect -f '{{index .Config.Labels "labctl.dci.owner"}}' \
     "${MG_M03_PEER}" 2>/dev/null || true
 }
 
-mgc_m03_ovs_owner() {
+dci_m03_ovs_owner() {
   local iface
-  iface="$(mgc_ovs_port "${MG_M03_PEER}" eth1 || true)"
+  iface="$(dci_ovs_port "${MG_M03_PEER}" eth1 || true)"
   [[ -n "${iface}" ]] || return 0
   ovs-vsctl get Interface "${iface}" external_ids:labctl-m03-owner \
     2>/dev/null | tr -d '"' || true
 }
 
-mgc_m03_chassis_owner() {
+dci_m03_chassis_owner() {
   local link alias token=""
   for link in "${MG_M03_TENANT_BR}" "${MG_M03_TENANT_VXLAN}" \
     "${MG_M03_TENANT_ADVERTISE}" "${MG_M03_TENANT_VRF}"; do
@@ -658,15 +658,15 @@ mgc_m03_chassis_owner() {
   [[ -n "${token}" ]] && printf '%s\n' "${token}"
 }
 
-mgc_m03_owner_token() {
+dci_m03_owner_token() {
   local marker_owner peer_label chassis_owner ovs_owner
-  marker_owner="$(mgc_m03_marker_owner || true)"
-  if mgc_m03_marker_present && [[ -z "${marker_owner}" ]]; then
+  marker_owner="$(dci_m03_marker_owner || true)"
+  if dci_m03_marker_present && [[ -z "${marker_owner}" ]]; then
     return 1
   fi
-  peer_label="$(mgc_m03_peer_label)"
-  chassis_owner="$(mgc_m03_chassis_owner || true)"
-  ovs_owner="$(mgc_m03_ovs_owner)"
+  peer_label="$(dci_m03_peer_label)"
+  chassis_owner="$(dci_m03_chassis_owner || true)"
+  ovs_owner="$(dci_m03_ovs_owner)"
   if [[ -n "${marker_owner}" ]]; then
     [[ -z "${peer_label}" || "${peer_label}" == "${marker_owner}" ]] || return 1
     [[ -z "${chassis_owner}" || "${chassis_owner}" == "${marker_owner}" ]] || return 1
@@ -692,7 +692,7 @@ mgc_m03_owner_token() {
   return 1
 }
 
-mgc_m03_pathspace_active() {
+dci_m03_pathspace_active() {
   docker exec "${MG_M03_CHASSIS}" sh -c '
     for daemon in zebra bgpd staticd; do
       for pid in $(pidof "${daemon}" 2>/dev/null || true); do
@@ -706,12 +706,12 @@ mgc_m03_pathspace_active() {
   ' >/dev/null 2>&1
 }
 
-mgc_m03_physical_resource_present() {
+dci_m03_physical_resource_present() {
   local path link port lrp_options port_mapping
-  [[ "$(mgc_count_named "${MG_M03_PEER}")" -gt 0 ]] && return 0
+  [[ "$(dci_count_named "${MG_M03_PEER}")" -gt 0 ]] && return 0
   # ovs-runc may choose a host interface name that does not contain the
   # container name.  The external_ids pair is the ownership identity.
-  port="$(mgc_ovs_port "${MG_M03_PEER}" eth1 || true)"
+  port="$(dci_ovs_port "${MG_M03_PEER}" eth1 || true)"
   [[ -n "${port}" ]] && return 0
   for link in "${MG_M03_TENANT_BR}" "${MG_M03_TENANT_VXLAN}" \
     "${MG_M03_TENANT_ADVERTISE}" "${MG_M03_TENANT_VRF}" \
@@ -726,10 +726,10 @@ mgc_m03_physical_resource_present() {
     docker exec "${MG_M03_CHASSIS}" test -e "${path}" >/dev/null 2>&1 \
       && return 0
   done
-  if mgc_m03_pathspace_active; then
+  if dci_m03_pathspace_active; then
     return 0
   fi
-  if [[ "$(mgc_count_named "${MG_M03_CENTRAL}" running)" -gt 0 ]]; then
+  if [[ "$(dci_count_named "${MG_M03_CENTRAL}" running)" -gt 0 ]]; then
     if ! lrp_options="$(docker exec "${MG_M03_CENTRAL}" ovn-nbctl \
       get logical_router_port "${MG_M03_TENANT_LRP}" options 2>&1)"; then
       die "não foi possível ler options de ${MG_M03_TENANT_LRP} para detectar M03: ${lrp_options}"
@@ -740,34 +740,34 @@ mgc_m03_physical_resource_present() {
       return 0
     fi
   fi
-  if [[ "$(mgc_count_named "${MG_M03_CHASSIS}" running)" -gt 0 ]]; then
-    port_mapping="$(mgc_m03_chassis_port_mapping)" \
+  if [[ "$(dci_count_named "${MG_M03_CHASSIS}" running)" -gt 0 ]]; then
+    port_mapping="$(dci_m03_chassis_port_mapping)" \
       || die 'não foi possível ler dynamic-routing-port-mapping para detectar M03'
     [[ -n "$port_mapping" ]] && return 0
   fi
-  if [[ "$(mgc_count_named "${MG_M03_CHASSIS}" running)" -gt 0 ]] \
+  if [[ "$(dci_count_named "${MG_M03_CHASSIS}" running)" -gt 0 ]] \
     && ! docker exec "${MG_M03_CHASSIS}" true >/dev/null 2>&1; then
     die "${MG_M03_CHASSIS} está running mas inacessível; detecção M03 abortada"
   fi
   return 1
 }
 
-mgc_m03_resource_present() {
-  mgc_m03_physical_resource_present && return 0
-  mgc_m03_marker_present && return 0
+dci_m03_resource_present() {
+  dci_m03_physical_resource_present && return 0
+  dci_m03_marker_present && return 0
   return 1
 }
 
-mgc_assert_m03_absent() {
-  mgc_m03_physical_resource_present \
-    && die 'resíduo M03 detectado; execute rollback/cleanup owned antes do ciclo MGC'
-  if mgc_m03_marker_present && [[ "${M03_ROLLBACK_ALLOW_MARKER:-0}" != 1 ]]; then
-    die 'marker M03 ativo; execute rollback/cleanup owned antes do ciclo MGC'
+dci_assert_m03_absent() {
+  dci_m03_physical_resource_present \
+    && die 'resíduo M03 detectado; execute rollback/cleanup owned antes do ciclo DCI'
+  if dci_m03_marker_present && [[ "${M03_ROLLBACK_ALLOW_MARKER:-0}" != 1 ]]; then
+    die 'marker M03 ativo; execute rollback/cleanup owned antes do ciclo DCI'
   fi
   return 0
 }
 
-mgc_m03_require_cleanup_nodes() {
+dci_m03_require_cleanup_nodes() {
   local node state
   for node in "${MG_M03_CENTRAL}" "${MG_M03_CHASSIS}"; do
     state="$(docker inspect -f '{{.State.Status}}' "${node}" \
@@ -779,66 +779,66 @@ mgc_m03_require_cleanup_nodes() {
   done
 }
 
-mgc_m03_assert_active() {
+dci_m03_assert_active() {
   local token peer_state profile_token port owner bridge link kind details port_name
-  [[ "${MGC_M03_MODE}" == 1 ]] \
+  [[ "${DCI_M03_MODE}" == 1 ]] \
     || die 'verificação M03 solicitada sem --m03 explícito'
-  mgc_m03_marker_valid \
+  dci_m03_marker_valid \
     || die 'M03 sem marker válido de ownership; refusing verify'
   if grep -Fqx 'version=2' "$MG_M03_MARKER_FILE"; then
-    port_name="$(mgc_m03_port_name)"
-    [[ "$(mgc_m03_lrp_port_name)" == "$port_name" \
-      && "$(mgc_m03_chassis_port_mapping)" == "${port_name}=${MG_M03_TENANT_BR}" ]] \
+    port_name="$(dci_m03_port_name)"
+    [[ "$(dci_m03_lrp_port_name)" == "$port_name" \
+      && "$(dci_m03_chassis_port_mapping)" == "${port_name}=${MG_M03_TENANT_BR}" ]] \
       || die 'filtro de retorno M03 não corresponde ao marker'
   fi
-  token="$(mgc_m03_owner_token || true)"
+  token="$(dci_m03_owner_token || true)"
   [[ -n "${token}" && "${token}" == labctl-m03-* ]] \
     || die 'M03 sem token de ownership verificável'
   peer_state="$(docker inspect -f '{{.State.Status}}' "${MG_M03_PEER}" \
     2>/dev/null || true)"
   [[ "${peer_state}" == running ]] \
     || die "peer M03 não está running: ${peer_state:-ausente}"
-  [[ "$(mgc_m03_peer_label)" == "${token}" ]] \
+  [[ "$(dci_m03_peer_label)" == "${token}" ]] \
     || die 'label de ownership do peer M03 diverge do marker'
   profile_token="$(state_get "${LAB_NAME}" owner_token 2>/dev/null || true)"
   [[ -n "${profile_token}" \
-    && "$(mgc_m03_peer_profile_owner)" == "${profile_token}" ]] \
-    || die 'peer M03 não carrega o token do perfil MGC'
-  port="$(mgc_ovs_port "${MG_M03_PEER}" eth1 || true)"
+    && "$(dci_m03_peer_profile_owner)" == "${profile_token}" ]] \
+    || die 'peer M03 não carrega o token do perfil DCI'
+  port="$(dci_ovs_port "${MG_M03_PEER}" eth1 || true)"
   [[ -n "${port}" ]] || die 'porta OVS do peer M03 ausente'
   bridge="$(ovs-vsctl port-to-br "${port}" 2>/dev/null || true)"
   [[ "${bridge}" == br-ovn ]] \
     || die "porta M03 está em bridge inesperada: ${bridge}"
-  owner="$(mgc_m03_ovs_owner)"
+  owner="$(dci_m03_ovs_owner)"
   [[ "${owner}" == "${token}" ]] \
     || die 'porta OVS M03 não carrega o token do marker'
   for link in "${MG_M03_TENANT_BR}" "${MG_M03_TENANT_VXLAN}" \
     "${MG_M03_TENANT_ADVERTISE}"; do
-    kind="$(mgc_m03_link_kind_v2 "${MG_M03_CHASSIS}" "${link}")"
-    mgc_m03_marker_has_resource chassis "${link}" "${kind}" \
+    kind="$(dci_m03_link_kind_v2 "${MG_M03_CHASSIS}" "${link}")"
+    dci_m03_marker_has_resource chassis "${link}" "${kind}" \
       || die "link M03 não está no intent do marker: chassis:${link}"
     details="$(docker exec "${MG_M03_CHASSIS}" ip -details link show "${link}" \
       2>/dev/null || true)"
     [[ -n "${details}" && "${details}" == *"alias ${token}"* ]] \
       || die "link M03 sem alias de ownership no chassis: ${link}"
-    mgc_m03_link_matches_intent_v2 "${MG_M03_CHASSIS}" "${link}" "${kind}" \
+    dci_m03_link_matches_intent_v2 "${MG_M03_CHASSIS}" "${link}" "${kind}" \
       || die "link M03 diverge do intent no chassis: ${link}"
   done
   for link in "${MG_M03_CLIENT_VRF}" "${MG_M03_CLIENT_BR}" \
     "${MG_M03_CLIENT_VXLAN}" "${MG_M03_CLIENT_ADVERTISE}"; do
-    kind="$(mgc_m03_link_kind_v2 "${MG_M03_PEER}" "${link}")"
-    mgc_m03_marker_has_resource peer "${link}" "${kind}" \
+    kind="$(dci_m03_link_kind_v2 "${MG_M03_PEER}" "${link}")"
+    dci_m03_marker_has_resource peer "${link}" "${kind}" \
       || die "link M03 não está no intent do marker: peer:${link}"
     details="$(docker exec "${MG_M03_PEER}" ip -details link show "${link}" \
       2>/dev/null || true)"
     [[ -n "${details}" && "${details}" == *"alias ${token}"* ]] \
       || die "link M03 sem alias de ownership no peer: ${link}"
-    mgc_m03_link_matches_intent_v2 "${MG_M03_PEER}" "${link}" "${kind}" \
+    dci_m03_link_matches_intent_v2 "${MG_M03_PEER}" "${link}" "${kind}" \
       || die "link M03 diverge do intent no peer: ${link}"
   done
 }
 
-mgc_m03_link_kind_v2() {
+dci_m03_link_kind_v2() {
   local node="$1" link="$2"
   case "$node:$link" in
     "$MG_M03_CHASSIS:$MG_M03_TENANT_BR") printf '%s\n' bridge ;;
@@ -852,7 +852,7 @@ mgc_m03_link_kind_v2() {
   esac
 }
 
-mgc_m03_link_matches_intent_v2() {
+dci_m03_link_matches_intent_v2() {
   local node="$1" link="$2" kind="$3" details
   details="$(docker exec "$node" ip -details link show "$link" 2>/dev/null || true)"
   [[ -n "$details" ]] || return 1
@@ -865,7 +865,7 @@ mgc_m03_link_matches_intent_v2() {
   esac
 }
 
-mgc_m03_remove_owned_links() {
+dci_m03_remove_owned_links() {
   local node="$1" token="$2" link kind role alias_name
   shift 2
   if [[ "$node" == "$MG_M03_CHASSIS" ]]; then
@@ -877,10 +877,10 @@ mgc_m03_remove_owned_links() {
   fi
   for link in "$@"; do
     if docker exec "$node" ip link show "$link" >/dev/null 2>&1; then
-      kind="$(mgc_m03_link_kind_v2 "$node" "$link" || true)"
+      kind="$(dci_m03_link_kind_v2 "$node" "$link" || true)"
       if [[ -z "$kind" ]] \
-        || ! mgc_m03_marker_has_resource "$role" "$link" "$kind" \
-        || ! mgc_m03_link_matches_intent_v2 "$node" "$link" "$kind"; then
+        || ! dci_m03_marker_has_resource "$role" "$link" "$kind" \
+        || ! dci_m03_link_matches_intent_v2 "$node" "$link" "$kind"; then
         die "não removendo $node:$link: tipo/configuração diverge do marker M03"
       fi
       alias_name="$(docker exec "$node" ip -details link show "$link" 2>/dev/null \
@@ -898,7 +898,7 @@ mgc_m03_remove_owned_links() {
   done
 }
 
-mgc_m03_stop_pathspace() {
+dci_m03_stop_pathspace() {
   local init active
   if ! active="$(docker exec "${MG_M03_CHASSIS}" sh -c '
     for daemon in zebra bgpd staticd; do
@@ -939,7 +939,7 @@ mgc_m03_stop_pathspace() {
   run docker exec "${MG_M03_CHASSIS}" rm -rf /run/frr/m03 /etc/frr/m03
 }
 
-mgc_m03_stop_peer_frr() {
+dci_m03_stop_peer_frr() {
   local init active
   if ! active="$(docker exec "${MG_M03_PEER}" sh -c '
     for daemon in zebra bgpd staticd; do
@@ -969,7 +969,7 @@ mgc_m03_stop_peer_frr() {
   [[ -z "${active}" ]] || die "daemons FRR ainda ativos no peer M03: ${active}"
 }
 
-mgc_m03_remove_ovs_port() {
+dci_m03_remove_ovs_port() {
   local port="$1" peer_state="$2" expected_token="${3:-}" interface_uuid host_iface
   local port_owner current_host current_port
   [[ -n "${port}" ]] || return 0
@@ -988,13 +988,13 @@ mgc_m03_remove_ovs_port() {
     die 'porta M03 órfã sem owner token verificável; cleanup abortado'
   fi
   if [[ "${peer_state}" == running ]]; then
-    run env RUNC_CMD="${RUNC_CMD}" "${MGC_FAKE_MN}/ovs-runc" \
+    run env RUNC_CMD="${RUNC_CMD}" "${DCI_FAKE_MN}/ovs-runc" \
       del-port br-ovn eth1 "${MG_M03_PEER}"
   else
     run ovs-vsctl --if-exists del-port br-ovn "${port}"
   fi
   for _ in $(seq 1 15); do
-    current_port="$(mgc_ovs_port "${MG_M03_PEER}" eth1 || true)"
+    current_port="$(dci_ovs_port "${MG_M03_PEER}" eth1 || true)"
     current_host="${host_iface}"
     if [[ -z "${current_port}" ]] \
       && { [[ -z "${current_host}" ]] \
@@ -1006,30 +1006,30 @@ mgc_m03_remove_ovs_port() {
   die "porta OVS M03 ${port} ou interface ${host_iface} ainda existe após cleanup"
 }
 
-mgc_m03_assert_chassis_owned_running() {
+dci_m03_assert_chassis_owned_running() {
   local state expected actual
   state="$(docker inspect -f '{{.State.Status}}' "${MG_M03_CHASSIS}" \
     2>/dev/null || true)"
   [[ "${state}" == running ]] \
     || die "${MG_M03_CHASSIS} não está running; remoção explícita do VRF abortada"
-  expected="$(state_get "${LAB_NAME}" "$(mgc_owner_key "${MG_M03_CHASSIS}")" \
+  expected="$(state_get "${LAB_NAME}" "$(dci_owner_key "${MG_M03_CHASSIS}")" \
     2>/dev/null || true)"
-  actual="$(mgc_container_id "${MG_M03_CHASSIS}")"
+  actual="$(dci_container_id "${MG_M03_CHASSIS}")"
   [[ -n "${expected}" && -n "${actual}" && "${actual}" == "${expected}" ]] \
-    || die "${MG_M03_CHASSIS} não corresponde ao ID owned do perfil MGC"
+    || die "${MG_M03_CHASSIS} não corresponde ao ID owned do perfil DCI"
   docker exec "${MG_M03_CHASSIS}" true >/dev/null 2>&1 \
     || die "${MG_M03_CHASSIS} está running mas inacessível; remoção do VRF abortada"
 }
 
-mgc_m03_remove_tenant_vrf() {
+dci_m03_remove_tenant_vrf() {
   local links details slaves
-  mgc_m03_marker_valid \
+  dci_m03_marker_valid \
     || die 'marker M03 inválido; não removendo VRF tenant'
   grep -Fqx 'baseline_lrp_maintain_vrf=absent' "${MG_M03_MARKER_FILE}" \
     || die 'marker M03 não prova baseline ausente do maintain-vrf'
   grep -Fqx "tenant_vrf=${MG_M03_TENANT_VRF}" "${MG_M03_MARKER_FILE}" \
     || die 'marker M03 não corresponde ao VRF tenant esperado'
-  mgc_m03_assert_chassis_owned_running
+  dci_m03_assert_chassis_owned_running
   if ! links="$(docker exec "${MG_M03_CHASSIS}" ip -o link show 2>&1)"; then
     die "não foi possível listar links de ${MG_M03_CHASSIS} antes de remover ${MG_M03_TENANT_VRF}: ${links}"
   fi
@@ -1059,36 +1059,36 @@ mgc_m03_remove_tenant_vrf() {
   fi
 }
 
-mgc_m03_validate_dry_cleanup() {
+dci_m03_validate_dry_cleanup() {
   local token peer_count port peer_label profile_token owner
-  if ! mgc_m03_marker_present && ! mgc_m03_physical_resource_present; then
+  if ! dci_m03_marker_present && ! dci_m03_physical_resource_present; then
     return 0
   fi
-  mgc_m03_require_cleanup_nodes
-  token="$(mgc_m03_owner_token || true)"
+  dci_m03_require_cleanup_nodes
+  token="$(dci_m03_owner_token || true)"
   [[ -n "${token}" && "${token}" == labctl-m03-* ]] \
     || die 'dry-run encontrou resíduo M03 sem ownership verificável'
-  peer_count="$(mgc_count_named "${MG_M03_PEER}")"
+  peer_count="$(dci_count_named "${MG_M03_PEER}")"
   if [[ "${peer_count}" -gt 0 ]]; then
-    peer_label="$(mgc_m03_peer_label)"
+    peer_label="$(dci_m03_peer_label)"
     profile_token="$(state_get "${LAB_NAME}" owner_token 2>/dev/null || true)"
     [[ "${peer_label}" == "${token}" && -n "${profile_token}" \
-      && "$(mgc_m03_peer_profile_owner)" == "${profile_token}" ]] \
+      && "$(dci_m03_peer_profile_owner)" == "${profile_token}" ]] \
       || die 'dry-run encontrou peer M03 sem ownership do marker/perfil'
   fi
-  port="$(mgc_ovs_port "${MG_M03_PEER}" eth1 || true)"
+  port="$(dci_ovs_port "${MG_M03_PEER}" eth1 || true)"
   if [[ -n "${port}" ]]; then
-    owner="$(mgc_m03_ovs_owner)"
+    owner="$(dci_m03_ovs_owner)"
     [[ "${owner}" == "${token}" ]] \
       || die 'dry-run encontrou porta OVS M03 sem ownership do marker'
   fi
-  if mgc_m03_marker_uses_legacy_vrf; then
+  if dci_m03_marker_uses_legacy_vrf; then
     [[ "${peer_count}" -eq 0 && -z "${port}" ]] \
       || die 'marker M03 legado ainda tem peer/porta; dry-run recusa recuperação'
   fi
 }
 
-mgc_m03_restore_tenant_vni() {
+dci_m03_restore_tenant_vni() {
   local options restored expected_re
   expected_re="(^|[[:space:],{}])dynamic-routing-vni=\"?${MG_TENANT_VNI}\"?([[:space:],{}]|$)"
   if ! options="$(docker exec "${MG_M03_CENTRAL}" ovn-nbctl \
@@ -1115,10 +1115,10 @@ mgc_m03_restore_tenant_vni() {
     || die "pós-condição falhou: dynamic-routing-vni=${MG_TENANT_VNI} ausente"
 }
 
-mgc_m03_lock_action() {
+dci_m03_lock_action() {
   local fd_path lock_path fd_stat lock_stat held_fd
   if [[ "${DRY_RUN}" == "1" ]]; then
-    echo "DRY: flock -n ${MG_M03_LOCK_FILE} (labctl mgc lifecycle)"
+    echo "DRY: flock -n ${MG_M03_LOCK_FILE} (labctl dci lifecycle)"
     return 0
   fi
   held_fd="${M03_LOCK_HELD_FD:-}"
@@ -1134,47 +1134,47 @@ mgc_m03_lock_action() {
     [[ -n "${fd_stat}" && "${fd_stat}" == "${lock_stat}" ]] \
       || die 'FD 9 não corresponde ao inode aberto do lock M03'
     flock -n "${held_fd}" \
-      || die 'M03 lock herdado está inconsistente; ação MGC abortada'
+      || die 'M03 lock herdado está inconsistente; ação DCI abortada'
     return 0
   fi
   exec 8>"${MG_M03_LOCK_FILE}" \
     || die "não foi possível abrir lock ${MG_M03_LOCK_FILE}"
   flock -n 8 \
-    || die 'M03 está em execução; ação labctl mgc não pode concorrer'
+    || die 'M03 está em execução; ação labctl dci não pode concorrer'
 }
 
 # An X05 run owns a temporary extension of this profile.  Once its intent
 # marker exists, ordinary reconciliation must not overwrite gateway FRR or
 # remove the M03 substrate before the X05 coordinator finishes its rollback.
-mgc_x05_guard() {
+dci_x05_guard() {
   local marker="${MG_X05_MARKER_FILE}" token
   [[ -e "${marker}" || -L "${marker}" ]] || return 0
-  [[ "${MG_M03_LOCK_FILE}" == /var/lock/labctl-mgc-m03.lock ]] \
+  [[ "${MG_M03_LOCK_FILE}" == /var/lock/labctl-dci-m03.lock ]] \
     || die 'X05 ativo; caminho do lock M03 diverge do contrato'
   [[ -f "${marker}" && ! -L "${marker}" \
     && "$(stat -c '%u:%a' "${marker}" 2>/dev/null || true)" == '0:600' ]] \
-    || die 'X05 marker inválido; ação MGC recusada'
+    || die 'X05 marker inválido; ação DCI recusada'
   [[ "$(grep -c '^token=' "${marker}" || true)" == 1 ]] \
-    || die 'X05 marker sem token único; ação MGC recusada'
+    || die 'X05 marker sem token único; ação DCI recusada'
   token="$(sed -n 's/^token=//p' "${marker}")"
   [[ "${token}" =~ ^labctl-x05-[0-9a-f]{6}$ ]] \
-    || die 'X05 marker com token inválido; ação MGC recusada'
+    || die 'X05 marker com token inválido; ação DCI recusada'
   [[ "${X05_COORDINATOR_TOKEN:-}" == "${token}" \
     && "${M03_LOCK_HELD_FD:-}" == 9 ]] \
-    || die 'X05 ativo; apenas o coordenador sob o lock M03 pode agir no MGC'
+    || die 'X05 ativo; apenas o coordenador sob o lock M03 pode agir no DCI'
 }
 
-mgc_m03_cleanup_owned() {
+dci_m03_cleanup_owned() {
   local token port peer_state profile_token lrp_options
-  # The marker names the MGC containers, but names alone do not authorize
+  # The marker names the DCI containers, but names alone do not authorize
   # writes to NB or links if a container was replaced after the M03 run.
-  if mgc_m03_marker_present || mgc_m03_physical_resource_present; then
-    mgc_assert_cluster_ownership
-    mgc_m03_require_cleanup_nodes
+  if dci_m03_marker_present || dci_m03_physical_resource_present; then
+    dci_assert_cluster_ownership
+    dci_m03_require_cleanup_nodes
   fi
-  if mgc_m03_resource_present; then
+  if dci_m03_resource_present; then
     # Reject return-filter drift before stopping FRR or removing owned links.
-    mgc_m03_validate_return_filter_owned
+    dci_m03_validate_return_filter_owned
     if ! lrp_options="$(docker exec "${MG_M03_CENTRAL}" ovn-nbctl \
       get logical_router_port "${MG_M03_TENANT_LRP}" options 2>&1)"; then
       die "não foi possível ler options de ${MG_M03_TENANT_LRP} antes do cleanup: ${lrp_options}"
@@ -1183,38 +1183,38 @@ mgc_m03_cleanup_owned() {
       && die "${MG_M03_TENANT_LRP} mantém dynamic-routing-redistribute; chave deve ser restaurada manualmente antes de remover M03"
   fi
   if [[ "${DRY_RUN}" == "1" ]]; then
-    mgc_m03_validate_dry_cleanup
-    if mgc_m03_marker_present; then
-      mgc_m03_restore_return_filter
+    dci_m03_validate_dry_cleanup
+    if dci_m03_marker_present; then
+      dci_m03_restore_return_filter
     fi
     echo "DRY: cleanup owned M03 peer/links/pathspace/LRP, restore tenant VNI, and remove tenant VRF table ${MG_M03_TENANT_TABLE} only after ownership/slave checks"
     return 0
   fi
-  if mgc_m03_resource_present; then
-    token="$(mgc_m03_owner_token || true)"
+  if dci_m03_resource_present; then
+    token="$(dci_m03_owner_token || true)"
     [[ -n "${token}" && "${token}" == labctl-m03-* ]] \
       || die 'resíduo M03 sem ownership verificável; cleanup abortado'
-    if mgc_m03_marker_uses_legacy_vrf; then
-      [[ "$(mgc_count_named "${MG_M03_PEER}")" -eq 0 ]] \
+    if dci_m03_marker_uses_legacy_vrf; then
+      [[ "$(dci_count_named "${MG_M03_PEER}")" -eq 0 ]] \
         || die 'marker M03 legado ainda tem peer; recuperação recusada'
-      [[ -z "$(mgc_ovs_port "${MG_M03_PEER}" eth1 || true)" ]] \
+      [[ -z "$(dci_ovs_port "${MG_M03_PEER}" eth1 || true)" ]] \
         || die 'marker M03 legado ainda tem porta OVS; recuperação recusada'
     fi
 
     peer_state="$(docker inspect -f '{{.State.Status}}' "${MG_M03_PEER}" \
       2>/dev/null || true)"
-    port="$(mgc_ovs_port "${MG_M03_PEER}" eth1 || true)"
+    port="$(dci_ovs_port "${MG_M03_PEER}" eth1 || true)"
     if [[ -n "${peer_state}" ]]; then
-      [[ "$(mgc_m03_peer_label)" == "${token}" ]] \
+      [[ "$(dci_m03_peer_label)" == "${token}" ]] \
         || die 'peer M03 sem label de ownership correspondente; cleanup abortado'
       profile_token="$(state_get "${LAB_NAME}" owner_token 2>/dev/null || true)"
       [[ -n "${profile_token}" \
-        && "$(mgc_m03_peer_profile_owner)" == "${profile_token}" ]] \
-        || die 'peer M03 sem token labctl.mgc.owner do perfil; cleanup abortado'
+        && "$(dci_m03_peer_profile_owner)" == "${profile_token}" ]] \
+        || die 'peer M03 sem token labctl.dci.owner do perfil; cleanup abortado'
       case "${peer_state}" in
         running)
-          mgc_m03_stop_peer_frr
-          mgc_m03_remove_owned_links "${MG_M03_PEER}" "${token}" \
+          dci_m03_stop_peer_frr
+          dci_m03_remove_owned_links "${MG_M03_PEER}" "${token}" \
             "${MG_M03_CLIENT_ADVERTISE}" "${MG_M03_CLIENT_VXLAN}" \
             "${MG_M03_CLIENT_BR}" "${MG_M03_CLIENT_VRF}"
           ;;
@@ -1223,7 +1223,7 @@ mgc_m03_cleanup_owned() {
       esac
     fi
     if [[ -n "${port}" ]]; then
-      mgc_m03_remove_ovs_port "${port}" "${peer_state}" "${token}"
+      dci_m03_remove_ovs_port "${port}" "${peer_state}" "${token}"
     fi
     if [[ -n "${peer_state}" ]]; then
       run docker rm -f "${MG_M03_PEER}"
@@ -1232,13 +1232,13 @@ mgc_m03_cleanup_owned() {
       fi
     fi
 
-    mgc_m03_restore_tenant_vni
+    dci_m03_restore_tenant_vni
     if docker exec "${MG_M03_CHASSIS}" test -e /run/frr/m03 2>/dev/null \
       || docker exec "${MG_M03_CHASSIS}" test -e /etc/frr/m03 2>/dev/null \
-      || mgc_m03_pathspace_active; then
-      mgc_m03_stop_pathspace
+      || dci_m03_pathspace_active; then
+      dci_m03_stop_pathspace
     fi
-    mgc_m03_restore_return_filter
+    dci_m03_restore_return_filter
     if ! lrp_options="$(docker exec "${MG_M03_CENTRAL}" ovn-nbctl \
       get logical_router_port "${MG_M03_TENANT_LRP}" options 2>&1)"; then
       die "não foi possível ler options de ${MG_M03_TENANT_LRP} durante cleanup: ${lrp_options}"
@@ -1256,37 +1256,37 @@ mgc_m03_cleanup_owned() {
     if docker exec "${MG_M03_CHASSIS}" ip link show "${MG_M03_TENANT_BR}" >/dev/null 2>&1 \
       || docker exec "${MG_M03_CHASSIS}" ip link show "${MG_M03_TENANT_VXLAN}" >/dev/null 2>&1 \
       || docker exec "${MG_M03_CHASSIS}" ip link show "${MG_M03_TENANT_ADVERTISE}" >/dev/null 2>&1; then
-      mgc_m03_remove_owned_links "${MG_M03_CHASSIS}" "${token}" \
+      dci_m03_remove_owned_links "${MG_M03_CHASSIS}" "${token}" \
         "${MG_M03_TENANT_ADVERTISE}" "${MG_M03_TENANT_VXLAN}" \
         "${MG_M03_TENANT_BR}"
     fi
-    mgc_m03_remove_tenant_vrf
+    dci_m03_remove_tenant_vrf
   fi
-  if mgc_m03_physical_resource_present; then
+  if dci_m03_physical_resource_present; then
     die 'resíduo físico M03 permanece; marker será mantido para recuperação'
   fi
-  if mgc_m03_marker_present; then
-    token="$(mgc_m03_owner_token || true)"
+  if dci_m03_marker_present; then
+    token="$(dci_m03_owner_token || true)"
     [[ -n "${token}" ]] || die 'marker M03 inválido; não removendo marker'
-    mgc_m03_remove_marker "${token}" \
+    dci_m03_remove_marker "${token}" \
       || die 'remoção do marker M03 falhou'
   fi
-  mgc_assert_m03_absent
+  dci_assert_m03_absent
 }
 
-mgc_m03_phase() {
+dci_m03_phase() {
   local phase="$1" verify_phase="${2:-m03-verify}" script evidence
-  [[ "${MGC_M03_MODE}" == 1 ]] \
+  [[ "${DCI_M03_MODE}" == 1 ]] \
     || die 'fase M03 solicitada sem --m03 explícito'
   case "${phase}" in
     up|verify|down) ;;
     *) die "fase M03 inválida: ${phase}" ;;
   esac
   if [[ "${phase}" == down ]]; then
-    mgc_m03_cleanup_owned
+    dci_m03_cleanup_owned
     return 0
   fi
-  script="${MGC_M03_SCRIPT:-${MGC_FIXTURE_DIR}/m03.sh}"
+  script="${DCI_M03_SCRIPT:-${DCI_FIXTURE_DIR}/m03.sh}"
   [[ -f "${script}" ]] || die "entrypoint M03 ausente: ${script}"
   evidence="${EVIDENCE_DIR:-${M03_EVIDENCE_DIR:-}}"
   if [[ -z "${evidence}" ]]; then
@@ -1311,12 +1311,12 @@ mgc_m03_phase() {
     M03_P003_KUBECONFIG="${M03_P003_KUBECONFIG:-}" \
     M03_LOCK_FILE="${MG_M03_LOCK_FILE}" \
     M03_VERIFY_PHASE="${verify_phase}" \
-    MGC_M03_MODE=1 MGC_M03_PHASE_CHILD=1 \
+    DCI_M03_MODE=1 DCI_M03_PHASE_CHILD=1 \
     bash "${script}" "--phase-${phase}" \
     || die "fase M03 ${phase} falhou"
 }
 
-mgc_source_state() {
+dci_source_state() {
   local path="$1" ref="$2" label="$3" got expected
   if [[ ! -d "${path}/.git" ]]; then
     log "  fonte ${label}: ausente (up fará clone ${ref})"
@@ -1327,7 +1327,7 @@ mgc_source_state() {
     [[ "${got}" == "${OVN_COMMIT}" ]] \
       || die "fonte ${label} divergente: esperado ${OVN_COMMIT}, obtido ${got}"
   elif [[ "${label}" == "OVS" ]]; then
-    expected="$(mgc_expected_ovs_commit || true)"
+    expected="$(dci_expected_ovs_commit || true)"
     if [[ -n "${expected}" ]]; then
       [[ "${got}" == "${expected}" ]] \
         || die "fonte ${label} divergente do gitlink OVN: esperado ${expected}, obtido ${got}"
@@ -1362,17 +1362,17 @@ lab_preflight() {
   log "  MemAvailable=${mem_gib}GiB CPU=${cpu} disco_avail=${disk_gib}GiB"
   if [[ "${mem_kib}" -lt 4194304 ]]; then
     [[ "${DRY_RUN}" == "1" ]] \
-      || die "MemAvailable abaixo do mínimo de 4 GiB para o perfil mgc"
+      || die "MemAvailable abaixo do mínimo de 4 GiB para o perfil dci"
     log "  DRY: MemAvailable abaixo do piso; preflight não bloqueia dry-run"
   fi
   if [[ "${cpu}" -lt 4 ]]; then
     [[ "${DRY_RUN}" == "1" ]] \
-      || die "CPU insuficiente: o perfil mgc exige >=4 vCPU"
+      || die "CPU insuficiente: o perfil dci exige >=4 vCPU"
     log "  DRY: CPU abaixo do piso; preflight não bloqueia dry-run"
   fi
   if [[ "${disk_kib}" -lt 10485760 ]]; then
     [[ "${DRY_RUN}" == "1" ]] \
-      || die "disco insuficiente: o perfil mgc exige >=10 GiB livres"
+      || die "disco insuficiente: o perfil dci exige >=10 GiB livres"
     log "  DRY: disco abaixo do piso; preflight não bloqueia dry-run"
   fi
 
@@ -1389,23 +1389,23 @@ lab_preflight() {
   elif modinfo vrf >/dev/null 2>&1; then
     log "  VRF do kernel: módulo disponível; up fará modprobe"
   else
-    vrf_package="$(mgc_vrf_package)"
+    vrf_package="$(dci_vrf_package)"
     candidate="$(apt-cache policy "${vrf_package}" | awk '$1 == "Candidate:" {print $2; exit}')"
     [[ -n "${candidate}" && "${candidate}" != "(none)" ]] \
       || die "módulo VRF indisponível e pacote ${vrf_package} sem candidato apt"
     log "  VRF do kernel: ausente; up instalará ${vrf_package} (${candidate})"
   fi
 
-  mgc_source_state "${MGC_OVN_SRC}" "${OVN_TAG}" "OVN"
-  mgc_source_state "${MGC_OVS_SRC}" "${OVS_TAG}" "OVS"
-  mgc_source_state "${MGC_FAKE_MN}" "${FAKE_MN_TAG}" "ovn-fake-multinode"
+  dci_source_state "${DCI_OVN_SRC}" "${OVN_TAG}" "OVN"
+  dci_source_state "${DCI_OVS_SRC}" "${OVS_TAG}" "OVS"
+  dci_source_state "${DCI_FAKE_MN}" "${FAKE_MN_TAG}" "ovn-fake-multinode"
 
   for fixture in nb-topology.sh frr-gw1.conf frr-gw2.conf frr-client.conf; do
-    [[ -f "$(mgc_fixture_file "${fixture}")" ]] \
-      || die "fixture ausente: $(mgc_fixture_file "${fixture}")"
+    [[ -f "$(dci_fixture_file "${fixture}")" ]] \
+      || die "fixture ausente: $(dci_fixture_file "${fixture}")"
   done
 
-  if mgc_image_exists "${FRR_IMAGE}"; then
+  if dci_image_exists "${FRR_IMAGE}"; then
     log "  imagem FRR ${FRR_IMAGE}: presente"
   else
     log "  imagem FRR ${FRR_IMAGE}: ausente; up fará pull"
@@ -1416,14 +1416,14 @@ lab_preflight() {
 
   for name in "${MG_CENTRAL}" "${MG_GATEWAY_1}" "${MG_GATEWAY_2}" \
     "${MG_CHASSIS_1}" "${MG_CHASSIS_2}" "${MG_CLIENT_NAME}"; do
-    if [[ "$(mgc_count_named "${name}")" -gt 0 ]]; then
+    if [[ "$(dci_count_named "${name}")" -gt 0 ]]; then
       log "  conflito/estado existente: container ${name} (up é idempotente)"
     fi
   done
   log "preflight ${LAB_NAME} OK"
 }
 
-mgc_require_mem_for_cluster() {
+dci_require_mem_for_cluster() {
   local mem_kib
   mem_kib="$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)"
   if [[ "${mem_kib}" -lt 4194304 ]]; then
@@ -1433,14 +1433,14 @@ mgc_require_mem_for_cluster() {
   fi
 }
 
-mgc_ensure_vrf_kernel() {
+dci_ensure_vrf_kernel() {
   local vrf_package apt_plan line package_name found=0
   if [[ -d /sys/module/vrf ]]; then
     log "  módulo VRF já carregado no host"
     return 0
   fi
   if ! modinfo vrf >/dev/null 2>&1; then
-    vrf_package="$(mgc_vrf_package)"
+    vrf_package="$(dci_vrf_package)"
     apt_plan="$(env LC_ALL=C apt-get -s install --no-install-recommends \
       --no-remove "${vrf_package}")" \
       || die "simulação apt falhou para ${vrf_package}"
@@ -1471,65 +1471,65 @@ mgc_ensure_vrf_kernel() {
 # ---------------------------------------------------------------------------
 # helpers de mutação
 # ---------------------------------------------------------------------------
-mgc_ensure_sources() {
+dci_ensure_sources() {
   local pinned_ovs got
   if [[ "${DRY_RUN}" == "1" ]]; then
-    echo "DRY: mkdir -p ${MGC_SRC}"
-    echo "DRY: git clone --depth 1 --branch ${OVN_TAG} https://github.com/ovn-org/ovn.git ${MGC_OVN_SRC}"
-    pinned_ovs="$(mgc_expected_ovs_commit || true)"
+    echo "DRY: mkdir -p ${DCI_SRC}"
+    echo "DRY: git clone --depth 1 --branch ${OVN_TAG} https://github.com/ovn-org/ovn.git ${DCI_OVN_SRC}"
+    pinned_ovs="$(dci_expected_ovs_commit || true)"
     if [[ -n "${pinned_ovs}" ]]; then
-      echo "DRY: git clone --no-checkout https://github.com/openvswitch/ovs.git ${MGC_OVS_SRC}"
-      echo "DRY: git -C ${MGC_OVS_SRC} fetch --depth 1 origin ${pinned_ovs} && git -C ${MGC_OVS_SRC} checkout --detach ${pinned_ovs}"
+      echo "DRY: git clone --no-checkout https://github.com/openvswitch/ovs.git ${DCI_OVS_SRC}"
+      echo "DRY: git -C ${DCI_OVS_SRC} fetch --depth 1 origin ${pinned_ovs} && git -C ${DCI_OVS_SRC} checkout --detach ${pinned_ovs}"
     else
-      echo "DRY: git clone --depth 1 --branch ${OVS_TAG} https://github.com/openvswitch/ovs.git ${MGC_OVS_SRC}"
+      echo "DRY: git clone --depth 1 --branch ${OVS_TAG} https://github.com/openvswitch/ovs.git ${DCI_OVS_SRC}"
     fi
-    echo "DRY: git clone --depth 1 --branch ${FAKE_MN_TAG} https://github.com/ovn-org/ovn-fake-multinode.git ${MGC_FAKE_MN}"
+    echo "DRY: git clone --depth 1 --branch ${FAKE_MN_TAG} https://github.com/ovn-org/ovn-fake-multinode.git ${DCI_FAKE_MN}"
     return 0
   fi
 
-  run mkdir -p "${MGC_SRC}"
-  if [[ ! -d "${MGC_OVN_SRC}/.git" ]]; then
-    [[ ! -e "${MGC_OVN_SRC}" ]] || die "caminho OVN existe e não é um checkout git: ${MGC_OVN_SRC}"
+  run mkdir -p "${DCI_SRC}"
+  if [[ ! -d "${DCI_OVN_SRC}/.git" ]]; then
+    [[ ! -e "${DCI_OVN_SRC}" ]] || die "caminho OVN existe e não é um checkout git: ${DCI_OVN_SRC}"
     run git clone --depth 1 --branch "${OVN_TAG}" \
-      https://github.com/ovn-org/ovn.git "${MGC_OVN_SRC}"
+      https://github.com/ovn-org/ovn.git "${DCI_OVN_SRC}"
   fi
-  if [[ ! -d "${MGC_OVS_SRC}/.git" ]]; then
-    [[ ! -e "${MGC_OVS_SRC}" ]] || die "caminho OVS existe e não é um checkout git: ${MGC_OVS_SRC}"
-    pinned_ovs="$(mgc_expected_ovs_commit || true)"
+  if [[ ! -d "${DCI_OVS_SRC}/.git" ]]; then
+    [[ ! -e "${DCI_OVS_SRC}" ]] || die "caminho OVS existe e não é um checkout git: ${DCI_OVS_SRC}"
+    pinned_ovs="$(dci_expected_ovs_commit || true)"
     if [[ -n "${pinned_ovs}" ]]; then
-      run git clone --no-checkout https://github.com/openvswitch/ovs.git "${MGC_OVS_SRC}"
+      run git clone --no-checkout https://github.com/openvswitch/ovs.git "${DCI_OVS_SRC}"
     else
       run git clone --depth 1 --branch "${OVS_TAG}" \
-        https://github.com/openvswitch/ovs.git "${MGC_OVS_SRC}"
+        https://github.com/openvswitch/ovs.git "${DCI_OVS_SRC}"
     fi
   fi
-  if [[ ! -d "${MGC_FAKE_MN}/.git" ]]; then
-    [[ ! -e "${MGC_FAKE_MN}" ]] \
-      || die "caminho fake-multinode existe e não é um checkout git: ${MGC_FAKE_MN}"
+  if [[ ! -d "${DCI_FAKE_MN}/.git" ]]; then
+    [[ ! -e "${DCI_FAKE_MN}" ]] \
+      || die "caminho fake-multinode existe e não é um checkout git: ${DCI_FAKE_MN}"
     run git clone --depth 1 --branch "${FAKE_MN_TAG}" \
-      https://github.com/ovn-org/ovn-fake-multinode.git "${MGC_FAKE_MN}"
+      https://github.com/ovn-org/ovn-fake-multinode.git "${DCI_FAKE_MN}"
   fi
 
-  got="$(git -C "${MGC_OVN_SRC}" rev-parse HEAD)"
+  got="$(git -C "${DCI_OVN_SRC}" rev-parse HEAD)"
   [[ "${got}" == "${OVN_COMMIT}" ]] \
     || die "commit OVN divergente: esperado ${OVN_COMMIT}, obtido ${got}"
-  pinned_ovs="$(mgc_expected_ovs_commit || true)"
+  pinned_ovs="$(dci_expected_ovs_commit || true)"
   if [[ -n "${pinned_ovs}" ]]; then
-    got="$(git -C "${MGC_OVS_SRC}" rev-parse HEAD)"
+    got="$(git -C "${DCI_OVS_SRC}" rev-parse HEAD)"
     if [[ "${got}" != "${pinned_ovs}" ]]; then
-      run git -C "${MGC_OVS_SRC}" fetch --depth 1 origin "${pinned_ovs}"
-      run git -C "${MGC_OVS_SRC}" checkout --detach "${pinned_ovs}"
+      run git -C "${DCI_OVS_SRC}" fetch --depth 1 origin "${pinned_ovs}"
+      run git -C "${DCI_OVS_SRC}" checkout --detach "${pinned_ovs}"
     fi
   else
-    git -C "${MGC_OVS_SRC}" rev-parse "${OVS_TAG}^{commit}" >/dev/null 2>&1 \
+    git -C "${DCI_OVS_SRC}" rev-parse "${OVS_TAG}^{commit}" >/dev/null 2>&1 \
       || die "checkout OVS não contém a referência ${OVS_TAG}"
   fi
-  got="$(git -C "${MGC_FAKE_MN}" rev-parse HEAD)"
+  got="$(git -C "${DCI_FAKE_MN}" rev-parse HEAD)"
   [[ "${got}" == "${FAKE_MN_COMMIT_PREFIX}"* ]] \
     || die "commit fake-multinode divergente: esperado ${FAKE_MN_COMMIT_PREFIX}*, obtido ${got}"
 }
 
-mgc_ensure_ovs_underlay() {
+dci_ensure_ovs_underlay() {
   if [[ "${DRY_RUN}" == "1" ]]; then
     echo "DRY: garantir openvswitch-switch e o serviço OVS no host"
     return 0
@@ -1558,19 +1558,19 @@ mgc_ensure_ovs_underlay() {
   '
 }
 
-mgc_clean_build_stages() {
+dci_clean_build_stages() {
   if [[ "${DRY_RUN}" == "1" ]]; then
-    echo "DRY: rm -rf ${MGC_FAKE_MN}/ovn ${MGC_FAKE_MN}/ovs (somente stages gerados pelo build)"
+    echo "DRY: rm -rf ${DCI_FAKE_MN}/ovn ${DCI_FAKE_MN}/ovs (somente stages gerados pelo build)"
   else
-    run rm -rf "${MGC_FAKE_MN}/ovn" "${MGC_FAKE_MN}/ovs"
+    run rm -rf "${DCI_FAKE_MN}/ovn" "${DCI_FAKE_MN}/ovs"
   fi
 }
 
-mgc_build_ovn_images() {
+dci_build_ovn_images() {
   local have
   have="$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null \
     | awk '$0 == "ovn/cinc:latest" || $0 == "ovn/ovn-multi-node:latest" {count++} END {print count + 0}')"
-  if [[ "${have}" -ge 2 ]] && mgc_images_provenance_matches; then
+  if [[ "${have}" -ge 2 ]] && dci_images_provenance_matches; then
     log "  imagens OVN reutilizadas: IDs vinculados às fontes fixadas"
     return 0
   fi
@@ -1578,18 +1578,18 @@ mgc_build_ovn_images() {
     log "  imagens OVN existentes sem provenance confiável; rebuild obrigatório"
   fi
   if [[ "${DRY_RUN}" == "1" ]]; then
-    mgc_clean_build_stages
-    echo "DRY: (cd ${MGC_FAKE_MN} && OVN_SRC_PATH=${MGC_OVN_SRC} OVS_SRC_PATH=${MGC_OVS_SRC} RUNC_CMD=${RUNC_CMD} nohup ./ovn_cluster.sh build; registrar IDs das imagens e commits das fontes)"
+    dci_clean_build_stages
+    echo "DRY: (cd ${DCI_FAKE_MN} && OVN_SRC_PATH=${DCI_OVN_SRC} OVS_SRC_PATH=${DCI_OVS_SRC} RUNC_CMD=${RUNC_CMD} nohup ./ovn_cluster.sh build; registrar IDs das imagens e commits das fontes)"
     return 0
   fi
 
   local ev build_log pid waited=0 timeout=2400
-  mgc_clean_build_stages
+  dci_clean_build_stages
   ev="$(evidence_dir "${LAB_NAME}")"
   build_log="${ev}/ovn-build.log"
   log "  build OVN via nohup (log: ${build_log})"
-  run nohup env OVN_SRC_PATH="${MGC_OVN_SRC}" OVS_SRC_PATH="${MGC_OVS_SRC}" \
-    RUNC_CMD="${RUNC_CMD}" bash -c "cd '${MGC_FAKE_MN}' && ./ovn_cluster.sh build" \
+  run nohup env OVN_SRC_PATH="${DCI_OVN_SRC}" OVS_SRC_PATH="${DCI_OVS_SRC}" \
+    RUNC_CMD="${RUNC_CMD}" bash -c "cd '${DCI_FAKE_MN}' && ./ovn_cluster.sh build" \
     >"${build_log}" 2>&1 &
   pid=$!
   while kill -0 "${pid}" 2>/dev/null; do
@@ -1601,20 +1601,20 @@ mgc_build_ovn_images() {
     fi
   done
   wait "${pid}" || die "build OVN falhou (log: ${build_log})"
-  mgc_record_image_provenance
+  dci_record_image_provenance
 }
 
-mgc_start_ovn_cluster() {
+dci_start_ovn_cluster() {
   local cluster_running ev start_log status_file upstream_rc pid waited=0 timeout=900
-  mgc_prepare_cluster_ownership
-  cluster_running="$(mgc_cluster_count running)"
+  dci_prepare_cluster_ownership
+  cluster_running="$(dci_cluster_count running)"
   if [[ "${cluster_running}" -eq 5 ]]; then
     log "  cluster OVN já está completo; pulando start"
     return 0
   fi
-  mgc_create_owned_bridges
+  dci_create_owned_bridges
   if [[ "${DRY_RUN}" == "1" ]]; then
-    echo "DRY: (cd ${MGC_FAKE_MN} && RUNC_CMD=docker CENTRAL_COUNT=1 CHASSIS_COUNT=2 GW_COUNT=2 CREATE_FAKE_VMS=no nohup ./ovn_cluster.sh start)"
+    echo "DRY: (cd ${DCI_FAKE_MN} && RUNC_CMD=docker CENTRAL_COUNT=1 CHASSIS_COUNT=2 GW_COUNT=2 CREATE_FAKE_VMS=no nohup ./ovn_cluster.sh start)"
     return 0
   fi
 
@@ -1623,12 +1623,12 @@ mgc_start_ovn_cluster() {
   status_file="${ev}/ovn-start.rc"
   log "  start OVN via nohup (log: ${start_log})"
   run nohup env RUNC_CMD="${RUNC_CMD}" CENTRAL_COUNT=1 CHASSIS_COUNT=2 \
-    GW_COUNT=2 CREATE_FAKE_VMS=no MGC_STATUS_FILE="${status_file}" bash -c \
-    "cd '${MGC_FAKE_MN}'; ./ovn_cluster.sh start; rc=\$?; printf '%s\\n' \"\$rc\" >\"\$MGC_STATUS_FILE\"; exit 0" \
+    GW_COUNT=2 CREATE_FAKE_VMS=no DCI_STATUS_FILE="${status_file}" bash -c \
+    "cd '${DCI_FAKE_MN}'; ./ovn_cluster.sh start; rc=\$?; printf '%s\\n' \"\$rc\" >\"\$DCI_STATUS_FILE\"; exit 0" \
     >"${start_log}" 2>&1 &
   pid=$!
   while kill -0 "${pid}" 2>/dev/null; do
-    mgc_record_discovered_cluster_ids || true
+    dci_record_discovered_cluster_ids || true
     sleep 5
     waited=$((waited + 5))
     if [[ "${waited}" -ge "${timeout}" ]]; then
@@ -1636,26 +1636,26 @@ mgc_start_ovn_cluster() {
       die "start OVN não terminou em ${timeout}s (log: ${start_log})"
     fi
   done
-  mgc_record_discovered_cluster_ids || true
+  dci_record_discovered_cluster_ids || true
   wait "${pid}" || die "wrapper do start OVN falhou (log: ${start_log})"
   upstream_rc="$(cat "${status_file}" 2>/dev/null || true)"
   if [[ "${upstream_rc}" == "0" ]]; then
-    mgc_record_cluster_ids owned
-    [[ "$(mgc_cluster_count running)" -eq 5 ]] \
+    dci_record_cluster_ids owned
+    [[ "$(dci_cluster_count running)" -eq 5 ]] \
       || die "start retornou OK, mas o cluster OVN não ficou completo"
     return 0
   fi
-  mgc_record_cluster_ids partial
+  dci_record_cluster_ids partial
   die "ovn_cluster.sh start falhou (rc=${upstream_rc:-desconhecido}; log: ${start_log})"
 }
 
-mgc_apply_nb_fixture() {
-  run docker cp "${MG_NB_FIXTURE}" "${MG_CENTRAL}:/tmp/mgc-nb-topology.sh"
-  run docker exec "${MG_CENTRAL}" chmod 0755 /tmp/mgc-nb-topology.sh
-  run docker exec "${MG_CENTRAL}" /tmp/mgc-nb-topology.sh
+dci_apply_nb_fixture() {
+  run docker cp "${MG_NB_FIXTURE}" "${MG_CENTRAL}:/tmp/dci-nb-topology.sh"
+  run docker exec "${MG_CENTRAL}" chmod 0755 /tmp/dci-nb-topology.sh
+  run docker exec "${MG_CENTRAL}" /tmp/dci-nb-topology.sh
 }
 
-mgc_apply_evpn_ids() {
+dci_apply_evpn_ids() {
   local node ip
   local -a nodes=("${MG_GATEWAY_1}" "${MG_GATEWAY_2}" "${MG_CHASSIS_1}" "${MG_CHASSIS_2}")
   for node in "${nodes[@]}"; do
@@ -1671,11 +1671,11 @@ mgc_apply_evpn_ids() {
   done
 }
 
-mgc_reconcile_gateway_port() {
+dci_reconcile_gateway_port() {
   local gateway="$1" bridge="$2" interface="$3" address="$4"
   local port actual_bridge
   local -a add_args=()
-  port="$(mgc_ovs_port "${gateway}" "${interface}" || true)"
+  port="$(dci_ovs_port "${gateway}" "${interface}" || true)"
   if [[ -n "${port}" ]]; then
     actual_bridge="$(ovs-vsctl port-to-br "${port}" 2>/dev/null || true)"
     [[ "${actual_bridge}" == "${bridge}" ]] \
@@ -1694,12 +1694,12 @@ mgc_reconcile_gateway_port() {
       die "interface ${interface} sem porta OVS própria em ${gateway}"
     fi
     [[ -z "${address}" ]] || add_args=("--ipaddress=${address}")
-    run env RUNC_CMD="${RUNC_CMD}" "${MGC_FAKE_MN}/ovs-runc" add-port \
+    run env RUNC_CMD="${RUNC_CMD}" "${DCI_FAKE_MN}/ovs-runc" add-port \
       "${bridge}" "${interface}" "${gateway}" "${add_args[@]}"
     if [[ "${DRY_RUN}" == "1" ]]; then
       return 0
     fi
-    port="$(mgc_ovs_port "${gateway}" "${interface}" || true)"
+    port="$(dci_ovs_port "${gateway}" "${interface}" || true)"
   fi
   [[ -n "${port}" \
     && "$(ovs-vsctl port-to-br "${port}" 2>/dev/null || true)" == "${bridge}" ]] \
@@ -1713,17 +1713,17 @@ mgc_reconcile_gateway_port() {
   fi
 }
 
-mgc_reconcile_gateway_runtime() {
+dci_reconcile_gateway_runtime() {
   local gateway underlay attempt controller_status cert
   if [[ "${DRY_RUN}" == "1" \
-    && "$(mgc_cluster_count running)" -ne 5 ]]; then
+    && "$(dci_cluster_count running)" -ne 5 ]]; then
     echo 'DRY: após start do cluster próprio, reconciliar OVS, eth1/eth2 e ovn-controller dos gateways'
     return 0
   fi
-  mgc_assert_cluster_ownership
-  mgc_assert_bridges_owned
+  dci_assert_cluster_ownership
+  dci_assert_bridges_owned
   for gateway in "${MG_GATEWAY_1}" "${MG_GATEWAY_2}"; do
-    [[ "$(mgc_count_named "${gateway}" running)" -eq 1 ]] \
+    [[ "$(dci_count_named "${gateway}" running)" -eq 1 ]] \
       || die "gateway ${gateway} não está rodando para reconciliar OVS/OVN"
     case "${gateway}" in
       "${MG_GATEWAY_1}") underlay="${MG_GATEWAY_1_UNDERLAY}" ;;
@@ -1741,8 +1741,8 @@ mgc_reconcile_gateway_runtime() {
           || die "OVS não ficou pronto em ${gateway} após ovs-ctl start"
       fi
     fi
-    mgc_reconcile_gateway_port "${gateway}" br-ovn eth1 "${underlay}/16"
-    mgc_reconcile_gateway_port "${gateway}" br-ovn-ext eth2 ""
+    dci_reconcile_gateway_port "${gateway}" br-ovn eth1 "${underlay}/16"
+    dci_reconcile_gateway_port "${gateway}" br-ovn-ext eth2 ""
     controller_status="$(docker exec "${gateway}" ovn-appctl \
       -t ovn-controller connection-status 2>/dev/null || true)"
     if [[ "${controller_status}" != connected ]]; then
@@ -1773,7 +1773,7 @@ mgc_reconcile_gateway_runtime() {
   done
 }
 
-mgc_wait_vrf() {
+dci_wait_vrf() {
   local gateway="$1" vrf="$2" attempt
   for ((attempt = 1; attempt <= 60; attempt++)); do
     if docker exec "${gateway}" ip link show "${vrf}" >/dev/null 2>&1; then
@@ -1784,7 +1784,7 @@ mgc_wait_vrf() {
   die "VRF ${vrf} não apareceu em ${gateway} após dynamic routing"
 }
 
-mgc_configure_mirror() {
+dci_configure_mirror() {
   local gateway vrf_id gateway_ip lsp lrp_mac current_mac client_if
   gateway="$1"
   vrf_id="$2"
@@ -1798,7 +1798,7 @@ mgc_configure_mirror() {
   esac
   if [[ "${DRY_RUN}" == "1" ]]; then
     lrp_mac="$(docker exec "${MG_CENTRAL}" ovn-nbctl get logical_router_port \
-      "lrp-mgc-${vrf_id}-external" mac 2>/dev/null | tr -d '"' || true)"
+      "lrp-dci-${vrf_id}-external" mac 2>/dev/null | tr -d '"' || true)"
     if [[ -n "${lrp_mac}" ]]; then
       [[ "${lrp_mac}" =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] \
         || die "MAC da LRP externa inválido para ovnvrf${vrf_id}: ${lrp_mac}"
@@ -1806,13 +1806,13 @@ mgc_configure_mirror() {
       lrp_mac="MAC da LRP após aplicar a fixture NB"
     fi
     echo "DRY: aguardar ovnvrf${vrf_id} em ${gateway}, criar veth ${ovs_if}<->${vrf_if} e atribuir ${gateway_ip}/30"
-    echo "DRY: ler/validar MAC de lrp-mgc-${vrf_id}-external; garantir MAC ${lrp_mac} em ${gateway}:${vrf_if}"
+    echo "DRY: ler/validar MAC de lrp-dci-${vrf_id}-external; garantir MAC ${lrp_mac} em ${gateway}:${vrf_if}"
     echo "DRY: se MAC mudar, invalidar vizinho ${gateway_ip} em ${MG_CLIENT_NAME}:${client_if} (se cliente próprio existir)"
     return 0
   fi
-  mgc_wait_vrf "${gateway}" "ovnvrf${vrf_id}"
+  dci_wait_vrf "${gateway}" "ovnvrf${vrf_id}"
   lrp_mac="$(docker exec "${MG_CENTRAL}" ovn-nbctl get logical_router_port \
-    "lrp-mgc-${vrf_id}-external" mac | tr -d '"')"
+    "lrp-dci-${vrf_id}-external" mac | tr -d '"')"
   [[ "${lrp_mac}" =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] \
     || die "MAC da LRP externa inválido para ovnvrf${vrf_id}: ${lrp_mac}"
   if ! docker exec "${gateway}" ip link show "${vrf_if}" >/dev/null 2>&1; then
@@ -1831,8 +1831,8 @@ mgc_configure_mirror() {
   current_mac="$(docker exec "${gateway}" cat "/sys/class/net/${vrf_if}/address")"
   if [[ "${current_mac}" != "${lrp_mac}" ]]; then
     run docker exec "${gateway}" ip link set dev "${vrf_if}" address "${lrp_mac}"
-    if [[ "$(mgc_count_named "${MG_CLIENT_NAME}" running)" -gt 0 ]]; then
-      mgc_assert_client_ownership "${MG_CLIENT_NAME}"
+    if [[ "$(dci_count_named "${MG_CLIENT_NAME}" running)" -gt 0 ]]; then
+      dci_assert_client_ownership "${MG_CLIENT_NAME}"
       if docker exec "${MG_CLIENT_NAME}" ip link show "${client_if}" >/dev/null 2>&1; then
         run docker exec "${MG_CLIENT_NAME}" ip neigh flush to "${gateway_ip}" dev "${client_if}"
       fi
@@ -1853,7 +1853,7 @@ mgc_configure_mirror() {
   run docker exec "${gateway}" ip link set dev "${vrf_if}" up
 }
 
-mgc_apply_gateway_frr() {
+dci_apply_gateway_frr() {
   local gateway="$1" fixture="$2"
   run docker cp "${fixture}" "${gateway}:/etc/frr/frr.conf"
   run docker exec "${gateway}" bash -c '
@@ -1888,45 +1888,45 @@ mgc_apply_gateway_frr() {
   '
 }
 
-mgc_client_port() {
-  [[ "$#" -eq 5 ]] || die "mgc_client_port exige client, interface, endereço, VLAN e MTU"
+dci_client_port() {
+  [[ "$#" -eq 5 ]] || die "dci_client_port exige client, interface, endereço, VLAN e MTU"
   local client="$1" interface="$2" address="$3" vlan="$4" mtu="$5"
   local port port_bridge current_mtu
-  if [[ "$(mgc_count_named "${client}")" -gt 0 ]]; then
-    mgc_assert_client_ownership "${client}"
+  if [[ "$(dci_count_named "${client}")" -gt 0 ]]; then
+    dci_assert_client_ownership "${client}"
   fi
   if [[ "${DRY_RUN}" == "1" ]]; then
     echo "DRY: ovs-runc add-port br-ovn-ext ${interface} ${client} --ipaddress=${address} --mtu=${mtu}"
     echo "DRY: ovs-runc set-vlan br-ovn-ext ${interface} ${client} ${vlan}"
     return 0
   fi
-  port="$(mgc_ovs_port "${client}" "${interface}" || true)"
+  port="$(dci_ovs_port "${client}" "${interface}" || true)"
   if [[ -z "${port}" ]]; then
     if docker exec "${client}" ip link show "${interface}" >/dev/null 2>&1; then
       run docker exec "${client}" ip link del "${interface}"
     fi
-    run env RUNC_CMD="${RUNC_CMD}" "${MGC_FAKE_MN}/ovs-runc" add-port \
+    run env RUNC_CMD="${RUNC_CMD}" "${DCI_FAKE_MN}/ovs-runc" add-port \
       br-ovn-ext "${interface}" "${client}" \
       "--ipaddress=${address}" "--mtu=${mtu}"
   fi
-  port="$(mgc_ovs_port "${client}" "${interface}" || true)"
+  port="$(dci_ovs_port "${client}" "${interface}" || true)"
   if [[ -n "${port}" ]] && ! docker exec "${client}" ip link show "${interface}" >/dev/null 2>&1; then
-    run env RUNC_CMD="${RUNC_CMD}" "${MGC_FAKE_MN}/ovs-runc" \
+    run env RUNC_CMD="${RUNC_CMD}" "${DCI_FAKE_MN}/ovs-runc" \
       del-port br-ovn-ext "${interface}" "${client}"
     port=""
   fi
   if [[ -z "${port}" ]]; then
-    run env RUNC_CMD="${RUNC_CMD}" "${MGC_FAKE_MN}/ovs-runc" add-port \
+    run env RUNC_CMD="${RUNC_CMD}" "${DCI_FAKE_MN}/ovs-runc" add-port \
       br-ovn-ext "${interface}" "${client}" \
       "--ipaddress=${address}" "--mtu=${mtu}"
-    port="$(mgc_ovs_port "${client}" "${interface}" || true)"
+    port="$(dci_ovs_port "${client}" "${interface}" || true)"
   fi
   [[ -n "${port}" ]] || die "porta OVS do cliente não apareceu: ${interface}"
   port_bridge="$(ovs-vsctl port-to-br "${port}" 2>/dev/null || true)"
   [[ "${port_bridge}" == "br-ovn-ext" ]] \
     || die "porta ${port} do cliente não está em br-ovn-ext"
   if [[ "$(ovs-vsctl get Port "${port}" tag 2>/dev/null || true)" != "${vlan}" ]]; then
-    run env RUNC_CMD="${RUNC_CMD}" "${MGC_FAKE_MN}/ovs-runc" set-vlan \
+    run env RUNC_CMD="${RUNC_CMD}" "${DCI_FAKE_MN}/ovs-runc" set-vlan \
       br-ovn-ext "${interface}" "${client}" "${vlan}"
   fi
   if ! docker exec "${client}" ip -4 -o addr show dev "${interface}" \
@@ -1941,8 +1941,8 @@ mgc_client_port() {
   run docker exec "${client}" ip link set dev "${interface}" up
 }
 
-mgc_start_client_instance() {
-  [[ "$#" -ge 5 ]] || die "mgc_start_client_instance exige pelo menos uma perna"
+dci_start_client_instance() {
+  [[ "$#" -ge 5 ]] || die "dci_start_client_instance exige pelo menos uma perna"
   local client="$1" fixture="$2" asn="$3" mtu="$4"
   local client_exists token
   shift 4
@@ -1951,23 +1951,23 @@ mgc_start_client_instance() {
     || die "AS e MTU inválidos para ${client}"
   [[ "${MG_CLIENT_LOOPBACK_IP}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]] \
     || die "loopback inválido para ${client}: ${MG_CLIENT_LOOPBACK_IP}"
-  client_exists="$(mgc_count_named "${client}")"
+  client_exists="$(dci_count_named "${client}")"
   if [[ "${client_exists}" -eq 0 ]]; then
     token="$(state_get "${LAB_NAME}" owner_token 2>/dev/null || true)"
     if [[ "${DRY_RUN}" == "1" ]]; then
-      token="${token:-DRY-MGC-OWNER}"
+      token="${token:-DRY-DCI-OWNER}"
     else
       [[ -n "${token}" ]] || die "cliente ${client} sem token de ownership do perfil"
     fi
     run docker run -d --name "${client}" --network none --privileged \
-      --label "labctl.mgc.owner=${token}" \
+      --label "labctl.dci.owner=${token}" \
       --entrypoint /bin/sh "${FRR_IMAGE}" -c 'while :; do sleep 3600; done'
     if [[ "${DRY_RUN}" != "1" ]]; then
-      mgc_record_client_ownership "${client}"
+      dci_record_client_ownership "${client}"
     fi
   else
-    mgc_assert_client_ownership "${client}"
-    if [[ "$(mgc_count_named "${client}" running)" -eq 0 ]]; then
+    dci_assert_client_ownership "${client}"
+    if [[ "$(dci_count_named "${client}" running)" -eq 0 ]]; then
       run docker start "${client}"
     fi
   fi
@@ -1982,7 +1982,7 @@ mgc_start_client_instance() {
     IFS='|' read -r interface address vlan extra <<<"${spec}"
     [[ -n "${interface}" && -n "${address}" && -n "${vlan}" && -z "${extra}" ]] \
       || die "perna inválida para ${client}; use interface|endereço|VLAN"
-    mgc_client_port "${client}" "${interface}" "${address}" "${vlan}" "${mtu}"
+    dci_client_port "${client}" "${interface}" "${address}" "${vlan}" "${mtu}"
   done
   run docker exec "${client}" ip addr replace "${MG_CLIENT_LOOPBACK_IP}" dev lo
   run docker exec "${client}" sh -c '
@@ -2021,8 +2021,8 @@ mgc_start_client_instance() {
   '
 }
 
-mgc_ensure_frr_image() {
-  if mgc_image_exists "${FRR_IMAGE}"; then
+dci_ensure_frr_image() {
+  if dci_image_exists "${FRR_IMAGE}"; then
     return 0
   fi
   if [[ "${DRY_RUN}" == "1" ]]; then
@@ -2032,14 +2032,14 @@ mgc_ensure_frr_image() {
   fi
 }
 
-mgc_start_client() {
-  mgc_start_client_instance "${MG_CLIENT_NAME}" "${MG_CLIENT_FRR}" \
+dci_start_client() {
+  dci_start_client_instance "${MG_CLIENT_NAME}" "${MG_CLIENT_FRR}" \
     "${MG_CLIENT_AS}" "${MG_CLIENT_MTU}" \
     "eth1|${MG_CLI1_P2P}/30|${MG_GW_VLAN_1}" \
     "eth2|${MG_CLI2_P2P}/30|${MG_GW_VLAN_2}"
 }
 
-mgc_wait_client_neighbors() {
+dci_wait_client_neighbors() {
   local vrf_id gateway_ip client_if expected_mac actual_mac attempt
   if [[ "${DRY_RUN}" == "1" ]]; then
     echo "DRY: provocar ARP do cliente e confirmar MAC da LRP para ${MG_GW1_P2P} em eth1 e ${MG_GW2_P2P} em eth2"
@@ -2051,7 +2051,7 @@ mgc_wait_client_neighbors() {
       200) gateway_ip="${MG_GW2_P2P}"; client_if=eth2 ;;
     esac
     expected_mac="$(docker exec "${MG_CENTRAL}" ovn-nbctl get logical_router_port \
-      "lrp-mgc-${vrf_id}-external" mac | tr -d '"')"
+      "lrp-dci-${vrf_id}-external" mac | tr -d '"')"
     actual_mac=""
     for ((attempt = 1; attempt <= 20; attempt++)); do
       docker exec "${MG_CLIENT_NAME}" ping -I "${client_if}" -c 1 -W 1 \
@@ -2067,7 +2067,7 @@ mgc_wait_client_neighbors() {
   done
 }
 
-mgc_create_tenant_vm() {
+dci_create_tenant_vm() {
   if [[ "${DRY_RUN}" == "1" ]]; then
     echo "DRY: criar netns ${MG_TENANT_VM_NS}, veth ${MG_TENANT_VM_PORT}<->${MG_TENANT_VM_IF} e LSP ${MG_TENANT_VM_LSP}"
     return 0
@@ -2101,17 +2101,17 @@ mgc_create_tenant_vm() {
      ip netns exec '${MG_TENANT_VM_NS}' ip route replace default via '${MG_TENANT_LRP_IP}' dev '${MG_TENANT_VM_IF}'"
 }
 
-mgc_apply_topology() {
-  mgc_apply_nb_fixture
-  mgc_reconcile_gateway_runtime
-  mgc_apply_evpn_ids
-  mgc_configure_mirror "${MG_GATEWAY_1}" "${MG_GW_VRF_1}" "${MG_GW1_P2P}"
-  mgc_configure_mirror "${MG_GATEWAY_2}" "${MG_GW_VRF_2}" "${MG_GW2_P2P}"
-  mgc_create_tenant_vm
-  mgc_apply_gateway_frr "${MG_GATEWAY_1}" "${MG_GW1_FRR}"
-  mgc_apply_gateway_frr "${MG_GATEWAY_2}" "${MG_GW2_FRR}"
-  mgc_start_client
-  mgc_wait_client_neighbors
+dci_apply_topology() {
+  dci_apply_nb_fixture
+  dci_reconcile_gateway_runtime
+  dci_apply_evpn_ids
+  dci_configure_mirror "${MG_GATEWAY_1}" "${MG_GW_VRF_1}" "${MG_GW1_P2P}"
+  dci_configure_mirror "${MG_GATEWAY_2}" "${MG_GW_VRF_2}" "${MG_GW2_P2P}"
+  dci_create_tenant_vm
+  dci_apply_gateway_frr "${MG_GATEWAY_1}" "${MG_GW1_FRR}"
+  dci_apply_gateway_frr "${MG_GATEWAY_2}" "${MG_GW2_FRR}"
+  dci_start_client
+  dci_wait_client_neighbors
 }
 
 # ---------------------------------------------------------------------------
@@ -2119,48 +2119,48 @@ mgc_apply_topology() {
 # ---------------------------------------------------------------------------
 lab_up() {
   require_cmd docker git python3 flock readlink stat wc
-  mgc_m03_lock_action
-  mgc_x05_guard
+  dci_m03_lock_action
+  dci_x05_guard
   lab_preflight
-  if [[ "${MGC_M03_MODE}" == 1 ]] && mgc_m03_marker_present; then
-    mgc_assert_cluster_ownership
-    mgc_assert_bridges_owned
-    [[ "$(mgc_count_named "${MG_CLIENT_NAME}" running)" -eq 1 ]] \
-      || die "cliente MGC ${MG_CLIENT_NAME} não está running; up M03 idempotente abortado"
-    mgc_assert_client_ownership "${MG_CLIENT_NAME}"
-    mgc_m03_require_cleanup_nodes
-    mgc_m03_assert_active
+  if [[ "${DCI_M03_MODE}" == 1 ]] && dci_m03_marker_present; then
+    dci_assert_cluster_ownership
+    dci_assert_bridges_owned
+    [[ "$(dci_count_named "${MG_CLIENT_NAME}" running)" -eq 1 ]] \
+      || die "cliente DCI ${MG_CLIENT_NAME} não está running; up M03 idempotente abortado"
+    dci_assert_client_ownership "${MG_CLIENT_NAME}"
+    dci_m03_require_cleanup_nodes
+    dci_m03_assert_active
     if [[ "${DRY_RUN}" == "1" ]]; then
       echo "DRY: M03 marker e ownership/recursos ativos validados; nenhum recurso recriado"
       return 0
     fi
-    mgc_m03_phase verify m03-up-idempotent
+    dci_m03_phase verify m03-up-idempotent
     log "M03 já estava completo e foi verificado; nenhum recurso foi recriado"
     return 0
   fi
-  mgc_assert_m03_absent
-  if [[ "${MGC_M03_MODE}" == 1 ]]; then
+  dci_assert_m03_absent
+  if [[ "${DCI_M03_MODE}" == 1 ]]; then
     [[ -n "${M03_PREFLIGHT_RECEIPT:-}" \
       && -r "${M03_PREFLIGHT_RECEIPT}" ]] \
       || die '--m03 exige M03_PREFLIGHT_RECEIPT legível antes de mutar o lab'
   fi
   log "suporte VRF do kernel no host"
-  mgc_ensure_vrf_kernel
+  dci_ensure_vrf_kernel
   log "1/5 fontes OVN ${OVN_TAG} e fake-multinode ${FAKE_MN_TAG}"
-  mgc_ensure_sources
+  dci_ensure_sources
   log "2/5 OVS do underlay no host"
-  mgc_ensure_ovs_underlay
+  dci_ensure_ovs_underlay
   log "3/5 imagens ovn/cinc e ovn/ovn-multi-node"
-  mgc_build_ovn_images
-  mgc_require_mem_for_cluster
+  dci_build_ovn_images
+  dci_require_mem_for_cluster
   log "4/5 cluster OVN (central=1 gateways=2 chassis=2; fake VMs=no)"
-  mgc_start_ovn_cluster
-  log "5/5 topologia MGC, espelhos, FRR, cliente e EVPN"
-  mgc_ensure_frr_image
-  mgc_apply_topology
-  if [[ "${MGC_M03_MODE}" == 1 ]]; then
+  dci_start_ovn_cluster
+  log "5/5 topologia DCI, espelhos, FRR, cliente e EVPN"
+  dci_ensure_frr_image
+  dci_apply_topology
+  if [[ "${DCI_M03_MODE}" == 1 ]]; then
     log "fase M03 up: peer EVPN, links, pathspace FRR e marker owned"
-    mgc_m03_phase up m03-up
+    dci_m03_phase up m03-up
   fi
   state_set "${LAB_NAME}" up_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   log "lab ${LAB_NAME} up concluído"
@@ -2174,25 +2174,25 @@ lab_verify() {
   local bgp_json route_rib onprem_rib client_source
   local bfd bfd_up bfd_gw1 bfd_gw2 bfd_up_gw1 bfd_up_gw2 tenant_vm_mac
   require_cmd flock readlink stat wc
-  mgc_m03_lock_action
-  mgc_x05_guard
+  dci_m03_lock_action
+  dci_x05_guard
   ev="$(evidence_dir "${LAB_NAME}")"
   verify_file="${ev}/verify.txt"
-  if [[ "${MGC_M03_MODE}" == 1 ]]; then
+  if [[ "${DCI_M03_MODE}" == 1 ]]; then
     if [[ "${DRY_RUN}" == "1" ]]; then
       echo "DRY: verificar ownership/marker M03 e convergência Type5/RIB/FIB/VTEP/route-get"
     else
-      mgc_m03_assert_active
+      dci_m03_assert_active
     fi
   else
-    mgc_assert_m03_absent
+    dci_assert_m03_absent
   fi
   if [[ "${DRY_RUN}" == "1" ]]; then
     echo "DRY: coletar sessões BGP e ECMP no RIB de ${MG_CLIENT_NAME}"
     echo "DRY: coletar gateway_mtu, configuração EVPN e ping ${MG_TENANT_VM_IP}"
     echo "DRY: gravar verify.txt em ${verify_file}"
-    if [[ "${MGC_M03_MODE}" == 1 ]]; then
-      mgc_m03_phase verify m03-verify
+    if [[ "${DCI_M03_MODE}" == 1 ]]; then
+      dci_m03_phase verify m03-verify
     fi
     return 0
   fi
@@ -2271,7 +2271,7 @@ print("INVALID_JSON" if result is None or result < 0 else result)
     || die "prefixo ${MG_CLIENT_CIDR} ausente no RIB do cliente após staticd"
 
   mtu="$(docker exec "${MG_CENTRAL}" ovn-nbctl \
-    get logical_router_port "lrp-mgc-${MG_GW_VRF_1}-external" options \
+    get logical_router_port "lrp-dci-${MG_GW_VRF_1}-external" options \
     2>/dev/null || true)"
   [[ "${mtu}" == *"gateway_mtu"* && "${mtu}" == *"1500"* ]] \
     || die "gateway_mtu=1500 não registrado na LRP externa (${mtu})"
@@ -2315,9 +2315,9 @@ print("INVALID_JSON" if result is None or result < 0 else result)
     || die "cliente não alcançou a VM fake ${MG_TENANT_VM_IP}"
   log "  EVPN Type 5 ao vivo/RIB externo: gate reservado à cápsula S002-07; verify atual cobre somente a estrutura NB"
 
-  if [[ "${MGC_M03_MODE}" == 1 ]]; then
+  if [[ "${DCI_M03_MODE}" == 1 ]]; then
     log "fase M03 verify: convergência Type5/RIB/FIB/VTEP/route-get"
-    mgc_m03_phase verify m03-verify
+    dci_m03_phase verify m03-verify
   fi
   {
     echo "=== labctl ${LAB_NAME} verify $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
@@ -2354,25 +2354,25 @@ print("INVALID_JSON" if result is None or result < 0 else result)
 # ---------------------------------------------------------------------------
 # down: remoção nominal e prova de ausência
 # ---------------------------------------------------------------------------
-mgc_remove_client_port() {
+dci_remove_client_port() {
   local client="$1" interface="$2" port
-  if [[ "$(mgc_count_named "${client}")" -gt 0 ]]; then
-    mgc_assert_client_ownership "${client}"
+  if [[ "$(dci_count_named "${client}")" -gt 0 ]]; then
+    dci_assert_client_ownership "${client}"
   fi
-  port="$(mgc_ovs_port "${client}" "${interface}" || true)"
+  port="$(dci_ovs_port "${client}" "${interface}" || true)"
   if [[ -n "${port}" ]]; then
-    run env RUNC_CMD="${RUNC_CMD}" "${MGC_FAKE_MN}/ovs-runc" \
+    run env RUNC_CMD="${RUNC_CMD}" "${DCI_FAKE_MN}/ovs-runc" \
       del-port br-ovn-ext "${interface}" "${client}"
   fi
 }
 
-mgc_remove_mirror() {
+dci_remove_mirror() {
   local gateway vrf_id lsp
   gateway="$1"
   vrf_id="$2"
   lsp="bgpvrf${vrf_id}"
   local ovs_if="${lsp}-ovs" vrf_if="${lsp}"
-  if [[ "$(mgc_count_named "${gateway}" running)" -eq 0 ]]; then
+  if [[ "$(dci_count_named "${gateway}" running)" -eq 0 ]]; then
     return 0
   fi
   if docker exec "${gateway}" ip link show "${ovs_if}" >/dev/null 2>&1; then
@@ -2386,41 +2386,41 @@ mgc_remove_mirror() {
 lab_down() {
   local ev cluster_all
   require_cmd flock readlink stat wc
-  mgc_m03_lock_action
-  mgc_x05_guard
+  dci_m03_lock_action
+  dci_x05_guard
   ev="$(evidence_dir "${LAB_NAME}")"
   log "evidência: ${ev}"
-  if [[ "${MGC_M03_MODE}" == 1 ]]; then
-    log "fase M03 down: cleanup owned e restauração do baseline MGC"
-    mgc_m03_phase down m03-down
+  if [[ "${DCI_M03_MODE}" == 1 ]]; then
+    log "fase M03 down: cleanup owned e restauração do baseline DCI"
+    dci_m03_phase down m03-down
     if [[ "${DRY_RUN}" == "1" ]]; then
       log "DRY: pós-condição de ausência M03 será verificada após execução real"
       return 0
     fi
-    mgc_assert_m03_absent
-    log "fase M03 down concluída; baseline MGC permanece ativo"
+    dci_assert_m03_absent
+    log "fase M03 down concluída; baseline DCI permanece ativo"
     return 0
   fi
-  mgc_m03_cleanup_owned
-  mgc_assert_no_extra_ovn_containers
-  cluster_all="$(mgc_cluster_count all)"
-  if [[ "$(mgc_count_named "${MG_CLIENT_NAME}")" -gt 0 ]]; then
-    mgc_assert_client_ownership "${MG_CLIENT_NAME}"
+  dci_m03_cleanup_owned
+  dci_assert_no_extra_ovn_containers
+  cluster_all="$(dci_cluster_count all)"
+  if [[ "$(dci_count_named "${MG_CLIENT_NAME}")" -gt 0 ]]; then
+    dci_assert_client_ownership "${MG_CLIENT_NAME}"
   fi
   if [[ "${cluster_all}" -gt 0 ]]; then
-    mgc_assert_cluster_ownership
-    mgc_assert_bridges_owned yes
-  elif mgc_any_bridge_exists; then
-    mgc_assert_bridges_owned yes
+    dci_assert_cluster_ownership
+    dci_assert_bridges_owned yes
+  elif dci_any_bridge_exists; then
+    dci_assert_bridges_owned yes
   fi
   log "1/4 pernas VLAN e cliente do perfil"
   if [[ "${DRY_RUN}" == "1" ]]; then
     echo "DRY: ovs-runc del-port br-ovn-ext eth1/eth2 ${MG_CLIENT_NAME}"
     echo "DRY: docker rm -f ${MG_CLIENT_NAME}"
   else
-    mgc_remove_client_port "${MG_CLIENT_NAME}" eth1
-    mgc_remove_client_port "${MG_CLIENT_NAME}" eth2
-    if [[ "$(mgc_count_named "${MG_CLIENT_NAME}")" -gt 0 ]]; then
+    dci_remove_client_port "${MG_CLIENT_NAME}" eth1
+    dci_remove_client_port "${MG_CLIENT_NAME}" eth2
+    if [[ "$(dci_count_named "${MG_CLIENT_NAME}")" -gt 0 ]]; then
       run docker rm -f "${MG_CLIENT_NAME}"
     fi
   fi
@@ -2429,16 +2429,16 @@ lab_down() {
   if [[ "${DRY_RUN}" == "1" ]]; then
     echo "DRY: remover veths bgpvrf${MG_GW_VRF_1}/bgpvrf${MG_GW_VRF_2}"
   else
-    mgc_remove_mirror "${MG_GATEWAY_1}" "${MG_GW_VRF_1}"
-    mgc_remove_mirror "${MG_GATEWAY_2}" "${MG_GW_VRF_2}"
+    dci_remove_mirror "${MG_GATEWAY_1}" "${MG_GW_VRF_1}"
+    dci_remove_mirror "${MG_GATEWAY_2}" "${MG_GW_VRF_2}"
   fi
 
   log "3/4 cluster OVN e bancos NB/SB"
-  cluster_all="$(mgc_cluster_count all)"
+  cluster_all="$(dci_cluster_count all)"
   if [[ "${cluster_all}" -gt 0 ]]; then
-    mgc_stop_owned_cluster
-  elif mgc_any_bridge_exists; then
-    mgc_remove_owned_bridges
+    dci_stop_owned_cluster
+  elif dci_any_bridge_exists; then
+    dci_remove_owned_bridges
   elif [[ "${DRY_RUN}" == "1" ]]; then
     echo "DRY: nenhum cluster OVN próprio presente; não executar stop upstream"
   fi
@@ -2448,15 +2448,15 @@ lab_down() {
   assert_absent_containers "ovn-central"
   assert_absent_containers "ovn-gw"
   assert_absent_containers "ovn-chassis"
-  mgc_assert_no_extra_ovn_containers
+  dci_assert_no_extra_ovn_containers
   assert_absent_link br-ovn
   assert_absent_link br-ovn-ext
   if [[ "${DRY_RUN}" != "1" ]]; then
-    if ip netns list | grep -Eq '(^|[[:space:]])mgc-|ovnvrf'; then
-      die "resíduo: netns mgc/ovnvrf ainda existe"
+    if ip netns list | grep -Eq '(^|[[:space:]])dci-|ovnvrf'; then
+      die "resíduo: netns dci/ovnvrf ainda existe"
     fi
   else
-    echo "DRY: provar ausência de netns mgc/ovnvrf"
+    echo "DRY: provar ausência de netns dci/ovnvrf"
   fi
   log "lab ${LAB_NAME} down concluído"
 }
@@ -2468,10 +2468,10 @@ lab_status() {
   local profile client cluster mem owner_state client_owner
   profile="$(docker ps --format '{{.Names}}' 2>/dev/null \
     | grep -Ec "^${MG_PREFIX}" || true)"
-  client="$(mgc_count_named "${MG_CLIENT_NAME}" running)"
-  cluster="$(mgc_cluster_count running)"
+  client="$(dci_count_named "${MG_CLIENT_NAME}" running)"
+  cluster="$(dci_cluster_count running)"
   owner_state="$(state_get "${LAB_NAME}" owner_state 2>/dev/null || true)"
-  client_owner="$(state_get "${LAB_NAME}" "$(mgc_client_owner_key "${MG_CLIENT_NAME}")" 2>/dev/null || true)"
+  client_owner="$(state_get "${LAB_NAME}" "$(dci_client_owner_key "${MG_CLIENT_NAME}")" 2>/dev/null || true)"
   mem="$(docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' 2>/dev/null \
     | grep -E "^(${MG_PREFIX}|ovn-(central|gw|chassis))" || true)"
   log "lab=${LAB_NAME} up=$([[ "${cluster}" -eq 5 && "${client}" -eq 1 ]] && echo sim || echo nao) containers_perfil=${profile} cluster_ovn=${cluster}/5 ownership=${owner_state:-unknown} client_id=${client_owner:-unknown}"
@@ -2480,10 +2480,10 @@ lab_status() {
 
 lab_resources() {
   log "recursos nominais do perfil ${LAB_NAME}:"
-  log "  fontes: ${MGC_OVN_SRC}, ${MGC_OVS_SRC}, ${MGC_FAKE_MN}"
+  log "  fontes: ${DCI_OVN_SRC}, ${DCI_OVS_SRC}, ${DCI_FAKE_MN}"
   log "  cluster: ${MG_CENTRAL}, ${MG_GATEWAY_1}/${MG_GATEWAY_2}, ${MG_CHASSIS_1}/${MG_CHASSIS_2}"
   log "  cliente: ${MG_CLIENT_NAME} (AS ${MG_CLIENT_AS}, ${MG_CLIENT_CIDR}, eth1 VLAN ${MG_GW_VLAN_1}, eth2 VLAN ${MG_GW_VLAN_2})"
   log "  gateways: VRF ovnvrf${MG_GW_VRF_1}/ovnvrf${MG_GW_VRF_2}, AS ${MG_GW_AS}, gateway_mtu=${MG_GATEWAY_MTU}"
   log "  tenant: ${MG_TENANT_LS}/${MG_TENANT_LR}, ${MG_TENANT_CIDR}, EVPN VNI ${MG_TENANT_VNI}, VM ${MG_TENANT_VM_IP}"
-  log "  fixtures: ${MGC_FIXTURE_DIR}"
+  log "  fixtures: ${DCI_FIXTURE_DIR}"
 }

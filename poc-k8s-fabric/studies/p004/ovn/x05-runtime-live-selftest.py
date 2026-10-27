@@ -94,7 +94,7 @@ CAPTURED_OVS_SET_READBACKS: dict[str, dict[str, bytes]] = {
             b'0.4%170.168.0.5"]]]],[["uuid","0172dff3-b81d-4b61-afcb-57ffc04cf489"],"br-ex",["uuid","f'
             b'ef71796-9fe6-46ce-9049-17b9f5f98bfc"],["set",[]],["map",[]]],[["uuid","7fd9b0b3-facf-446'
             b'8-8437-a8758ff56a94"],"br-int",["uuid","8cca8c19-bded-4256-813e-c4fe333694dd"],["set",[]'
-            b'],["map",[]]],[["uuid","f2acb53d-2a3f-42df-9ff1-cdb6afa473cb"],"mgc-tenant-vm-p",["uuid"'
+            b'],["map",[]]],[["uuid","f2acb53d-2a3f-42df-9ff1-cdb6afa473cb"],"dci-tenant-vm-p",["uuid"'
             b',"ed19b67a-3afc-462e-a1ff-96bf460f6541"],["set",[]],["map",[]]],[["uuid","e689d89d-5656-'
             b'4bef-804f-6a38faaaf4e1"],"eth2",["uuid","85a859ac-9285-4bf6-ac7b-d817300ba97d"],["set",['
             b']],["map",[]]],[["uuid","ab02945e-1db8-4e11-8bbc-35313e72288b"],"ovn-ovn-ch-0",["uuid","'
@@ -151,11 +151,11 @@ CAPTURED_OVS_SET_READBACKS: dict[str, dict[str, bytes]] = {
             b'8-447f-a69d-2357d5446a9b"],"eth2",["uuid","7dfb9b86-43fb-466e-8587-fb18266c4468"],["set"'
             b',[]],["map",[]]],[["uuid","d5826871-12ad-4fee-a478-2044faf40356"],"ovn-evpn-4789",["uuid'
             b'","1bc54ee8-d5d2-459b-8044-3ca61d7c8f83"],["set",[]],["map",[["ovn-evpn-tunnel","true"]]'
-            b']],[["uuid","18389b52-5564-4c2d-9391-40f25f2fada0"],"patch-ln-mgc-100-to-br-int",["uuid"'
-            b',"cb446ab3-2a87-4bf3-92e2-56d0de40b592"],["set",[]],["map",[["ovn-localnet-port","ln-mgc'
-            b'-100"]]]],[["uuid","ba73512a-aedb-4314-9a73-8918088918c3"],"patch-br-int-to-ln-mgc-100",'
+            b']],[["uuid","18389b52-5564-4c2d-9391-40f25f2fada0"],"patch-ln-dci-100-to-br-int",["uuid"'
+            b',"cb446ab3-2a87-4bf3-92e2-56d0de40b592"],["set",[]],["map",[["ovn-localnet-port","ln-dci'
+            b'-100"]]]],[["uuid","ba73512a-aedb-4314-9a73-8918088918c3"],"patch-br-int-to-ln-dci-100",'
             b'["uuid","63a0f5c7-70a9-44af-aaec-f8c396026342"],["set",[]],["map",[["ovn-localnet-port",'
-            b'"ln-mgc-100"]]]],[["uuid","d650bbf3-9bb4-4a35-a6b2-311a2a1a9a18"],"br-int",["uuid","f1ad'
+            b'"ln-dci-100"]]]],[["uuid","d650bbf3-9bb4-4a35-a6b2-311a2a1a9a18"],"br-int",["uuid","f1ad'
             b'605e-b744-420e-b045-9003ceea62d8"],["set",[]],["map",[]]],[["uuid","38fbe484-3ce5-4187-a'
             b'12c-fdb575510be4"],"bgpvrf100-ovs",["uuid","6ccd9b30-c39b-4e99-bb64-f51be512e674"],["set'
             b'",[]],["map",[]]],[["uuid","16d75474-ce09-45b9-9870-adefdfa18c48"],"ovn-ovn-ch-1",["uuid'
@@ -184,15 +184,15 @@ CAPTURED_OVS_SET_READBACKS: dict[str, dict[str, bytes]] = {
             b'p",[["ovn-chassis-id","ovn-chassis-2@170.168.0.6%170.168.0.4"]]]],[["uuid","d98138f1-cba'
             b'f-4a57-8226-c6d5d27aa3b5"],"ovn-ovn-ch-0",["uuid","a843acfe-4a73-4c64-9f45-65471c1d85c4"'
             b'],["set",[]],["map",[["ovn-chassis-id","ovn-chassis-1@170.168.0.5%170.168.0.4"]]]],[["uu'
-            b'id","af8eab51-e577-4308-9688-3d7d0c212b62"],"patch-br-int-to-ln-mgc-200",["uuid","f000e6'
-            b'76-c0f5-447f-9d95-92fd0d883a38"],["set",[]],["map",[["ovn-localnet-port","ln-mgc-200"]]]'
+            b'id","af8eab51-e577-4308-9688-3d7d0c212b62"],"patch-br-int-to-ln-dci-200",["uuid","f000e6'
+            b'76-c0f5-447f-9d95-92fd0d883a38"],["set",[]],["map",[["ovn-localnet-port","ln-dci-200"]]]'
             b'],[["uuid","74f64af1-f24e-4135-9acb-e938c6adb2bf"],"ovn-evpn-4789",["uuid","a4daef8c-f8f'
             b'5-4bdc-a9d9-cd216e9ab8ac"],["set",[]],["map",[["ovn-evpn-tunnel","true"]]]],[["uuid","8c'
             b'8c66aa-b1b3-4905-ba86-00832a498bf5"],"br-int",["uuid","11a190dd-634d-4903-a8e6-eb2164524'
             b'477"],["set",[]],["map",[]]],[["uuid","9c38e053-44d0-447d-ba3b-11f3ef039651"],"bgpvrf200'
             b'-ovs",["uuid","7e4a5c61-b640-480c-8c00-df28005a2965"],["set",[]],["map",[]]],[["uuid","c'
-            b'bb1b27c-3e20-4a6b-9ae3-c4957a8fb019"],"patch-ln-mgc-200-to-br-int",["uuid","94527136-165'
-            b'9-44a6-9c8b-c461975d153f"],["set",[]],["map",[["ovn-localnet-port","ln-mgc-200"]]]],[["u'
+            b'bb1b27c-3e20-4a6b-9ae3-c4957a8fb019"],"patch-ln-dci-200-to-br-int",["uuid","94527136-165'
+            b'9-44a6-9c8b-c461975d153f"],["set",[]],["map",[["ovn-localnet-port","ln-dci-200"]]]],[["u'
             b'uid","c3e6c7a4-25f4-4e4c-afaf-54f2c280798b"],"eth2",["uuid","b51f5ab2-7baf-4bf5-a30a-302'
             b'6c2695fed"],["set",[]],["map",[]]],[["uuid","c26fd155-af7a-4514-8543-f4bf6ceae514"],"ovn'
             b'-ovn-gw-0",["uuid","3c4a66cd-800e-4011-ad11-9fa5ef0687bf"],["set",[]],["map",[["ovn-chas'
@@ -288,14 +288,14 @@ class FakeRunner:
         self.x05_name_present = False
         self.bad_initial_chassis = False
         self.foreign_frr_scope = False
-        self.profile_owner = "mgc-profile-owner"
+        self.profile_owner = "dci-profile-owner"
         self.ids = {
             name: digest("container:" + name)
             for name in (
-                *LIVE.PREFLIGHT.MGC_CONTAINER_NAMES,
-                "mgc-evpn-client-1",
-                "mgc-client-2",
-                "mgc-x05-peer-2",
+                *LIVE.PREFLIGHT.DCI_CONTAINER_NAMES,
+                "dci-evpn-client-1",
+                "dci-client-2",
+                "dci-x05-peer-2",
                 "p003-os",
             )
         }
@@ -322,7 +322,7 @@ class FakeRunner:
             "token=" + self.marker_token,
             "run_token=" + self.marker_run,
             "central=ovn-central-az1",
-            "lrp=lrp-mgc-tenant",
+            "lrp=lrp-dci-tenant",
             "tenant_vrf=ovnvrf-tenant",
             "intent=maintain-vrf",
             "baseline_lrp_maintain_vrf=absent",
@@ -426,11 +426,11 @@ class FakeRunner:
             if self.drift == "marker" and self.docker_list_count == 4:
                 self.marker_run = "20260930T130002Z-4242"
                 self.write_marker()
-            names = [*LIVE.PREFLIGHT.MGC_CONTAINER_NAMES, "p003-os"]
+            names = [*LIVE.PREFLIGHT.DCI_CONTAINER_NAMES, "p003-os"]
             if self.active:
-                names.append("mgc-evpn-client-1")
+                names.append("dci-evpn-client-1")
             if self.x05_name_present:
-                names.append("mgc-client-2")
+                names.append("dci-client-2")
             return self.result(
                 command,
                 b"".join(
@@ -459,7 +459,7 @@ class FakeRunner:
                 elif self.original_label_fault == "container-overridden":
                     labels["org.example.version"] = "different"
                 elif self.original_label_fault == "container-owner":
-                    labels[self.original_owner_label or "labctl.mgc.owner"] = "foreign-owner"
+                    labels[self.original_owner_label or "labctl.dci.owner"] = "foreign-owner"
                 if self.drift == "labels" and self.inspect_count[name] >= 3:
                     labels["org.example.drift"] = "changed"
                 if self.original_label_fault == "reordered":
@@ -468,12 +468,12 @@ class FakeRunner:
                 container_config = {"Labels": labels}
                 if self.original_label_fault == "container-missing":
                     container_config.pop("Labels")
-            elif name == "mgc-client-1":
-                labels = {"labctl.mgc.owner": self.profile_owner}
+            elif name == "dci-client-1":
+                labels = {"labctl.dci.owner": self.profile_owner}
                 container_config = {"Labels": labels}
-            elif name == "mgc-evpn-client-1":
+            elif name == "dci-evpn-client-1":
                 labels = {
-                    "labctl.mgc.owner": self.profile_owner,
+                    "labctl.dci.owner": self.profile_owner,
                     "labctl-m03-owner": (
                         "foreign-owner" if self.setup_foreign else self.marker_token
                     ),
@@ -499,7 +499,7 @@ class FakeRunner:
                 self.original_image_inspect_count += 1
                 image_labels: Any = dict(self.original_image_labels)
                 if self.original_image_fault in {"owner", "image-owner"}:
-                    image_labels[self.original_owner_label or "labctl.mgc.owner"] = "foreign-owner"
+                    image_labels[self.original_owner_label or "labctl.dci.owner"] = "foreign-owner"
                 elif self.original_image_fault == "reordered":
                     image_labels = dict(reversed(tuple(image_labels.items())))
                 elif self.drift == "labels" and self.original_image_inspect_count >= 3:
@@ -620,7 +620,7 @@ class FakeRunner:
             for row in LIVE.PREFLIGHT.M03_LINKS
             if (
                 (node == "ovn-chassis-1" and row[2] == "chassis")
-                or (node == "mgc-evpn-client-1" and row[2] == "peer")
+                or (node == "dci-evpn-client-1" and row[2] == "peer")
             )
         ]
         for name, kind, _role, _expected_node, typed in expected:
@@ -684,7 +684,7 @@ class FakeRunner:
                         "name": name,
                         "ports": ports,
                         "external_ids": (
-                            {"labctl-mgc-owner-token": self.profile_owner}
+                            {"labctl-dci-owner-token": self.profile_owner}
                             if node is None
                             else {}
                         ),
@@ -700,7 +700,7 @@ class FakeRunner:
                         ),
                         "name": "veth-m03-host",
                         "external_ids": {
-                            "container_id": "mgc-evpn-client-1",
+                            "container_id": "dci-evpn-client-1",
                             "container_iface": "eth1",
                             "labctl-m03-owner": self.marker_token,
                         },
@@ -759,7 +759,7 @@ class FakeRunner:
             .split(",")
         )
         rows: list[dict[str, Any]] = []
-        if table == "Logical_Router_Port" and name == "lrp-mgc-tenant":
+        if table == "Logical_Router_Port" and name == "lrp-dci-tenant":
             options = {}
             if self.active:
                 options = {
@@ -767,7 +767,7 @@ class FakeRunner:
                     "dynamic-routing-port-name": "m03-evpn-" + self.marker_run,
                 }
             rows = [{"_uuid": ("uuid", uuid(name)), "name": name, "options": options}]
-        elif table == "Logical_Switch" and name == "ls-mgc-tenant":
+        elif table == "Logical_Switch" and name == "ls-dci-tenant":
             rows = [
                 {
                     "_uuid": ("uuid", uuid(name)),
@@ -776,12 +776,12 @@ class FakeRunner:
                     "other_config": {"dynamic-routing-vni": "50100"},
                 }
             ]
-        elif table == "Logical_Router" and name == "lr-mgc-tenant":
+        elif table == "Logical_Router" and name == "lr-dci-tenant":
             rows = [
                 {
                     "_uuid": ("uuid", uuid(name)),
                     "name": name,
-                    "ports": [("uuid", uuid("lrp-mgc-tenant"))],
+                    "ports": [("uuid", uuid("lrp-dci-tenant"))],
                 }
             ]
         elif table == "Logical_Switch_Port" and name == "x05-tenant-b-vm":
@@ -810,17 +810,17 @@ def make_config(root: pathlib.Path, *, run_hex: str = "a1b2c3") -> Any:
     for path in (k01, p003):
         path.write_text("apiVersion: v1\n")
         path.chmod(0o600)
-    state = root / "mgc.json"
-    profile_owner = "mgc-profile-owner"
+    state = root / "dci.json"
+    profile_owner = "dci-profile-owner"
     value = {
         "owner_token": profile_owner,
         **{
             state_key: digest("container:" + name)
-            for name, state_key in LIVE.PREFLIGHT.MGC_ID_KEYS.items()
+            for name, state_key in LIVE.PREFLIGHT.DCI_ID_KEYS.items()
         },
         **{
             state_key: uuid(name)
-            for name, state_key in LIVE.PREFLIGHT.MGC_BRIDGE_ID_KEYS.items()
+            for name, state_key in LIVE.PREFLIGHT.DCI_BRIDGE_ID_KEYS.items()
         },
     }
     state.write_text(json.dumps(value))
@@ -836,10 +836,10 @@ def make_config(root: pathlib.Path, *, run_hex: str = "a1b2c3") -> Any:
         receipt_path=receipt,
         k01_kubeconfig=k01,
         p003_kubeconfig=p003,
-        lock_path=root / "labctl-mgc-m03.lock",
+        lock_path=root / "labctl-dci-m03.lock",
         state_path=state,
-        m03_marker_path=root / "run" / "mgc-m03" / "active",
-        x05_marker_path=root / "run" / "mgc-x05" / "active",
+        m03_marker_path=root / "run" / "dci-m03" / "active",
+        x05_marker_path=root / "run" / "dci-x05" / "active",
         bundle_root=LIVE.HERE.parents[2],
         labctl_path=labctl,
         meminfo_path=meminfo,
@@ -1821,10 +1821,10 @@ def original_image_label_cases() -> None:
         runner.original_image_fault = "reordered"
         collector = LIVE.LiveCollector(config, runner)
         g0 = collector.g0()
-        assert set(g0["mgc"]["original_image_bindings"]) == set(
+        assert set(g0["dci"]["original_image_bindings"]) == set(
             LIVE.PREFLIGHT.CLUSTER_NAMES
         )
-        assert g0["mgc"]["container_labels"]["ovn-gw-1"] == {
+        assert g0["dci"]["container_labels"]["ovn-gw-1"] == {
             "org.example.base": "fixture",
             "org.example.version": "1",
         }
@@ -2398,7 +2398,7 @@ def uuid_set_cardinality_checks() -> None:
         fingerprint = collector._a_fingerprint()
         assert fingerprint["Logical_Switch"]["ports"] == [uuid("a-lsp")]
         assert fingerprint["Logical_Router"]["ports"] == [
-            uuid("lrp-mgc-tenant")
+            uuid("lrp-dci-tenant")
         ]
 
         invalid_collector = LIVE.LiveCollector(config, runner)

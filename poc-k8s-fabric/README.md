@@ -36,7 +36,7 @@ Tudo roda dentro de uma única `vm-cilium` Linux:
 
 O `client-ext` é externo ao cluster Kubernetes, mas está dentro da VM. O
 computador da pessoa estudante acessa a VIP pelo túnel SSH local descrito no
-guia. O caminho MKE/gerenciado é uma investigação separada e não é requisito
+guia. O caminho de Kubernetes gerenciado é uma investigação separada e não é requisito
 para este laboratório.
 
 ## Estrutura
@@ -115,7 +115,7 @@ e o Braço Cilium B completo com `FRR 10.7.1` no nó sob o invariante `R6=0`
 além do blueprint de transição para o Braço OVN-Kubernetes (`C/D`). Em S008 (**PASS**),
 fecharam-se a síntese `INV × equivalente aberto` com os seis critérios de aceite
 para uma PoC comercial do INV (`G07`) e a higiene final dos laboratórios (`G08`).
-Consulte a [síntese pública completa de P004](docs/estudos/20-mgc-estado-parcial.md)
+Consulte a [síntese pública completa de P004](docs/estudos/20-dci-estado-parcial.md)
 e os oito dossiês publicados da trilha **P005** (`P005-S001` a `P005-S004`, todos concluídos com **PASS** em `v2.4.0`:
 [Onda 1 Braço A `E19`+`E09`](docs/estudos/19-bgp-idempotency-md5-asn32.md),
 [Onda 1 Braço B `E23`+`E21`](docs/estudos/21-netkit-vs-veth-ipam-burst.md),

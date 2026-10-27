@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Topologia NB canônica da réplica MGC (OVN 26.03.3).
-# Executado dentro de ovn-central-az1 pelo perfil labctl mgc.
+# Topologia NB canônica da réplica DCI (OVN 26.03.3).
+# Executado dentro de ovn-central-az1 pelo perfil labctl dci.
 set -euo pipefail
 
 nbctl() {
@@ -9,8 +9,8 @@ nbctl() {
 
 GW1="ovn-gw-1"
 GW2="ovn-gw-2"
-TENANT_LS="ls-mgc-tenant"
-TENANT_LR="lr-mgc-tenant"
+TENANT_LS="ls-dci-tenant"
+TENANT_LR="lr-dci-tenant"
 TENANT_CIDR="192.168.100.0/24"
 TENANT_VNI=50100
 TENANT_RETURN_PREFIX="10.0.0.0/16"
@@ -18,12 +18,12 @@ TENANT_RETURN_NEXT_HOPS=(10.100.100.2 10.200.100.2)
 
 configure_connection() {
   local vrf="$1" vlan="$2" gateway="$3" gw_ip="$4" lsp_mac="$5" octet="$6"
-  local lr="lr-mgc-${vrf}"
-  local ls="ls-mgc-${vrf}-external"
-  local lrp="lrp-mgc-${vrf}-external"
-  local router_lsp="lsp-mgc-${vrf}-router"
+  local lr="lr-dci-${vrf}"
+  local ls="ls-dci-${vrf}-external"
+  local lrp="lrp-dci-${vrf}-external"
+  local router_lsp="lsp-dci-${vrf}-router"
   local mirror="bgpvrf${vrf}"
-  local localnet="ln-mgc-${vrf}"
+  local localnet="ln-dci-${vrf}"
 
   nbctl --may-exist lr-add "${lr}"
   nbctl set logical_router "${lr}" \
@@ -55,14 +55,14 @@ configure_connection() {
     options:gateway_mtu=1500
   nbctl lrp-set-gateway-chassis "${lrp}" "${gateway}" 20
 
-  nbctl --may-exist ls-add "ls-mgc-${vrf}-transit"
-  nbctl --may-exist lrp-add "${lr}" "lrp-mgc-${vrf}-tenant" \
+  nbctl --may-exist ls-add "ls-dci-${vrf}-transit"
+  nbctl --may-exist lrp-add "${lr}" "lrp-dci-${vrf}-tenant" \
     "02:00:${octet}:00:00:02" "10.${vrf}.100.2/30"
-  nbctl --may-exist lsp-add "ls-mgc-${vrf}-transit" "lsp-mgc-${vrf}-tenant"
-  nbctl lsp-set-type "lsp-mgc-${vrf}-tenant" router
-  nbctl lsp-set-addresses "lsp-mgc-${vrf}-tenant" router
-  nbctl lsp-set-options "lsp-mgc-${vrf}-tenant" \
-    "router-port=lrp-mgc-${vrf}-tenant"
+  nbctl --may-exist lsp-add "ls-dci-${vrf}-transit" "lsp-dci-${vrf}-tenant"
+  nbctl lsp-set-type "lsp-dci-${vrf}-tenant" router
+  nbctl lsp-set-addresses "lsp-dci-${vrf}-tenant" router
+  nbctl lsp-set-options "lsp-dci-${vrf}-tenant" \
+    "router-port=lrp-dci-${vrf}-tenant"
   nbctl --may-exist lr-route-add "${lr}" "${TENANT_CIDR}" "10.${vrf}.100.1"
 }
 
@@ -188,15 +188,15 @@ configure_tenant() {
     options:dynamic-routing-vrf-name=ovnvrf-tenant \
     options:dynamic-routing-vrf-id=300 \
     options:dynamic-routing-redistribute=connected,static
-  nbctl --may-exist lrp-add "${TENANT_LR}" lrp-mgc-tenant \
+  nbctl --may-exist lrp-add "${TENANT_LR}" lrp-dci-tenant \
     02:00:00:10:00:01 192.168.100.1/24
-  nbctl --may-exist lsp-add "${TENANT_LS}" lsp-mgc-tenant-router
-  nbctl lsp-set-type lsp-mgc-tenant-router router
-  nbctl lsp-set-addresses lsp-mgc-tenant-router router
-  nbctl lsp-set-options lsp-mgc-tenant-router router-port=lrp-mgc-tenant
+  nbctl --may-exist lsp-add "${TENANT_LS}" lsp-dci-tenant-router
+  nbctl lsp-set-type lsp-dci-tenant-router router
+  nbctl lsp-set-addresses lsp-dci-tenant-router router
+  nbctl lsp-set-options lsp-dci-tenant-router router-port=lrp-dci-tenant
 
-  nbctl --may-exist lsp-add "${TENANT_LS}" mgc-tenant-vm
-  nbctl lsp-set-addresses mgc-tenant-vm \
+  nbctl --may-exist lsp-add "${TENANT_LS}" dci-tenant-vm
+  nbctl lsp-set-addresses dci-tenant-vm \
     "02:00:00:10:00:10 192.168.100.10"
 
   for vrf in 100 200; do
@@ -204,7 +204,7 @@ configure_tenant() {
     [[ "${vrf}" == 200 ]] && octet=c8
     nbctl --may-exist lrp-add "${TENANT_LR}" "lrp-tenant-${vrf}" \
       "02:00:${octet}:00:00:01" "10.${vrf}.100.1/30"
-    nbctl --may-exist lsp-add "ls-mgc-${vrf}-transit" \
+    nbctl --may-exist lsp-add "ls-dci-${vrf}-transit" \
       "lsp-tenant-${vrf}"
     nbctl lsp-set-type "lsp-tenant-${vrf}" router
     nbctl lsp-set-addresses "lsp-tenant-${vrf}" router

@@ -202,9 +202,9 @@ def check_route_identity(all_rows, objects, inserted, built):
 
 
 def check_a(all_rows, fingerprint, sentinel, built):
-    for key, table, name in (("ls_uuid", "Logical_Switch", "ls-mgc-tenant"),
-                             ("lr_uuid", "Logical_Router", "lr-mgc-tenant"),
-                             ("lrp_uuid", "Logical_Router_Port", "lrp-mgc-tenant")):
+    for key, table, name in (("ls_uuid", "Logical_Switch", "ls-dci-tenant"),
+                             ("lr_uuid", "Logical_Router", "lr-dci-tenant"),
+                             ("lrp_uuid", "Logical_Router_Port", "lrp-dci-tenant")):
         uid = uuid(fingerprint[key], "A " + key)
         require(uid in all_rows and all_rows[uid][0] == table and
                 all_rows[uid][1].get("name") == name,

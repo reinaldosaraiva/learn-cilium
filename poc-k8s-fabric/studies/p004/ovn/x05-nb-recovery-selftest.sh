@@ -62,19 +62,19 @@ def fixture_bundle(root, *, state="NB_FORWARD_AMBIGUOUS"):
     snapshot_tables = {table: [] for table in tables}
     a = preflight["a_fingerprint"]
     snapshot_tables["Logical_Switch"].append({
-        "_uuid": a["ls_uuid"], "name": "ls-mgc-tenant",
+        "_uuid": a["ls_uuid"], "name": "ls-dci-tenant",
         "external_ids": ["map", []],
         "ports": ["set", [["uuid", uid] for uid in a["ls_ports"] +
                             [inserted["Logical_Switch_Port:x05-tenant-a-vm"]]]],
     })
     snapshot_tables["Logical_Router"].append({
-        "_uuid": a["lr_uuid"], "name": "lr-mgc-tenant",
+        "_uuid": a["lr_uuid"], "name": "lr-dci-tenant",
         "external_ids": ["map", []],
         "ports": ["set", [["uuid", uid] for uid in a["lr_ports"]]],
         "static_routes": ["set", []],
     })
     snapshot_tables["Logical_Router_Port"].append({
-        "_uuid": a["lrp_uuid"], "name": "lrp-mgc-tenant",
+        "_uuid": a["lrp_uuid"], "name": "lrp-dci-tenant",
         "external_ids": ["map", []], "gateway_chassis": ["set", []],
     })
     for item, operation in zip(objects, inserts):

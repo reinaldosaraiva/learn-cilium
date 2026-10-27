@@ -2279,14 +2279,14 @@ def _container_id(builder: Any, label: str) -> str:
 def _topologies(builder: Any) -> tuple[Any, Any]:
     return (
         _G1_TOPOLOGY_TYPE(
-            client_a=_container_id(builder, "mgc-client-1"),
-            client_b=_container_id(builder, "mgc-client-2"),
+            client_a=_container_id(builder, "dci-client-1"),
+            client_b=_container_id(builder, "dci-client-2"),
             gateway_1=_container_id(builder, "ovn-gw-1"),
             gateway_2=_container_id(builder, "ovn-gw-2"),
         ),
         _G2_TOPOLOGY_TYPE(
-            peer_a=_container_id(builder, "mgc-evpn-client-1"),
-            peer_b=_container_id(builder, "mgc-x05-peer-2"),
+            peer_a=_container_id(builder, "dci-evpn-client-1"),
+            peer_b=_container_id(builder, "dci-x05-peer-2"),
             chassis_a=_container_id(builder, "ovn-chassis-1"),
             chassis_b=_container_id(builder, "ovn-chassis-2"),
             central_id=_container_id(builder, "ovn-central-az1"),

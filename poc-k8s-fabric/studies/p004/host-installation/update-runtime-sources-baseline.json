@@ -9,7 +9,7 @@
     "inode": 7,
     "mode": "0o600",
     "nlink": 1,
-    "path": "/run/lock/labctl-mgc-m03.lock",
+    "path": "/run/lock/labctl-dci-m03.lock",
     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "size": 0,
     "uid": 0
@@ -28,7 +28,7 @@
       "uid": 0
     },
     {
-      "destination": "/opt/poc-k8s-fabric/labs/mgc.sh",
+      "destination": "/opt/poc-k8s-fabric/labs/dci.sh",
       "dev": 64769,
       "gid": 0,
       "inode": 3742888,
@@ -36,7 +36,7 @@
       "nlink": 1,
       "sha256": "c24962a4382b9f905a448a2621bdf0a5ef0167a12147563a0509c224a33d92bc",
       "size": 103202,
-      "source": "poc-k8s-fabric/labctl/labs/mgc.sh",
+      "source": "poc-k8s-fabric/labctl/labs/dci.sh",
       "uid": 0
     },
     {
@@ -744,8 +744,8 @@
   },
   "installation_acceptance_sha256": "3cf674e235281401145685fa6902f265011c07c91c68f26146da2c9a5c0812b0",
   "markers": [
-    "/run/labctl/mgc-m03/active",
-    "/run/labctl/mgc-x05/active"
+    "/run/labctl/dci-m03/active",
+    "/run/labctl/dci-x05/active"
   ],
   "old_helper_sha256": "133178564f6cd849c06a7c15dd6715dbe71005640c7042911ca97b0803516118",
   "parked_old": {

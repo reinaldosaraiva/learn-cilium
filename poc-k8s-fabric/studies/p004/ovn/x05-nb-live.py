@@ -38,8 +38,8 @@ from typing import Any, Protocol
 
 HERE = pathlib.Path(__file__).resolve().parent
 EVALUATOR_PATH = HERE / "x05-evaluator.py"
-MARKER_PATH = pathlib.Path("/run/labctl/mgc-x05/active")
-LOCK_PATH = pathlib.Path("/var/lock/labctl-mgc-m03.lock")
+MARKER_PATH = pathlib.Path("/run/labctl/dci-x05/active")
+LOCK_PATH = pathlib.Path("/var/lock/labctl-dci-m03.lock")
 CENTRAL_CONTAINER = "ovn-central-az1"
 NB_SOCKET = "unix:/var/run/ovn/ovnnb_db.sock"
 LOCK_FD = 9
@@ -728,7 +728,7 @@ class Marker:
 
 
 class LockValidator:
-    """Check that FD 9 is the canonical, already-held MGC lock."""
+    """Check that FD 9 is the canonical, already-held DCI lock."""
 
     def __init__(self, paths: RuntimePaths) -> None:
         self.paths = paths
@@ -760,17 +760,17 @@ class LockValidator:
         try:
             lock_info = self.paths.lock.stat()
         except OSError as exc:
-            raise SecurityError("canonical MGC lock is unavailable") from exc
+            raise SecurityError("canonical DCI lock is unavailable") from exc
         fd_target = self._fd_target(LOCK_FD)
         canonical = self.paths.lock.resolve()
         if canonical != self.paths.lock.absolute():
             raise SecurityError(
-                "canonical MGC lock path must not resolve through a symlink"
+                "canonical DCI lock path must not resolve through a symlink"
             )
         if fd_target != canonical:
-            raise SecurityError("FD 9 does not resolve to the canonical MGC lock")
+            raise SecurityError("FD 9 does not resolve to the canonical DCI lock")
         if (fd_info.st_dev, fd_info.st_ino) != (lock_info.st_dev, lock_info.st_ino):
-            raise SecurityError("FD 9 inode does not match the canonical MGC lock")
+            raise SecurityError("FD 9 inode does not match the canonical DCI lock")
         # A non-blocking flock on FD 9 alone would silently acquire an
         # unlocked descriptor.  Probe through a distinct open descriptor first
         # so an inherited lock is distinguishable from an open-but-unlocked FD.
@@ -782,20 +782,20 @@ class LockValidator:
                 lock_info.st_dev,
                 lock_info.st_ino,
             ):
-                raise SecurityError("canonical MGC lock changed during validation")
+                raise SecurityError("canonical DCI lock changed during validation")
             try:
                 fcntl.flock(probe_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 pass
             else:
                 fcntl.flock(probe_fd, fcntl.LOCK_UN)
-                raise SecurityError("FD 9 is open but the MGC lock is not held")
+                raise SecurityError("FD 9 is open but the DCI lock is not held")
         finally:
             os.close(probe_fd)
         try:
             fcntl.flock(LOCK_FD, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as exc:
-            raise SecurityError("FD 9 does not hold the MGC lock") from exc
+            raise SecurityError("FD 9 does not hold the DCI lock") from exc
 
 
 class Journal:
@@ -1323,13 +1323,13 @@ class NBAdapter:
             )
         snapshot = context.get("snapshot")
         sections = snapshot.get("sections") if isinstance(snapshot, dict) else None
-        mgc = sections.get("mgc") if isinstance(sections, dict) else None
+        dci = sections.get("dci") if isinstance(sections, dict) else None
         expected_names = (
-            mgc.get("expected_cluster_names") if isinstance(mgc, dict) else None
+            dci.get("expected_cluster_names") if isinstance(dci, dict) else None
         )
-        container_ids = mgc.get("container_ids") if isinstance(mgc, dict) else None
+        container_ids = dci.get("container_ids") if isinstance(dci, dict) else None
         container_labels = (
-            mgc.get("container_labels") if isinstance(mgc, dict) else None
+            dci.get("container_labels") if isinstance(dci, dict) else None
         )
         central_id = (
             container_ids.get(CENTRAL_CONTAINER)

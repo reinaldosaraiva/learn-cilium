@@ -27,10 +27,10 @@ from typing import Any, Callable, Mapping
 PRODUCTION_ROOT = "/opt/poc-k8s-fabric"
 TARGET = "/opt/poc-k8s-fabric/studies/p004/ovn/x05-runtime-live-selftest.py"
 PRODUCTION_STORE = "/var/lib/p004-runtime-selftest-maintenance"
-PRODUCTION_LOCK = "/run/lock/labctl-mgc-m03.lock"
+PRODUCTION_LOCK = "/run/lock/labctl-dci-m03.lock"
 PRODUCTION_MARKERS = (
-    "/run/labctl/mgc-m03/active",
-    "/run/labctl/mgc-x05/active",
+    "/run/labctl/dci-m03/active",
+    "/run/labctl/dci-x05/active",
 )
 BASELINE_NAME = "update-runtime-selftest-baseline.json"
 PUBLISHER_NAME = "stage-reviewed-sources.py"

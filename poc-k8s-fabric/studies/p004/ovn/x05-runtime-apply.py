@@ -51,9 +51,9 @@ KNOWN_VXLAN_STDERR = b"info: Using default fan map value (33)\n"
 
 BASE_MUTABLE_IDS = frozenset(
     {
-        "host:vm-cilium/docker-container/mgc-client-2",
-        "host:vm-cilium/ovs-port-interface/mgc-client-2:eth1",
-        "host:vm-cilium/ovs-port-interface/mgc-client-2:eth2",
+        "host:vm-cilium/docker-container/dci-client-2",
+        "host:vm-cilium/ovs-port-interface/dci-client-2:eth1",
+        "host:vm-cilium/ovs-port-interface/dci-client-2:eth2",
         "container:ovn-gw-1/linux-veth/bgpvrf300-ovs",
         "container:ovn-gw-1/linux-veth/bgpvrf300",
         "container:ovn-gw-1/ovs-port-interface/bgpvrf300-ovs",
@@ -76,13 +76,13 @@ BASE_MUTABLE_IDS = frozenset(
         "container:ovn-chassis-2/frr-pathspace/x05",
         "container:ovn-chassis-2/ovs-external-id/dynamic-routing-port-mapping",
         "container:ovn-chassis-2/ovs-external-id/ovn-evpn-local-ip",
-        "host:vm-cilium/docker-container/mgc-x05-peer-2",
-        "host:vm-cilium/ovs-port-interface/mgc-x05-peer-2:eth1",
-        "container:mgc-x05-peer-2/linux-vrf/vrf-x05-peer",
-        "container:mgc-x05-peer-2/linux-bridge/br-x05-peer",
-        "container:mgc-x05-peer-2/linux-vxlan/vxlan-x05-pr",
-        "container:mgc-x05-peer-2/linux-dummy/evpn-x05-pr",
-        "container:mgc-x05-peer-2/frr-pathspace/x05",
+        "host:vm-cilium/docker-container/dci-x05-peer-2",
+        "host:vm-cilium/ovs-port-interface/dci-x05-peer-2:eth1",
+        "container:dci-x05-peer-2/linux-vrf/vrf-x05-peer",
+        "container:dci-x05-peer-2/linux-bridge/br-x05-peer",
+        "container:dci-x05-peer-2/linux-vxlan/vxlan-x05-pr",
+        "container:dci-x05-peer-2/linux-dummy/evpn-x05-pr",
+        "container:dci-x05-peer-2/frr-pathspace/x05",
     }
 )
 GENERATED_VRF_IDS = frozenset(
@@ -92,7 +92,7 @@ GENERATED_VRF_IDS = frozenset(
         "container:ovn-chassis-2/ovn-generated-vrf/ovnvrf-x05-b",
     }
 )
-MARKER_ID = "host:vm-cilium/marker//run/labctl/mgc-x05/active"
+MARKER_ID = "host:vm-cilium/marker//run/labctl/dci-x05/active"
 EXCLUDED_COORDINATOR_KINDS = frozenset(
     {"lsp-parent-control", "capture-processes", "capture-file"}
 )
@@ -103,11 +103,11 @@ CAPTURE_POINT_IDS = (
     "gateway-300",
     "gateway-400",
 )
-CLIENT_CONTAINER_ID = "host:vm-cilium/docker-container/mgc-client-2"
-CLIENT_ETH1_ID = "host:vm-cilium/ovs-port-interface/mgc-client-2:eth1"
-CLIENT_ETH2_ID = "host:vm-cilium/ovs-port-interface/mgc-client-2:eth2"
-PEER_CONTAINER_ID = "host:vm-cilium/docker-container/mgc-x05-peer-2"
-PEER_ETH1_ID = "host:vm-cilium/ovs-port-interface/mgc-x05-peer-2:eth1"
+CLIENT_CONTAINER_ID = "host:vm-cilium/docker-container/dci-client-2"
+CLIENT_ETH1_ID = "host:vm-cilium/ovs-port-interface/dci-client-2:eth1"
+CLIENT_ETH2_ID = "host:vm-cilium/ovs-port-interface/dci-client-2:eth2"
+PEER_CONTAINER_ID = "host:vm-cilium/docker-container/dci-x05-peer-2"
+PEER_ETH1_ID = "host:vm-cilium/ovs-port-interface/dci-x05-peer-2:eth1"
 CHASSIS_MAPPING_ID = (
     "container:ovn-chassis-2/ovs-external-id/dynamic-routing-port-mapping"
 )
@@ -958,7 +958,7 @@ class RuntimeBuilder:
             raise SecurityError("runtime execution context lacks frozen anchors")
         profile_owner = anchors.get("profile_owner")
         if not isinstance(profile_owner, str) or not profile_owner:
-            raise SecurityError("runtime execution context lacks MGC profile owner")
+            raise SecurityError("runtime execution context lacks DCI profile owner")
         if RUNTIME.PLAN is None or RUNTIME.PREFLIGHT is None:
             raise SecurityError("reviewed runtime plan/preflight modules are unavailable")
         try:
@@ -1767,13 +1767,13 @@ class RuntimeBuilder:
                 labels = binding["labels"]
             else:
                 image_id = None
-                if container_name == "mgc-evpn-client-1":
+                if container_name == "dci-evpn-client-1":
                     labels = self._container_labels(
                         self._anchors.get("m03_peer", {}).get("labels"),
                         "M03 peer container " + container_name,
                     )
                 else:
-                    label_map = self._context["snapshot"]["sections"]["mgc"].get(
+                    label_map = self._context["snapshot"]["sections"]["dci"].get(
                         "container_labels"
                     )
                     if not isinstance(label_map, dict) or container_name not in label_map:
@@ -2986,7 +2986,7 @@ class RuntimeBuilder:
             raise SecurityError("admission lacks immutable image ID: " + image_tag)
         labels = desired["labels"]
         expected_labels = {
-            "labctl.mgc.owner": self._profile_owner,
+            "labctl.dci.owner": self._profile_owner,
             "labctl-x05-owner": self._owner,
         }
         if labels != expected_labels:
@@ -3007,7 +3007,7 @@ class RuntimeBuilder:
             "none",
             "--privileged",
             "--label",
-            "labctl.mgc.owner=" + self._profile_owner,
+            "labctl.dci.owner=" + self._profile_owner,
             "--label",
             "labctl-x05-owner=" + self._owner,
             "--entrypoint",
@@ -3059,7 +3059,7 @@ class RuntimeBuilder:
             container_id=binding["id"],
             image_id=binding["image_id"],
             labels={
-                "labctl.mgc.owner": self._profile_owner,
+                "labctl.dci.owner": self._profile_owner,
                 "labctl-x05-owner": self._owner,
             },
         )
@@ -4892,10 +4892,10 @@ class RuntimeBuilder:
         }
 
     def _build_peer_network(self, target: NamespaceTarget) -> dict[str, Any]:
-        vrf_id = "container:mgc-x05-peer-2/linux-vrf/vrf-x05-peer"
-        bridge_id = "container:mgc-x05-peer-2/linux-bridge/br-x05-peer"
-        vxlan_id = "container:mgc-x05-peer-2/linux-vxlan/vxlan-x05-pr"
-        dummy_id = "container:mgc-x05-peer-2/linux-dummy/evpn-x05-pr"
+        vrf_id = "container:dci-x05-peer-2/linux-vrf/vrf-x05-peer"
+        bridge_id = "container:dci-x05-peer-2/linux-bridge/br-x05-peer"
+        vxlan_id = "container:dci-x05-peer-2/linux-vxlan/vxlan-x05-pr"
+        dummy_id = "container:dci-x05-peer-2/linux-dummy/evpn-x05-pr"
         vrf = self._build_owned_link(
             vrf_id,
             target,
@@ -4955,9 +4955,9 @@ class RuntimeBuilder:
         if self._bindings.get("ovs_external_ids") is not None:
             ids.update({CHASSIS_MAPPING_ID, CHASSIS_LOCAL_IP_ID})
         for name in self._bindings["containers"]:
-            if name == "mgc-client-2":
+            if name == "dci-client-2":
                 ids.add(CLIENT_CONTAINER_ID)
-            elif name == "mgc-x05-peer-2":
+            elif name == "dci-x05-peer-2":
                 ids.add(PEER_CONTAINER_ID)
             else:
                 raise SecurityError("unexpected created container binding")
@@ -5077,7 +5077,7 @@ class RuntimeBuilder:
                 + " extra="
                 + ",".join(extra)
             )
-        for name in ("mgc-client-2", "mgc-x05-peer-2"):
+        for name in ("dci-client-2", "dci-x05-peer-2"):
             self._verify_created_container(name)
         for resource_id in sorted(self._bindings["links"]):
             self._verify_link_binding(resource_id)
@@ -5270,15 +5270,15 @@ class RuntimeBuilder:
         sources = [
             self._capture_source(
                 "classic-original",
-                self._original_target("mgc-client-1"),
+                self._original_target("dci-client-1"),
                 "lo",
                 "10.0.0.1",
                 (("gateway-300", "bgpvrf100"), ("gateway-400", "bgpvrf200")),
-                lineage={"kind": "original-mgc-client"},
+                lineage={"kind": "original-dci-client"},
             ),
             self._capture_source(
                 "classic-created",
-                self._created_target("mgc-client-2"),
+                self._created_target("dci-client-2"),
                 "lo",
                 "10.0.0.1",
                 (("gateway-300", "bgpvrf300"), ("gateway-400", "bgpvrf400")),
@@ -5287,8 +5287,8 @@ class RuntimeBuilder:
             self._capture_source(
                 "evpn-original",
                 self._capture_target(
-                    "mgc-evpn-client-1",
-                    container_name="mgc-evpn-client-1",
+                    "dci-evpn-client-1",
+                    container_name="dci-evpn-client-1",
                     container_id=m03["m03"]["peer"]["id"],
                 ),
                 "br-evpn-client",
@@ -5299,7 +5299,7 @@ class RuntimeBuilder:
             ),
             self._capture_source(
                 "evpn-created",
-                self._created_target("mgc-x05-peer-2"),
+                self._created_target("dci-x05-peer-2"),
                 "br-x05-peer",
                 "10.251.0.1",
                 (("fabric", peer_ovs["port_name"]),),
@@ -6073,7 +6073,7 @@ class RuntimeBuilder:
                 )
 
             client = self._create_container(CLIENT_CONTAINER_ID)
-            client_target = self._created_target("mgc-client-2")
+            client_target = self._created_target("dci-client-2")
             client_eth1 = self._build_attachment(
                 CLIENT_ETH1_ID,
                 client_target,
@@ -6123,7 +6123,7 @@ class RuntimeBuilder:
             chassis = self._build_chassis_network()
 
             peer = self._create_container(PEER_CONTAINER_ID)
-            peer_target = self._created_target("mgc-x05-peer-2")
+            peer_target = self._created_target("dci-x05-peer-2")
             peer_eth1 = self._build_attachment(
                 PEER_ETH1_ID,
                 peer_target,
@@ -6168,7 +6168,7 @@ class RuntimeBuilder:
                 fixture_key="fixture",
                 mode="pathspace",
             )
-            peer_frr_id = "container:mgc-x05-peer-2/frr-pathspace/x05"
+            peer_frr_id = "container:dci-x05-peer-2/frr-pathspace/x05"
             peer_frr = self._start_frr(
                 peer_frr_id,
                 peer_target,
@@ -6338,7 +6338,7 @@ class RuntimeBuilder:
             for row in originals:
                 target_data = row.get("target")
                 label = target_data.get("label") if isinstance(target_data, dict) else None
-                if label in {"mgc-client-2", "mgc-x05-peer-2"}:
+                if label in {"dci-client-2", "dci-x05-peer-2"}:
                     links.append(
                         {
                             "resource_id": resource_id,
@@ -6414,7 +6414,7 @@ class RuntimeBuilder:
         for resource_id, binding in sorted(frozen["frr"].items()):
             target_data = binding["target"]
             label = target_data["label"]
-            if label in {"mgc-client-2", "mgc-x05-peer-2"}:
+            if label in {"dci-client-2", "dci-x05-peer-2"}:
                 frr.append(
                     {"resource_id": resource_id, "parent_container_absent": True}
                 )
@@ -6483,27 +6483,27 @@ class RuntimeBuilder:
         collector = self._session.collector
         collector.clear_cache()
         sections = self._context["snapshot"]["sections"]
-        mgc = collector.mgc_section()
+        dci = collector.dci_section()
         m03 = collector.m03_section(self._profile_owner)
         gateways = collector.gateway_frr_section()
         chassis2 = collector.chassis2_section()
         images = collector.image_ids()
         expected = {
-            "mgc": sections["mgc"],
+            "dci": sections["dci"],
             "m03": sections["m03"],
             "gateway_frr": sections["gateway_frr"],
             "chassis2": sections["chassis2"],
             "resolved_images": self._anchors["resolved_images"],
         }
         actual = {
-            "mgc": mgc,
+            "dci": dci,
             "m03": m03,
             "gateway_frr": gateways,
             "chassis2": chassis2,
             "resolved_images": images,
         }
         if actual != expected:
-            raise PostconditionError("M03/MGC immutable baseline changed")
+            raise PostconditionError("M03/DCI immutable baseline changed")
         return {
             key: _sha256(_canonical(value)) for key, value in sorted(actual.items())
         }
@@ -6585,7 +6585,7 @@ class RuntimeBuilder:
             for resource_id in (
                 CLIENT_CONTAINER_ID,
                 "container:ovn-chassis-2/frr-pathspace/x05",
-                "container:mgc-x05-peer-2/frr-pathspace/x05",
+                "container:dci-x05-peer-2/frr-pathspace/x05",
             ):
                 done("frr-stop", self._stop_frr(resource_id))
 
@@ -6611,10 +6611,10 @@ class RuntimeBuilder:
             done("client-container-remove", self._remove_container(CLIENT_CONTAINER_ID))
 
             for resource_id in (
-                "container:mgc-x05-peer-2/linux-dummy/evpn-x05-pr",
-                "container:mgc-x05-peer-2/linux-vxlan/vxlan-x05-pr",
-                "container:mgc-x05-peer-2/linux-bridge/br-x05-peer",
-                "container:mgc-x05-peer-2/linux-vrf/vrf-x05-peer",
+                "container:dci-x05-peer-2/linux-dummy/evpn-x05-pr",
+                "container:dci-x05-peer-2/linux-vxlan/vxlan-x05-pr",
+                "container:dci-x05-peer-2/linux-bridge/br-x05-peer",
+                "container:dci-x05-peer-2/linux-vrf/vrf-x05-peer",
             ):
                 done("peer-link-remove", self._delete_single_link(resource_id))
             done("peer-container-remove", self._remove_container(PEER_CONTAINER_ID))
@@ -6830,7 +6830,7 @@ class RuntimeBuilder:
 
                 verify_argv = (
                     str(self._config.labctl_path),
-                    "mgc",
+                    "dci",
                     "verify",
                     "--m03",
                 )

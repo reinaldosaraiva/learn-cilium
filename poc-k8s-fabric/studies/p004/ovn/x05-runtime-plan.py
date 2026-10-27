@@ -29,7 +29,7 @@ EXPECTED_FRR_EXTENSION_FIXTURES = {
 EXPECTED_RUNTIME_FIXTURES = {
     "x05-client2.conf": (
         1388,
-        "73cb785be4beb61693de52e33440ade774b4d4cb66fa51f06e86703e9583ced9",
+        "c4f928c4f84e794c29bb4660e171cd84e6c924a4dad3056866dccaf128982589",
     ),
     "x05-chassis.conf": (
         1043,
@@ -37,7 +37,7 @@ EXPECTED_RUNTIME_FIXTURES = {
     ),
     "x05-peer.conf": (
         1083,
-        "9fc6033e407e85f9d03f89c77fedf31a1ac777ed938f06a75737167f969e39de",
+        "f047d33f87ea87b94ad0e964bd63325218ad5ba6312fef6627cb9b4e7aef828f",
     ),
 }
 
@@ -45,10 +45,10 @@ EXPECTED_RUNTIME_FIXTURES = {
 # digest pins every resource field (including desired, before, parent, owner
 # proof, capture fields and rollback stage), so a future edit needs a review.
 EXPECTED_RESOURCE_IDS = frozenset("""
-host:vm-cilium/marker//run/labctl/mgc-x05/active
-host:vm-cilium/docker-container/mgc-client-2
-host:vm-cilium/ovs-port-interface/mgc-client-2:eth1
-host:vm-cilium/ovs-port-interface/mgc-client-2:eth2
+host:vm-cilium/marker//run/labctl/dci-x05/active
+host:vm-cilium/docker-container/dci-client-2
+host:vm-cilium/ovs-port-interface/dci-client-2:eth1
+host:vm-cilium/ovs-port-interface/dci-client-2:eth2
 container:ovn-gw-1/ovn-generated-vrf/ovnvrf300
 container:ovn-gw-1/linux-veth/bgpvrf300-ovs
 container:ovn-gw-1/linux-veth/bgpvrf300
@@ -74,13 +74,13 @@ container:ovn-chassis-2/linux-dummy/evpn-x05-b
 container:ovn-chassis-2/frr-pathspace/x05
 container:ovn-chassis-2/ovs-external-id/dynamic-routing-port-mapping
 container:ovn-chassis-2/ovs-external-id/ovn-evpn-local-ip
-host:vm-cilium/docker-container/mgc-x05-peer-2
-host:vm-cilium/ovs-port-interface/mgc-x05-peer-2:eth1
-container:mgc-x05-peer-2/linux-vrf/vrf-x05-peer
-container:mgc-x05-peer-2/linux-bridge/br-x05-peer
-container:mgc-x05-peer-2/linux-vxlan/vxlan-x05-pr
-container:mgc-x05-peer-2/linux-dummy/evpn-x05-pr
-container:mgc-x05-peer-2/frr-pathspace/x05
+host:vm-cilium/docker-container/dci-x05-peer-2
+host:vm-cilium/ovs-port-interface/dci-x05-peer-2:eth1
+container:dci-x05-peer-2/linux-vrf/vrf-x05-peer
+container:dci-x05-peer-2/linux-bridge/br-x05-peer
+container:dci-x05-peer-2/linux-vxlan/vxlan-x05-pr
+container:dci-x05-peer-2/linux-dummy/evpn-x05-pr
+container:dci-x05-peer-2/frr-pathspace/x05
 NB:ovn-central-az1/lsp-parent-control/x05-tenant-b-vm
 host:vm-cilium/capture-processes/<run>/08-x05/tcpdump-pids
 host:vm-cilium/capture-file/<run>/08-x05/fabric.pcap
@@ -89,7 +89,7 @@ host:vm-cilium/capture-file/<run>/08-x05/chassis-2.pcap
 host:vm-cilium/capture-file/<run>/08-x05/gateway-300.pcap
 host:vm-cilium/capture-file/<run>/08-x05/gateway-400.pcap
 """.split())
-EXPECTED_RESOURCE_MANIFEST_SHA256 = "b2dd205bedbdb278234c1d1d0f44d42b715b60402328993f05dea05d531f30b6"
+EXPECTED_RESOURCE_MANIFEST_SHA256 = "fe9ad4619e4a941d677807faba0f155f9188cb9ce79ad34f178f9350a584c1c9"
 
 
 def add(kind, host, name, *, parent=None, desired=None, before="absent",
@@ -116,7 +116,7 @@ def add(kind, host, name, *, parent=None, desired=None, before="absent",
 def build_plan():
     """Freeze runtime resources separately from the 34-row NB inventory."""
     RESOURCES.clear()
-    add("marker", "host:vm-cilium", "/run/labctl/mgc-x05/active",
+    add("marker", "host:vm-cilium", "/run/labctl/dci-x05/active",
         desired={"mode": "0600", "owner": "root", "token": TOKEN},
         ownership="root, mode 0600, token and complete journal",
         rollback_stage=90,
@@ -124,19 +124,19 @@ def build_plan():
 
     # Client B's host OVS port names are assigned by ovs-runc. The exact
     # lookup identity is container_id + container_iface; journal both UUIDs.
-    client = "container:mgc-client-2"
-    add("docker-container", "host:vm-cilium", "mgc-client-2",
+    client = "container:dci-client-2"
+    add("docker-container", "host:vm-cilium", "dci-client-2",
         desired={"image": "frrouting/frr:v8.4.1", "network": "none", "as": 201,
                  "loopback": "10.0.0.1/32", "frr_fixture": "x05-client2.conf",
                  "frr_fixture_bytes": EXPECTED_RUNTIME_FIXTURES["x05-client2.conf"][0],
                  "frr_fixture_sha256": EXPECTED_RUNTIME_FIXTURES["x05-client2.conf"][1],
-                 "labels": {"labctl.mgc.owner": "<profile-owner>", "labctl-x05-owner": TOKEN}},
-        ownership="Docker ID, exact name, X05 label and MGC profile label",
+                 "labels": {"labctl.dci.owner": "<profile-owner>", "labctl-x05-owner": TOKEN}},
+        ownership="Docker ID, exact name, X05 label and DCI profile label",
         rollback_stage=45, rollback="remove labeled container after both OVS ports")
     for iface, vlan, address in (("eth1", 300, "169.254.254.2/30"),
                                  ("eth2", 400, "169.254.254.6/30")):
-        add("ovs-port-interface", "host:vm-cilium", f"mgc-client-2:{iface}",
-            parent="br-ovn-ext", desired={"container": "mgc-client-2", "container_iface": iface,
+        add("ovs-port-interface", "host:vm-cilium", f"dci-client-2:{iface}",
+            parent="br-ovn-ext", desired={"container": "dci-client-2", "container_iface": iface,
                                           "ip": address, "vlan": vlan, "mtu": 1500,
                                           "interface_external_ids": {"x05-owner": TOKEN}},
             ownership="container_id+container_iface, Port UUID, Interface UUID, host ifname, br-ovn-ext, VLAN, X05 owner",
@@ -170,7 +170,7 @@ def build_plan():
                      "mac_source": f"NB:lrp-x05-{number}-external",
                      "expected_lrp_mac": lrp_mac,
                      "neighbor_invalidation_if_mac_changes":
-                         f"mgc-client-2:{client_if} via {gw_ip.removesuffix('/30')}"},
+                         f"dci-client-2:{client_if} via {gw_ip.removesuffix('/30')}"},
             ownership="ifindex, iflink peer, alias, master VRF, address and NB LRP MAC",
             capture=["ifindex", "peer ifindex", "alias", "master", "address",
                      "current MAC", "NB LRP UUID", "NB LRP MAC", "client B neighbor"],
@@ -185,8 +185,8 @@ def build_plan():
             desired={"base_fixture": f"frr-{fixture_key}.conf",
                      "base_path": "/etc/frr/frr.conf",
                      "base_sha256": {
-                         "gw1": "8ea15ebfc376e36b980586471e6532cb54cd26b6e8e2295363dbc2762bb40655",
-                         "gw2": "df039572ba709947239b94e8a7512864fc09e48cfc9d4effa4f4e785b4f3bfb9",
+                         "gw1": "2838c8687b8d45dba49a3d6c488780cf8e3a00f281e5eb26c16d6fa7c6ebbbb7",
+                         "gw2": "d464ddc249ae61a58a0df3058ae482d75ebb8e768ebd00c772e6a50fa5fee6c9",
                      }[fixture_key],
                      "add_fixture": f"x05-{fixture_key}-add.conf",
                      "remove_fixture": f"x05-{fixture_key}-remove.conf",
@@ -291,14 +291,14 @@ def build_plan():
         capture=["exact original value", "Open_vSwitch UUID", "other nodes' values"],
         rollback_stage=77, rollback="after B withdrawal, compare X05 value and restore exact original")
 
-    peer = "container:mgc-x05-peer-2"
-    add("docker-container", "host:vm-cilium", "mgc-x05-peer-2",
+    peer = "container:dci-x05-peer-2"
+    add("docker-container", "host:vm-cilium", "dci-x05-peer-2",
         desired={"image": "ovn/ovn-multi-node:latest", "network": "none",
-                 "labels": {"labctl.mgc.owner": "<profile-owner>", "labctl-x05-owner": TOKEN}},
-        ownership="Docker ID, exact name, X05 label and MGC profile label",
+                 "labels": {"labctl.dci.owner": "<profile-owner>", "labctl-x05-owner": TOKEN}},
+        ownership="Docker ID, exact name, X05 label and DCI profile label",
         rollback_stage=56,
         rollback="remove labeled peer after OVS port, FRR stop, and owned internal links")
-    add("ovs-port-interface", "host:vm-cilium", "mgc-x05-peer-2:eth1",
+    add("ovs-port-interface", "host:vm-cilium", "dci-x05-peer-2:eth1",
         parent="br-ovn", desired={"ip": "170.168.0.8/16", "vlan": "untagged",
                                   "external_ids": {"x05-owner": TOKEN}},
         ownership="container_id+container_iface, Port/Interface UUIDs, br-ovn and X05 owner",
@@ -328,7 +328,7 @@ def build_plan():
 
     add("lsp-parent-control", "NB:ovn-central-az1", "x05-tenant-b-vm",
         parent="ls-x05-tenant-b",
-        desired={"temporary_parent": "ls-mgc-tenant", "final_parent": "ls-x05-tenant-b",
+        desired={"temporary_parent": "ls-dci-tenant", "final_parent": "ls-x05-tenant-b",
                  "same_lsp_uuid": True},
         before="capture B LSP UUID and complete A/B LS port sets; B sole parent",
         precondition="B LSP exists once in B, absent in A; CAS guards both complete sets",
@@ -509,7 +509,7 @@ def validate(plan):
         if (desired.get("mac_source") != f"NB:lrp-x05-{number}-external" or
             desired.get("expected_lrp_mac") != lrp_mac or
             desired.get("neighbor_invalidation_if_mac_changes") !=
-                f"mgc-client-2:{client_if} via {gw_ip}" or
+                f"dci-client-2:{client_if} via {gw_ip}" or
             "NB LRP MAC" not in mirror.get("capture_before_mutation", [])):
             errors.append(f"{gateway} mirror MAC provenance or neighbor guard missing")
         frr = by_id.get(
@@ -524,11 +524,11 @@ def validate(plan):
             desired_frr.get("apply", {}).get("write_memory") is not False or
             desired_frr.get("apply", {}).get("vtysh_b") is not False):
             errors.append(f"{gateway} FRR fixture reference mismatch")
-    peer_vxlan = by_id.get("container:mgc-x05-peer-2/linux-vxlan/vxlan-x05-pr", {})
+    peer_vxlan = by_id.get("container:dci-x05-peer-2/linux-vxlan/vxlan-x05-pr", {})
     if peer_vxlan.get("desired", {}).get("vni") != 50200:
         errors.append("peer VXLAN VNI mismatch")
-    peer_container = by_id.get("host:vm-cilium/docker-container/mgc-x05-peer-2", {})
-    peer_links = [by_id.get(f"container:mgc-x05-peer-2/{kind}/{name}", {})
+    peer_container = by_id.get("host:vm-cilium/docker-container/dci-x05-peer-2", {})
+    peer_links = [by_id.get(f"container:dci-x05-peer-2/{kind}/{name}", {})
                   for kind, name in (("linux-vrf", "vrf-x05-peer"),
                                      ("linux-bridge", "br-x05-peer"),
                                      ("linux-vxlan", "vxlan-x05-pr"),
@@ -568,9 +568,9 @@ def validate(plan):
         errors.append(f"NB inventory unavailable: {exc}")
     for gateway, vrf, neighbor, expected_hash, expected_bytes in (
             ("gw1", "ovnvrf300", "169.254.254.2",
-             "8ea15ebfc376e36b980586471e6532cb54cd26b6e8e2295363dbc2762bb40655", 1030),
+             "2838c8687b8d45dba49a3d6c488780cf8e3a00f281e5eb26c16d6fa7c6ebbbb7", 1030),
             ("gw2", "ovnvrf400", "169.254.254.6",
-             "df039572ba709947239b94e8a7512864fc09e48cfc9d4effa4f4e785b4f3bfb9", 964)):
+             "d464ddc249ae61a58a0df3058ae482d75ebb8e768ebd00c772e6a50fa5fee6c9", 964)):
         base = (HERE / f"frr-{gateway}.conf").read_bytes()
         add_name = f"x05-{gateway}-add.conf"
         remove_name = f"x05-{gateway}-remove.conf"
@@ -610,13 +610,13 @@ def validate(plan):
             errors.append(f"{gateway} remove fixture is not scoped")
     runtime_fixture_resources = {
         "x05-client2.conf": by_id.get(
-            "host:vm-cilium/docker-container/mgc-client-2", {}
+            "host:vm-cilium/docker-container/dci-client-2", {}
         ).get("desired", {}),
         "x05-chassis.conf": by_id.get(
             "container:ovn-chassis-2/frr-pathspace/x05", {}
         ).get("desired", {}),
         "x05-peer.conf": by_id.get(
-            "container:mgc-x05-peer-2/frr-pathspace/x05", {}
+            "container:dci-x05-peer-2/frr-pathspace/x05", {}
         ).get("desired", {}),
     }
     for filename, required, bgp_scopes in (
@@ -656,7 +656,7 @@ def selftest():
         return 1
     concrete = materialize_plan(
         "a1b2c3", "labctl-x05-a1b2c3",
-        "/evidence/P004/S002/a1b2c3/08-x05", "mgc-profile-fixture")
+        "/evidence/P004/S002/a1b2c3/08-x05", "dci-profile-fixture")
     if (len(concrete["resources"]) != 43
             or any(_contains_placeholder(item) for item in concrete["resources"])
             or concrete["owner_token"] != "labctl-x05-a1b2c3"
@@ -689,7 +689,7 @@ def selftest():
     cases.append(sentinel)
     peer_vni = copy.deepcopy(original)
     next(item for item in peer_vni["resources"]
-         if item["id"] == "container:mgc-x05-peer-2/linux-vxlan/vxlan-x05-pr")[
+         if item["id"] == "container:dci-x05-peer-2/linux-vxlan/vxlan-x05-pr")[
              "desired"]["vni"] = 50100
     cases.append(peer_vni)
     fixture = copy.deepcopy(original)
@@ -709,7 +709,7 @@ def selftest():
     cases.append(runtime_fixture_hash)
     order = copy.deepcopy(original)
     next(item for item in order["resources"]
-         if item["id"] == "host:vm-cilium/docker-container/mgc-x05-peer-2")[
+         if item["id"] == "host:vm-cilium/docker-container/dci-x05-peer-2")[
              "rollback_stage"] = 45
     order["rollback_order"] = [item["id"] for item in sorted(
         order["resources"], key=lambda item: (item["rollback_stage"], item["id"]))]

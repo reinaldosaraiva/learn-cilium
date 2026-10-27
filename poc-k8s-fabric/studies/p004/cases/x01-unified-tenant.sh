@@ -2,8 +2,8 @@
 # shellcheck shell=bash
 # studies/p004/cases/x01-unified-tenant.sh — Caso X01 (Gate G04):
 # Tenant 'a' unificado na mesma L3VNI (10100, RT 65000:10100) entre os 3 planos:
-#   1. MGC OVN VPC (ls-mgc-tenant, 192.168.100.10/24 em ovn-chassis-1)
-#   2. MGC Connect On-Prem (mgc-client-1, 10.0.200.1/32 em 10.0.0.0/16 via ovn-gw-1/ovn-gw-2)
+#   1. DCI OVN VPC (ls-dci-tenant, 192.168.100.10/24 em ovn-chassis-1)
+#   2. DCI Connect On-Prem (dci-client-1, 10.0.200.1/32 em 10.0.0.0/16 via ovn-gw-1/ovn-gw-2)
 #   3. EVPN Fabric Spine (evpnfab-peer, 10.251.0.1/32 em vrf-tenant-a, VNI 10100)
 #   4. OVN-Kubernetes + KubeVirt (cudnevpn, VM vm-evpn-a 10.0.0.21/24 e pod-evpn 10.0.0.4/24)
 
@@ -36,23 +36,23 @@ OVNK_CONTEXT="${OVNK_CONTEXT:-kind-ovnk}"
 OVNK_PEER="ovnk-evpn-peer"
 FAB_PEER="evpnfab-peer"
 FAB_GW2="evpnfab-gw2"
-MGC_CENTRAL="ovn-central-az1"
-MGC_CHASSIS="ovn-chassis-1"
-MGC_GW1="ovn-gw-1"
-MGC_GW2="ovn-gw-2"
-MGC_CLIENT="mgc-client-1"
+DCI_CENTRAL="ovn-central-az1"
+DCI_CHASSIS="ovn-chassis-1"
+DCI_GW1="ovn-gw-1"
+DCI_GW2="ovn-gw-2"
+DCI_CLIENT="dci-client-1"
 
 X_BRIDGE="br-x-fabric"
 FAB_XF_IP="10.254.0.1"
 OVNK_XF_IP="10.254.0.2"
-MGC_XF_IP="10.254.0.3"
+DCI_XF_IP="10.254.0.3"
 L3VNI_A="10100"
 RT_A="65000:10100"
 COMM_A="65000:101"
 COMM_B="65000:102"
 
-MGC_VPC_IP="192.168.100.10"
-MGC_ONPREM_IP="10.0.200.1"
+DCI_VPC_IP="192.168.100.10"
+DCI_ONPREM_IP="10.0.200.1"
 FAB_LO_IP="10.251.0.1"
 OVNK_VM_IP="10.0.0.21"
 OVNK_VM_MAC="02:00:10:00:01:21"
@@ -98,19 +98,19 @@ x01_on_err() {
 x01_print_dry_run() {
   printf 'DRY: ip link add %s type bridge && ip link set %s up\n' "${X_BRIDGE}" "${X_BRIDGE}"
   printf 'DRY: attach veth pairs to %s: %s (%s/24), %s (%s/24), %s (%s/24)\n' \
-    "${X_BRIDGE}" "${FAB_PEER}" "${FAB_XF_IP}" "${OVNK_PEER}" "${OVNK_XF_IP}" "${MGC_CHASSIS}" "${MGC_XF_IP}"
+    "${X_BRIDGE}" "${FAB_PEER}" "${FAB_XF_IP}" "${OVNK_PEER}" "${OVNK_XF_IP}" "${DCI_CHASSIS}" "${DCI_XF_IP}"
   printf 'DRY: configure %s OVN native EVPN on L3VNI %s (ovnvrf-tenant table 300, br-evpn-tenant, vxlan-tenant, FRR pathspace x01 AS 65100)\n' \
-    "${MGC_CHASSIS}" "${L3VNI_A}"
+    "${DCI_CHASSIS}" "${L3VNI_A}"
   printf 'DRY: configure %s on-prem loopback %s/32 and routes for 10.0.0.0/24 + 10.251.0.0/24 via %s/%s\n' \
-    "${MGC_CLIENT}" "${MGC_ONPREM_IP}" "${MGC_GW1}" "${MGC_GW2}"
+    "${DCI_CLIENT}" "${DCI_ONPREM_IP}" "${DCI_GW1}" "${DCI_GW2}"
   printf 'DRY: configure %s (AS 65002) vrf-tenant-a L3VNI %s RT %s community %s and VXLAN interconnect to %s\n' \
     "${FAB_PEER}" "${L3VNI_A}" "${RT_A}" "${COMM_A}" "${OVNK_PEER}"
   printf 'DRY: deploy KubeVirt VM vm-evpn-a (%s/24, MAC %s) in namespace tenant-evpn (cudnevpn, L3VNI %s)\n' \
     "${OVNK_VM_IP}" "${OVNK_VM_MAC}" "${L3VNI_A}"
   printf 'DRY: verify BGP Established + EVPN Type-5 JSON RIB across %s, %s, %s\n' \
-    "${MGC_CHASSIS}" "${FAB_PEER}" "${OVNK_PEER}"
-  printf 'DRY: verify 5/5 ICMP probes + tcpdump VXLAN VNI %s across MGC VPC (%s) <-> OVN-K KubeVirt VM (%s) <-> MGC Connect On-Prem (%s) <-> EVPN Spine (%s)\n' \
-    "${L3VNI_A}" "${MGC_VPC_IP}" "${OVNK_VM_IP}" "${MGC_ONPREM_IP}" "${FAB_LO_IP}"
+    "${DCI_CHASSIS}" "${FAB_PEER}" "${OVNK_PEER}"
+  printf 'DRY: verify 5/5 ICMP probes + tcpdump VXLAN VNI %s across DCI VPC (%s) <-> OVN-K KubeVirt VM (%s) <-> DCI Connect On-Prem (%s) <-> EVPN Spine (%s)\n' \
+    "${L3VNI_A}" "${DCI_VPC_IP}" "${OVNK_VM_IP}" "${DCI_ONPREM_IP}" "${FAB_LO_IP}"
   printf 'X01 DRY-RUN OK\n'
 }
 
@@ -150,48 +150,48 @@ x01_setup_interconnect() {
 
   x01_attach_veth "${FAB_PEER}" "veth-xf-peer-b" "veth-xf-peer" "${FAB_XF_IP}/24"
   x01_attach_veth "${OVNK_PEER}" "veth-xf-ovnk-b" "veth-xf-ovnk" "${OVNK_XF_IP}/24"
-  x01_attach_veth "${MGC_CHASSIS}" "veth-xf-mgc-b" "veth-xf-mgc" "${MGC_XF_IP}/24"
+  x01_attach_veth "${DCI_CHASSIS}" "veth-xf-dci-b" "veth-xf-dci" "${DCI_XF_IP}/24"
 }
 
-x01_setup_mgc_plane() {
-  x01_log "Configurando plano MGC (${MGC_CENTRAL}, ${MGC_CHASSIS}, ${MGC_GW1}, ${MGC_GW2}, ${MGC_CLIENT}) na L3VNI ${L3VNI_A}..."
+x01_setup_dci_plane() {
+  x01_log "Configurando plano DCI (${DCI_CENTRAL}, ${DCI_CHASSIS}, ${DCI_GW1}, ${DCI_GW2}, ${DCI_CLIENT}) na L3VNI ${L3VNI_A}..."
 
-  # 1. Configurar OVN NB em ovn-central-az1 para L3VNI 10100 em ls-mgc-tenant e maintain-vrf em lrp-mgc-tenant
-  docker exec "${MGC_CENTRAL}" sh -c "
+  # 1. Configurar OVN NB em ovn-central-az1 para L3VNI 10100 em ls-dci-tenant e maintain-vrf em lrp-dci-tenant
+  docker exec "${DCI_CENTRAL}" sh -c "
     set -eu
-    ovn-nbctl --wait=sb set logical_switch ls-mgc-tenant other_config:dynamic-routing-vni=${L3VNI_A}
-    ovn-nbctl --wait=sb set logical_router_port lrp-mgc-tenant \
+    ovn-nbctl --wait=sb set logical_switch ls-dci-tenant other_config:dynamic-routing-vni=${L3VNI_A}
+    ovn-nbctl --wait=sb set logical_router_port lrp-dci-tenant \
       options:dynamic-routing-maintain-vrf=true \
       options:dynamic-routing-port-name=x01-evpn
-    ovn-nbctl --may-exist lr-route-add lr-mgc-tenant 10.0.0.1/32 10.100.100.2
-    ovn-nbctl --may-exist lr-route-add lr-mgc-100 10.0.0.0/24 10.100.100.1
-    ovn-nbctl --may-exist lr-route-add lr-mgc-100 10.251.0.0/24 10.100.100.1
-    ovn-nbctl --may-exist lr-route-add lr-mgc-100 10.253.0.0/24 10.100.100.1
-    ovn-nbctl --may-exist lr-route-add lr-mgc-200 10.0.0.0/24 10.200.100.1
-    ovn-nbctl --may-exist lr-route-add lr-mgc-200 10.251.0.0/24 10.200.100.1
-    ovn-nbctl --may-exist lr-route-add lr-mgc-200 10.253.0.0/24 10.200.100.1
+    ovn-nbctl --may-exist lr-route-add lr-dci-tenant 10.0.0.1/32 10.100.100.2
+    ovn-nbctl --may-exist lr-route-add lr-dci-100 10.0.0.0/24 10.100.100.1
+    ovn-nbctl --may-exist lr-route-add lr-dci-100 10.251.0.0/24 10.100.100.1
+    ovn-nbctl --may-exist lr-route-add lr-dci-100 10.253.0.0/24 10.100.100.1
+    ovn-nbctl --may-exist lr-route-add lr-dci-200 10.0.0.0/24 10.200.100.1
+    ovn-nbctl --may-exist lr-route-add lr-dci-200 10.251.0.0/24 10.200.100.1
+    ovn-nbctl --may-exist lr-route-add lr-dci-200 10.253.0.0/24 10.200.100.1
   "
 
   # 2. Configurar OVS external_ids em ovn-chassis-1 e aguardar ovnvrf-tenant
-  docker exec "${MGC_CHASSIS}" sh -c "
+  docker exec "${DCI_CHASSIS}" sh -c "
     set -eu
     ovs-vsctl set Open_vSwitch . \
-      external_ids:ovn-evpn-local-ip=\"${L3VNI_A}-${MGC_XF_IP}\" \
+      external_ids:ovn-evpn-local-ip=\"${L3VNI_A}-${DCI_XF_IP}\" \
       external_ids:dynamic-routing-port-mapping=\"x01-evpn=br-evpn-tenant\"
   "
 
   local vrf_ok=0
   for _ in $(seq 1 30); do
-    if docker exec "${MGC_CHASSIS}" ip link show ovnvrf-tenant >/dev/null 2>&1; then
+    if docker exec "${DCI_CHASSIS}" ip link show ovnvrf-tenant >/dev/null 2>&1; then
       vrf_ok=1
       break
     fi
     sleep 1
   done
-  [[ "${vrf_ok}" -eq 1 ]] || x01_die "ovnvrf-tenant não apareceu em ${MGC_CHASSIS}"
+  [[ "${vrf_ok}" -eq 1 ]] || x01_die "ovnvrf-tenant não apareceu em ${DCI_CHASSIS}"
 
   # 3. Criar interfaces EVPN e iniciar FRR no pathspace x01 em ovn-chassis-1
-  docker exec "${MGC_CHASSIS}" bash -c "
+  docker exec "${DCI_CHASSIS}" bash -c "
     set -euo pipefail
     sysctl -w net.ipv4.ip_forward=1 >/dev/null
     sysctl -w net.ipv4.conf.all.rp_filter=0 >/dev/null
@@ -203,7 +203,7 @@ x01_setup_mgc_plane() {
     ip link add br-evpn-tenant type bridge
     ip link set br-evpn-tenant master ovnvrf-tenant addrgenmode none address 02:00:00:10:00:01 up
 
-    ip link add vxlan-tenant type vxlan dev vxlan_sys_4789 id ${L3VNI_A} dstport 60010 local ${MGC_XF_IP} nolearning
+    ip link add vxlan-tenant type vxlan dev vxlan_sys_4789 id ${L3VNI_A} dstport 60010 local ${DCI_XF_IP} nolearning
     ip link set vxlan-tenant master br-evpn-tenant up
 
     ip link add evpn-tenant type dummy
@@ -247,11 +247,11 @@ frr defaults traditional
 hostname ovn-chassis-1-x01
 service integrated-vtysh-config
 !
-ip prefix-list X01-MGC-EXPORT seq 5 permit 192.168.100.0/24
-ip prefix-list X01-MGC-EXPORT seq 10 permit 10.0.0.0/16
+ip prefix-list X01-DCI-EXPORT seq 5 permit 192.168.100.0/24
+ip prefix-list X01-DCI-EXPORT seq 10 permit 10.0.0.0/16
 !
-route-map X01-MGC-EXPORT permit 10
- match ip address prefix-list X01-MGC-EXPORT
+route-map X01-DCI-EXPORT permit 10
+ match ip address prefix-list X01-DCI-EXPORT
  set community ${COMM_A}
 exit
 !
@@ -260,7 +260,7 @@ vrf ovnvrf-tenant
 exit-vrf
 !
 router bgp 65100
- bgp router-id ${MGC_XF_IP}
+ bgp router-id ${DCI_XF_IP}
  no bgp ebgp-requires-policy
  neighbor ${FAB_XF_IP} remote-as 65002
  !
@@ -280,12 +280,12 @@ router bgp 65100
 exit
 !
 router bgp 65100 vrf ovnvrf-tenant
- bgp router-id ${MGC_XF_IP}
+ bgp router-id ${DCI_XF_IP}
  no bgp ebgp-requires-policy
  !
  address-family ipv4 unicast
-  redistribute kernel route-map X01-MGC-EXPORT
-  redistribute connected route-map X01-MGC-EXPORT
+  redistribute kernel route-map X01-DCI-EXPORT
+  redistribute connected route-map X01-DCI-EXPORT
  exit-address-family
  !
  address-family l2vpn evpn
@@ -307,8 +307,8 @@ FRR
     \"\${init}\" start x01
   "
 
-  # 4. Anunciar 10.0.0.0/24 e 10.251.0.0/24 via MGC Connect (ovn-gw-1, ovn-gw-2 -> mgc-client-1)
-  docker exec "${MGC_GW1}" vtysh \
+  # 4. Anunciar 10.0.0.0/24 e 10.251.0.0/24 via DCI Connect (ovn-gw-1, ovn-gw-2 -> dci-client-1)
+  docker exec "${DCI_GW1}" vtysh \
     -c "configure terminal" \
     -c "ip prefix-list MG-TO-CLIENT seq 20 permit 10.0.0.0/24" \
     -c "ip prefix-list MG-TO-CLIENT seq 30 permit 10.251.0.0/24" \
@@ -320,7 +320,7 @@ FRR
     -c "network 10.253.0.0/24" \
     -c "end"
 
-  docker exec "${MGC_GW2}" vtysh \
+  docker exec "${DCI_GW2}" vtysh \
     -c "configure terminal" \
     -c "ip prefix-list MG-TO-CLIENT seq 20 permit 10.0.0.0/24" \
     -c "ip prefix-list MG-TO-CLIENT seq 30 permit 10.251.0.0/24" \
@@ -332,8 +332,8 @@ FRR
     -c "network 10.253.0.0/24" \
     -c "end"
 
-  docker exec "${MGC_CLIENT}" ip addr replace "${MGC_ONPREM_IP}/32" dev lo
-  docker exec "${MGC_CLIENT}" vtysh \
+  docker exec "${DCI_CLIENT}" ip addr replace "${DCI_ONPREM_IP}/32" dev lo
+  docker exec "${DCI_CLIENT}" vtysh \
     -c "configure terminal" \
     -c "ip prefix-list MG-TO-TENANT seq 20 permit 10.0.0.0/24" \
     -c "ip prefix-list MG-TO-TENANT seq 30 permit 10.251.0.0/24" \
@@ -391,17 +391,17 @@ exit-vrf
 router bgp 65002
  bgp router-id ${FAB_XF_IP}
  no bgp ebgp-requires-policy
- neighbor ${MGC_XF_IP} remote-as 65100
+ neighbor ${DCI_XF_IP} remote-as 65100
  neighbor 170.168.0.6 remote-as 65001
  neighbor 170.168.0.6 ebgp-multihop 2
  !
  address-family ipv4 unicast
-  neighbor ${MGC_XF_IP} activate
+  neighbor ${DCI_XF_IP} activate
   neighbor 170.168.0.6 activate
  exit-address-family
  !
  address-family l2vpn evpn
-  neighbor ${MGC_XF_IP} activate
+  neighbor ${DCI_XF_IP} activate
   neighbor 170.168.0.6 activate
   advertise-all-vni
   vni ${L3VNI_A}
@@ -665,7 +665,7 @@ for pfx in ('192.168.100.0/24', '10.0.0.0/16', '10.0.0.0/24', '10.251.0.1/32'):
     if pfx not in rib:
         sys.exit(1)
 " 2>/dev/null && \
-       docker exec "${MGC_CHASSIS}" python3 -c "
+       docker exec "${DCI_CHASSIS}" python3 -c "
 import json, subprocess, sys
 rib = json.loads(subprocess.check_output(['vtysh', '--vty_socket', '/run/frr/x01', '-c', 'show ip route vrf ovnvrf-tenant json'], text=True))
 for pfx in ('10.0.0.0/24', '10.251.0.1/32', '10.253.0.0/24'):
@@ -679,10 +679,10 @@ for pfx in ('10.0.0.0/24', '10.251.0.1/32', '10.253.0.0/24'):
   done
   [[ "${conv_ok}" -eq 1 ]] || x01_die "RIBs de vrf-tenant-a / vrf-evpn-k03 / ovnvrf-tenant não convergiram na L3VNI ${L3VNI_A}"
 
-  # 2. Aguardar Learned_Route de 10.0.0.0/24 no OVN SB (ovn-central-az1) e rota BGP 10.0.0.0/24 em mgc-client-1 via JSON estruturado
+  # 2. Aguardar Learned_Route de 10.0.0.0/24 no OVN SB (ovn-central-az1) e rota BGP 10.0.0.0/24 em dci-client-1 via JSON estruturado
   local sb_ok=0
   for _ in $(seq 1 30); do
-    if docker exec "${MGC_CENTRAL}" python3 -c '
+    if docker exec "${DCI_CENTRAL}" python3 -c '
 import json, subprocess, sys
 doc = json.loads(subprocess.check_output(["ovn-sbctl", "--format=json", "find", "Learned_Route", "ip_prefix=10.0.0.0/24"], text=True))
 headings = doc.get("headings", [])
@@ -692,7 +692,7 @@ if not rows or "ip_prefix" not in headings:
 idx = headings.index("ip_prefix")
 sys.exit(0 if any(r[idx] == "10.0.0.0/24" for r in rows) else 1)
 ' 2>/dev/null && \
-       docker exec "${MGC_CLIENT}" python3 -c '
+       docker exec "${DCI_CLIENT}" python3 -c '
 import json, subprocess, sys
 routes = json.loads(subprocess.check_output(["ip", "-j", "route", "show", "10.0.0.0/24"], text=True))
 if not routes:
@@ -709,7 +709,7 @@ sys.exit(0 if gw_ok else 1)
     fi
     sleep 1
   done
-  [[ "${sb_ok}" -eq 1 ]] || x01_die "Learned_Route 10.0.0.0/24 no OVN SB ou rota BGP em ${MGC_CLIENT} não convergiu"
+  [[ "${sb_ok}" -eq 1 ]] || x01_die "Learned_Route 10.0.0.0/24 no OVN SB ou rota BGP em ${DCI_CLIENT} não convergiu"
 
   # 3. Captura externa no fabric (veth-xf-peer em evpnfab-peer) comprovando tráfego VXLAN VNI 10100 + ICMP cruzado
   docker exec "${FAB_PEER}" sh -c "
@@ -720,27 +720,27 @@ sys.exit(0 if gw_ok else 1)
   sleep 1
 
   # 4. Provas de conectividade fim-a-fim (5/5 pings, 0% perda) entre todos os pares do Tenant 'a' (L3VNI 10100):
-  # Par 1: MGC VPC VM (192.168.100.10 em ovn-chassis-1) -> OVN-K KubeVirt VM (vm-evpn-a 10.0.0.21)
-  docker exec "${MGC_CHASSIS}" ip netns exec mgc-tenant-vm ping -c 5 -W 2 "${OVNK_VM_IP}" >/dev/null \
-    || x01_die "Ping MGC VPC (${MGC_VPC_IP}) -> OVN-K KubeVirt VM (${OVNK_VM_IP}) falhou"
+  # Par 1: DCI VPC VM (192.168.100.10 em ovn-chassis-1) -> OVN-K KubeVirt VM (vm-evpn-a 10.0.0.21)
+  docker exec "${DCI_CHASSIS}" ip netns exec dci-tenant-vm ping -c 5 -W 2 "${OVNK_VM_IP}" >/dev/null \
+    || x01_die "Ping DCI VPC (${DCI_VPC_IP}) -> OVN-K KubeVirt VM (${OVNK_VM_IP}) falhou"
 
-  # Par 2: MGC VPC VM (192.168.100.10) -> EVPN Fabric Spine (10.251.0.1)
-  docker exec "${MGC_CHASSIS}" ip netns exec mgc-tenant-vm ping -c 5 -W 2 "${FAB_LO_IP}" >/dev/null \
-    || x01_die "Ping MGC VPC (${MGC_VPC_IP}) -> EVPN Spine (${FAB_LO_IP}) falhou"
+  # Par 2: DCI VPC VM (192.168.100.10) -> EVPN Fabric Spine (10.251.0.1)
+  docker exec "${DCI_CHASSIS}" ip netns exec dci-tenant-vm ping -c 5 -W 2 "${FAB_LO_IP}" >/dev/null \
+    || x01_die "Ping DCI VPC (${DCI_VPC_IP}) -> EVPN Spine (${FAB_LO_IP}) falhou"
 
-  # Par 3: MGC Connect On-Prem (mgc-client-1 10.0.200.1) -> OVN-K KubeVirt VM (vm-evpn-a 10.0.0.21)
-  docker exec "${MGC_CLIENT}" ping -I "${MGC_ONPREM_IP}" -c 5 -W 2 "${OVNK_VM_IP}" >/dev/null \
-    || x01_die "Ping MGC Connect On-Prem (${MGC_ONPREM_IP}) -> OVN-K KubeVirt VM (${OVNK_VM_IP}) falhou"
+  # Par 3: DCI Connect On-Prem (dci-client-1 10.0.200.1) -> OVN-K KubeVirt VM (vm-evpn-a 10.0.0.21)
+  docker exec "${DCI_CLIENT}" ping -I "${DCI_ONPREM_IP}" -c 5 -W 2 "${OVNK_VM_IP}" >/dev/null \
+    || x01_die "Ping DCI Connect On-Prem (${DCI_ONPREM_IP}) -> OVN-K KubeVirt VM (${OVNK_VM_IP}) falhou"
 
-  # Par 4: MGC Connect On-Prem (mgc-client-1 10.0.200.1) -> MGC VPC VM (192.168.100.10)
-  docker exec "${MGC_CLIENT}" ping -I "${MGC_ONPREM_IP}" -c 5 -W 2 "${MGC_VPC_IP}" >/dev/null \
-    || x01_die "Ping MGC Connect On-Prem (${MGC_ONPREM_IP}) -> MGC VPC (${MGC_VPC_IP}) falhou"
+  # Par 4: DCI Connect On-Prem (dci-client-1 10.0.200.1) -> DCI VPC VM (192.168.100.10)
+  docker exec "${DCI_CLIENT}" ping -I "${DCI_ONPREM_IP}" -c 5 -W 2 "${DCI_VPC_IP}" >/dev/null \
+    || x01_die "Ping DCI Connect On-Prem (${DCI_ONPREM_IP}) -> DCI VPC (${DCI_VPC_IP}) falhou"
 
-  # Par 5: OVN-K Tenant 'a' (pod-evpn 10.0.0.4) -> MGC VPC VM (192.168.100.10) e MGC Connect On-Prem (10.0.200.1)
-  x01_kctl -n tenant-evpn exec pod-evpn -- ping -c 5 -W 2 "${MGC_VPC_IP}" >/dev/null \
-    || x01_die "Ping OVN-K (10.0.0.4) -> MGC VPC (${MGC_VPC_IP}) falhou"
-  x01_kctl -n tenant-evpn exec pod-evpn -- ping -c 5 -W 2 "${MGC_ONPREM_IP}" >/dev/null \
-    || x01_die "Ping OVN-K (10.0.0.4) -> MGC Connect On-Prem (${MGC_ONPREM_IP}) falhou"
+  # Par 5: OVN-K Tenant 'a' (pod-evpn 10.0.0.4) -> DCI VPC VM (192.168.100.10) e DCI Connect On-Prem (10.0.200.1)
+  x01_kctl -n tenant-evpn exec pod-evpn -- ping -c 5 -W 2 "${DCI_VPC_IP}" >/dev/null \
+    || x01_die "Ping OVN-K (10.0.0.4) -> DCI VPC (${DCI_VPC_IP}) falhou"
+  x01_kctl -n tenant-evpn exec pod-evpn -- ping -c 5 -W 2 "${DCI_ONPREM_IP}" >/dev/null \
+    || x01_die "Ping OVN-K (10.0.0.4) -> DCI Connect On-Prem (${DCI_ONPREM_IP}) falhou"
 
   local vxlan_pkts
   vxlan_pkts="$(docker exec "${FAB_PEER}" sh -c '
@@ -752,8 +752,8 @@ sys.exit(0 if gw_ok else 1)
   ')"
   [[ "${vxlan_pkts:-0}" -ge 20 ]] || x01_die "Captura VXLAN no spine registrou menos pacotes que o esperado (${vxlan_pkts:-0})"
 
-  printf 'X01 PASS (Gate G04): Tenant a unificado na L3VNI %s (RT %s) com RIBs EVPN Type-5 convergidas, Learned_Route OVN SB ativa, 5/5 pings fim-a-fim MGC VPC (%s) <-> OVN-K KubeVirt VM (%s) <-> MGC Connect On-Prem (%s) <-> EVPN Spine (%s) e %s pacotes VXLAN capturados no fabric.\n' \
-    "${L3VNI_A}" "${RT_A}" "${MGC_VPC_IP}" "${OVNK_VM_IP}" "${MGC_ONPREM_IP}" "${FAB_LO_IP}" "${vxlan_pkts}"
+  printf 'X01 PASS (Gate G04): Tenant a unificado na L3VNI %s (RT %s) com RIBs EVPN Type-5 convergidas, Learned_Route OVN SB ativa, 5/5 pings fim-a-fim DCI VPC (%s) <-> OVN-K KubeVirt VM (%s) <-> DCI Connect On-Prem (%s) <-> EVPN Spine (%s) e %s pacotes VXLAN capturados no fabric.\n' \
+    "${L3VNI_A}" "${RT_A}" "${DCI_VPC_IP}" "${OVNK_VM_IP}" "${DCI_ONPREM_IP}" "${FAB_LO_IP}" "${vxlan_pkts}"
 }
 
 x01_down() {
@@ -765,7 +765,7 @@ x01_down() {
   x01_kctl -n tenant-evpn delete ipamclaim vm-evpn-a-udn --ignore-not-found --wait=false >/dev/null 2>&1 || true
 
   # 2. Limpar FRR pathspace x01, links EVPN e external_ids em ovn-chassis-1 e ovn-central-az1
-  docker exec "${MGC_CHASSIS}" bash -c '
+  docker exec "${DCI_CHASSIS}" bash -c '
     init=""
     for candidate in /usr/libexec/frr/frrinit.sh /usr/lib/frr/frrinit.sh; do
       if [ -x "${candidate}" ]; then init="${candidate}"; break; fi
@@ -774,42 +774,42 @@ x01_down() {
       "${init}" stop x01 >/dev/null 2>&1 || true
     fi
     rm -rf /etc/frr/x01 /run/frr/x01
-    for dev in evpn-tenant vxlan-tenant br-evpn-tenant veth-xf-mgc; do
+    for dev in evpn-tenant vxlan-tenant br-evpn-tenant veth-xf-dci; do
       ip link del "${dev}" 2>/dev/null || true
     done
     ovs-vsctl remove Open_vSwitch . external_ids dynamic-routing-port-mapping 2>/dev/null || true
     ovs-vsctl set Open_vSwitch . external_ids:ovn-evpn-local-ip="50100-170.168.0.5" 2>/dev/null || true
   ' || true
 
-  docker exec "${MGC_CENTRAL}" sh -c '
-    ovn-nbctl --wait=sb set logical_switch ls-mgc-tenant other_config:dynamic-routing-vni=50100 2>/dev/null || true
-    ovn-nbctl --wait=sb clear logical_router_port lrp-mgc-tenant options 2>/dev/null || true
-    ovn-nbctl lr-route-del lr-mgc-tenant 10.0.0.1/32 10.100.100.2 2>/dev/null || true
-    ovn-nbctl lr-route-del lr-mgc-100 10.0.0.0/24 10.100.100.1 2>/dev/null || true
-    ovn-nbctl lr-route-del lr-mgc-100 10.251.0.0/24 10.100.100.1 2>/dev/null || true
-    ovn-nbctl lr-route-del lr-mgc-100 10.253.0.0/24 10.100.100.1 2>/dev/null || true
-    ovn-nbctl lr-route-del lr-mgc-200 10.0.0.0/24 10.200.100.1 2>/dev/null || true
-    ovn-nbctl lr-route-del lr-mgc-200 10.251.0.0/24 10.200.100.1 2>/dev/null || true
-    ovn-nbctl lr-route-del lr-mgc-200 10.253.0.0/24 10.200.100.1 2>/dev/null || true
+  docker exec "${DCI_CENTRAL}" sh -c '
+    ovn-nbctl --wait=sb set logical_switch ls-dci-tenant other_config:dynamic-routing-vni=50100 2>/dev/null || true
+    ovn-nbctl --wait=sb clear logical_router_port lrp-dci-tenant options 2>/dev/null || true
+    ovn-nbctl lr-route-del lr-dci-tenant 10.0.0.1/32 10.100.100.2 2>/dev/null || true
+    ovn-nbctl lr-route-del lr-dci-100 10.0.0.0/24 10.100.100.1 2>/dev/null || true
+    ovn-nbctl lr-route-del lr-dci-100 10.251.0.0/24 10.100.100.1 2>/dev/null || true
+    ovn-nbctl lr-route-del lr-dci-100 10.253.0.0/24 10.100.100.1 2>/dev/null || true
+    ovn-nbctl lr-route-del lr-dci-200 10.0.0.0/24 10.200.100.1 2>/dev/null || true
+    ovn-nbctl lr-route-del lr-dci-200 10.251.0.0/24 10.200.100.1 2>/dev/null || true
+    ovn-nbctl lr-route-del lr-dci-200 10.253.0.0/24 10.200.100.1 2>/dev/null || true
   ' || true
 
   for _ in $(seq 1 20); do
-    if ! docker exec "${MGC_CHASSIS}" ip link show ovnvrf-tenant >/dev/null 2>&1; then
+    if ! docker exec "${DCI_CHASSIS}" ip link show ovnvrf-tenant >/dev/null 2>&1; then
       break
     fi
     sleep 1
   done
-  docker exec "${MGC_CHASSIS}" ip link del ovnvrf-tenant 2>/dev/null || true
+  docker exec "${DCI_CHASSIS}" ip link del ovnvrf-tenant 2>/dev/null || true
 
-  docker exec "${MGC_CLIENT}" ip addr del "${MGC_ONPREM_IP}/32" dev lo 2>/dev/null || true
-  docker exec "${MGC_CLIENT}" vtysh \
+  docker exec "${DCI_CLIENT}" ip addr del "${DCI_ONPREM_IP}/32" dev lo 2>/dev/null || true
+  docker exec "${DCI_CLIENT}" vtysh \
     -c "configure terminal" \
     -c "no ip prefix-list MG-TO-TENANT seq 20 permit 10.0.0.0/24" \
     -c "no ip prefix-list MG-TO-TENANT seq 30 permit 10.251.0.0/24" \
     -c "no ip prefix-list MG-TO-TENANT seq 40 permit 10.253.0.0/24" \
     -c "end" >/dev/null 2>&1 || true
 
-  docker exec "${MGC_GW1}" vtysh \
+  docker exec "${DCI_GW1}" vtysh \
     -c "configure terminal" \
     -c "router bgp 100 vrf ovnvrf100" \
     -c "address-family ipv4 unicast" \
@@ -823,7 +823,7 @@ x01_down() {
     -c "no ip prefix-list MG-TO-CLIENT seq 40 permit 10.253.0.0/24" \
     -c "end" >/dev/null 2>&1 || true
 
-  docker exec "${MGC_GW2}" vtysh \
+  docker exec "${DCI_GW2}" vtysh \
     -c "configure terminal" \
     -c "router bgp 100 vrf ovnvrf200" \
     -c "address-family ipv4 unicast" \
@@ -853,7 +853,7 @@ x01_down() {
   docker exec "${FAB_GW2}" sh -c '
     killall -q bgpd zebra bfdd staticd mgmtd 2>/dev/null || true
   ' || true
-  for br_if in veth-xf-peer-b veth-xf-ovnk-b veth-xf-mgc-b; do
+  for br_if in veth-xf-peer-b veth-xf-ovnk-b veth-xf-dci-b; do
     ip link del "${br_if}" 2>/dev/null || true
   done
   iptables -D FORWARD -i "${X_BRIDGE}" -o "${X_BRIDGE}" -j ACCEPT 2>/dev/null || true
@@ -913,7 +913,7 @@ case "${ACTION}" in
     x01_assert_invariants
     trap 'x01_on_err' ERR
     x01_setup_interconnect
-    x01_setup_mgc_plane
+    x01_setup_dci_plane
     x01_setup_fabric_and_ovnk
     x01_deploy_ovnk_vm
     x01_verify
@@ -932,7 +932,7 @@ case "${ACTION}" in
     x01_assert_invariants
     trap 'x01_on_err' ERR
     x01_setup_interconnect
-    x01_setup_mgc_plane
+    x01_setup_dci_plane
     x01_setup_fabric_and_ovnk
     x01_deploy_ovnk_vm
     x01_verify

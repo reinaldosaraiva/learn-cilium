@@ -322,9 +322,9 @@ def _a_fingerprint(
     fingerprint = preflight.get("a_fingerprint")
     require(isinstance(fingerprint, dict), "missing A fingerprint", blocked=True)
     for key, table, name in (
-        ("ls_uuid", "Logical_Switch", "ls-mgc-tenant"),
-        ("lr_uuid", "Logical_Router", "lr-mgc-tenant"),
-        ("lrp_uuid", "Logical_Router_Port", "lrp-mgc-tenant"),
+        ("ls_uuid", "Logical_Switch", "ls-dci-tenant"),
+        ("lr_uuid", "Logical_Router", "lr-dci-tenant"),
+        ("lrp_uuid", "Logical_Router_Port", "lrp-dci-tenant"),
     ):
         uid = _as_uuid(fingerprint.get(key), "A " + key)
         require(uid in rows and rows[uid][0] == table and rows[uid][1].get("name") == name,

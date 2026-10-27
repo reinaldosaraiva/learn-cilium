@@ -112,13 +112,13 @@ def build(preflight, owner, run_hex, objects):
     require(len(by_name) == 34, "duplicate plan names")
     children = {}
     for item in objects:
-        if item["parent"] != "ls-mgc-tenant":
+        if item["parent"] != "ls-dci-tenant":
             children.setdefault(item["parent"], []).append(item)
 
     tx = ["OVN_Northbound", {
         "op": "wait", "timeout": 0, "table": "Logical_Switch",
         "where": [["_uuid", "==", ["uuid", fingerprint["ls_uuid"]]],
-                  ["name", "==", "ls-mgc-tenant"]],
+                  ["name", "==", "ls-dci-tenant"]],
         "columns": ["ports"], "until": "==",
         "rows": [{"ports": ovs_set([["uuid", port] for port in sorted(ports)])}],
     }]
@@ -168,10 +168,10 @@ def build(preflight, owner, run_hex, objects):
         tx.append({"op": "insert", "table": table, "row": row,
                    "uuid-name": ids[item["id"]]})
     a_port = by_name["x05-tenant-a-vm"]
-    require(a_port["parent"] == "ls-mgc-tenant", "invalid A sentinel parent")
+    require(a_port["parent"] == "ls-dci-tenant", "invalid A sentinel parent")
     tx.append({"op": "mutate", "table": "Logical_Switch",
                "where": [["_uuid", "==", ["uuid", fingerprint["ls_uuid"]]],
-                         ["name", "==", "ls-mgc-tenant"]],
+                         ["name", "==", "ls-dci-tenant"]],
                "mutations": [["ports", "insert", ovs_set([named(ids[a_port["id"]])])]]})
     return tx
 
@@ -389,7 +389,7 @@ def build_inverse_with_uuids(preflight, inserted, snapshot, owner, run_hex, obje
     inverse = ["OVN_Northbound", {
         "op": "wait", "timeout": 0, "table": "Logical_Switch",
         "where": [["_uuid", "==", ["uuid", fingerprint["ls_uuid"]]],
-                  ["name", "==", "ls-mgc-tenant"]],
+                  ["name", "==", "ls-dci-tenant"]],
         "columns": ["ports"], "until": "==",
         "rows": [{"ports": ovs_set([["uuid", port]
                               for port in sorted([*original, a_port])])}],
@@ -397,7 +397,7 @@ def build_inverse_with_uuids(preflight, inserted, snapshot, owner, run_hex, obje
     inverse.append({
         "op": "wait", "timeout": 0, "table": "Logical_Router",
         "where": [["_uuid", "==", ["uuid", fingerprint["lr_uuid"]]],
-                  ["name", "==", "lr-mgc-tenant"]],
+                  ["name", "==", "lr-dci-tenant"]],
         "columns": ["ports"], "until": "==",
         "rows": [{"ports": ovs_set([["uuid", port]
                               for port in sorted(fingerprint["lr_ports"])])}],
@@ -405,9 +405,9 @@ def build_inverse_with_uuids(preflight, inserted, snapshot, owner, run_hex, obje
     inverse.append({
         "op": "wait", "timeout": 0, "table": "Logical_Router_Port",
         "where": [["_uuid", "==", ["uuid", fingerprint["lrp_uuid"]]],
-                  ["name", "==", "lrp-mgc-tenant"]],
+                  ["name", "==", "lrp-dci-tenant"]],
         "columns": ["name"], "until": "==",
-        "rows": [{"name": "lrp-mgc-tenant"}],
+        "rows": [{"name": "lrp-dci-tenant"}],
     })
     for item, operation in zip(objects, inserts):
         row = guarded[item["id"]]
@@ -422,7 +422,7 @@ def build_inverse_with_uuids(preflight, inserted, snapshot, owner, run_hex, obje
     inverse.append({
         "op": "mutate", "table": "Logical_Switch",
         "where": [["_uuid", "==", ["uuid", fingerprint["ls_uuid"]]],
-                  ["name", "==", "ls-mgc-tenant"]],
+                  ["name", "==", "ls-dci-tenant"]],
         "mutations": [["ports", "delete", ovs_set([["uuid", a_port]])]],
     })
     for item in reversed(objects):

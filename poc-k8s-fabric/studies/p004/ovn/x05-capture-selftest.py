@@ -1701,7 +1701,7 @@ def linux_creator_checks() -> dict[str, Any]:
                         )
                     finally:
                         target.mntns_inode = original_target_mount
-                    drift = runner.links["mgc-x05-peer-2"]["vxlan-x05-pr"]
+                    drift = runner.links["dci-x05-peer-2"]["vxlan-x05-pr"]
                     original_ifindex = drift.ifindex
                     drift.ifindex += 5000
                     expect_error(

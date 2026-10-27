@@ -12,7 +12,7 @@ sudo LAB_ROOT=/opt/poc-k8s-fabric /caminho/para/labctl <lab> <acao> [--dry-run] 
 sudo LAB_ROOT=/opt/poc-k8s-fabric /caminho/para/labctl status
 ```
 
-- **Labs:** `k01`, `mgc`, `p003-gw`, `openstack`, `evpn-fabric`, `ovnk`.
+- **Labs:** `k01`, `dci`, `p003-gw`, `openstack`, `evpn-fabric`, `ovnk`.
 - **Ações:** `preflight`, `up`, `verify`, `down`, `status`, `resources`.
 - `--dry-run` imprime cada mutação com prefixo `DRY:` e não executa nenhuma.
 - `--evidence DIR` grava comando, saída, duração e memória antes/depois
@@ -28,7 +28,7 @@ sudo LAB_ROOT=/opt/poc-k8s-fabric /caminho/para/labctl status
 ## Perfis
 
 - **k01** — lab de referência (fabric SR Linux + kind + Cilium dual-stack + BGP; canário `10/10` intocado).
-- **mgc** — réplica MGC Connect OVN 26.03.3 + OVS 3.7 + FRR (`M01–M03`, `--m03`, e isolamento same-CIDR `X05` em `studies/p004/ovn/`).
+- **dci** — réplica DCI Connect OVN 26.03.3 + OVS 3.7 + FRR (`M01–M03`, `--m03`, e isolamento same-CIDR `X05` em `studies/p004/ovn/`).
 - **p003-gw** — sandbox Cilium 1.20.2 + Gateway API + BGP (VIP `10.202.255.10`) + suporte ao **Braço Cilium A** com KubeVirt v1.9.0 (`studies/p004/cilium-a/`, `V00–V08A` / `C-neg`) e ao **Braço Cilium B** com DaemonSet FRR `10.7.1` no nó sob invariante `R6` (`studies/p004/cilium-b/`, `H6`, `V09`/`H7`, `V07-B`, `V08-B`).
 - **openstack** — testbed `p003-os` (só `status`/`down`/`up`; nunca rebuild; `preserve-only`).
 - **evpn-fabric** — fabric standalone OVN 26.03 + FRR 10.7 EVPN/BGP multi-VRF (`10.0.0.0/24` same-CIDR, VNI 10100/10200, casos cruzados `X01–X07` em `studies/p004/cases/`).

@@ -239,17 +239,17 @@ def validate(snapshot, objects):
         elif item.get("name") in names[table]:
             collisions.append(item["id"])
     require(not collisions, "planned NB collision: " + ",".join(sorted(collisions)))
-    ls = by_name["Logical_Switch"].get("ls-mgc-tenant")
-    lr = by_name["Logical_Router"].get("lr-mgc-tenant")
-    lrp = by_name["Logical_Router_Port"].get("lrp-mgc-tenant")
+    ls = by_name["Logical_Switch"].get("ls-dci-tenant")
+    lr = by_name["Logical_Router"].get("lr-dci-tenant")
+    lrp = by_name["Logical_Router_Port"].get("lrp-dci-tenant")
     require(ls is not None and lr is not None and lrp is not None,
             "missing M03 A LS/LR/LRP")
-    router_lsp = by_name["Logical_Switch_Port"].get("lsp-mgc-tenant-router")
-    vm_lsp = by_name["Logical_Switch_Port"].get("mgc-tenant-vm")
+    router_lsp = by_name["Logical_Switch_Port"].get("lsp-dci-tenant-router")
+    vm_lsp = by_name["Logical_Switch_Port"].get("dci-tenant-vm")
     require(router_lsp is not None and vm_lsp is not None,
             "A tenant LSP identity is missing")
     require(router_lsp["type"] == "router" and
-            router_lsp["options"].get("router-port") == "lrp-mgc-tenant",
+            router_lsp["options"].get("router-port") == "lrp-dci-tenant",
             "A tenant router LSP linkage is invalid")
     required_ls_ports = {router_lsp["_uuid"].lower(), vm_lsp["_uuid"].lower()}
     require(required_ls_ports <= set(ls["ports"]) and

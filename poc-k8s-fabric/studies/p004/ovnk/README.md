@@ -39,4 +39,4 @@ for s in poc-k8s-fabric/studies/p004/ovnk/k0*.sh; do
 done
 ```
 
-Para a análise comparativa com os Braços Cilium A e B e o blueprint da arquitetura híbrida `D`, consulte [`docs/estudos/20-mgc-estado-parcial.md`](../../../docs/estudos/20-mgc-estado-parcial.md) (§5–§8).
+Para a análise comparativa com os Braços Cilium A e B e o blueprint da arquitetura híbrida `D`, consulte [`docs/estudos/20-dci-estado-parcial.md`](../../../docs/estudos/20-dci-estado-parcial.md) (§5–§8).

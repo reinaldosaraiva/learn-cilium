@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# P004-S002/M02: prova reversível de gateway_mtu no lab MGC próprio.
+# P004-S002/M02: prova reversível de gateway_mtu no lab DCI próprio.
 # Executar como root no host vm-cilium com LAB_ROOT apontando ao labctl staged.
 set -euo pipefail
 
@@ -14,21 +14,21 @@ export LAB_ROOT
 
 # shellcheck source=../../../labctl/lib/common.sh
 source "${LAB_ROOT}/lib/common.sh"
-# shellcheck source=../../../labctl/labs/mgc.sh
-source "${LAB_ROOT}/labs/mgc.sh"
+# shellcheck source=../../../labctl/labs/dci.sh
+source "${LAB_ROOT}/labs/dci.sh"
 require_cmd docker ip jq timeout nsenter tcpdump
 [[ "$(id -u)" -eq 0 ]] || { echo 'M02 exige root' >&2; exit 1; }
 
 labctl="${LAB_ROOT}/labctl"
 central=ovn-central-az1
 tenant_chassis=ovn-chassis-1
-tenant_ns=mgc-tenant-vm
-tenant_if=mgc-tenant-vm
-tenant_tap=mgc-tenant-vm-p
-client=mgc-client-1
+tenant_ns=dci-tenant-vm
+tenant_if=dci-tenant-vm
+tenant_tap=dci-tenant-vm-p
+client=dci-client-1
 destination=10.0.0.1
-gateway_ports=(lrp-mgc-100-external lrp-mgc-200-external)
-containers=(mgc-client-1 ovn-gw-1 ovn-gw-2 ovn-chassis-1 ovn-chassis-2)
+gateway_ports=(lrp-dci-100-external lrp-dci-200-external)
+containers=(dci-client-1 ovn-gw-1 ovn-gw-2 ovn-chassis-1 ovn-chassis-2)
 interfaces=(eth1 eth2)
 declare -a links=() capture_pids=() capture_logs=()
 capture_dir=""
@@ -39,10 +39,10 @@ say() { printf 'M02 %s\n' "$*"; }
 fail() { say "FAIL: $*" >&2; exit 1; }
 
 assert_owned_running() {
-  mgc_assert_no_extra_ovn_containers
-  mgc_assert_cluster_ownership
-  mgc_assert_bridges_owned
-  mgc_assert_client_ownership "$client"
+  dci_assert_no_extra_ovn_containers
+  dci_assert_cluster_ownership
+  dci_assert_bridges_owned
+  dci_assert_client_ownership "$client"
   for name in "$central" "${containers[@]}"; do
     [[ "$(docker inspect -f '{{.State.Running}}' "$name")" == true ]] \
       || fail "$name não está ativo"
@@ -65,7 +65,7 @@ host_peer_for() {
   peer="$(ip -j -d link show | jq -er --argjson idx "$index" '
     [.[] | select(.ifindex == $idx and .master == "ovs-system" and
       .linkinfo.info_kind == "veth") | .ifname] |
-    if length == 1 then .[0] else error("peer MGC não único") end')" \
+    if length == 1 then .[0] else error("peer DCI não único") end')" \
     || fail "peer host-side não identificado: $container/$iface"
   [[ "$peer" == *_l ]] || fail "peer sem formato esperado: $container/$iface -> $peer"
   printf '%s\n' "$peer"
@@ -137,7 +137,7 @@ assert_links_mtu() {
   actual="$(docker exec "$tenant_chassis" ip netns exec "$tenant_ns" \
     cat "/sys/class/net/${tenant_if}/mtu")"
   [[ "$actual" == "$mtu" ]] || fail "$tenant_if MTU=$actual, esperado $mtu"
-  say "pernas MGC selecionadas: fase $phase, MTU interno/externo $mtu"
+  say "pernas DCI selecionadas: fase $phase, MTU interno/externo $mtu"
 }
 
 set_gateway_mtu() {
@@ -191,13 +191,13 @@ stop_capture() {
 start_capture() {
   local label="$1" spec name container iface pid logfile filter
   local -a points=(
-    "tenant-tap|ovn-chassis-1|mgc-tenant-vm-p"
+    "tenant-tap|ovn-chassis-1|dci-tenant-vm-p"
     "gw1-underlay|ovn-gw-1|eth1"
     "gw2-underlay|ovn-gw-2|eth1"
     "gw1-external|ovn-gw-1|eth2"
     "gw2-external|ovn-gw-2|eth2"
-    "client-eth1|mgc-client-1|eth1"
-    "client-eth2|mgc-client-1|eth2"
+    "client-eth1|dci-client-1|eth1"
+    "client-eth2|dci-client-1|eth2"
   )
   capture_logs=()
   for spec in "${points[@]}"; do
@@ -292,17 +292,17 @@ restore() {
   trap - EXIT INT TERM
   stop_capture
   if [[ "$changed" == 1 ]]; then
-    say 'restauração: gateway_mtu e MTUs do MGC para 1500'
+    say 'restauração: gateway_mtu e MTUs do DCI para 1500'
     set_gateway_mtu 1500 || rc=1
     set_links_mtu baseline || rc=1
-    "$labctl" mgc up || rc=1
-    "$labctl" mgc verify || rc=1
+    "$labctl" dci up || rc=1
+    "$labctl" dci verify || rc=1
     assert_links_mtu baseline || rc=1
   fi
   if [[ "$rc" -ne 0 ]]; then
     say "falha; capturas preservadas em $capture_dir" >&2
   else
-    say "PASS: M02 concluído e MGC restaurado; capturas em $capture_dir"
+    say "PASS: M02 concluído e DCI restaurado; capturas em $capture_dir"
   fi
   exit "$rc"
 }
@@ -310,17 +310,17 @@ restore() {
 assert_owned_running
 collect_links
 if [[ "$mode" == dry ]]; then
-  say 'DRY: labctl mgc verify; nenhuma alteração neste modo'
-  say 'DRY: elevar somente os peers veth MGC identificados; MTU 9000 nas pernas internas/externas e 9200 no underlay Geneve eth1 de gw/chassis'
+  say 'DRY: labctl dci verify; nenhuma alteração neste modo'
+  say 'DRY: elevar somente os peers veth DCI identificados; MTU 9000 nas pernas internas/externas e 9200 no underlay Geneve eth1 de gw/chassis'
   say 'DRY: capturar ICMP no tap tenant, saídas gw1/gw2 e cliente; Geneve/ICMP no underlay gw1/gw2'
   say 'DRY: com gateway_mtu=1500, controle pequeno passa e IPv4 9000 B/DF recebe ICMP Frag Needed no tap'
   say 'DRY: com gateway_mtu=9000, controle pequeno e IPv4 9000 B/DF passam'
-  say 'DRY: trap restaura gateway_mtu/MTUs 1500, labctl mgc up/verify; capturas preservadas'
+  say 'DRY: trap restaura gateway_mtu/MTUs 1500, labctl dci up/verify; capturas preservadas'
   exit 0
 fi
 
-"$labctl" mgc verify
-capture_dir="${M02_CAPTURE_EVIDENCE_DIR:-/var/tmp/labctl/mgc/m02-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+"$labctl" dci verify
+capture_dir="${M02_CAPTURE_EVIDENCE_DIR:-/var/tmp/labctl/dci/m02-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 mkdir -p "$(dirname "$capture_dir")"
 mkdir -m 700 "$capture_dir" || fail "diretório de captura já existe: $capture_dir"
 trap restore EXIT

@@ -9,7 +9,7 @@ Kind `p003-gw` (`p003-gw-control-plane`, `p003-gw-worker`, `p003-gw-worker2`).
 
 | Arquivo | Função |
 |---|---|
-| `00-prep-kubevirt-p003gw.sh` | Higiene de RAM (`labctl ovnk/evpn-fabric/mgc down`, `MemAvailable >= 4 GiB`) e instalação idempotente do KubeVirt `v1.9.0` (`useEmulation: false`, `LiveMigration`) no `p003-gw` |
+| `00-prep-kubevirt-p003gw.sh` | Higiene de RAM (`labctl ovnk/evpn-fabric/dci down`, `MemAvailable >= 4 GiB`) e instalação idempotente do KubeVirt `v1.9.0` (`useEmulation: false`, `LiveMigration`) no `p003-gw` |
 | `v00-datapath-baseline.sh` | `V00`: gate de datapath KVM nativo (`pod/http-echo <-> vmi/vm-a`, `client-a -> vmi/vm-a:8080`, controle negativo `runStrategy=Halted`) |
 | `v01-cilium-endpoint.sh` | `V01 (C01 / H1)`: verificação de `vmi/vm-a` como `CiliumEndpoint` (`cep_id`, `sec_identity`, `PodCIDR` vs `eth0` interna sob `masquerade`) |
 | `v02-bgp-vip-reachability.sh` | `V02 (C02 / H1)`: `Service LoadBalancer vm-a-vip` (`10.202.255.20/32`) anunciado via BGP a `border1`, alcance externo e withdraw negativo |
@@ -45,4 +45,4 @@ done
 ```
 
 As evidências ao vivo estão em `poc-k8s-fabric/evidence/P004/S005/` e `poc-k8s-fabric/evidence/P004/S006/`,
-sumarizadas em `plans/P004-S005-results.md`, `plans/P004-S006-results.md` e `docs/estudos/20-mgc-estado-parcial.md`.
+sumarizadas em `plans/P004-S005-results.md`, `plans/P004-S006-results.md` e `docs/estudos/20-dci-estado-parcial.md`.

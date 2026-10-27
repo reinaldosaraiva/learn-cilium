@@ -879,7 +879,7 @@ def sb_fixture() -> tuple[bytes, bytes, dict[str, str]]:
     bindings = ovs_json(
         ["_uuid", "logical_port", "datapath"],
         [
-            [ovs_uuid(values["a_pb"]), "lrp-mgc-tenant", ovs_uuid(values["a_dp"])],
+            [ovs_uuid(values["a_pb"]), "lrp-dci-tenant", ovs_uuid(values["a_dp"])],
             [ovs_uuid(values["b_pb"]), "lrp-x05-tenant-b", ovs_uuid(values["b_dp"])],
             [ovs_uuid(values["a_ext_pb"]), "lrp-x05-300-external", ovs_uuid(values["a_ext_dp"])],
             [ovs_uuid(values["b_ext_pb"]), "lrp-x05-400-external", ovs_uuid(values["b_ext_dp"])],
@@ -902,7 +902,7 @@ def test_sb_scope_and_learned_routes() -> None:
     binding_result, proofs = EVAL.evaluate_port_bindings(
         bindings,
         expected_ports=frozenset({
-            "lrp-mgc-tenant", "lrp-x05-tenant-b",
+            "lrp-dci-tenant", "lrp-x05-tenant-b",
             "lrp-x05-300-external", "lrp-x05-400-external",
         }),
     )
@@ -921,7 +921,7 @@ def test_sb_scope_and_learned_routes() -> None:
         EVAL.evaluate_learned_routes(routes, expected=expected, scope=scope),
         EVAL.Outcome.PASS,
     )
-    assert proofs["lrp-mgc-tenant"].datapath != proofs["lrp-x05-tenant-b"].datapath
+    assert proofs["lrp-dci-tenant"].datapath != proofs["lrp-x05-tenant-b"].datapath
     # Baseline rows bound to out-of-scope Port_Bindings are ignored.
     with_baseline = json.loads(routes)
     with_baseline["data"].append([
@@ -1804,7 +1804,7 @@ Displayed 1 prefixes (1 paths)
 def test_g2_decision_table_and_b_pathspace() -> None:
     topology = tenant_specs()
     assert topology.tenant_a.tenant_vrf == "ovnvrf-tenant"
-    assert topology.tenant_a.lrp == "lrp-mgc-tenant"
+    assert topology.tenant_a.lrp == "lrp-dci-tenant"
     assert topology.tenant_b.tenant_vrf == "ovnvrf-x05-b"
     assert topology.tenant_b.lrp == "lrp-x05-tenant-b"
     commands = EVAL.g2_commands(topology)

@@ -32,10 +32,10 @@ from typing import Any, Callable, Mapping
 
 PRODUCTION_ROOT = "/opt/poc-k8s-fabric"
 PRODUCTION_STORE = "/var/lib/p004-runtime-source-maintenance"
-PRODUCTION_LOCK = "/run/lock/labctl-mgc-m03.lock"
+PRODUCTION_LOCK = "/run/lock/labctl-dci-m03.lock"
 PRODUCTION_MARKERS = (
-    "/run/labctl/mgc-m03/active",
-    "/run/labctl/mgc-x05/active",
+    "/run/labctl/dci-m03/active",
+    "/run/labctl/dci-x05/active",
 )
 BASELINE_NAME = "update-runtime-sources-baseline.json"
 PUBLISHER_NAME = "stage-reviewed-sources.py"
@@ -1457,7 +1457,7 @@ def _fixture_stage_config(assets: _Assets, base: str) -> Any:
         stage,
         root=str(root),
         store=str(base_path / "runtime-source-maintenance"),
-        markers=(str(markers_dir / "mgc-m03-active"), str(markers_dir / "mgc-x05-active")),
+        markers=(str(markers_dir / "dci-m03-active"), str(markers_dir / "dci-x05-active")),
         lock_path=str(lock_path),
         lock_identity=(lock_info.st_dev, lock_info.st_ino),
         lock_sha256=lock_sha,
@@ -1585,7 +1585,7 @@ def _fixture_environment(base: str) -> _FixtureEnvironment:
             parked,
             {str(root): (os.stat(root).st_dev, os.stat(root).st_ino, 0o755), str(evidence): (os.stat(evidence).st_dev, os.stat(evidence).st_ino, 0o755), str(evidence / "P004"): (os.stat(evidence / "P004").st_dev, os.stat(evidence / "P004").st_ino, 0o700), str(s002): (os.stat(s002).st_dev, os.stat(s002).st_ino, 0o700)},
             {"path": str(lock), "dev": lock_info.st_dev, "inode": lock_info.st_ino, "uid": 0, "gid": 0, "mode": "0o600", "nlink": 1, "size": 0, "sha256": LOCK_SHA256},
-            (str(markers / "mgc-m03-active"), str(markers / "mgc-x05-active")),
+            (str(markers / "dci-m03-active"), str(markers / "dci-x05-active")),
             str(path / "runtime-source-maintenance"),
             "fixture-installation",
             OLD_HELPER_SHA256,

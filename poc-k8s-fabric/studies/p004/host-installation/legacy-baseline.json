@@ -208,7 +208,7 @@
       "inode": 7,
       "mode": "0o600",
       "nlink": 1,
-      "path": "/var/lock/labctl-mgc-m03.lock",
+      "path": "/var/lock/labctl-dci-m03.lock",
       "type": "file",
       "uid": 0
     },
@@ -295,7 +295,7 @@
   "scope": {
     "canonical_source_paths_expected_absent": [
       "/opt/poc-k8s-fabric/labctl",
-      "/opt/poc-k8s-fabric/labs/mgc.sh",
+      "/opt/poc-k8s-fabric/labs/dci.sh",
       "/opt/poc-k8s-fabric/lib/common.sh",
       "/opt/poc-k8s-fabric/studies/p004/ovn/README.md",
       "/opt/poc-k8s-fabric/studies/p004/ovn/client-x05-template.conf",
@@ -3658,8 +3658,8 @@
       }
     ],
     "marker_paths_expected_absent": [
-      "/run/labctl/mgc-m03/active",
-      "/run/labctl/mgc-x05/active"
+      "/run/labctl/dci-m03/active",
+      "/run/labctl/dci-x05/active"
     ],
     "mount_source_paths": [
       "/opt/poc-k8s-fabric-studies/studies/p003/configs/frr/p003-daemons",

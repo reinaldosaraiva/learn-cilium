@@ -8,10 +8,10 @@ fica no `ovn-chassis-2`.
 
 | objeto | A/M03 existente | B/X05 temporário |
 |---|---|---|
-| cliente L3 | `mgc-client-1`, AS 200 | `mgc-client-2`, AS 201 |
+| cliente L3 | `dci-client-1`, AS 200 | `dci-client-2`, AS 201 |
 | pernas `/30` | VLAN 100/200, `.1/.2` e `.5/.6` | VLAN 300/400, os mesmos `.1/.2` e `.5/.6` |
 | prefixo anunciado | `10.0.0.0/16` | `10.0.0.0/16` |
-| VPC | `ls-mgc-tenant`, `192.168.100.0/24` | `ls-x05-tenant-b`, `192.168.100.0/24` |
+| VPC | `ls-dci-tenant`, `192.168.100.0/24` | `ls-x05-tenant-b`, `192.168.100.0/24` |
 | sentinel | `.11` (LSP X05 no LS A) | `.12` (LSP X05 no LS B) |
 | chassis/VRF | `ovn-chassis-1`, tabela 300, VNI 50100 | `ovn-chassis-2`, tabela 400, VNI 50200 |
 | filtro de retorno | marker `labctl-m03-*`, só chassis 1 | marker `labctl-x05-*`, só chassis 2 |
@@ -42,4 +42,4 @@ marker para recuperação manual; não se declara PASS.
 
 O caminho de cleanup é obrigatório: remover primeiro cliente/peer, sentinelas,
 VRF/LSPs, filtros B, mirrors e o pathspace `x05`; provar ausência do marker
-X05; somente então o coordenador pode chamar `labctl mgc down --m03`.
+X05; somente então o coordenador pode chamar `labctl dci down --m03`.

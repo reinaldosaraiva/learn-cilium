@@ -1518,7 +1518,7 @@ def evaluate_learned_routes(
 
     ``expected`` maps ``(ip_prefix, port_binding_uuid)`` to the required
     nexthop. Rows bound to Port_Bindings outside ``scope`` (baseline lab
-    routes, e.g. lrp-mgc-100/200-external) are out of scope and ignored;
+    routes, e.g. lrp-dci-100/200-external) are out of scope and ignored;
     rows inside the scope must match the expected set exactly (no extras,
     no duplicates, exact nexthop).
     """
@@ -2257,7 +2257,7 @@ class EVPNTenantSpec:
 
     @property
     def lrp(self) -> str:
-        return "lrp-mgc-tenant" if self.role is TenantRole.A else "lrp-x05-tenant-b"
+        return "lrp-dci-tenant" if self.role is TenantRole.A else "lrp-x05-tenant-b"
 
     @property
     def external_lrp(self) -> str:

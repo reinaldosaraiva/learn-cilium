@@ -7,7 +7,7 @@
 #   - Política de entrada X03-ENFORCE-TENANT-A-IN no spine evpnfab-peer (bgp community-list standard)
 #   - Controle positivo: prefixo 192.168.101.0/24 com 65000:101 aceito na RIB JSON e responde 5/5 pings
 #   - Controle negativo: prefixo 192.168.101.0/24 remarcado com 65000:102 bloqueado na RIB JSON,
-#     com >= 5 emissões na origem (mgc-tenant-vm) e 0 pacotes entregues em ovnk-evpn-peer (rc=124)
+#     com >= 5 emissões na origem (dci-tenant-vm) e 0 pacotes entregues em ovnk-evpn-peer (rc=124)
 
 set -euo pipefail
 
@@ -19,7 +19,7 @@ fi
 
 OVNK_PEER="ovnk-evpn-peer"
 FAB_PEER="evpnfab-peer"
-MGC_CHASSIS="ovn-chassis-1"
+DCI_CHASSIS="ovn-chassis-1"
 
 COMM_A="65000:101"
 COMM_B="65000:102"
@@ -43,7 +43,7 @@ if [[ "${DRY_RUN}" == "1" ]]; then
   printf 'DRY: apply bgp community-list standard X03-COMM-TENANT-A (%s) + route-map X03-ENFORCE-TENANT-A-IN on %s\n' \
     "${COMM_A}" "${FAB_PEER}"
   printf 'DRY: positive control — advertise %s (%s) from %s with community %s -> assert present in JSON RIB + 5/5 pings from %s\n' \
-    "${TEST_PFX}" "${TEST_IP}" "${OVNK_PEER}" "${COMM_A}" "${MGC_CHASSIS}"
+    "${TEST_PFX}" "${TEST_IP}" "${OVNK_PEER}" "${COMM_A}" "${DCI_CHASSIS}"
   printf 'DRY: negative control — re-tag %s with Tenant b community %s -> assert withdrawn from JSON RIB + >= 5 source packets + 0 destination packets on %s\n' \
     "${TEST_PFX}" "${COMM_B}" "${OVNK_PEER}"
   printf 'DRY: cleanup %s test interface and restore %s route-map X03-TAG-TENANT-A\n' "${TEST_PFX}" "${FAB_PEER}"
@@ -81,7 +81,7 @@ cleanup_x03() {
     vtysh -c "clear bgp vrf vrf-tenant-a 169.254.101.6 soft in" >/dev/null 2>&1 || true
   ' || true
 
-  docker exec "${MGC_CHASSIS}" rm -f /tmp/x03-src.pcap 2>/dev/null || true
+  docker exec "${DCI_CHASSIS}" rm -f /tmp/x03-src.pcap 2>/dev/null || true
 }
 trap cleanup_x03 EXIT
 
@@ -178,7 +178,7 @@ import json, subprocess, sys
 rib = json.loads(subprocess.check_output(['vtysh', '-c', 'show ip route vrf vrf-tenant-a json'], text=True))
 sys.exit(0 if '${TEST_PFX}' in rib else 1)
 " 2>/dev/null && \
-     docker exec "${MGC_CHASSIS}" python3 -c "
+     docker exec "${DCI_CHASSIS}" python3 -c "
 import json, subprocess, sys
 rib = json.loads(subprocess.check_output(['vtysh', '--vty_socket', '/run/frr/x01', '-c', 'show ip route vrf ovnvrf-tenant json'], text=True))
 sys.exit(0 if '${TEST_PFX}' in rib else 1)
@@ -190,8 +190,8 @@ sys.exit(0 if '${TEST_PFX}' in rib else 1)
 done
 [[ "${pos_ok}" -eq 1 ]] || x03_die "Controle positivo falhou: ${TEST_PFX} com community ${COMM_A} não foi instalado na RIB"
 
-docker exec "${MGC_CHASSIS}" ip netns exec mgc-tenant-vm ping -c 5 -W 2 "${TEST_IP}" >/dev/null \
-  || x03_die "Controle positivo de dataplane (mgc-tenant-vm -> ${TEST_IP}) falhou"
+docker exec "${DCI_CHASSIS}" ip netns exec dci-tenant-vm ping -c 5 -W 2 "${TEST_IP}" >/dev/null \
+  || x03_die "Controle positivo de dataplane (dci-tenant-vm -> ${TEST_IP}) falhou"
 
 # 5. Controle Negativo: remarcar 192.168.101.0/24 com community do Tenant 'b' (65000:102)
 x03_log "Controle negativo: remarcando ${TEST_PFX} com community ${COMM_B} (Tenant b) e verificando bloqueio no route-map X03-ENFORCE-TENANT-A-IN..."
@@ -215,7 +215,7 @@ import json, subprocess, sys
 rib = json.loads(subprocess.check_output(['vtysh', '-c', 'show ip route vrf vrf-tenant-a json'], text=True))
 sys.exit(0 if ('${TEST_PFX}' not in rib and '10.0.0.0/24' in rib) else 1)
 " 2>/dev/null && \
-     docker exec "${MGC_CHASSIS}" python3 -c "
+     docker exec "${DCI_CHASSIS}" python3 -c "
 import json, subprocess, sys
 rib = json.loads(subprocess.check_output(['vtysh', '--vty_socket', '/run/frr/x01', '-c', 'show ip route vrf ovnvrf-tenant json'], text=True))
 sys.exit(0 if ('${TEST_PFX}' not in rib and '10.0.0.0/24' in rib) else 1)
@@ -227,7 +227,7 @@ sys.exit(0 if ('${TEST_PFX}' not in rib and '10.0.0.0/24' in rib) else 1)
 done
 [[ "${neg_ok}" -eq 1 ]] || x03_die "Controle negativo falhou: ${TEST_PFX} com community ${COMM_B} não foi removido da RIB de vrf-tenant-a / ovnvrf-tenant"
 
-# Verificar bloqueio também no plano de dados (N2: >= 5 emissões em mgc-tenant-vm:mgc-tenant-vm e 0 pacotes em ovnk-evpn-peer:vxlan-xf-10100, rc=124)
+# Verificar bloqueio também no plano de dados (N2: >= 5 emissões em dci-tenant-vm:dci-tenant-vm e 0 pacotes em ovnk-evpn-peer:vxlan-xf-10100, rc=124)
 docker exec "${OVNK_PEER}" sh -c "
   rm -f /tmp/x03-dst.log
   timeout 8 tcpdump -ni vxlan-xf-10100 -c 1 'icmp and dst host ${TEST_IP}' >/tmp/x03-dst.log 2>&1
@@ -235,9 +235,9 @@ docker exec "${OVNK_PEER}" sh -c "
 pid_dst=$!
 sleep 1
 
-src_emitted="$(docker exec "${MGC_CHASSIS}" ip netns exec mgc-tenant-vm sh -c "
+src_emitted="$(docker exec "${DCI_CHASSIS}" ip netns exec dci-tenant-vm sh -c "
   rm -f /tmp/x03-src.pcap
-  timeout 6 tcpdump -ni mgc-tenant-vm -w /tmp/x03-src.pcap 'icmp[icmptype] == icmp-echo and dst host ${TEST_IP}' >/dev/null 2>&1 &
+  timeout 6 tcpdump -ni dci-tenant-vm -w /tmp/x03-src.pcap 'icmp[icmptype] == icmp-echo and dst host ${TEST_IP}' >/dev/null 2>&1 &
   cap_pid=\$!
   sleep 1
   ping -c 5 -i 0.2 -W 1 ${TEST_IP} >/dev/null 2>&1 || true
@@ -249,7 +249,7 @@ rc_dst=0
 wait "${pid_dst}" || rc_dst=$?
 dst_log="$(docker exec "${OVNK_PEER}" cat /tmp/x03-dst.log 2>/dev/null || true)"
 if [[ "${src_emitted:-0}" -lt 5 ]]; then
-  x03_die "Emissão insuficiente na origem mgc-tenant-vm durante controle negativo: ${src_emitted:-0}/5 pacotes"
+  x03_die "Emissão insuficiente na origem dci-tenant-vm durante controle negativo: ${src_emitted:-0}/5 pacotes"
 fi
 if [[ "${rc_dst}" -ne 124 ]] || ! grep -q "0 packets captured" <<<"${dst_log}"; then
   x03_die "Pacotes para ${TEST_IP} alcançaram ${OVNK_PEER} apesar do filtro de community (rc=${rc_dst}, log=${dst_log})"
@@ -259,7 +259,7 @@ fi
 cleanup_x03
 trap - EXIT
 
-docker exec "${MGC_CHASSIS}" ip netns exec mgc-tenant-vm ping -c 5 -W 2 "${OVNK_VM_A_IP}" >/dev/null \
+docker exec "${DCI_CHASSIS}" ip netns exec dci-tenant-vm ping -c 5 -W 2 "${OVNK_VM_A_IP}" >/dev/null \
   || x03_die "Conectividade do Tenant a (${OVNK_VM_A_IP}) falhou após limpeza de X03"
 
 printf 'X03 PASS: BGP standard communities por tenant (%s Tenant a, %s Tenant b) validadas em JSON; controle positivo %s PERMIT (5/5 pings) e controle negativo com %s DENY (rota removida da RIB JSON, %s emissões na origem e 0 pacotes entregues, rc=%s).\n' \

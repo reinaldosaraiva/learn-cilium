@@ -163,7 +163,7 @@ KubeVirt). A tabela distingue esses estudos dos ambientes usados nos exercícios
 A tabela descreve os ambientes e estudos documentados, sem indicar
 disponibilidade simultânea em tempo real (os perfis pesados operam em regime
 *time-shared* via `labctl` para respeitar `R3: MemAvailable >= 4,00 GiB`). Os
-quadros 05 e 06 ilustram os ambientes P001–P003; as figuras [07](diagramas/07-mgc-caminhos.png),
+quadros 05 e 06 ilustram os ambientes P001–P003; as figuras [07](diagramas/07-dci-caminhos.png),
 [08](diagramas/08-p004-estado.png) e [09](diagramas/09-p004-tres-planos-kubevirt.png)
 ilustram a arquitetura e os resultados de P004.
 
@@ -755,7 +755,7 @@ comparadas sem depender do estado atual da VM.
 
 ### 13.1 Plano DCI Connect (`P004-S002`: OVN + FRR multi-VRF e `X05`)
 
-![Caminhos históricos da réplica DCI, com o cliente legado e o peer EVPN separados](diagramas/07-mgc-caminhos.png)
+![Caminhos históricos da réplica DCI, com o cliente legado e o peer EVPN separados](diagramas/07-dci-caminhos.png)
 
 *Figura 07 — Topologia lógica dos caminhos medidos na réplica DCI; o desenho não
 representa um inventário ou estado operacional atual.*
@@ -859,7 +859,7 @@ Nas sessões `P004-S006`, `P004-S007` e `P004-S008` (**PASS**), o estudo conclui
   - **V09 (`H7`) e V07-B:** nas VRFs Linux do nó (`vrf-tenant-a` `VNI 10100` `RT 65000:10100` e `vrf-tenant-b` `VNI 10200` `RT 65000:10200`), o FRR anuncia e importa rotas **EVPN Type 5 (`[5]`)** e isola CIDRs/IPs idênticos (`10.253.10.0/24`, `10.253.10.100/24`) com `30/30` intra-VRF, `0/10` cross-VRF e `R6=0`, comprovando porém que a interface primária `eth0` dos pods/VMs continua presa ao mapa global `cilium_lxc`.
   - **V08-B:** cutover `10.60.0.50/32` via `Cilium GoBGP -> FRR 10.7.1 no nó -> border1` (`AS_PATH 65203 65600 65201 65301 65311`, `Community 65301:100`, `rib_em=27 s`, `cutover_total=40 s`, `30/30` HTTP, `R6=0`).
 - **Síntese `INV × Equivalente Aberto` (`G07`) e Higiene Final (`G08`) (`P004-S008`):**
-  - O blueprint da Fase 2 mostra que a combinação aberta **Cilium A (clusters cloud-native/L7)** + **OVN-Kubernetes `C/D` (clusters KubeVirt com `same-CIDR` `K01`, Live Migration L2 `K02` e EVPN Type-2/Type-5 `K03`/`X01`/`X07`)** atende 100% dos requisitos sem lock-in, enquanto uma PoC comercial do **INV** deve ser julgada pelos seis critérios objetivos **`INV-PoC-01` a `INV-PoC-06`** documentados em [`20-mgc-estado-parcial.md` §4.2](estudos/20-mgc-estado-parcial.md).
+  - O blueprint da Fase 2 mostra que a combinação aberta **Cilium A (clusters cloud-native/L7)** + **OVN-Kubernetes `C/D` (clusters KubeVirt com `same-CIDR` `K01`, Live Migration L2 `K02` e EVPN Type-2/Type-5 `K03`/`X01`/`X07`)** atende 100% dos requisitos sem lock-in, enquanto uma PoC comercial do **INV** deve ser julgada pelos seis critérios objetivos **`INV-PoC-01` a `INV-PoC-06`** documentados em [`20-dci-estado-parcial.md` §4.2](estudos/20-dci-estado-parcial.md).
 
 ### Exercícios de interpretação
 
@@ -868,7 +868,7 @@ Nas sessões `P004-S006`, `P004-S007` e `P004-S008` (**PASS**), o estudo conclui
 3. Como `V04` provou com o pool de IP único `10.253.0.100/32` que `fromEndpoints` revoga o acesso no reuso de IP entre duas VMs, ao contrário de uma regra baseada apenas no endereço IP?
 4. Por que o `table-map RM-NO-KERNEL` (invariante `R6=0`) é indispensável no Braço Cilium B (`H6`/`V09`), e por que mesmo com FRR `10.7.1` no nó a interface primária `eth0` do Cilium não suporta `same-CIDR` entre dois tenants (`V07-A` vs `V07-B`)?
 
-As respostas comentadas, a matriz comparativa completa (`Cilium A` × `Cilium B` × `OVN-K C/D` × `INV`), os critérios de aceite `INV-PoC-01` a `INV-PoC-06` (`G07`) e o mapa de evidências estão em [DCI, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008](estudos/20-mgc-estado-parcial.md).
+As respostas comentadas, a matriz comparativa completa (`Cilium A` × `Cilium B` × `OVN-K C/D` × `INV`), os critérios de aceite `INV-PoC-01` a `INV-PoC-06` (`G07`) e o mapa de evidências estão em [DCI, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008](estudos/20-dci-estado-parcial.md).
 
 ## Módulo 14 — Estudos Avançados P005: Conexão Dedicada eBGP ∥ Datapath eBPF
 
@@ -1119,7 +1119,7 @@ As trilhas completas de `P003`, `P004`, `P005`, `P006`, `P007` e `P008` (somando
 ## Referências públicas
 
 - [Resultados resumidos do laboratório](lab-results.md)
-- [DCI, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008](estudos/20-mgc-estado-parcial.md)
+- [DCI, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008](estudos/20-dci-estado-parcial.md)
 - [P005 Onda 1 — Braço A (`E19` + `E09`): Idempotência BGP e TCP MD5 com ASN 32 bits](estudos/19-bgp-idempotency-md5-asn32.md)
 - [P005 Onda 1 — Braço B (`E23` + `E21`): `netkit` vs `veth` e Burst IPAM com Warm Pool](estudos/21-netkit-vs-veth-ipam-burst.md)
 - [P005 Onda 2 — Braço A (`E11` + `E12` + `E10`): Limite de Prefixos, Communities/Prepend/MED e BFD `< 1 s`](estudos/11-bgp-maxprefix-communities-bfd.md)

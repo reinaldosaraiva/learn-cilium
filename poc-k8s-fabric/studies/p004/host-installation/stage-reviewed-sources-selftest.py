@@ -69,7 +69,7 @@ def _source_files() -> dict[str, bytes]:
     paths = [
         "poc-k8s-fabric/labctl/labctl",
         "poc-k8s-fabric/labctl/lib/common.sh",
-        "poc-k8s-fabric/labctl/labs/mgc.sh",
+        "poc-k8s-fabric/labctl/labs/dci.sh",
     ]
     paths.extend(f"poc-k8s-fabric/studies/p004/ovn/fixture-{index:02d}.sh" for index in range(28))
     paths.extend(f"poc-k8s-fabric/studies/p004/ovn/fixture-{index:02d}.conf" for index in range(27))

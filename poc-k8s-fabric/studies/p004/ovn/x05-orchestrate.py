@@ -5,9 +5,9 @@ This replaces ``x05-orchestrate.sh`` and fixes the ten P0s of its adversarial
 review by integrating the existing X05 toolchain through its real APIs:
 
   P0-1  Probes now originate from the correct containers: A probes from
-        ``mgc-client-1``, B probes from ``mgc-client-2`` (created by this
-        orchestrator), EVPN peer probes from ``mgc-evpn-client-1`` (M03 peer)
-        and ``mgc-x05-peer-2`` (X05 peer) with ``ping -I <source>``.
+        ``dci-client-1``, B probes from ``dci-client-2`` (created by this
+        orchestrator), EVPN peer probes from ``dci-evpn-client-1`` (M03 peer)
+        and ``dci-x05-peer-2`` (X05 peer) with ``ping -I <source>``.
   P0-2  EVPN evidence is collected with ``x05-evaluator``'s G2 commands: Type
         5/RIB/FIB/VNI on the peer containers, remote VTEPs on the chassis
         containers via ``ovn-appctl``, Learned_Route/Port_Binding on the
@@ -25,8 +25,8 @@ review by integrating the existing X05 toolchain through its real APIs:
   P0-6  ``x05-nb-postflight.py`` is invoked with its real arguments
         (``--built|--clean --preflight --forward --state``) and a state
         snapshot produced by ``x05-nb-full-snapshot.sh --live``.
-  P0-7  The runtime resources the experiment needs (``mgc-client-2``,
-        ``mgc-x05-peer-2``, sentinel netns/taps, ``br-x05-b``/``vxlan-x05-b``/
+  P0-7  The runtime resources the experiment needs (``dci-client-2``,
+        ``dci-x05-peer-2``, sentinel netns/taps, ``br-x05-b``/``vxlan-x05-b``/
         ``evpn-x05-b``, chassis 2 OVS external_ids, gateway BGP mirrors,
         dedicated FRR pathspace ``x05``) are created and compensated by this
         orchestrator following the frozen ``x05-runtime-plan`` inventory with
@@ -46,8 +46,8 @@ review by integrating the existing X05 toolchain through its real APIs:
         prove its parent; withdraw B EVPN and gateway BGP; remove sentinel
         ports/netns; remove peer/client ports and containers; remove links,
         mirrors, filters, NB rows and FRR state; prove X05 absence; verify
-        M03; only then ``labctl mgc down --m03``, baseline verify, canaries).
-        ``labctl mgc`` is called with ``M03_LOCK_HELD_FD=9`` and
+        M03; only then ``labctl dci down --m03``, baseline verify, canaries).
+        ``labctl dci`` is called with ``M03_LOCK_HELD_FD=9`` and
         ``X05_COORDINATOR_TOKEN`` while the X05 marker exists, and labctl is
         resolved at ``<repo>/labctl/labctl`` (repository layout) or
         ``<repo>/labctl`` (installed/flat layout), whichever is a file.
@@ -97,7 +97,7 @@ LABCTL = REPO_ROOT / "labctl" / "labctl"
 if not LABCTL.is_file():
     LABCTL = REPO_ROOT / "labctl"
 DEFAULT_EVIDENCE_ROOT = REPO_ROOT / "evidence" / "P004" / "S002"
-DEFAULT_OVS_RUNC = pathlib.Path("/opt/mgc-src/ovn-fake-multinode/ovs-runc")
+DEFAULT_OVS_RUNC = pathlib.Path("/opt/dci-src/ovn-fake-multinode/ovs-runc")
 
 # ---------------------------------------------------------------------------
 # Lab topology (topology.md, x05-topology.md, x05-runtime-plan.py)
@@ -107,16 +107,16 @@ GW1 = "ovn-gw-1"
 GW2 = "ovn-gw-2"
 CHASSIS1 = "ovn-chassis-1"
 CHASSIS2 = "ovn-chassis-2"
-CLIENT_A = "mgc-client-1"          # M03/MGC existing on-prem client (AS 200)
-CLIENT_B = "mgc-client-2"          # X05 B on-prem client (AS 201) — created
-PEER_A = "mgc-evpn-client-1"       # M03 EVPN peer — existing
-PEER_B = "mgc-x05-peer-2"          # X05 EVPN peer — created
-MGC_NODES = (CENTRAL, GW1, GW2, CHASSIS1, CHASSIS2)
+CLIENT_A = "dci-client-1"          # M03/DCI existing on-prem client (AS 200)
+CLIENT_B = "dci-client-2"          # X05 B on-prem client (AS 201) — created
+PEER_A = "dci-evpn-client-1"       # M03 EVPN peer — existing
+PEER_B = "dci-x05-peer-2"          # X05 EVPN peer — created
+DCI_NODES = (CENTRAL, GW1, GW2, CHASSIS1, CHASSIS2)
 
 NB_SOCKET = "unix:/var/run/ovn/ovnnb_db.sock"
-M03_LOCK = pathlib.Path("/var/lock/labctl-mgc-m03.lock")
-X05_MARKER = pathlib.Path("/run/labctl/mgc-x05/active")
-M03_MARKER = pathlib.Path("/run/labctl/mgc-m03/active")
+M03_LOCK = pathlib.Path("/var/lock/labctl-dci-m03.lock")
+X05_MARKER = pathlib.Path("/run/labctl/dci-x05/active")
+M03_MARKER = pathlib.Path("/run/labctl/dci-m03/active")
 
 TENANT_PREFIX = "192.168.100.0/24"
 SENTINEL_A, SENTINEL_B = "192.168.100.11", "192.168.100.12"
@@ -164,7 +164,7 @@ GATEWAYS = (                        # number -> (container, vrf, mirror ovs/peer
     (300, GW1, "ovnvrf300", "169.254.254.1/30"),
     (400, GW2, "ovnvrf400", "169.254.254.5/30"),
 )
-CLIENT_B_LEGS = (                   # iface, vlan, address (mgc-client-2)
+CLIENT_B_LEGS = (                   # iface, vlan, address (dci-client-2)
     ("eth1", 300, "169.254.254.2/30"),
     ("eth2", 400, "169.254.254.6/30"),
 )
@@ -407,7 +407,7 @@ class Commands:
         if "M03_LOCK_HELD_FD" in env:
             # The M03 lock is held on FD 9 in this process. On Unix the
             # subprocess closes inherited FDs by default (close_fds=True), so
-            # labctl's inherited-lock check (mgc.sh: /proc/self/fd/9) would see
+            # labctl's inherited-lock check (dci.sh: /proc/self/fd/9) would see
             # a closed FD. Pass FD 9 explicitly so the child inherits the lock.
             try:
                 os.fstat(9)
@@ -850,16 +850,16 @@ def container_absent(ctx: RunContext, name: str) -> bool:
 
 
 def profile_owner_token(ctx: RunContext) -> str:
-    """Read the MGC profile owner token from the existing client A label."""
+    """Read the DCI profile owner token from the existing client A label."""
     if ctx.dry_run:
         return "<profile-owner>"
     raw = ctx.cmd.read(
         ["docker", "inspect", "--format",
-         '{{index .Config.Labels "labctl.mgc.owner"}}', CLIENT_A],
-        dry_value=b"labctl-mgc-dryrun", timeout=15.0)
+         '{{index .Config.Labels "labctl.dci.owner"}}', CLIENT_A],
+        dry_value=b"labctl-dci-dryrun", timeout=15.0)
     token = raw.decode().strip()
     if not token:
-        raise NotReady("cannot read the MGC profile owner label from " + CLIENT_A)
+        raise NotReady("cannot read the DCI profile owner label from " + CLIENT_A)
     return token
 
 
@@ -888,7 +888,7 @@ def remove_container_owned(ctx: RunContext, name: str, gate: GateScope) -> None:
 def ensure_client_a_vtysh_conf(ctx: RunContext, gate: GateScope) -> None:
     """Ensure the pre-existing A client's vtysh has a config file.
 
-    The MGC baseline created mgc-client-1 without /etc/frr/vtysh.conf, so
+    The DCI baseline created dci-client-1 without /etc/frr/vtysh.conf, so
     every vtysh invocation writes a warning to stderr. The reviewed
     evaluator's read-only invariant rejects any stderr on G1/G2 samples, so
     the orchestrator creates the empty file (frr-owned) when absent; an
@@ -966,10 +966,10 @@ def build_runtime(ctx: RunContext, gate: GateScope) -> None:
     start_frr_pathspace(ctx, CHASSIS2, "x05-chassis.conf")
     ctx.journal("frr-pathspace", CHASSIS2 + ":" + PATHSPACE, status="started")
 
-    # 8. Client B container (mgc-client-2, AS 201) with both /30 legs.
+    # 8. Client B container (dci-client-2, AS 201) with both /30 legs.
     build_client_b(ctx, gate)
 
-    # 9. EVPN peer container (mgc-x05-peer-2) with its own pathspace.
+    # 9. EVPN peer container (dci-x05-peer-2) with its own pathspace.
     build_peer_b(ctx, gate)
 
     if not ctx.dry_run:
@@ -1230,7 +1230,7 @@ def docker_run_detached(ctx: RunContext, name: str, image: str,
                         extra_labels: Mapping[str, str]) -> None:
     profile = profile_owner_token(ctx)
     argv = ["docker", "run", "-d", "--name", name, "--network", "none",
-            "--privileged", "--label", "labctl.mgc.owner=" + profile,
+            "--privileged", "--label", "labctl.dci.owner=" + profile,
             "--label", "labctl-x05-owner=" + ctx.owner]
     for key, value in extra_labels.items():
         argv += ["--label", "%s=%s" % (key, value)]
@@ -1258,7 +1258,7 @@ def ovs_runc_del_port(ctx: RunContext, bridge: str, iface: str, container: str) 
 
 def build_client_b(ctx: RunContext, gate: GateScope) -> None:
     if ctx.dry_run:
-        _log("DRY: docker run %s (%s, AS 201, labels labctl.mgc.owner + %s); "
+        _log("DRY: docker run %s (%s, AS 201, labels labctl.dci.owner + %s); "
              "cp x05-client2.conf; vtysh -C -f; frrinit start; "
              "ovs-runc add-port eth1/eth2 on br-ovn-ext VLAN 300/400; lo 10.0.0.1/32"
              % (CLIENT_B, FRR_IMAGE, ctx.owner))
@@ -1742,7 +1742,7 @@ def stop_captures(ctx: RunContext, gate: GateScope) -> None:
 # CAS control (P0-9): real UUIDs, one guarded transact, checked results
 # ---------------------------------------------------------------------------
 def read_cas_material(ctx: RunContext, *, source: str = "ls-x05-tenant-b",
-                      target: str = "ls-mgc-tenant") -> dict[str, Any]:
+                      target: str = "ls-dci-tenant") -> dict[str, Any]:
     """Read the named source/target LS UUIDs, complete port sets and the
     B LSP UUID from the live NB (mirrored roles for the inverse CAS)."""
     if ctx.dry_run:
@@ -1829,7 +1829,7 @@ def verify_cas_position(ctx: RunContext, gate: GateScope, lsp_uuid: str,
     positions = []
     for row in ctx.cmd.nb_list("Logical_Switch", ("_uuid", "name", "ports")):
         name = row["name"]
-        if name not in ("ls-mgc-tenant", "ls-x05-tenant-b"):
+        if name not in ("ls-dci-tenant", "ls-x05-tenant-b"):
             continue
         if lsp_uuid in _flatten_uuids(row["ports"]):
             positions.append(name)
@@ -1911,7 +1911,7 @@ def g2_topology(ctx: RunContext) -> Any:
 # ---------------------------------------------------------------------------
 def gate_0(ctx: RunContext) -> int:
     gate = ctx.gate("0")
-    _log("G0: local hashes, MGC nodes, M03/X05 absence, memory, canaries")
+    _log("G0: local hashes, DCI nodes, M03/X05 absence, memory, canaries")
     env = {"M03_PREFLIGHT_RECEIPT": os.environ.get("M03_PREFLIGHT_RECEIPT", "")}
     gate.json("g0-inputs.json", env)
     receipt = os.environ.get("M03_PREFLIGHT_RECEIPT", "")
@@ -1921,14 +1921,14 @@ def gate_0(ctx: RunContext) -> int:
     elif not receipt or not pathlib.Path(receipt).is_file():
         raise NotReady("M03_PREFLIGHT_RECEIPT must point at the historical "
                        "receipt file before any X05 gate")
-    ctx.cmd.labctl("mgc", "status")
-    ctx.cmd.labctl("mgc", "verify")
+    ctx.cmd.labctl("dci", "status")
+    ctx.cmd.labctl("dci", "verify")
     ctx.cmd.labctl("k01", "status")
-    for node in MGC_NODES:
+    for node in DCI_NODES:
         ctx.cmd.run(["docker", "inspect", "--format", "{{.State.Status}}", node],
                     label="canary " + node)
     if not ctx.dry_run:
-        for node in MGC_NODES:
+        for node in DCI_NODES:
             status = ctx.cmd.read(
                 ["docker", "inspect", "--format", "{{.State.Status}}", node],
                 timeout=15.0).decode().strip()
@@ -1960,16 +1960,16 @@ def gate_0(ctx: RunContext) -> int:
 
 def gate_0a(ctx: RunContext, lock: M03Lock) -> int:
     gate = ctx.gate("0a")
-    _log("G0a: under FD 9 lock — labctl mgc up --m03, verify --m03, fingerprint")
+    _log("G0a: under FD 9 lock — labctl dci up --m03, verify --m03, fingerprint")
     lock.acquire()
     if not ctx.dry_run and M03_MARKER.exists():
         raise GateFailure("G0a: M03 marker already present; refusing a second setup")
     receipt = os.environ.get("M03_PREFLIGHT_RECEIPT", "")
     if not receipt and not ctx.dry_run:
         raise NotReady("G0a: M03_PREFLIGHT_RECEIPT is required for --m03 setup")
-    ctx.cmd.labctl("mgc", "up", "--m03",
+    ctx.cmd.labctl("dci", "up", "--m03",
                    extra_env={"M03_PREFLIGHT_RECEIPT": receipt, **lock.labctl_env()})
-    ctx.cmd.labctl("mgc", "verify", "--m03", extra_env=lock.labctl_env())
+    ctx.cmd.labctl("dci", "verify", "--m03", extra_env=lock.labctl_env())
     # A fingerprint: the reviewed preflight (also validates 34 rows absent).
     preflight = ctx.cmd.read(["bash", str(TOOL_NB_PREFLIGHT), "--live"],
                              label="nb-preflight G0a")
@@ -2063,7 +2063,7 @@ def gate_nb(ctx: RunContext) -> int:
     # (request arrived, reply had no route). Applied after the P0-6 postflight
     # so the built-state check sees exactly the planned rows; the route dies
     # with the router in the NB inverse. The gw-1 client /30 return route lives
-    # in nb-topology.sh (lr-mgc-tenant), the MGC baseline.
+    # in nb-topology.sh (lr-dci-tenant), the DCI baseline.
     if not ctx.dry_run:
         ctx.cmd.dex(CENTRAL, "ovn-nbctl", "--may-exist", "lr-route-add",
                     "lr-x05-tenant-b", "169.254.254.4/30", "10.41.100.2")
@@ -2165,9 +2165,9 @@ def gate_5(ctx: RunContext) -> int:
         if snapshot["lsp_uuid"] not in b_ports:
             raise GateFailure("G5: B LSP is not in ls-x05-tenant-b ports")
         if snapshot["lsp_uuid"] in a_ports:
-            raise GateFailure("G5: B LSP already attached to ls-mgc-tenant")
+            raise GateFailure("G5: B LSP already attached to ls-dci-tenant")
         apply_cas(ctx, gate, snapshot, "forward")
-        verify_cas_position(ctx, gate, snapshot["lsp_uuid"], "ls-mgc-tenant",
+        verify_cas_position(ctx, gate, snapshot["lsp_uuid"], "ls-dci-tenant",
                             "G5-forward")
         # Persist the G5 outcome so G6/rollback know the forward ran; the
         # inverse snapshot itself is re-read live (P0-1), never derived from
@@ -2203,12 +2203,12 @@ def gate_6(ctx: RunContext) -> int:
         # P0-1: the persisted G5 snapshot is stale after the forward move;
         # x05-cas.sh demands source.ports to hold the LSP exactly once and
         # target.ports zero times, so re-read the live NB with mirrored
-        # roles: source = the LS that NOW has the LSP (ls-mgc-tenant),
+        # roles: source = the LS that NOW has the LSP (ls-dci-tenant),
         # target = the LS that must receive it back (ls-x05-tenant-b).
         inverse = cas_snapshot(read_cas_material(
-            ctx, source="ls-mgc-tenant", target="ls-x05-tenant-b"))
+            ctx, source="ls-dci-tenant", target="ls-x05-tenant-b"))
         if inverse["lsp_uuid"] not in inverse["source"]["ports"]:
-            raise GateFailure("G6: B LSP is not in ls-mgc-tenant ports")
+            raise GateFailure("G6: B LSP is not in ls-dci-tenant ports")
         if inverse["lsp_uuid"] in inverse["target"]["ports"]:
             raise GateFailure("G6: B LSP already attached to ls-x05-tenant-b")
         apply_cas(ctx, gate, inverse, "inverse")
@@ -2237,7 +2237,7 @@ def gate_7(ctx: RunContext, lock: M03Lock) -> int:
     stop_captures(ctx, gate)
     teardown = teardown_runtime(ctx, gate)
     # M03 must still be intact after X05 cleanup.
-    ctx.cmd.labctl("mgc", "verify", "--m03", extra_env=lock.labctl_env())
+    ctx.cmd.labctl("dci", "verify", "--m03", extra_env=lock.labctl_env())
     if not ctx.dry_run:
         if not M03_MARKER.exists():
             raise GateFailure("G7: M03 marker disappeared before M03 teardown")
@@ -2262,11 +2262,11 @@ def gate_7(ctx: RunContext, lock: M03Lock) -> int:
 
 def gate_8(ctx: RunContext, lock: M03Lock) -> int:
     gate = ctx.gate("8")
-    _log("G8: labctl mgc down --m03, baseline verify, canaries (P0-10)")
+    _log("G8: labctl dci down --m03, baseline verify, canaries (P0-10)")
     if not ctx.dry_run and marker_exists():
         raise GateFailure("G8: X05 marker still present; M03 teardown refused")
-    ctx.cmd.labctl("mgc", "down", "--m03", extra_env=lock.labctl_env())
-    ctx.cmd.labctl("mgc", "verify", extra_env=lock.labctl_env())
+    ctx.cmd.labctl("dci", "down", "--m03", extra_env=lock.labctl_env())
+    ctx.cmd.labctl("dci", "verify", extra_env=lock.labctl_env())
     ctx.cmd.labctl("k01", "status")
     if not ctx.dry_run:
         if M03_MARKER.exists():
@@ -2290,12 +2290,12 @@ def run_rollback(ctx: RunContext, lock: M03Lock) -> int:
             # P0-1: re-read the live NB with mirrored roles; the persisted G5
             # snapshot is stale after the forward move.
             inverse = cas_snapshot(read_cas_material(
-                ctx, source="ls-mgc-tenant", target="ls-x05-tenant-b"))
+                ctx, source="ls-dci-tenant", target="ls-x05-tenant-b"))
             lsp_uuid = inverse["lsp_uuid"]
             if lsp_uuid in inverse["source"]["ports"]:
                 if lsp_uuid in inverse["target"]["ports"]:
                     raise GateFailure("rollback: B LSP sits in both "
-                                      "ls-mgc-tenant and ls-x05-tenant-b")
+                                      "ls-dci-tenant and ls-x05-tenant-b")
                 apply_cas(ctx, gate, inverse, "rollback-inverse")
             elif lsp_uuid not in inverse["target"]["ports"]:
                 raise GateFailure("rollback: B LSP sits in neither LS")
@@ -2316,7 +2316,7 @@ def run_rollback(ctx: RunContext, lock: M03Lock) -> int:
                        "manual recovery; M03 teardown not attempted")
         return 75
     teardown_runtime(ctx, gate)
-    ctx.cmd.labctl("mgc", "verify", "--m03", extra_env=lock.labctl_env())
+    ctx.cmd.labctl("dci", "verify", "--m03", extra_env=lock.labctl_env())
     if not ctx.dry_run and marker_exists():
         # P1-2: same ownership rule as gate_7 — read the marker token first
         # and leave it in place when another run owns it.
@@ -2330,8 +2330,8 @@ def run_rollback(ctx: RunContext, lock: M03Lock) -> int:
                  "leaving the marker for its owner" % (token, ctx.owner))
         else:
             X05_MARKER.unlink()
-    ctx.cmd.labctl("mgc", "down", "--m03", extra_env=lock.labctl_env())
-    ctx.cmd.labctl("mgc", "verify", extra_env=lock.labctl_env())
+    ctx.cmd.labctl("dci", "down", "--m03", extra_env=lock.labctl_env())
+    ctx.cmd.labctl("dci", "verify", extra_env=lock.labctl_env())
     ctx.cmd.labctl("k01", "status")
     gate.pass_gate("rollback completed through M03 teardown and baseline verify")
     return 0

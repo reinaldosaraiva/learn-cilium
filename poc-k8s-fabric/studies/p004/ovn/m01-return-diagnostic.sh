@@ -14,11 +14,11 @@ export LAB_ROOT DRY_RUN
 
 # shellcheck source=../../../labctl/lib/common.sh
 source "${LAB_ROOT}/lib/common.sh"
-# shellcheck source=../../../labctl/labs/mgc.sh
-source "${LAB_ROOT}/labs/mgc.sh"
+# shellcheck source=../../../labctl/labs/dci.sh
+source "${LAB_ROOT}/labs/dci.sh"
 require_cmd docker jq
 
-client=mgc-client-1
+client=dci-client-1
 gateway=ovn-gw-1
 central=ovn-central-az1
 prefix=10.0.0.0/16
@@ -30,10 +30,10 @@ say() { printf 'M01-A4 %s\n' "$*"; }
 fail() { say "FAIL: $*" >&2; exit 1; }
 
 assert_baseline() {
-  mgc_assert_no_extra_ovn_containers
-  mgc_assert_cluster_ownership
-  mgc_assert_bridges_owned
-  mgc_assert_client_ownership "$client"
+  dci_assert_no_extra_ovn_containers
+  dci_assert_cluster_ownership
+  dci_assert_bridges_owned
+  dci_assert_client_ownership "$client"
   for name in "$central" "$gateway" ovn-gw-2 ovn-chassis-1 ovn-chassis-2 "$client"; do
     [[ "$(docker inspect -f '{{.State.Running}}' "$name")" == true ]] \
       || fail "$name não está rodando"
@@ -41,7 +41,7 @@ assert_baseline() {
   [[ "$(awk '/^MemAvailable:/ {print int($2 / 1024 / 1024)}' /proc/meminfo)" -ge 4 ]] \
     || fail 'MemAvailable abaixo de 4 GiB'
   local routes
-  routes="$(docker exec "$central" ovn-nbctl lr-route-list lr-mgc-tenant)"
+  routes="$(docker exec "$central" ovn-nbctl lr-route-list lr-dci-tenant)"
   [[ "$routes" == *"$prefix"*"$failed_nexthop"* \
     && "$routes" == *"$prefix"*"$survivor_nexthop"* ]] \
     || fail 'duas rotas de retorno esperadas não estão presentes'
@@ -78,28 +78,28 @@ restore() {
   local rc=$?
   trap - EXIT INT TERM
   if [[ "$fault_active" == 1 ]]; then
-    say 'restaurar FRR e as duas rotas somente via labctl mgc up/verify'
-    "${LAB_ROOT}/labctl" mgc up || rc=1
-    "${LAB_ROOT}/labctl" mgc verify || rc=1
+    say 'restaurar FRR e as duas rotas somente via labctl dci up/verify'
+    "${LAB_ROOT}/labctl" dci up || rc=1
+    "${LAB_ROOT}/labctl" dci verify || rc=1
   fi
   exit "$rc"
 }
 
 assert_baseline
 if [[ "$DRY_RUN" == 1 ]]; then
-  say 'DRY: verificar mgc e ping baseline 30/30'
+  say 'DRY: verificar dci e ping baseline 30/30'
   say 'DRY: parar somente bgpd/bfdd/zebra em ovn-gw-1 próprio; exigir BGP 1/2 e FIB via gw2'
   say 'DRY: medir ping com as duas rotas estáticas de retorno; esperar perda'
-  say "DRY: ovn-nbctl --wait=sb lr-route-del lr-mgc-tenant $prefix $failed_nexthop"
+  say "DRY: ovn-nbctl --wait=sb lr-route-del lr-dci-tenant $prefix $failed_nexthop"
   say 'DRY: confirmar rota de retorno só via gw2 e medir ping 30/30'
-  say 'DRY: trap reaplica labctl mgc up/verify e restaura FRR e ECMP'
+  say 'DRY: trap reaplica labctl dci up/verify e restaura FRR e ECMP'
   exit 0
 fi
 
 trap restore EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-"${LAB_ROOT}/labctl" mgc verify
+"${LAB_ROOT}/labctl" dci verify
 ping_result baseline || fail 'baseline não fechou 30/30'
 say 'parar daemons FRR de gw1'
 fault_active=1
@@ -113,14 +113,14 @@ docker exec "$gateway" bash -c '
 '
 wait_one_peer
 say 'rotas de retorno antes da remoção'
-docker exec "$central" ovn-nbctl lr-route-list lr-mgc-tenant
+docker exec "$central" ovn-nbctl lr-route-list lr-dci-tenant
 if ping_result with_failed_return; then
   fail 'falha de tráfego não se reproduziu; não alterar a rota'
 fi
 say "remover temporariamente somente retorno via $failed_nexthop"
 docker exec "$central" ovn-nbctl --wait=sb lr-route-del \
-  lr-mgc-tenant "$prefix" "$failed_nexthop"
-routes="$(docker exec "$central" ovn-nbctl lr-route-list lr-mgc-tenant)"
+  lr-dci-tenant "$prefix" "$failed_nexthop"
+routes="$(docker exec "$central" ovn-nbctl lr-route-list lr-dci-tenant)"
 printf '%s\n' "$routes"
 [[ "$routes" != *"$failed_nexthop"* && "$routes" == *"$survivor_nexthop"* ]] \
   || fail 'retorno não convergiu exclusivamente para gw2'

@@ -81,7 +81,7 @@ flowchart LR
 ### 3.1 Hipóteses e Comportamento Esperado
 
 1. **Identidade de Cluster e Espaço de Identidades (`k01` vs `p003-gw`):**
-   - **Esperado:** Inspeção read-only confirma que `k01` opera com `cluster-name: magalu-poc` e `cluster-id: 1`, enquanto `p003-gw` opera com `cluster-name: p003-gw`, `cluster-id: 2` e `max-connected-clusters: 255`, habilitando identidades de segurança disjuntas entre clusters.
+   - **Esperado:** Inspeção read-only confirma que `k01` opera com `cluster-name: dci-poc` e `cluster-id: 1`, enquanto `p003-gw` opera com `cluster-name: p003-gw`, `cluster-id: 2` e `max-connected-clusters: 255`, habilitando identidades de segurança disjuntas entre clusters.
 2. **Fusão Multi-Cluster via `EndpointSlice` e Anúncio BGP Global (`10.202.255.30/32`):**
    - **Esperado:** Um serviço anotado com `service.cilium.io/global: "true"` e `service.cilium.io/shared: "true"` (`e30-global-svc`, VIP `10.202.255.30`) funde no mapa eBPF de LoadBalancing tanto o `EndpointSlice` local (`e30-global-svc-rtdbn`, `10.245.2.19:8080`) quanto o `EndpointSlice` remoto sincronizado (`e30-global-svc-remote-c2`, `10.245.1.180:8080`, gerenciado por `cilium-clustermesh-mcs`), anunciando `10.202.255.30/32` ao `border1` via BGP.
 3. **Failover Cross-Cluster Automático (`scale=0` local) e Controles Negativos (`3A` e `3B`):**
@@ -94,7 +94,7 @@ flowchart LR
 
 | Célula / Etapa | Esperado | Observado ao Vivo (`vm-cilium`) | Veredito |
 |---|---|---|---|
-| **Identidades de Cluster (`k01` vs `p003-gw`)** | `cluster-id` distintos (`1` vs `2`) | `k01`: `cluster_name="magalu-poc"`, `cluster_id="1"`; `p003-gw`: `cluster_name="p003-gw"`, `cluster_id="2"`, `max_connected_clusters="255"` | **PASS** |
+| **Identidades de Cluster (`k01` vs `p003-gw`)** | `cluster-id` distintos (`1` vs `2`) | `k01`: `cluster_name="dci-poc"`, `cluster_id="1"`; `p003-gw`: `cluster_name="p003-gw"`, `cluster_id="2"`, `max_connected_clusters="255"` | **PASS** |
 | **Fusão BPF LB (`cilium-dbg service list`)** | 2 backends ativos (`local` + `remote-c2`) em `ClusterIP` e `LoadBalancer` | `ID 166` (`10.112.129.28:80/TCP`) e `ID 167` (`10.202.255.30:80/TCP`) com `1 => 10.245.1.180:8080` e `2 => 10.245.2.19:8080 (active)` | **PASS** |
 | **RIB BGP Externa (`border1`)** | `10.202.255.30/32` instalada via BGP (`distance 20`) | Convergida na tentativa 3: `Routing entry for 10.202.255.30/32, Known via "bgp", distance 20, * 10.254.0.0, via eth1` | **PASS** |
 | **Fase 1 (Local + Remoto Ativos)** | `20/20` HTTP `200` Leste-Oeste e `20/20` Norte-Sul | Leste-Oeste: `20/20` (`local_c1=15`, `remote_c2=5`); Norte-Sul BGP: `20/20` (`local_c1=10`, `remote_c2=10`) | **PASS** |

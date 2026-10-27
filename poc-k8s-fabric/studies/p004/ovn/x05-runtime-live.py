@@ -52,10 +52,10 @@ sys.dont_write_bytecode = True
 HERE = pathlib.Path(__file__).resolve().parent
 PREFLIGHT_PATH = HERE / "x05-runtime-preflight.py"
 PLAN_PATH = HERE / "x05-runtime-plan.py"
-DEFAULT_LOCK = pathlib.Path("/var/lock/labctl-mgc-m03.lock")
-DEFAULT_STATE = pathlib.Path("/var/lib/labctl/mgc.json")
-DEFAULT_M03_MARKER = pathlib.Path("/run/labctl/mgc-m03/active")
-DEFAULT_X05_MARKER = pathlib.Path("/run/labctl/mgc-x05/active")
+DEFAULT_LOCK = pathlib.Path("/var/lock/labctl-dci-m03.lock")
+DEFAULT_STATE = pathlib.Path("/var/lib/labctl/dci.json")
+DEFAULT_M03_MARKER = pathlib.Path("/run/labctl/dci-m03/active")
+DEFAULT_X05_MARKER = pathlib.Path("/run/labctl/dci-x05/active")
 DEFAULT_BUNDLE_ROOT = pathlib.Path("/opt/poc-k8s-fabric")
 DEFAULT_LABCTL = DEFAULT_BUNDLE_ROOT / "labctl"
 BASE_ENV = {
@@ -102,34 +102,34 @@ EXECUTION_RESERVED_DETAIL_KEYS = frozenset(
     }
 )
 REVIEWED_BUNDLE_FILES = {
-    "labctl": "843cf96ad857087ec7e98b4cbc0d578d5b868763ca15599d23460cd1f8d3132d",
+    "labctl": "1824c9b79ab1bd1933418487685ae33bdad13f78538e52a92eb2e223ef336101",
     "lib/common.sh": "7faf46fecf1834a14b09d861ee1b996f5832a3adf239758799188220dff8bfd4",
-    "labs/mgc.sh": "c24962a4382b9f905a448a2621bdf0a5ef0167a12147563a0509c224a33d92bc",
-    "studies/p004/ovn/m03.sh": "9bde10234f54cfd3ebcc32ba88a5b60134a195c7b22f8c309eae475c63d5552c",
-    "studies/p004/ovn/nb-topology.sh": "48f6abc236ba3803aca88f2f2b7a2b287afc6619812366246e3f52a19807a7aa",
-    "studies/p004/ovn/frr-client.conf": "5b4cd244ae1917832f7e8825e0fc6a414f0db53bc08c72ed0dd4d6541d679445",
+    "labs/dci.sh": "00900be3f29d66107cd6c5ebf89e1c2f7007eb61925cfd58e1ee45d7ee4aac79",
+    "studies/p004/ovn/m03.sh": "bd28efe31b17d47ab5de3e504098499aa11648c59854bfba2e986410a0775627",
+    "studies/p004/ovn/nb-topology.sh": "680776642408f5f25099359bd33c502c5c0b4c0cb5d24109bc29c2af44afed81",
+    "studies/p004/ovn/frr-client.conf": "8a407c5c8be2696ccb08c4712f4d23f25de8314c10b77fa94d726d4021a9c07c",
     "studies/p004/ovn/frr-m03-chassis.conf": "f84c2680e2457ed5d070ef031842f5c9d8dddbff3c4b1fa94aba92d33f3d5497",
-    "studies/p004/ovn/frr-m03-client.conf": "5951dda0687c1a847bda61c14fe5135bac014f61c21c02a016d4621998d93206",
-    "studies/p004/ovn/x05-runtime-plan.py": "78dd13d8a156611de0ac8088bc244bcbd9c78d22caba552eee53e2edc2efef46",
-    "studies/p004/ovn/x05-runtime-preflight.py": "f79f1b731cd3c8072f8658a660cea748a953ec9fa6a53fec4e747d0228d0b97c",
-    "studies/p004/ovn/x05-runtime-apply.py": "4b01a3f3571b66ef51e36a280d6ecddc754cf1ecfa26c0c9a9a06c9757acddc1",
+    "studies/p004/ovn/frr-m03-client.conf": "da3773b5121d105c25558b6ca73eae74785d36ac4759457a5fcaad8bfd09b3f0",
+    "studies/p004/ovn/x05-runtime-plan.py": "a6375801d5ab8a6f4964f6561934de42460f9f354b91d08ea955a9a9ada93db3",
+    "studies/p004/ovn/x05-runtime-preflight.py": "293a2c420e4f96deb1b37afd83683a8492317a72dbf4093489d170f52051bd0d",
+    "studies/p004/ovn/x05-runtime-apply.py": "3bdd526a1ce4c6cb6c643121946ae9f154e53562f4436c891cbfeba8ff3edaf8",
     "studies/p004/ovn/x05-capture.py": "2315c7416a6d32880bf276cb3c4d1b20cc5c3f1dc70b6d7f46ec37fd1c048287",
-    "studies/p004/ovn/x05-evaluator.py": "95a1afc99a06d26d518a8fbf9d755ffc5ed9b4e37d873ad14bbe6a71f6702dac",
-    "studies/p004/ovn/x05-nb-live.py": "cbe6000bca6698e2fe7b71bb07bd5676e68a45925917195793d46840a0dd3141",
-    "studies/p004/ovn/x05-coordinator.py": "584bf99c4ade986033679f564f9e83a0030702a25001a700b6e07259d59906d3",
+    "studies/p004/ovn/x05-evaluator.py": "d663ffe414b1d2b9376da871ab8c6fc26899d3e35f6c2b3eb1a2eaf5f77db08e",
+    "studies/p004/ovn/x05-nb-live.py": "6c3e87f91a1fa8cf452d9c30ccd11bfa436995a1a2cc2e334b65012c174311e0",
+    "studies/p004/ovn/x05-coordinator.py": "299714e613779a5d6458bb63f1757677e6b3635852f11c863e8755e9a195da21",
     "studies/p004/ovn/x05-cas.sh": "13081eaf3f66071f6dfef238b423449fe161df2002bc7642e3c1635d6baf162d",
-    "studies/p004/ovn/frr-gw1.conf": "8ea15ebfc376e36b980586471e6532cb54cd26b6e8e2295363dbc2762bb40655",
-    "studies/p004/ovn/frr-gw2.conf": "df039572ba709947239b94e8a7512864fc09e48cfc9d4effa4f4e785b4f3bfb9",
+    "studies/p004/ovn/frr-gw1.conf": "2838c8687b8d45dba49a3d6c488780cf8e3a00f281e5eb26c16d6fa7c6ebbbb7",
+    "studies/p004/ovn/frr-gw2.conf": "d464ddc249ae61a58a0df3058ae482d75ebb8e768ebd00c772e6a50fa5fee6c9",
     "studies/p004/ovn/x05-gw1-add.conf": "4d30657f0b6af7f88c0ccc3e964d26d5f20d4e1938d54cb56a531b71510533d7",
     "studies/p004/ovn/x05-gw1-remove.conf": "3cc0890efe0e98f999370ee53456c97e3ba575865fbe7862807cb4b76ef64014",
     "studies/p004/ovn/x05-gw2-add.conf": "6ce1142b5bd8063a320c4d8224278106ec93a48f78a941fad4b6dd3d7e50291f",
     "studies/p004/ovn/x05-gw2-remove.conf": "c4689cfef5306d0d29aff77986041d98753a7ec494ab2d08c9ca845b52b9921e",
-    "studies/p004/ovn/x05-client2.conf": "73cb785be4beb61693de52e33440ade774b4d4cb66fa51f06e86703e9583ced9",
+    "studies/p004/ovn/x05-client2.conf": "c4f928c4f84e794c29bb4660e171cd84e6c924a4dad3056866dccaf128982589",
     "studies/p004/ovn/x05-chassis.conf": "9ec32352c308f090362e02e44ce5e725baaa3cda74dbf79b71092e3e0da3cfce",
-    "studies/p004/ovn/x05-peer.conf": "9fc6033e407e85f9d03f89c77fedf31a1ac777ed938f06a75737167f969e39de",
+    "studies/p004/ovn/x05-peer.conf": "f047d33f87ea87b94ad0e964bd63325218ad5ba6312fef6627cb9b4e7aef828f",
 }
 REVIEWED_BUNDLE_MANIFEST_SHA256 = (
-    "66e152b599798519d749c222d172ac42ff52f9542d2263726120202476f675a9"
+    "d2a5d8bed3bdf733760a686bcdf8453d5dac201ff1c783da900eb9e630a0514b"
 )
 
 
@@ -1247,10 +1247,10 @@ class LiveCollector:
             names.add(name)
         result: dict[str, dict[str, Any]] = {}
         original_image_labels: dict[str, dict[str, str]] = {}
-        interesting = set(PREFLIGHT.MGC_CONTAINER_NAMES) | {
-            "mgc-evpn-client-1",
-            "mgc-client-2",
-            "mgc-x05-peer-2",
+        interesting = set(PREFLIGHT.DCI_CONTAINER_NAMES) | {
+            "dci-evpn-client-1",
+            "dci-client-2",
+            "dci-x05-peer-2",
             "p003-os",
         }
         for name in sorted(names & interesting):
@@ -1393,9 +1393,9 @@ class LiveCollector:
             required_uid=self.config.required_uid,
             forbidden_mode_bits=0o022,
         )
-        value = PREFLIGHT.parse_json(raw, context="MGC state")
+        value = PREFLIGHT.parse_json(raw, context="DCI state")
         if not isinstance(value, dict):
-            raise AdmissionError("MGC state is not an object")
+            raise AdmissionError("DCI state is not an object")
         self._cache[key] = value
         return value
 
@@ -1746,18 +1746,18 @@ class LiveCollector:
                     return int(parts[1]) // 1024 // 1024
         raise AdmissionError("MemAvailable is missing or malformed")
 
-    def mgc_section(self) -> dict[str, Any]:
+    def dci_section(self) -> dict[str, Any]:
         catalog = self.docker_catalog()
         state = self.state()
         owner = state.get("owner_token")
         if not isinstance(owner, str) or not owner:
-            raise AdmissionError("MGC profile owner token is absent")
+            raise AdmissionError("DCI profile owner token is absent")
         missing = [
-            name for name in PREFLIGHT.MGC_CONTAINER_NAMES if name not in catalog
+            name for name in PREFLIGHT.DCI_CONTAINER_NAMES if name not in catalog
         ]
         if missing:
             raise AdmissionError(
-                "required MGC containers are absent: " + ",".join(missing)
+                "required DCI containers are absent: " + ",".join(missing)
             )
         all_names = set(catalog["__all_names__"])
         foreign = sorted(
@@ -1770,10 +1770,10 @@ class LiveCollector:
         by_name = {row.get("name"): row for row in bridge_rows}
         bridges: dict[str, Any] = {}
         recorded_bridges: dict[str, Any] = {}
-        for name, state_key in PREFLIGHT.MGC_BRIDGE_ID_KEYS.items():
+        for name, state_key in PREFLIGHT.DCI_BRIDGE_ID_KEYS.items():
             row = by_name.get(name)
             if not isinstance(row, dict):
-                raise AdmissionError("required MGC bridge is absent: " + name)
+                raise AdmissionError("required DCI bridge is absent: " + name)
             bridges[name] = {
                 "uuid": row.get("_uuid"),
                 "external_ids": row.get("external_ids"),
@@ -1785,16 +1785,16 @@ class LiveCollector:
             "expected_cluster_names": list(PREFLIGHT.CLUSTER_NAMES),
             "foreign_names": foreign,
             "container_ids": {
-                name: catalog[name]["id"] for name in PREFLIGHT.MGC_CONTAINER_NAMES
+                name: catalog[name]["id"] for name in PREFLIGHT.DCI_CONTAINER_NAMES
             },
             "recorded_ids": {
-                key: state.get(key) for key in PREFLIGHT.MGC_ID_KEYS.values()
+                key: state.get(key) for key in PREFLIGHT.DCI_ID_KEYS.values()
             },
             "container_states": {
-                name: catalog[name]["state"] for name in PREFLIGHT.MGC_CONTAINER_NAMES
+                name: catalog[name]["state"] for name in PREFLIGHT.DCI_CONTAINER_NAMES
             },
             "container_labels": {
-                name: catalog[name]["labels"] for name in PREFLIGHT.MGC_CONTAINER_NAMES
+                name: catalog[name]["labels"] for name in PREFLIGHT.DCI_CONTAINER_NAMES
             },
             "original_image_bindings": {
                 name: {
@@ -1907,7 +1907,7 @@ class LiveCollector:
         result: list[dict[str, Any]] = []
         inventories = {
             "chassis": self._link_by_name("ovn-chassis-1"),
-            "peer": self._link_by_name("mgc-evpn-client-1"),
+            "peer": self._link_by_name("dci-evpn-client-1"),
         }
         for name, kind, role, node, typed in PREFLIGHT.M03_LINKS:
             row = inventories[role].get(name)
@@ -2010,11 +2010,11 @@ class LiveCollector:
         tables = (
             (
                 "Logical_Switch",
-                "ls-mgc-tenant",
+                "ls-dci-tenant",
                 ("_uuid", "name", "ports", "other_config"),
             ),
-            ("Logical_Router", "lr-mgc-tenant", ("_uuid", "name", "ports")),
-            ("Logical_Router_Port", "lrp-mgc-tenant", ("_uuid", "name", "options")),
+            ("Logical_Router", "lr-dci-tenant", ("_uuid", "name", "ports")),
+            ("Logical_Router_Port", "lrp-dci-tenant", ("_uuid", "name", "options")),
         )
         result: dict[str, Any] = {}
         for table, name, columns in tables:
@@ -2063,7 +2063,7 @@ class LiveCollector:
             raise AdmissionError("M03 marker is invalid: " + str(exc)) from exc
         marker.update({"owner": token, "token": token, "run_token": marker_run})
         catalog = self.docker_catalog()
-        peer = catalog.get("mgc-evpn-client-1")
+        peer = catalog.get("dci-evpn-client-1")
         if not isinstance(peer, dict):
             raise AdmissionError("M03 peer is absent")
         interfaces = self.ovs(None, "Interface", ("_uuid", "name", "external_ids"))
@@ -2071,7 +2071,7 @@ class LiveCollector:
             row
             for row in interfaces
             if isinstance(row.get("external_ids"), dict)
-            and row["external_ids"].get("container_id") == "mgc-evpn-client-1"
+            and row["external_ids"].get("container_id") == "dci-evpn-client-1"
             and row["external_ids"].get("container_iface") == "eth1"
         ]
         if len(matches) != 1:
@@ -2125,7 +2125,7 @@ class LiveCollector:
         ):
             raise AdmissionError("M03 peer OVS bridge membership is not singular")
         lrp_rows = self.nb(
-            "Logical_Router_Port", "lrp-mgc-tenant", ("_uuid", "name", "options")
+            "Logical_Router_Port", "lrp-dci-tenant", ("_uuid", "name", "options")
         )
         if len(lrp_rows) != 1 or not isinstance(lrp_rows[0].get("options"), dict):
             raise AdmissionError("M03 tenant LRP options readback is malformed")
@@ -2152,12 +2152,12 @@ class LiveCollector:
             "profile_owner": profile_owner,
             "marker": marker,
             "peer": {
-                "name": "mgc-evpn-client-1",
+                "name": "dci-evpn-client-1",
                 "id": peer["id"],
                 "state": peer["state"],
                 "labels": peer["labels"],
                 "ovs": {
-                    "container_id": "mgc-evpn-client-1",
+                    "container_id": "dci-evpn-client-1",
                     "container_iface": "eth1",
                     "owner": matches[0]["external_ids"].get("labctl-m03-owner"),
                     "bridge": bridge,
@@ -2171,7 +2171,7 @@ class LiveCollector:
             },
             "return_filter": {
                 "port_name": filter_name,
-                "lrp": "lrp-mgc-tenant",
+                "lrp": "lrp-dci-tenant",
                 "dynamic-routing-port-name": options.get("dynamic-routing-port-name"),
                 "mapping": mapping,
             },
@@ -2254,7 +2254,7 @@ class LiveCollector:
         raise AdmissionError("unsupported runtime host: " + str(host))
 
     def _parent_absent(self, node: str | None) -> bool:
-        if node in {"mgc-client-2", "mgc-x05-peer-2"}:
+        if node in {"dci-client-2", "dci-x05-peer-2"}:
             return node not in self.docker_catalog()
         if isinstance(node, str) and node.startswith("netns:"):
             _, container, namespace = node.split(":", 2)
@@ -2454,12 +2454,12 @@ class LiveCollector:
         return "absent", {"exists": exists, "path_absent": not exists}
 
     def collect_snapshot(self) -> dict[str, Any]:
-        mgc = self.mgc_section()
+        dci = self.dci_section()
         context = {
             "run_hex": self.config.run_hex,
             "owner": self.config.owner,
             "evidence_path": str(self.config.evidence_path),
-            "profile_owner": mgc["profile_owner"],
+            "profile_owner": dci["profile_owner"],
         }
         plan = PLAN.materialize_plan(
             context["run_hex"],
@@ -2484,7 +2484,7 @@ class LiveCollector:
             raise AdmissionError("one or more X05 runtime identities already exist")
         docker = self.docker_section()
         gateway_frr = self.gateway_frr_section()
-        m03 = self.m03_section(mgc["profile_owner"])
+        m03 = self.m03_section(dci["profile_owner"])
         generated = {
             resource_id: {
                 "exists": before[resource_id]["observed"]["exists"],
@@ -2497,7 +2497,7 @@ class LiveCollector:
         }
         sections = {
             "m03": m03,
-            "mgc": mgc,
+            "dci": dci,
             "docker": docker,
             "gateway_frr": gateway_frr,
             "chassis2": self.chassis2_section(),
@@ -2590,7 +2590,7 @@ class LiveCollector:
         names = set(catalog["__all_names__"])
         if names & set(PREFLIGHT.FIXED_X05_DOCKER_NAMES):
             raise AdmissionError("X05 Docker identity already exists")
-        mgc = self.mgc_section()
+        dci = self.dci_section()
         docker = self.docker_section()
         frr = self.gateway_frr_section()
         chassis2 = self.chassis2_section()
@@ -2598,7 +2598,7 @@ class LiveCollector:
             "run_hex": self.config.run_hex,
             "owner": self.config.owner,
             "evidence_path": str(self.config.evidence_path),
-            "profile_owner": mgc["profile_owner"],
+            "profile_owner": dci["profile_owner"],
         }
         plan = PLAN.materialize_plan(
             context["run_hex"],
@@ -2618,7 +2618,7 @@ class LiveCollector:
             raise AdmissionError("one or more X05 identities already exist at G0")
         resources = {row["id"]: row for row in plan["resources"]}
         try:
-            PREFLIGHT.validate_mgc(mgc)
+            PREFLIGHT.validate_dci(dci)
             PREFLIGHT.validate_docker(docker, resources)
             PREFLIGHT.validate_gateway_frr(frr, resources)
             PREFLIGHT.validate_chassis2(chassis2)
@@ -2627,7 +2627,7 @@ class LiveCollector:
             raise AdmissionError("G0 baseline validation failed: " + str(exc)) from exc
         return {
             **self.input_digests(),
-            "mgc": mgc,
+            "dci": dci,
             "docker": docker,
             "gateway_frr": frr,
             "chassis2": chassis2,
@@ -2639,7 +2639,7 @@ class LiveCollector:
         if self.marker(self.config.m03_marker_path, required=False) is not None:
             raise AdmissionError("M03 marker exists outside the owned setup interval")
         catalog = self.docker_catalog()
-        if "mgc-evpn-client-1" in catalog:
+        if "dci-evpn-client-1" in catalog:
             raise AdmissionError("M03 peer container residue exists")
         links = self._link_by_name("ovn-chassis-1")
         residue = set(links) & (
@@ -2653,14 +2653,14 @@ class LiveCollector:
         host_interfaces = self.ovs(None, "Interface", ("_uuid", "name", "external_ids"))
         if any(
             isinstance(row.get("external_ids"), dict)
-            and row["external_ids"].get("container_id") == "mgc-evpn-client-1"
+            and row["external_ids"].get("container_id") == "dci-evpn-client-1"
             for row in host_interfaces
         ):
             raise AdmissionError("M03 peer OVS port residue exists")
         if self.pathspace_entries("ovn-chassis-1", ("/etc/frr/m03", "/run/frr/m03")):
             raise AdmissionError("M03 FRR pathspace residue exists")
         lrp = self.nb(
-            "Logical_Router_Port", "lrp-mgc-tenant", ("_uuid", "name", "options")
+            "Logical_Router_Port", "lrp-dci-tenant", ("_uuid", "name", "options")
         )
         if len(lrp) != 1 or not isinstance(lrp[0].get("options"), dict):
             raise AdmissionError("baseline tenant LRP readback is malformed")
@@ -2677,20 +2677,20 @@ class LiveCollector:
 
     @staticmethod
     def baseline_anchors(
-        mgc: Mapping[str, Any],
+        dci: Mapping[str, Any],
         docker: Mapping[str, Any],
         gateway_frr: Mapping[str, Any],
         chassis2: Mapping[str, Any],
         before: Mapping[str, Any],
     ) -> dict[str, Any]:
         return {
-            "container_ids": mgc["container_ids"],
-            "recorded_ids": mgc["recorded_ids"],
-            "profile_owner": mgc["profile_owner"],
-            "bridges": mgc["bridges"],
-            "recorded_bridge_uuids": mgc["recorded_bridge_uuids"],
-            "container_labels": mgc["container_labels"],
-            "original_image_bindings": mgc["original_image_bindings"],
+            "container_ids": dci["container_ids"],
+            "recorded_ids": dci["recorded_ids"],
+            "profile_owner": dci["profile_owner"],
+            "bridges": dci["bridges"],
+            "recorded_bridge_uuids": dci["recorded_bridge_uuids"],
+            "container_labels": dci["container_labels"],
+            "original_image_bindings": dci["original_image_bindings"],
             "gateway_frr": gateway_frr,
             "chassis2": chassis2,
             "resolved_images": docker["resolved_images"],
@@ -2725,12 +2725,12 @@ class LiveCollector:
         catalog = self.docker_catalog()
         if catalog.get("p003-os", {}).get("state") != "exited":
             raise AdmissionIncident("p003-os changed state during admission")
-        mgc = self.mgc_section()
+        dci = self.dci_section()
         docker = self.docker_section()
         gateway_frr = self.gateway_frr_section()
         chassis2 = self.chassis2_section()
         try:
-            PREFLIGHT.validate_mgc(mgc)
+            PREFLIGHT.validate_dci(dci)
             resources = PREFLIGHT.load_expected_resources()
             PREFLIGHT.validate_docker(docker, resources)
             PREFLIGHT.validate_gateway_frr(gateway_frr, resources)
@@ -2739,9 +2739,9 @@ class LiveCollector:
             raise AdmissionIncident(
                 "post-cleanup baseline ownership drifted: " + str(exc)
             ) from exc
-        before = self.collect_before(mgc["profile_owner"])
+        before = self.collect_before(dci["profile_owner"])
         current_baseline = self.baseline_anchors(
-            mgc, docker, gateway_frr, chassis2, before
+            dci, docker, gateway_frr, chassis2, before
         )
         if current_baseline != dict(expected_baseline):
             raise AdmissionIncident("post-cleanup baseline differs from G0")
@@ -2750,13 +2750,13 @@ class LiveCollector:
     def anchors_from_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
         sections = snapshot["sections"]
         return {
-            "container_ids": sections["mgc"]["container_ids"],
-            "recorded_ids": sections["mgc"]["recorded_ids"],
-            "profile_owner": sections["mgc"]["profile_owner"],
-            "bridges": sections["mgc"]["bridges"],
-            "recorded_bridge_uuids": sections["mgc"]["recorded_bridge_uuids"],
-            "container_labels": sections["mgc"]["container_labels"],
-            "original_image_bindings": sections["mgc"]["original_image_bindings"],
+            "container_ids": sections["dci"]["container_ids"],
+            "recorded_ids": sections["dci"]["recorded_ids"],
+            "profile_owner": sections["dci"]["profile_owner"],
+            "bridges": sections["dci"]["bridges"],
+            "recorded_bridge_uuids": sections["dci"]["recorded_bridge_uuids"],
+            "container_labels": sections["dci"]["container_labels"],
+            "original_image_bindings": sections["dci"]["original_image_bindings"],
             "gateway_frr": sections["gateway_frr"],
             "chassis2": sections["chassis2"],
             "resolved_images": sections["docker"]["resolved_images"],
@@ -2773,20 +2773,20 @@ class LiveCollector:
 
     def current_anchors(self) -> dict[str, Any]:
         self.clear_cache()
-        mgc = self.mgc_section()
+        dci = self.dci_section()
         frr = self.gateway_frr_section()
         images = self.image_ids()
-        m03 = self.m03_section(mgc["profile_owner"])
+        m03 = self.m03_section(dci["profile_owner"])
         chassis2 = self.chassis2_section()
-        before = self.collect_before(mgc["profile_owner"])
+        before = self.collect_before(dci["profile_owner"])
         return {
-            "container_ids": mgc["container_ids"],
-            "recorded_ids": mgc["recorded_ids"],
-            "profile_owner": mgc["profile_owner"],
-            "bridges": mgc["bridges"],
-            "recorded_bridge_uuids": mgc["recorded_bridge_uuids"],
-            "container_labels": mgc["container_labels"],
-            "original_image_bindings": mgc["original_image_bindings"],
+            "container_ids": dci["container_ids"],
+            "recorded_ids": dci["recorded_ids"],
+            "profile_owner": dci["profile_owner"],
+            "bridges": dci["bridges"],
+            "recorded_bridge_uuids": dci["recorded_bridge_uuids"],
+            "container_labels": dci["container_labels"],
+            "original_image_bindings": dci["original_image_bindings"],
             "gateway_frr": frr,
             "chassis2": chassis2,
             "resolved_images": images,
@@ -2802,20 +2802,20 @@ class LiveCollector:
         }
 
     def owned_m03_identity(self, profile_owner: str) -> dict[str, Any] | None:
-        """Return complete MGC/M03 ownership readback, or ``None`` on uncertainty."""
+        """Return complete DCI/M03 ownership readback, or ``None`` on uncertainty."""
         try:
             self.clear_cache()
-            mgc = self.mgc_section()
+            dci = self.dci_section()
             m03 = self.m03_section(profile_owner)
-            PREFLIGHT.validate_mgc(mgc)
+            PREFLIGHT.validate_dci(dci)
             PREFLIGHT.validate_marker(m03, profile_owner)
-            if mgc["profile_owner"] != profile_owner:
+            if dci["profile_owner"] != profile_owner:
                 raise AdmissionError(
-                    "MGC profile owner changed during ownership readback"
+                    "DCI profile owner changed during ownership readback"
                 )
         except (AdmissionError, PREFLIGHT.SnapshotError, OSError, ValueError):
             return None
-        return {"mgc": mgc, "m03": m03}
+        return {"dci": dci, "m03": m03}
 
     def prove_owned_m03(self, profile_owner: str) -> bool:
         """Return true only for a complete marker/peer/profile ownership proof."""
@@ -3065,7 +3065,7 @@ class AdmissionSession:
             "gateway_frr_section",
             "input_digests",
             "marker",
-            "mgc_section",
+            "dci_section",
             "owned_m03_identity",
             "post_cleanup_baseline",
             "validate_receipt",
@@ -3973,7 +3973,7 @@ class AdmissionSession:
         current_identity = self._assert_labctl_executable()
         if self._labctl_identity is None or current_identity != self._labctl_identity:
             raise AdmissionError("labctl executable identity changed during admission")
-        argv = (str(self.config.labctl_path), "mgc", action) + (
+        argv = (str(self.config.labctl_path), "dci", action) + (
             ("--m03",) if m03 else ()
         )
         self._identity_detail()
@@ -4019,7 +4019,7 @@ class AdmissionSession:
         self._labctl_identity = self._assert_labctl_executable()
         self._assert_target_absent()
         g0 = self.collector.g0()
-        self._profile_owner = g0["mgc"]["profile_owner"]
+        self._profile_owner = g0["dci"]["profile_owner"]
         self._input_digests = {
             key: g0[key]
             for key in (
@@ -4029,7 +4029,7 @@ class AdmissionSession:
             )
         }
         self._baseline_anchors = self.collector.baseline_anchors(
-            g0["mgc"],
+            g0["dci"],
             g0["docker"],
             g0["gateway_frr"],
             g0["chassis2"],
@@ -4053,7 +4053,7 @@ class AdmissionSession:
             "m03-up-intent",
             {
                 **self._identity_detail(),
-                "argv": [str(self.config.labctl_path), "mgc", "up", "--m03"],
+                "argv": [str(self.config.labctl_path), "dci", "up", "--m03"],
             },
         )
         self._setup_attempted = True
@@ -4068,7 +4068,7 @@ class AdmissionSession:
         self._event_append_locked("m03-up-outcome", self._command_detail(result))
         self._discover_cleanup_ownership()
         if result.returncode != 0:
-            raise AdmissionError("labctl mgc up --m03 failed")
+            raise AdmissionError("labctl dci up --m03 failed")
         if not self._owned_m03:
             raise AdmissionIncident(
                 "M03 up returned success without an owned marker/resource proof"
@@ -4086,7 +4086,7 @@ class AdmissionSession:
             raise
         self._event_append_locked("m03-verify-outcome", self._command_detail(verify))
         if verify.returncode != 0:
-            raise AdmissionError("labctl mgc verify --m03 failed")
+            raise AdmissionError("labctl dci verify --m03 failed")
         self.collector.clear_cache()
         snapshot = self.collector.collect_snapshot()
         expected_anchors = self.collector.anchors_from_snapshot(snapshot)
@@ -4097,7 +4097,7 @@ class AdmissionSession:
             expected_anchors["before"]
         ) != self.collector.before_absence_anchor(g0_anchor["before"]):
             raise AdmissionError(
-                "MGC/image/FRR identity changed between G0 and G0a collection"
+                "DCI/image/FRR identity changed between G0 and G0a collection"
             )
         try:
             PREFLIGHT.validate_snapshot(snapshot)
@@ -4834,7 +4834,7 @@ class AdmissionSession:
                                 == self._expected_anchors
                             )
                         elif self._baseline_anchors is not None and self._profile_owner:
-                            current_mgc = self.collector.mgc_section()
+                            current_dci = self.collector.dci_section()
                             current_docker = self.collector.docker_section()
                             current_frr = self.collector.gateway_frr_section()
                             current_chassis2 = self.collector.chassis2_section()
@@ -4842,7 +4842,7 @@ class AdmissionSession:
                                 self._profile_owner
                             )
                             current_baseline = self.collector.baseline_anchors(
-                                current_mgc,
+                                current_dci,
                                 current_docker,
                                 current_frr,
                                 current_chassis2,
@@ -4901,7 +4901,7 @@ class AdmissionSession:
                             **self._identity_detail(),
                             "argv": [
                                 str(self.config.labctl_path),
-                                "mgc",
+                                "dci",
                                 "down",
                                 "--m03",
                             ],
@@ -4923,7 +4923,7 @@ class AdmissionSession:
                             "m03-down-outcome", self._command_detail(down)
                         )
                         if down.returncode != 0:
-                            raise AdmissionIncident("labctl mgc down --m03 failed")
+                            raise AdmissionIncident("labctl dci down --m03 failed")
                         try:
                             baseline = self._labctl("verify", m03=False)
                         except Exception as exc:
@@ -4939,7 +4939,7 @@ class AdmissionSession:
                             "baseline-verify-outcome", self._command_detail(baseline)
                         )
                         if baseline.returncode != 0:
-                            raise AdmissionIncident("baseline labctl mgc verify failed")
+                            raise AdmissionIncident("baseline labctl dci verify failed")
                         if (
                             self._input_digests is None
                             or self._baseline_anchors is None

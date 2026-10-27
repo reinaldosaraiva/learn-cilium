@@ -17,7 +17,7 @@ Em 19 de setembro de 2026, o laboratório `poc-kind.clab.yml` foi reconstruído 
 | Acesso interno | `client-ext` alcançou a VIP por HTTP |
 | Acesso pelo computador | túnel SSH local em `127.0.0.1:18081` respondeu `10/10` vezes com HTTP 200 |
 | Backends no túnel | cinco hostnames distintos apareceram nas dez respostas |
-| Escopo | o laboratório ficou no ar; nenhum cluster MKE foi usado nessa validação |
+| Escopo | o laboratório ficou no ar; nenhum cluster Kubernetes gerenciado foi usado nessa validação |
 
 O `client-ext` é externo ao cluster Kubernetes, mas fica dentro da mesma VM. O túnel SSH termina no host da VM e encaminha a porta local para a VIP; ele não publica a VIP na Internet.
 
@@ -76,10 +76,10 @@ escopo e limites explícitos:
 |---|---|---|
 | H6 (`G06`) — Sessão BGP local Cilium -> FRR no nó -> Fabric sob `R6` | **PASS** (24/10/2026) | `DaemonSet/frr-node` (`FRR 10.7.1`, `AS 65301/65302`) em `hostNetwork` pareando localmente com o GoBGP do Cilium (`10.255.255.1:1790`, `AS 65311/65312`) e via eBGP com `leaf1`/`leaf2` (`AS 65201/65202 -> border1`, `AS_PATH 65203 65600 65201 65301 65311 i`, convergência `10s`, withdraw `12s`, `30/30` HTTP para Pod VIP `.10` e VM VIP `.20`), mantendo **`r6_kernel_bgp_routes = 0`** (`table-map RM-NO-KERNEL`, `0` rotas `proto bgp` na tabela `main`) e concluindo rollback limpo (`MemAvailable = 4,23 GiB`). |
 | V09 (`H7`) / V07-B / V08-B — EVPN Type 5 por VRF, Overlap e Cutover FRR | **PASS** (25/10/2026) | `V09`: `vrf-tenant-a` (`VNI 10100`, `RT 65000:10100`) e `vrf-tenant-b` (`VNI 10200`, `RT 65000:10200`) anunciam EVPN Type 5 (`[5]`: `10.253.10.0/24`, `10.253.20.0/24`, `10.253.11.0/24`, `10.253.21.0/24`) entre `p003-gw-worker` e `p003-gw-worker2` (`30/30` intra-VRF, `0/10` cross-VRF, `RT 65000:99900` rejeitado, `R6=0`). `V07-B`: CIDR sobreposto `10.253.10.0/24` e IP `10.253.10.100/24` isolados por VRF/EVPN Type 5 no FRR (`30/30` intra-VRF, `0/10` cross-VRF, `R6=0`), mantendo o limite de colisão no endpoint map eBPF global do Cilium OSS (`eth0`). `V08-B`: cutover `10.60.0.50/32` via `Cilium -> FRR 10.7.1 no nó -> border1` (`AS_PATH 65203 65600 65201 65301 65311`, `rib_em=27s`, `cutover_total=40s`, `30/30` HTTP, `R6=0`) + rollback limpo (`MemAvailable = 4,95 GiB`). |
-| G07 / G08 (`P004-S008`) — Síntese `INV × Aberto` e Higiene Final | **PASS** (25/10/2026) | `G07`: Matriz comparativa `INV × Cilium A × Cilium B × OVN-K (C/D)` e 6 critérios objetivos de aceite (`INV-PoC-01` a `INV-PoC-06`) publicados em `20-mgc-estado-parcial.md` §4.2 e no Guia do Estudante (Ed. 2.3). `G08`: `dci`, `evpn-fabric` e `ovnk` desligados (`up=nao`, `0` resíduos), `p003-os` preservado (`exited`), `p003-gw` em baseline (`ipam=kubernetes`, `0` pools, `R6=0`, `verify OK`), `k01` `10/10` (`verify OK`) e `MemAvailable = 4,95 GiB` (baseline S008) / `4,93 GiB` (pós-verify final `G08`, `>= 4,00 GiB`). |
+| G07 / G08 (`P004-S008`) — Síntese `INV × Aberto` e Higiene Final | **PASS** (25/10/2026) | `G07`: Matriz comparativa `INV × Cilium A × Cilium B × OVN-K (C/D)` e 6 critérios objetivos de aceite (`INV-PoC-01` a `INV-PoC-06`) publicados em `20-dci-estado-parcial.md` §4.2 e no Guia do Estudante (Ed. 2.3). `G08`: `dci`, `evpn-fabric` e `ovnk` desligados (`up=nao`, `0` resíduos), `p003-os` preservado (`exited`), `p003-gw` em baseline (`ipam=kubernetes`, `0` pools, `R6=0`, `verify OK`), `k01` `10/10` (`verify OK`) e `MemAvailable = 4,95 GiB` (baseline S008) / `4,93 GiB` (pós-verify final `G08`, `>= 4,00 GiB`). |
 
 Consulte
-[DCI, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008 (§1–§8, G07 e G08)](estudos/20-mgc-estado-parcial.md)
+[DCI, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008 (§1–§8, G07 e G08)](estudos/20-dci-estado-parcial.md)
 para a matriz comparativa completa **Cilium A vs Cilium B vs INV (`V00–V09` / `H1–H8`)**, os critérios **`INV-PoC-01` a `INV-PoC-06` (`G07`)**, o blueprint de transição para o Braço **OVN-Kubernetes (`C` / `D`)** e as perguntas de estudo.
 
 ## P005 — Estudos Avançados em Ondas Paralelas (Braço A eBGP ∥ Braço B Datapath eBPF)

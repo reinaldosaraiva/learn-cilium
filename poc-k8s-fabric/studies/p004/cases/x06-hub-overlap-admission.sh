@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # studies/p004/cases/x06-hub-overlap-admission.sh — Caso X06 (Gate G05):
-# Caso negativo: tentativa de anexar 2ª VPC (ls-mgc-tenant-dup) com CIDR sobreposto (192.168.100.0/24 ou 192.168.100.128/25)
-# ao mesmo hub/router MGC (lr-mgc-tenant em ovn-central-az1).
+# Caso negativo: tentativa de anexar 2ª VPC (ls-dci-tenant-dup) com CIDR sobreposto (192.168.100.0/24 ou 192.168.100.128/25)
+# ao mesmo hub/router DCI (lr-dci-tenant em ovn-central-az1).
 # Prova a recusa na admissão (RC=22, HUB_CIDR_OVERLAP_DENIED) sem criar recurso no OVN Northbound DB,
 # além de controle positivo de admissão (--check-only) para prefixo disjunto (192.168.200.0/24, RC=0).
 
@@ -13,8 +13,8 @@ if [[ "${1:-}" == "--dry-run" ]]; then
   DRY_RUN=1
 fi
 
-MGC_CENTRAL="ovn-central-az1"
-HUB_ROUTER="lr-mgc-tenant"
+DCI_CENTRAL="ovn-central-az1"
+HUB_ROUTER="lr-dci-tenant"
 
 x06_log() {
   printf '[x06] %s\n' "$*"
@@ -26,11 +26,11 @@ x06_die() {
 }
 
 if [[ "${DRY_RUN}" == "1" ]]; then
-  printf 'DRY: snapshot Logical_Switch and Logical_Router_Port tables in %s via ovn-nbctl --format=json\n' "${MGC_CENTRAL}"
-  printf 'DRY: attempt admission of ls-mgc-tenant-dup (192.168.100.1/24) onto %s -> expect RC=22 (HUB_CIDR_OVERLAP_DENIED)\n' "${HUB_ROUTER}"
-  printf 'DRY: attempt admission of ls-mgc-tenant-sub (192.168.100.129/25) onto %s -> expect RC=22 (HUB_CIDR_OVERLAP_DENIED)\n' "${HUB_ROUTER}"
-  printf 'DRY: validate disjoint VPC candidate ls-mgc-tenant-200 (192.168.200.1/24) onto %s (--check-only) -> expect RC=0\n' "${HUB_ROUTER}"
-  printf 'DRY: verify OVN NB DB snapshot is unchanged and ls-mgc-tenant-dup count == 0\n'
+  printf 'DRY: snapshot Logical_Switch and Logical_Router_Port tables in %s via ovn-nbctl --format=json\n' "${DCI_CENTRAL}"
+  printf 'DRY: attempt admission of ls-dci-tenant-dup (192.168.100.1/24) onto %s -> expect RC=22 (HUB_CIDR_OVERLAP_DENIED)\n' "${HUB_ROUTER}"
+  printf 'DRY: attempt admission of ls-dci-tenant-sub (192.168.100.129/25) onto %s -> expect RC=22 (HUB_CIDR_OVERLAP_DENIED)\n' "${HUB_ROUTER}"
+  printf 'DRY: validate disjoint VPC candidate ls-dci-tenant-200 (192.168.200.1/24) onto %s (--check-only) -> expect RC=0\n' "${HUB_ROUTER}"
+  printf 'DRY: verify OVN NB DB snapshot is unchanged and ls-dci-tenant-dup count == 0\n'
   printf 'X06 DRY-RUN OK\n'
   exit 0
 fi
@@ -42,7 +42,7 @@ x06_admit_vpc() {
   local gw_cidr="$4"
   local mode="${5:-apply}"
 
-  docker exec -i "${MGC_CENTRAL}" python3 - "${hub_router}" "${ls_name}" "${lrp_name}" "${gw_cidr}" "${mode}" <<'PY'
+  docker exec -i "${DCI_CENTRAL}" python3 - "${hub_router}" "${ls_name}" "${lrp_name}" "${gw_cidr}" "${mode}" <<'PY'
 import ipaddress
 import json
 import subprocess
@@ -136,7 +136,7 @@ PY
 }
 
 x06_snapshot_nb() {
-  docker exec "${MGC_CENTRAL}" python3 -c '
+  docker exec "${DCI_CENTRAL}" python3 -c '
 import json, subprocess
 ls = json.loads(subprocess.check_output(["ovn-nbctl", "--format=json", "list", "Logical_Switch"], text=True))
 lrp = json.loads(subprocess.check_output(["ovn-nbctl", "--format=json", "list", "Logical_Router_Port"], text=True))
@@ -148,13 +148,13 @@ print(json.dumps({"ls": ls_rows, "lrp": lrp_rows}, sort_keys=True))
 '
 }
 
-x06_log "Capturando snapshot inicial do OVN Northbound DB em ${MGC_CENTRAL}..."
+x06_log "Capturando snapshot inicial do OVN Northbound DB em ${DCI_CENTRAL}..."
 snap_before="$(x06_snapshot_nb)"
 
-# 1. Caso Negativo 1: tentativa de anexar ls-mgc-tenant-dup com CIDR idêntico (192.168.100.1/24) em lr-mgc-tenant
-x06_log "Testando admissão de ls-mgc-tenant-dup (192.168.100.1/24) no hub ${HUB_ROUTER}..."
+# 1. Caso Negativo 1: tentativa de anexar ls-dci-tenant-dup com CIDR idêntico (192.168.100.1/24) em lr-dci-tenant
+x06_log "Testando admissão de ls-dci-tenant-dup (192.168.100.1/24) no hub ${HUB_ROUTER}..."
 rc_dup=0
-out_dup="$(x06_admit_vpc "${HUB_ROUTER}" "ls-mgc-tenant-dup" "lrp-mgc-tenant-dup" "192.168.100.1/24")" || rc_dup=$?
+out_dup="$(x06_admit_vpc "${HUB_ROUTER}" "ls-dci-tenant-dup" "lrp-dci-tenant-dup" "192.168.100.1/24")" || rc_dup=$?
 if [[ "${rc_dup}" -ne 22 ]]; then
   x06_die "Admissão de CIDR duplicado 192.168.100.1/24 deveria falhar com RC=22, mas retornou RC=${rc_dup} (${out_dup})"
 fi
@@ -162,10 +162,10 @@ grep -q '"verdict": "HUB_CIDR_OVERLAP_DENIED"' <<<"${out_dup}" \
   || x06_die "Saída JSON inesperada para CIDR duplicado: ${out_dup}"
 x06_log "Recusa de CIDR idêntico confirmada (RC=${rc_dup}): ${out_dup}"
 
-# 2. Caso Negativo 2: tentativa de anexar ls-mgc-tenant-sub com sub-rede contida (192.168.100.129/25) em lr-mgc-tenant
-x06_log "Testando admissão de ls-mgc-tenant-sub (192.168.100.129/25) no hub ${HUB_ROUTER}..."
+# 2. Caso Negativo 2: tentativa de anexar ls-dci-tenant-sub com sub-rede contida (192.168.100.129/25) em lr-dci-tenant
+x06_log "Testando admissão de ls-dci-tenant-sub (192.168.100.129/25) no hub ${HUB_ROUTER}..."
 rc_sub=0
-out_sub="$(x06_admit_vpc "${HUB_ROUTER}" "ls-mgc-tenant-sub" "lrp-mgc-tenant-sub" "192.168.100.129/25")" || rc_sub=$?
+out_sub="$(x06_admit_vpc "${HUB_ROUTER}" "ls-dci-tenant-sub" "lrp-dci-tenant-sub" "192.168.100.129/25")" || rc_sub=$?
 if [[ "${rc_sub}" -ne 22 ]]; then
   x06_die "Admissão de sub-rede sobreposta 192.168.100.129/25 deveria falhar com RC=22, mas retornou RC=${rc_sub} (${out_sub})"
 fi
@@ -175,7 +175,7 @@ x06_log "Recusa de sub-rede contida confirmada (RC=${rc_sub}): ${out_sub}"
 
 # 3. Controle Positivo (--check-only): prefixo disjunto 192.168.200.1/24 aprovado sem mutar o NB DB
 x06_log "Testando controle positivo (--check-only) para prefixo disjunto 192.168.200.1/24..."
-out_pos="$(x06_admit_vpc "${HUB_ROUTER}" "ls-mgc-tenant-200" "lrp-mgc-tenant-200" "192.168.200.1/24" "--check-only")" \
+out_pos="$(x06_admit_vpc "${HUB_ROUTER}" "ls-dci-tenant-200" "lrp-dci-tenant-200" "192.168.200.1/24" "--check-only")" \
   || x06_die "Controle positivo para prefixo disjunto 192.168.200.1/24 falhou"
 grep -q '"verdict": "HUB_CIDR_ADMISSION_PERMITTED_DRY"' <<<"${out_pos}" \
   || x06_die "Saída JSON inesperada no controle positivo: ${out_pos}"
@@ -186,14 +186,14 @@ if [[ "${snap_before}" != "${snap_after}" ]]; then
   x06_die "OVN NB DB sofreu mutação indevida durante o teste de admissão X06"
 fi
 
-dup_count="$(docker exec "${MGC_CENTRAL}" python3 -c '
+dup_count="$(docker exec "${DCI_CENTRAL}" python3 -c '
 import json, subprocess
-doc = json.loads(subprocess.check_output(["ovn-nbctl", "--format=json", "find", "Logical_Switch", "name=ls-mgc-tenant-dup"], text=True))
+doc = json.loads(subprocess.check_output(["ovn-nbctl", "--format=json", "find", "Logical_Switch", "name=ls-dci-tenant-dup"], text=True))
 print(len(doc.get("data", [])))
 ')"
 if [[ "${dup_count}" -ne 0 ]]; then
-  x06_die "Logical_Switch ls-mgc-tenant-dup foi criado indevidamente no OVN NB DB"
+  x06_die "Logical_Switch ls-dci-tenant-dup foi criado indevidamente no OVN NB DB"
 fi
 
-printf 'X06 PASS (Gate G05): tentativa de anexar 2ª VPC (ls-mgc-tenant-dup 192.168.100.0/24 e ls-mgc-tenant-sub 192.168.100.128/25) ao hub %s recusada na admissão com RC=%s/%s (HUB_CIDR_OVERLAP_DENIED); 0 recursos criados no OVN NB DB (snapshot idêntico).\n' \
+printf 'X06 PASS (Gate G05): tentativa de anexar 2ª VPC (ls-dci-tenant-dup 192.168.100.0/24 e ls-dci-tenant-sub 192.168.100.128/25) ao hub %s recusada na admissão com RC=%s/%s (HUB_CIDR_OVERLAP_DENIED); 0 recursos criados no OVN NB DB (snapshot idêntico).\n' \
   "${HUB_ROUTER}" "${rc_dup}" "${rc_sub}"

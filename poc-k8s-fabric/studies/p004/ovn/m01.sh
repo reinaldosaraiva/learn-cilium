@@ -16,8 +16,8 @@ export LAB_ROOT
 
 # shellcheck source=../../../labctl/lib/common.sh
 source "${LAB_ROOT}/lib/common.sh"
-# shellcheck source=../../../labctl/labs/mgc.sh
-source "${LAB_ROOT}/labs/mgc.sh"
+# shellcheck source=../../../labctl/labs/dci.sh
+source "${LAB_ROOT}/labs/dci.sh"
 require_cmd docker jq
 if [[ "$mode" == execute || "$mode" == gateway ]]; then
   DRY_RUN=0
@@ -26,7 +26,7 @@ else
 fi
 export DRY_RUN
 
-client=mgc-client-1
+client=dci-client-1
 central=ovn-central-az1
 gateway=ovn-gw-1
 survivor=ovn-gw-2
@@ -35,7 +35,7 @@ negative_prefix=192.168.101.0/24
 return_prefix=10.0.0.0/16
 return_first_hop=10.100.100.2
 return_second_hop=10.200.100.2
-tenant_router=lr-mgc-tenant
+tenant_router=lr-dci-tenant
 first_hop=169.254.254.1
 second_hop=169.254.254.5
 labctl="${LAB_ROOT}/labctl"
@@ -58,10 +58,10 @@ fail() {
 }
 
 assert_owned_running() {
-  mgc_assert_no_extra_ovn_containers
-  mgc_assert_cluster_ownership
-  mgc_assert_bridges_owned
-  mgc_assert_client_ownership "$client"
+  dci_assert_no_extra_ovn_containers
+  dci_assert_cluster_ownership
+  dci_assert_bridges_owned
+  dci_assert_client_ownership "$client"
   for name in ovn-central-az1 "$gateway" "$survivor" ovn-chassis-1 ovn-chassis-2 "$client"; do
     [[ "$(docker inspect -f '{{.State.Running}}' "$name")" == true ]] \
       || fail "$name não está rodando no baseline"
@@ -211,7 +211,7 @@ preserve_packet_capture() {
   [[ -n "$capture_dir" && -d "$capture_dir" ]] || return 0
   stop_packet_capture
   if [[ "$capture_preserved" == 0 ]]; then
-    root="${M01_CAPTURE_EVIDENCE_DIR:-${EVIDENCE_DIR:-/var/tmp/labctl/mgc}}"
+    root="${M01_CAPTURE_EVIDENCE_DIR:-${EVIDENCE_DIR:-/var/tmp/labctl/dci}}"
     destination="${root}/m01-capture-${capture_label:-fault}-$(date -u +%Y%m%dT%H%M%SZ)-$$"
     if mkdir -p "$root" 2>/dev/null && mv "$capture_dir" "$destination"; then
       capture_dir="$destination"
@@ -337,7 +337,7 @@ ping_tenant() {
 
 verify_full() {
   wait_route yes yes
-  "$labctl" mgc verify
+  "$labctl" dci verify
   capture "$1" 2
   ping_tenant
 }
@@ -356,27 +356,27 @@ restore() {
     if [[ "$(docker inspect -f '{{.State.Running}}' "$gateway" 2>/dev/null)" == false ]]; then
       docker start "$gateway" || rc=1
     fi
-    "$labctl" mgc up || rc=1
-    "$labctl" mgc verify || rc=1
+    "$labctl" dci up || rc=1
+    "$labctl" dci verify || rc=1
   fi
   if [[ "$rc" -ne 0 ]]; then
-    say 'falha; conferir estado MGC e evidência antes de nova execução' >&2
+    say 'falha; conferir estado DCI e evidência antes de nova execução' >&2
   fi
   exit "$rc"
 }
 
 assert_owned_running
 if [[ "$mode" == dry || "$mode" == dry-gateway ]]; then
-  say 'DRY: baseline labctl mgc verify, 2 sessões, rota ECMP e ping tenant 30/30'
+  say 'DRY: baseline labctl dci verify, 2 sessões, rota ECMP e ping tenant 30/30'
   say "DRY: conferir ausência de $negative_prefix no RIB BGP e FIB em todas as fases"
   say 'DRY: após convergência de cada fault, imprimir NB tenant routes/options e SB symmetric flows'
   say 'DRY: em execute, capturar 30 replies ICMP 192.168.100.10 -> 10.0.0.1 em eth2 via nsenter/tcpdump (65s); exigir zero em eth1; preservar logs em falha; nunca capturar no dry-run'
   if [[ "$mode" == dry ]]; then
-    say "DRY: em $gateway retirar network $prefix; exigir 2 sessões, somente $second_hop e ping 30/30; restaurar por labctl mgc up/verify"
-    say "DRY: parar somente bgpd, bfdd, zebra em $gateway (container ativo); exigir 1 sessão, somente $second_hop e ping 30/30; restaurar por labctl mgc up/verify"
+    say "DRY: em $gateway retirar network $prefix; exigir 2 sessões, somente $second_hop e ping 30/30; restaurar por labctl dci up/verify"
+    say "DRY: parar somente bgpd, bfdd, zebra em $gateway (container ativo); exigir 1 sessão, somente $second_hop e ping 30/30; restaurar por labctl dci up/verify"
   fi
-  say "DRY: docker stop $gateway próprio; exigir 1 sessão, somente $second_hop e ping 30/30; docker start $gateway e labctl mgc up/verify"
-  say 'DRY: trap de falha restaura o gateway e reaplica fixture MGC; sem mutações neste modo'
+  say "DRY: docker stop $gateway próprio; exigir 1 sessão, somente $second_hop e ping 30/30; docker start $gateway e labctl dci up/verify"
+  say 'DRY: trap de falha restaura o gateway e reaplica fixture DCI; sem mutações neste modo'
   exit 0
 fi
 
@@ -397,7 +397,7 @@ if [[ "$mode" == execute ]]; then
   capture withdraw 2
   observe_fault withdraw
   say 'restaurar withdraw'
-  "$labctl" mgc up
+  "$labctl" dci up
   verify_full withdraw-restored
   fault_active=0
 
@@ -424,7 +424,7 @@ if [[ "$mode" == execute ]]; then
   capture frr-stopped 1
   observe_fault frr-stopped
   say 'restaurar FRR'
-  "$labctl" mgc up
+  "$labctl" dci up
   verify_full frr-restored
   fault_active=0
 fi
@@ -438,7 +438,7 @@ capture gateway-stopped 1
 observe_fault gateway-stopped
 say 'restaurar gateway'
 docker start "$gateway"
-"$labctl" mgc up
+"$labctl" dci up
 verify_full gateway-restored
 fault_active=0
 if [[ "$mode" == gateway ]]; then

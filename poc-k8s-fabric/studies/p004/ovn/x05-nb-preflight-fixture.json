@@ -6,7 +6,7 @@
     "Logical_Switch": [
       {
         "_uuid": "00000000-0000-4000-8000-000000000001",
-        "name": "ls-mgc-tenant",
+        "name": "ls-dci-tenant",
         "external_ids": {},
         "ports": [
           "00000000-0000-4000-8000-000000000004",
@@ -17,7 +17,7 @@
     "Logical_Router": [
       {
         "_uuid": "00000000-0000-4000-8000-000000000002",
-        "name": "lr-mgc-tenant",
+        "name": "lr-dci-tenant",
         "external_ids": {},
         "ports": ["00000000-0000-4000-8000-000000000003"],
         "static_routes": []
@@ -26,14 +26,14 @@
     "Logical_Switch_Port": [
       {
         "_uuid": "00000000-0000-4000-8000-000000000004",
-        "name": "lsp-mgc-tenant-router",
+        "name": "lsp-dci-tenant-router",
         "external_ids": {},
         "type": "router",
-        "options": {"router-port": "lrp-mgc-tenant"}
+        "options": {"router-port": "lrp-dci-tenant"}
       },
       {
         "_uuid": "00000000-0000-4000-8000-000000000005",
-        "name": "mgc-tenant-vm",
+        "name": "dci-tenant-vm",
         "external_ids": {},
         "type": "",
         "options": {}
@@ -42,7 +42,7 @@
     "Logical_Router_Port": [
       {
         "_uuid": "00000000-0000-4000-8000-000000000003",
-        "name": "lrp-mgc-tenant",
+        "name": "lrp-dci-tenant",
         "external_ids": {}
       }
     ],

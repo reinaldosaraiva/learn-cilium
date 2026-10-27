@@ -2,7 +2,7 @@
 # Gera uma configuração FRR funcional para o segundo cliente X05.
 set -euo pipefail
 
-CLIENT_NAME="${CLIENT_NAME:-mgc-client-2}"
+CLIENT_NAME="${CLIENT_NAME:-dci-client-2}"
 CLIENT_AS="${CLIENT_AS:-201}"
 ONPREM_PREFIX="${ONPREM_PREFIX:-10.0.0.0/16}"
 TENANT_PREFIX="${TENANT_PREFIX:-192.168.100.0/24}"
@@ -33,7 +33,7 @@ done
 cat <<EOF
 !
 ! Cliente X05 parametrizado. As VLANs e endereços das interfaces são
-! entregues separadamente a mgc_start_client_instance.
+! entregues separadamente a dci_start_client_instance.
 !
 frr version 8.4.1
 frr defaults traditional

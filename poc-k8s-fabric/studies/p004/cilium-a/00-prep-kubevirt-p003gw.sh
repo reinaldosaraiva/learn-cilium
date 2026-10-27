@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# studies/p004/cilium-a/00-prep-kubevirt-p003gw.sh — Higiene de RAM (R3: down de ovnk/evpn-fabric/mgc) + instalação KubeVirt v1.9.0 no p003-gw.
+# studies/p004/cilium-a/00-prep-kubevirt-p003gw.sh — Higiene de RAM (R3: down de ovnk/evpn-fabric/dci) + instalação KubeVirt v1.9.0 no p003-gw.
 
 set -euo pipefail
 
@@ -59,7 +59,7 @@ if [[ "${DRY_RUN}" == "1" ]]; then
   prep_run docker inspect -f '{{.State.Status}}' "${P003_OS_CONTAINER}"
   prep_run "${LABCTL_BIN}" --dry-run ovnk down
   prep_run "${LABCTL_BIN}" --dry-run evpn-fabric down
-  prep_run "${LABCTL_BIN}" --dry-run mgc down
+  prep_run "${LABCTL_BIN}" --dry-run dci down
   prep_run p003_kctl apply -f "https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-operator.yaml"
   prep_run p003_kctl apply -f "https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-cr.yaml"
   prep_run p003_kctl -n kubevirt patch kubevirt kubevirt --type=merge -p '{"spec":{"configuration":{"developerConfiguration":{"disabledFeatureGates":["ImageVolume"]}}}}'
@@ -114,12 +114,12 @@ for img in "${kv_imgs[@]}"; do
   fi
 done
 
-# 3. Limpar eventual bridge residual br-x-fabric de S004 e descer perfis ovnk, evpn-fabric e mgc para liberar RAM (R3)
+# 3. Limpar eventual bridge residual br-x-fabric de S004 e descer perfis ovnk, evpn-fabric e dci para liberar RAM (R3)
 if ip link show br-x-fabric >/dev/null 2>&1; then
   prep_run ip link del br-x-fabric
 fi
 
-for prof in ovnk evpn-fabric mgc; do
+for prof in ovnk evpn-fabric dci; do
   prep_run "${LABCTL_BIN}" "${prof}" down
 done
 

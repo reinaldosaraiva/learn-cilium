@@ -191,8 +191,8 @@ class RuntimeFakeRunner(SUPPORT.FakeRunner):
 
     def _initialize_containers(self) -> None:
         names = (
-            *APPLY.RUNTIME.PREFLIGHT.MGC_CONTAINER_NAMES,
-            "mgc-evpn-client-1",
+            *APPLY.RUNTIME.PREFLIGHT.DCI_CONTAINER_NAMES,
+            "dci-evpn-client-1",
             "p003-os",
         )
         for offset, name in enumerate(names, 1):
@@ -201,11 +201,11 @@ class RuntimeFakeRunner(SUPPORT.FakeRunner):
             if name in APPLY.RUNTIME.PREFLIGHT.CLUSTER_NAMES:
                 labels = copy.deepcopy(self.original_image_labels)
                 image = self.original_image_id
-            elif name == "mgc-client-1":
-                labels = {"labctl.mgc.owner": self.profile_owner}
-            elif name == "mgc-evpn-client-1":
+            elif name == "dci-client-1":
+                labels = {"labctl.dci.owner": self.profile_owner}
+            elif name == "dci-evpn-client-1":
                 labels = {
-                    "labctl.mgc.owner": self.profile_owner,
+                    "labctl.dci.owner": self.profile_owner,
                     "labctl-m03-owner": self.marker_token,
                 }
             self._add_container(
@@ -263,8 +263,8 @@ class RuntimeFakeRunner(SUPPORT.FakeRunner):
         self.links["host"]["veth-m03-host"] = Link(
             "veth-m03-host", 4, 44, "veth", up=True
         )
-        self.links["mgc-client-1"]["lo"].addresses = ["10.0.0.1/32"]
-        self.links["mgc-evpn-client-1"].update(
+        self.links["dci-client-1"]["lo"].addresses = ["10.0.0.1/32"]
+        self.links["dci-evpn-client-1"].update(
             {
                 "vrf-evpn-client": Link(
                     "vrf-evpn-client",
@@ -1235,7 +1235,7 @@ class RuntimeFakeRunner(SUPPORT.FakeRunner):
         )
 
     def reset_runtime_for_session_close(self) -> None:
-        for name in ("mgc-client-2", "mgc-x05-peer-2"):
+        for name in ("dci-client-2", "dci-x05-peer-2"):
             entry = self.containers.pop(name, None)
             if entry is not None:
                 self.container_by_id.pop(entry["id"], None)
@@ -1514,7 +1514,7 @@ def exercise_inverse_helpers(builder: Any) -> dict[str, Any]:
     for resource_id in (
         APPLY.CLIENT_CONTAINER_ID,
         "container:ovn-chassis-2/frr-pathspace/x05",
-        "container:mgc-x05-peer-2/frr-pathspace/x05",
+        "container:dci-x05-peer-2/frr-pathspace/x05",
     ):
         builder._stop_frr(resource_id)
     for chassis, suffix in (("ovn-chassis-1", "a"), ("ovn-chassis-2", "b")):
@@ -1544,10 +1544,10 @@ def exercise_inverse_helpers(builder: Any) -> dict[str, Any]:
         builder._delete_attachment(resource_id)
     builder._remove_container(APPLY.CLIENT_CONTAINER_ID)
     for resource_id in (
-        "container:mgc-x05-peer-2/linux-dummy/evpn-x05-pr",
-        "container:mgc-x05-peer-2/linux-vxlan/vxlan-x05-pr",
-        "container:mgc-x05-peer-2/linux-bridge/br-x05-peer",
-        "container:mgc-x05-peer-2/linux-vrf/vrf-x05-peer",
+        "container:dci-x05-peer-2/linux-dummy/evpn-x05-pr",
+        "container:dci-x05-peer-2/linux-vxlan/vxlan-x05-pr",
+        "container:dci-x05-peer-2/linux-bridge/br-x05-peer",
+        "container:dci-x05-peer-2/linux-vrf/vrf-x05-peer",
     ):
         builder._delete_single_link(resource_id)
     builder._remove_container(APPLY.PEER_CONTAINER_ID)
@@ -1750,7 +1750,7 @@ def terminal_g7_checks() -> dict[str, Any]:
         session = types.SimpleNamespace(
             _m03_ownership_sha256=APPLY.RUNTIME._digest(m03)
         )
-        verify_argv = (str(directory / "labctl"), "mgc", "verify", "--m03")
+        verify_argv = (str(directory / "labctl"), "dci", "verify", "--m03")
         session_labctl = lambda action, *, m03: APPLY.RUNTIME.CommandResult(
             verify_argv, 0, b"M03 PASS\n", b"", 0.01
         )
@@ -2114,7 +2114,7 @@ def callable_binding_checks() -> None:
                 relevant = [
                     row
                     for row in rows
-                    if row["stage"] == "container-create-mgc-client-2"
+                    if row["stage"] == "container-create-dci-client-2"
                 ]
                 assert any(
                     row["kind"] == "effect-intent"
@@ -2390,7 +2390,7 @@ def full_build_and_guard_checks() -> dict[str, Any]:
         del session.record_execution_event
         assert prepared is builder._prepared and builder._runner is original_runner
 
-        created = runner.containers["mgc-client-2"]
+        created = runner.containers["dci-client-2"]
         original_id = created["id"]
         created["id"] = digest("foreign-created-container")
         expect_error(APPLY.BuilderError, builder.capture_bindings, "created container ABA")

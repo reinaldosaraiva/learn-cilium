@@ -63,14 +63,14 @@ with tempfile.TemporaryDirectory(prefix="x05-nb-postflight-") as temporary:
               "Logical_Router_Policy", "NAT")}
     a = proof["a_fingerprint"]
     base = {
-        "Logical_Switch": {"_uuid": a["ls_uuid"], "name": "ls-mgc-tenant",
+        "Logical_Switch": {"_uuid": a["ls_uuid"], "name": "ls-dci-tenant",
                            "external_ids": ["map", []],
                            "ports": ["set", [["uuid", uid] for uid in a["ls_ports"]]]},
-        "Logical_Router": {"_uuid": a["lr_uuid"], "name": "lr-mgc-tenant",
+        "Logical_Router": {"_uuid": a["lr_uuid"], "name": "lr-dci-tenant",
                            "external_ids": ["map", []],
                            "ports": ["set", [["uuid", uid] for uid in a["lr_ports"]]],
                            "static_routes": ["set", []]},
-        "Logical_Router_Port": {"_uuid": a["lrp_uuid"], "name": "lrp-mgc-tenant",
+        "Logical_Router_Port": {"_uuid": a["lrp_uuid"], "name": "lrp-dci-tenant",
                                 "external_ids": ["map", []],
                                 "gateway_chassis": ["set", []]},
     }

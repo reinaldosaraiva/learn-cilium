@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory() as temporary:
     assert len({operation["uuid-name"] for operation in inserts}) == 34
     assert waits[0]["rows"] == [{"ports": ["set", [["uuid", port]
                                          for port in proof["a_fingerprint"]["ls_ports"]]]}]
-    assert ["name", "==", "ls-mgc-tenant"] in waits[0]["where"]
+    assert ["name", "==", "ls-dci-tenant"] in waits[0]["where"]
     assert len({(wait["table"], wait["where"][0][2]) for wait in waits[1:]}) == 30
     assert all(wait["rows"] == [] and wait["timeout"] == 0 for wait in waits[1:])
     assert all(operation["row"]["external_ids"] ==
@@ -127,7 +127,7 @@ with tempfile.TemporaryDirectory() as temporary:
             row.setdefault("gateway_chassis", ["set", []])
         state["tables"][item["table"]].append(row)
     state["tables"]["Logical_Switch"].append({
-        "_uuid": proof["a_fingerprint"]["ls_uuid"], "name": "ls-mgc-tenant",
+        "_uuid": proof["a_fingerprint"]["ls_uuid"], "name": "ls-dci-tenant",
         "ports": ["set", [["uuid", port] for port in
                           proof["a_fingerprint"]["ls_ports"] +
                           [checked["inserted"]["Logical_Switch_Port:x05-tenant-a-vm"]]]]})
@@ -140,9 +140,9 @@ with tempfile.TemporaryDirectory() as temporary:
     assert inverse[0] == "OVN_Northbound" and len(inverse) == 80
     inverse_waits = inverse[1:45]
     assert len(inverse_waits) == 44 and all(op["op"] == "wait" for op in inverse_waits)
-    assert ["name", "==", "ls-mgc-tenant"] in inverse_waits[0]["where"]
-    assert ["name", "==", "lr-mgc-tenant"] in inverse_waits[1]["where"]
-    assert ["name", "==", "lrp-mgc-tenant"] in inverse_waits[2]["where"]
+    assert ["name", "==", "ls-dci-tenant"] in inverse_waits[0]["where"]
+    assert ["name", "==", "lr-dci-tenant"] in inverse_waits[1]["where"]
+    assert ["name", "==", "lrp-dci-tenant"] in inverse_waits[2]["where"]
     assert inverse_waits[1]["rows"] == [{"ports": ["set", [["uuid", port]
         for port in proof["a_fingerprint"]["lr_ports"]]]}]
     assert len(inverse_waits[0]["rows"][0]["ports"][1]) == len(

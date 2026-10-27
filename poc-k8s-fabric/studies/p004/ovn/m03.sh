@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# P004-S002/M03: prova reversível de EVPN Type 5 no tenant MGC.
+# P004-S002/M03: prova reversível de EVPN Type 5 no tenant DCI.
 #
-# Este ensaio é deliberadamente separado do perfil labctl mgc. Ele só pode
-# usar recursos que o preflight provou como pertencentes ao MGC e não adota
+# Este ensaio é deliberadamente separado do perfil labctl dci. Ele só pode
+# usar recursos que o preflight provou como pertencentes ao DCI e não adota
 # sobras de uma tentativa anterior. Um --execute que falha entra no trap e
-# tenta voltar ao estado MGC por nome/ID, seguido de labctl mgc up/verify.
+# tenta voltar ao estado DCI por nome/ID, seguido de labctl dci up/verify.
 # shellcheck disable=SC2329  # cleanup helpers are reached from the EXIT trap.
 set -euo pipefail
 
@@ -23,7 +23,7 @@ O recibo de preflight deve conter, em linhas únicas:
   timestamp=<UTC RFC3339 timestamp>
   host=<hostname of the preflight host>
 
---dry-run só lê o MGC e imprime o plano. --execute é obrigatório para
+--dry-run só lê o DCI e imprime o plano. --execute é obrigatório para
 qualquer mutação e sempre tenta restaurar o baseline na saída.
 EOF
 }
@@ -36,7 +36,7 @@ case "$1" in
   --phase-up|--phase-verify)
     M03_INTERNAL_PHASE="${1#--phase-}"
     DRY_RUN="${DRY_RUN:-0}"
-    [[ "${MGC_M03_PHASE_CHILD:-0}" == 1 ]] \
+    [[ "${DCI_M03_PHASE_CHILD:-0}" == 1 ]] \
       || { usage >&2; exit 2; }
     ;;
   *) usage >&2; exit 2 ;;
@@ -48,17 +48,17 @@ export LAB_ROOT DRY_RUN
 # shellcheck source=../../../labctl/lib/common.sh
 # shellcheck disable=SC1091
 source "${LAB_ROOT}/lib/common.sh"
-# shellcheck source=../../../labctl/labs/mgc.sh
+# shellcheck source=../../../labctl/labs/dci.sh
 # shellcheck disable=SC1091
-source "${LAB_ROOT}/labs/mgc.sh"
+source "${LAB_ROOT}/labs/dci.sh"
 
 require_cmd docker git ip awk grep timeout nsenter tcpdump date hostname cmp flock \
   ovs-vsctl env sed tr seq sleep python3 kubectl stat cp wc sort
 [[ "$(id -u)" -eq 0 ]] || die 'M03 exige root no host vm-cilium'
 
-M03_PEER="mgc-evpn-client-1"
+M03_PEER="dci-evpn-client-1"
 M03_IMAGE="ovn/ovn-multi-node:latest"
-# This digest was read from the pinned MGC image before M03 was authored.  A
+# This digest was read from the pinned DCI image before M03 was authored.  A
 # moving :latest tag is never accepted as sufficient provenance for execute.
 M03_IMAGE_DIGEST="sha256:eda2364d9cfbec6dd26f54b335c37efa9dade64ffdccbff374b5c50ae64ce52a"
 M03_CHASSIS="ovn-chassis-1"
@@ -74,15 +74,15 @@ M03_VNI=50100
 M03_TENANT_TABLE=300
 M03_CLIENT_TABLE=50100
 M03_AUX_DSTPORT=60010
-M03_LRP="lrp-mgc-tenant"
-M03_TENANT_LR="lr-mgc-tenant"
-M03_TENANT_LS="ls-mgc-tenant"
+M03_LRP="lrp-dci-tenant"
+M03_TENANT_LR="lr-dci-tenant"
+M03_TENANT_LS="ls-dci-tenant"
 M03_TENANT_VRF="ovnvrf-tenant"
 M03_CLIENT_VRF="vrf-evpn-client"
 M03_TENANT_BR="br-evpn-tenant"
 M03_TENANT_VXLAN="vxlan-tenant"
 M03_TENANT_ADVERTISE="evpn-tenant"
-M03_TENANT_TAP="mgc-tenant-vm-p"
+M03_TENANT_TAP="dci-tenant-vm-p"
 M03_CLIENT_BR="br-evpn-client"
 M03_CLIENT_VXLAN="vxlan-m03-peer"
 M03_CLIENT_ADVERTISE="evpn-client"
@@ -296,8 +296,8 @@ check_historical_canaries() {
 
 assert_static_inputs() {
   local link_name
-  [[ "${MG_CLIENT_NAME}" == 'mgc-client-1' ]] \
-    || fail "M03 exige o cliente canônico mgc-client-1 (obtido ${MG_CLIENT_NAME})"
+  [[ "${MG_CLIENT_NAME}" == 'dci-client-1' ]] \
+    || fail "M03 exige o cliente canônico dci-client-1 (obtido ${MG_CLIENT_NAME})"
   for link_name in "${M03_TENANT_VRF}" "${M03_TENANT_BR}" \
     "${M03_TENANT_VXLAN}" "${M03_TENANT_ADVERTISE}" \
     "${M03_CLIENT_VRF}" "${M03_CLIENT_BR}" \
@@ -309,26 +309,26 @@ assert_static_inputs() {
   done
   [[ -f "${M03_CHASSIS_CONF}" && -f "${M03_CLIENT_CONF}" ]] \
     || fail 'fixtures FRR do M03 ausentes'
-  [[ -x "${MGC_FAKE_MN}/ovs-runc" ]] \
-    || fail "ovs-runc ausente ou não executável: ${MGC_FAKE_MN}/ovs-runc"
+  [[ -x "${DCI_FAKE_MN}/ovs-runc" ]] \
+    || fail "ovs-runc ausente ou não executável: ${DCI_FAKE_MN}/ovs-runc"
 
-  [[ -f "${MGC_OVN_SRC}/tests/multinode.at" ]] \
-    || fail "referência OVN ausente: ${MGC_OVN_SRC}/tests/multinode.at"
-  [[ -f "${MGC_OVN_SRC}/tests/multinode-bgp-macros.at" ]] \
-    || fail "referência OVN ausente: ${MGC_OVN_SRC}/tests/multinode-bgp-macros.at"
-  [[ "$(git -C "${MGC_OVN_SRC}" rev-parse HEAD 2>/dev/null || true)" == "${OVN_COMMIT}" ]] \
+  [[ -f "${DCI_OVN_SRC}/tests/multinode.at" ]] \
+    || fail "referência OVN ausente: ${DCI_OVN_SRC}/tests/multinode.at"
+  [[ -f "${DCI_OVN_SRC}/tests/multinode-bgp-macros.at" ]] \
+    || fail "referência OVN ausente: ${DCI_OVN_SRC}/tests/multinode-bgp-macros.at"
+  [[ "$(git -C "${DCI_OVN_SRC}" rev-parse HEAD 2>/dev/null || true)" == "${OVN_COMMIT}" ]] \
     || fail "fonte OVN não está no commit fixado ${OVN_COMMIT}"
   grep -Fq 'AT_SETUP([ovn multinode bgp L3 EVPN])' \
-    "${MGC_OVN_SRC}/tests/multinode.at" \
+    "${DCI_OVN_SRC}/tests/multinode.at" \
     || fail 'teste oficial L3 EVPN não encontrado na fonte fixada'
   grep -Fq 'm_setup_host_frr_vrf' \
-    "${MGC_OVN_SRC}/tests/multinode-bgp-macros.at" \
+    "${DCI_OVN_SRC}/tests/multinode-bgp-macros.at" \
     || fail 'macro oficial de VRF FRR não encontrada na fonte fixada'
   grep -Fq 'advertise ipv4 unicast' \
-    "${MGC_OVN_SRC}/tests/multinode-bgp-macros.at" \
+    "${DCI_OVN_SRC}/tests/multinode-bgp-macros.at" \
     || fail 'macro oficial de Type 5 não encontrada na fonte fixada'
   grep -Fq "dstport=\$((60000 + \$vni))" \
-    "${MGC_OVN_SRC}/tests/multinode-bgp-macros.at" \
+    "${DCI_OVN_SRC}/tests/multinode-bgp-macros.at" \
     || fail 'regra de dstport auxiliar não encontrada na fonte fixada'
 }
 
@@ -339,16 +339,16 @@ assert_p003_stopped() {
     || fail "p003-os precisa estar exited (estado=${state:-ausente})"
 }
 
-assert_mgc_owned_running() {
+assert_dci_owned_running() {
   local name state
-  mgc_assert_no_extra_ovn_containers
-  mgc_assert_cluster_ownership
-  mgc_assert_bridges_owned
-  mgc_assert_client_ownership "${MG_CLIENT_NAME}"
-  [[ "$(mgc_cluster_count running)" -eq 5 ]] \
-    || fail 'MGC não tem exatamente 5 containers OVN rodando'
-  [[ "$(mgc_count_named "${MG_CLIENT_NAME}" running)" -eq 1 ]] \
-    || fail 'cliente canônico MGC não está rodando'
+  dci_assert_no_extra_ovn_containers
+  dci_assert_cluster_ownership
+  dci_assert_bridges_owned
+  dci_assert_client_ownership "${MG_CLIENT_NAME}"
+  [[ "$(dci_cluster_count running)" -eq 5 ]] \
+    || fail 'DCI não tem exatamente 5 containers OVN rodando'
+  [[ "$(dci_count_named "${MG_CLIENT_NAME}" running)" -eq 1 ]] \
+    || fail 'cliente canônico DCI não está rodando'
   for name in "${M03_CENTRAL}" "${MG_GATEWAY_1}" "${MG_GATEWAY_2}" \
     "${MG_CHASSIS_1}" "${MG_CHASSIS_2}" "${MG_CLIENT_NAME}"; do
     state="$(docker inspect -f '{{.State.Status}}' "${name}" 2>/dev/null || true)"
@@ -356,9 +356,9 @@ assert_mgc_owned_running() {
   done
   [[ "$(awk '/^MemAvailable:/{print int($2 / 1024 / 1024)}' /proc/meminfo)" -ge 4 ]] \
     || fail 'MemAvailable abaixo de 4 GiB'
-  [[ "$(mgc_images_provenance_matches && echo yes || echo no)" == yes ]] \
+  [[ "$(dci_images_provenance_matches && echo yes || echo no)" == yes ]] \
     || fail "provenance das imagens OVN não corresponde às fontes fixadas"
-  [[ "$(mgc_image_id "${M03_IMAGE}")" == "${M03_IMAGE_DIGEST}" ]] \
+  [[ "$(dci_image_id "${M03_IMAGE}")" == "${M03_IMAGE_DIGEST}" ]] \
     || fail "digest da imagem do peer não é ${M03_IMAGE_DIGEST}"
 }
 
@@ -373,7 +373,7 @@ assert_baseline_network() {
     || fail "${M03_LRP} já tem ${M03_LRP_REDISTRIBUTE_KEY}; recusar adoção"
   [[ "${lrp_options}" != *dynamic-routing-port-name* ]] \
     || fail "${M03_LRP} já tem filtro de porta de retorno; recusar adoção"
-  port_mapping="$(mgc_m03_chassis_port_mapping)" \
+  port_mapping="$(dci_m03_chassis_port_mapping)" \
     || fail "não foi possível ler mapping de roteamento em ${M03_CHASSIS}"
   [[ -z "$port_mapping" ]] \
     || fail "${M03_CHASSIS} já tem dynamic-routing-port-mapping: $port_mapping"
@@ -420,8 +420,8 @@ assert_baseline_network() {
   [[ "${route}" == *'dev eth1'* ]] \
     || fail "underlay para ${M03_PEER_IP} não usa eth1 em ${M03_CHASSIS}: ${route}"
 
-  M03_OLD_CLIENT_PORT_1="$(mgc_ovs_port "${MG_CLIENT_NAME}" eth1 || true)"
-  M03_OLD_CLIENT_PORT_2="$(mgc_ovs_port "${MG_CLIENT_NAME}" eth2 || true)"
+  M03_OLD_CLIENT_PORT_1="$(dci_ovs_port "${MG_CLIENT_NAME}" eth1 || true)"
+  M03_OLD_CLIENT_PORT_2="$(dci_ovs_port "${MG_CLIENT_NAME}" eth2 || true)"
   [[ -n "${M03_OLD_CLIENT_PORT_1}" && -n "${M03_OLD_CLIENT_PORT_2}" ]] \
     || fail 'portas legadas eth1/eth2 do cliente não foram identificadas'
   [[ "$(ovs-vsctl port-to-br "${M03_OLD_CLIENT_PORT_1}" 2>/dev/null || true)" == br-ovn-ext \
@@ -430,7 +430,7 @@ assert_baseline_network() {
   [[ "$(ovs-vsctl get Port "${M03_OLD_CLIENT_PORT_1}" tag 2>/dev/null || true)" == 100 \
     && "$(ovs-vsctl get Port "${M03_OLD_CLIENT_PORT_2}" tag 2>/dev/null || true)" == 200 ]] \
     || fail 'VLANs legadas do cliente não são 100/200'
-  [[ -z "$(mgc_ovs_port "${M03_PEER}" eth1 || true)" ]] \
+  [[ -z "$(dci_ovs_port "${M03_PEER}" eth1 || true)" ]] \
     || fail "porta OVS residual do peer ${M03_PEER} já existe"
 
   for link in "${M03_TENANT_BR}" "${M03_TENANT_VXLAN}" \
@@ -451,13 +451,13 @@ assert_baseline_network() {
       || fail "daemon FRR ${daemon} já roda no chassis; recusar mistura de pathspaces"
   done
   ovs-vsctl br-exists br-ovn >/dev/null 2>&1 \
-    || fail 'br-ovn do MGC está ausente'
+    || fail 'br-ovn do DCI está ausente'
 }
 
 assert_no_peer_name() {
   [[ ! -e "$M03_MARKER_FILE" ]] \
-    || fail "marker M03 residual presente; exigir mgc down/cleanup antes de nova execução"
-  [[ "$(mgc_count_named "${M03_PEER}")" -eq 0 ]] \
+    || fail "marker M03 residual presente; exigir dci down/cleanup antes de nova execução"
+  [[ "$(dci_count_named "${M03_PEER}")" -eq 0 ]] \
     || fail "container ${M03_PEER} já existe; não adotar recurso"
   [[ "$(docker ps -a --format '{{.Names}}' | awk -v n="${M03_PEER}" '$0 == n {print}')" == '' ]] \
     || fail "nome Docker ${M03_PEER} ainda está ocupado"
@@ -468,20 +468,20 @@ preflight() {
   assert_preflight_receipt
   assert_static_inputs
   assert_p003_stopped
-  assert_mgc_owned_running
+  assert_dci_owned_running
   M03_OWNER_TOKEN="$(state_get "${LAB_NAME}" owner_token 2>/dev/null || true)"
-  [[ -n "${M03_OWNER_TOKEN}" ]] || fail 'token de ownership MGC ausente'
+  [[ -n "${M03_OWNER_TOKEN}" ]] || fail 'token de ownership DCI ausente'
   assert_no_peer_name
   assert_baseline_network
   check_historical_canaries pre \
     || fail 'UIDs/canários históricos ao vivo não passaram 10/10'
-  say 'preflight MGC/ownership/capacidade/provenance/ausência OK'
+  say 'preflight DCI/ownership/capacidade/provenance/ausência OK'
 }
 
 print_plan() {
   cat <<EOF
 M03 DRY-RUN plano (nenhuma evidência ou mutação será criada)
-  fonte OVN: ${MGC_OVN_SRC} @ ${OVN_COMMIT}
+  fonte OVN: ${DCI_OVN_SRC} @ ${OVN_COMMIT}
   tenant: ${M03_TENANT_LR}/${M03_TENANT_LS} -> ${M03_CHASSIS}, VRF ${M03_TENANT_VRF}, tabela ${M03_TENANT_TABLE}
   NB temporário: ${M03_LRP} options:dynamic-routing-maintain-vrf=true
   filtro temporário de retorno: ${M03_LRP} options:dynamic-routing-port-name=m03-evpn-<run>, ${M03_CHASSIS} OVS external_ids:dynamic-routing-port-mapping=m03-evpn-<run>=${M03_TENANT_BR}
@@ -494,7 +494,7 @@ M03 DRY-RUN plano (nenhuma evidência ou mutação será criada)
   controle negativo causal: localizar o Port_Binding de ${M03_LRP} por nome, escopar prefixo por UUID/datapath e preservar as duas rotas colaterais
   negativo: confirmar withdraw em SB, VRF tenant, Type5 e FIB/route-get do peer; BGP Established e VTEP ativo; probe ICMP limitado falha
   recuperação: remover somente options:${M03_LRP_REDISTRIBUTE_KEY} após validar identidade/options; confirmar rota SB, Type5/FIB/route-get e ping 3/3
-  rollback: remover a chave temporária no trap, validar filtro antes do teardown, parar FRR pathspaces, restaurar filtro, remover somente IDs/dispositivos criados, labctl mgc up/verify
+  rollback: remover a chave temporária no trap, validar filtro antes do teardown, parar FRR pathspaces, restaurar filtro, remover somente IDs/dispositivos criados, labctl dci up/verify
   gate de aceitação: controle causal e limpeza precisam passar; chave e VNI devem voltar ao estado inicial
 EOF
 }
@@ -502,7 +502,7 @@ EOF
 prepare_evidence() {
   local parent
   M03_RUN_TOKEN="$(date -u +%Y%m%dT%H%M%SZ)-$$"
-  M03_EVIDENCE_DIR="${M03_EVIDENCE_DIR:-/var/tmp/labctl/mgc/m03-${M03_RUN_TOKEN}}"
+  M03_EVIDENCE_DIR="${M03_EVIDENCE_DIR:-/var/tmp/labctl/dci/m03-${M03_RUN_TOKEN}}"
   [[ ! -e "${M03_EVIDENCE_DIR}" ]] \
     || fail "diretório de evidência já existe: ${M03_EVIDENCE_DIR}"
   parent="$(dirname "${M03_EVIDENCE_DIR}")"
@@ -511,7 +511,7 @@ prepare_evidence() {
   cp -- "${M03_PREFLIGHT_RECEIPT}" "${M03_EVIDENCE_DIR}/preflight-receipt.txt"
   {
     echo "run=${M03_RUN_TOKEN}"
-    echo "source=${MGC_OVN_SRC}@${OVN_COMMIT}"
+    echo "source=${DCI_OVN_SRC}@${OVN_COMMIT}"
     echo "peer=${M03_PEER} image=${M03_IMAGE}"
     echo "tenant=${M03_TENANT_CIDR} vni=${M03_VNI}"
     echo "owner_token=${M03_OWNER_TOKEN}"
@@ -529,7 +529,7 @@ prepare_phase_evidence() {
   M03_RUN_TOKEN="${M03_RUN_TOKEN:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
   [[ "${M03_RUN_TOKEN}" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9]+$ ]] \
     || fail 'run token M03 fornecido pela fase não tem formato interno válido'
-  M03_EVIDENCE_DIR="${M03_EVIDENCE_DIR:-${EVIDENCE_DIR:-/var/tmp/labctl/mgc/m03-${M03_RUN_TOKEN}}}"
+  M03_EVIDENCE_DIR="${M03_EVIDENCE_DIR:-${EVIDENCE_DIR:-/var/tmp/labctl/dci/m03-${M03_RUN_TOKEN}}}"
   parent="$(dirname "${M03_EVIDENCE_DIR}")"
   if [[ -e "${M03_EVIDENCE_DIR}" ]]; then
     [[ -d "${M03_EVIDENCE_DIR}" && -O "${M03_EVIDENCE_DIR}" \
@@ -555,13 +555,13 @@ prepare_phase_evidence() {
       || fail 'run.txt existente diverge do token M03 desta fase'
     grep -Fqx "owner_token=${M03_OWNER_TOKEN}" \
       "${M03_EVIDENCE_DIR}/run.txt" \
-      || fail 'run.txt existente diverge do token MGC desta fase'
+      || fail 'run.txt existente diverge do token DCI desta fase'
     export M03_EVIDENCE_DIR M03_RUN_TOKEN
     return 0
   fi
   {
     echo "run=${M03_RUN_TOKEN}"
-    echo "source=${MGC_OVN_SRC}@${OVN_COMMIT}"
+    echo "source=${DCI_OVN_SRC}@${OVN_COMMIT}"
     echo "peer=${M03_PEER} image=${M03_IMAGE}"
     echo "tenant=${M03_TENANT_CIDR} vni=${M03_VNI}"
     echo "owner_token=${M03_OWNER_TOKEN}"
@@ -708,41 +708,41 @@ set_return_route_filter() {
   local port_name expected lrp_value mapping_value
   port_name="m03-evpn-${M03_RUN_TOKEN}"
   expected="${port_name}=${M03_TENANT_BR}"
-  mgc_m03_marker_valid \
+  dci_m03_marker_valid \
     || fail 'marker M03 inválido antes de configurar filtro de retorno'
   grep -Fqx 'version=2' "$M03_MARKER_FILE" \
     || fail 'marker M03 não declara baseline do filtro de retorno'
-  lrp_value="$(mgc_m03_lrp_port_name)" \
+  lrp_value="$(dci_m03_lrp_port_name)" \
     || fail 'não foi possível ler dynamic-routing-port-name antes de configurar o filtro'
-  mapping_value="$(mgc_m03_chassis_port_mapping)" \
+  mapping_value="$(dci_m03_chassis_port_mapping)" \
     || fail 'não foi possível ler dynamic-routing-port-mapping antes de configurar o filtro'
   [[ -z "$lrp_value" && -z "$mapping_value" ]] \
     || fail 'filtro de retorno apareceu após preflight; não sobrescrever'
   run docker exec "$M03_CHASSIS" ovs-vsctl set Open_vSwitch . \
     "external_ids:dynamic-routing-port-mapping=${expected}"
-  [[ "$(mgc_m03_chassis_port_mapping)" == "$expected" ]] \
+  [[ "$(dci_m03_chassis_port_mapping)" == "$expected" ]] \
     || fail 'mapping M03 não foi instalado como esperado'
   run docker exec "$M03_CENTRAL" ovn-nbctl --wait=sb set \
     logical_router_port "$M03_LRP" \
     "options:dynamic-routing-port-name=${port_name}"
-  [[ "$(mgc_m03_lrp_port_name)" == "$port_name" ]] \
+  [[ "$(dci_m03_lrp_port_name)" == "$port_name" ]] \
     || fail 'dynamic-routing-port-name M03 não foi instalado como esperado'
   printf 'port_name=%s\nport_mapping=%s\n' "$port_name" "$expected" \
     >"${M03_EVIDENCE_DIR}/return-route-filter.txt"
 }
 
 create_peer_container() {
-  [[ -n "${M03_OWNER_TOKEN}" ]] || fail 'token de ownership MGC ausente'
+  [[ -n "${M03_OWNER_TOKEN}" ]] || fail 'token de ownership DCI ausente'
   M03_CLIENT_CREATED=1
   run docker run -d --name "${M03_PEER}" --network none --privileged \
-    --label "labctl.mgc.owner=${M03_OWNER_TOKEN}" \
+    --label "labctl.dci.owner=${M03_OWNER_TOKEN}" \
     --label "${M03_OWNER_LABEL}=labctl-m03-${M03_RUN_TOKEN}" \
     --entrypoint /bin/sh "${M03_IMAGE}" -c 'while :; do sleep 3600; done'
   M03_CLIENT_ID="$(docker inspect -f '{{.Id}}' "${M03_PEER}")"
   [[ -n "${M03_CLIENT_ID}" ]] || fail 'ID do peer não foi obtido após docker run'
   M03_CLIENT_PORT_CREATED=1
   local add_rc=0 add_output port tag bridge addr
-  if add_output="$(env RUNC_CMD="${RUNC_CMD}" "${MGC_FAKE_MN}/ovs-runc" \
+  if add_output="$(env RUNC_CMD="${RUNC_CMD}" "${DCI_FAKE_MN}/ovs-runc" \
     add-port br-ovn eth1 "${M03_PEER}" "--ipaddress=${M03_PEER_CIDR}" 2>&1)"; then
     add_rc=0
   else
@@ -752,7 +752,7 @@ create_peer_container() {
   # Inspect the OVS identity even after a failed add-port: ovs-runc can leave
   # a partial Port/Interface behind, and cleanup may remove it only when every
   # recorded UUID and host interface still proves this run owns it.
-  port="$(mgc_ovs_port "${M03_PEER}" eth1 || true)"
+  port="$(dci_ovs_port "${M03_PEER}" eth1 || true)"
   [[ -n "${port}" ]] || fail "ovs-runc não deixou uma porta identificável após add-port (rc=${add_rc})"
   M03_CLIENT_PORT_NAME="${port}"
   M03_CLIENT_PORT_UUID="$(ovs-vsctl get Port "${port}" _uuid 2>/dev/null \
@@ -1300,13 +1300,13 @@ snapshot_advertised_routes() {
       target_count_seen=$((target_count_seen + 1))
       printf 'route_uuid=%s datapath=%s port_binding=%s\n%s\n' \
         "$route_uuid" "$datapath" "$binding_uuid" "$row" >>"$target_rows_file"
-    elif [[ "$binding_name" == lrp-mgc-100-tenant ]]; then
+    elif [[ "$binding_name" == lrp-dci-100-tenant ]]; then
       collateral_count=$((collateral_count + 1))
       collateral_100_count=$((collateral_100_count + 1))
       printf 'route_uuid=%s datapath=%s prefix=%s port_binding=%s logical_port=%s\n%s\n' \
         "$route_uuid" "$datapath" "$prefix" "$binding_uuid" "$binding_name" \
         "$row" >>"$collateral_file"
-    elif [[ "$binding_name" == lrp-mgc-200-tenant ]]; then
+    elif [[ "$binding_name" == lrp-dci-200-tenant ]]; then
       collateral_count=$((collateral_count + 1))
       collateral_200_count=$((collateral_200_count + 1))
       printf 'route_uuid=%s datapath=%s prefix=%s port_binding=%s logical_port=%s\n%s\n' \
@@ -2232,10 +2232,10 @@ remove_client_port() {
   id="$(docker inspect -f '{{.Id}}' "${M03_PEER}" 2>/dev/null || true)"
   label="$(docker inspect -f "{{index .Config.Labels \"${M03_OWNER_LABEL}\"}}" \
     "${M03_PEER}" 2>/dev/null || true)"
-  profile_owner="$(docker inspect -f '{{index .Config.Labels "labctl.mgc.owner"}}' \
+  profile_owner="$(docker inspect -f '{{index .Config.Labels "labctl.dci.owner"}}' \
     "${M03_PEER}" 2>/dev/null || true)"
   port="${M03_CLIENT_PORT_NAME:-}"
-  [[ -n "${port}" ]] || port="$(mgc_ovs_port "${M03_PEER}" eth1 || true)"
+  [[ -n "${port}" ]] || port="$(dci_ovs_port "${M03_PEER}" eth1 || true)"
   if [[ -z "${port}" ]]; then
     if [[ -n "${M03_CLIENT_HOST_IFACE}" ]] \
       && ip link show "${M03_CLIENT_HOST_IFACE}" >/dev/null 2>&1; then
@@ -2276,7 +2276,7 @@ remove_client_port() {
   M03_CLIENT_PORT_UUID="${port_uuid}"
   M03_CLIENT_INTERFACE_UUID="${interface_uuid}"
   M03_CLIENT_HOST_IFACE="${host_iface}"
-  env RUNC_CMD="${RUNC_CMD}" "${MGC_FAKE_MN}/ovs-runc" \
+  env RUNC_CMD="${RUNC_CMD}" "${DCI_FAKE_MN}/ovs-runc" \
     del-port br-ovn eth1 "${M03_PEER}" >/dev/null 2>&1 || cleanup_rc=1
   for attempt in $(seq 1 15); do
     if ! ovs-vsctl port-to-br "${port}" >/dev/null 2>&1; then
@@ -2300,7 +2300,7 @@ remove_client_container() {
   [[ -z "${id}" ]] && return 0
   label="$(docker inspect -f "{{index .Config.Labels \"${M03_OWNER_LABEL}\"}}" \
     "${M03_PEER}" 2>/dev/null || true)"
-  profile_owner="$(docker inspect -f '{{index .Config.Labels "labctl.mgc.owner"}}' \
+  profile_owner="$(docker inspect -f '{{index .Config.Labels "labctl.dci.owner"}}' \
     "${M03_PEER}" 2>/dev/null || true)"
   if [[ "${label}" != "labctl-m03-${M03_RUN_TOKEN}" \
     || "${profile_owner}" != "${M03_OWNER_TOKEN}" \
@@ -2326,7 +2326,7 @@ assert_post_rollback() {
     && "$lrp_options" != *"$M03_LRP_REDISTRIBUTE_KEY"* \
     && "$lrp_options" != *dynamic-routing-port-name* ]] \
     || { cleanup_rc=1; say 'LRP ainda tem uma option temporária após rollback' >&2; }
-  if ! port_mapping="$(mgc_m03_chassis_port_mapping)"; then
+  if ! port_mapping="$(dci_m03_chassis_port_mapping)"; then
     cleanup_rc=1
     say 'não foi possível ler mapping após rollback' >&2
   elif [[ -n "$port_mapping" ]]; then
@@ -2341,7 +2341,7 @@ assert_post_rollback() {
     [[ ! -e "${M03_MARKER_FILE}" ]] \
       || { cleanup_rc=1; say 'marker M03 ainda existe após rollback' >&2; }
   fi
-  [[ "$(mgc_count_named "${M03_PEER}")" -eq 0 ]] \
+  [[ "$(dci_count_named "${M03_PEER}")" -eq 0 ]] \
     || { cleanup_rc=1; say 'peer M03 ainda existe após rollback' >&2; }
   if [[ -n "${M03_CLIENT_HOST_IFACE}" ]] \
     && ip link show "${M03_CLIENT_HOST_IFACE}" >/dev/null 2>&1; then
@@ -2367,7 +2367,7 @@ assert_post_rollback() {
 
 load_marker_context() {
   local marker_run marker_owner
-  mgc_m03_marker_valid \
+  dci_m03_marker_valid \
     || fail 'marker M03 ausente ou inválido durante a fase lifecycle'
   marker_run="$(sed -n 's/^run_token=//p' "${M03_MARKER_FILE}")"
   marker_owner="$(sed -n 's/^token=//p' "${M03_MARKER_FILE}")"
@@ -2377,7 +2377,7 @@ load_marker_context() {
   M03_MARKER_TOKEN="${marker_owner}"
   M03_OWNER_TOKEN="$(state_get "${LAB_NAME}" owner_token 2>/dev/null || true)"
   [[ -n "${M03_OWNER_TOKEN}" ]] \
-    || fail 'token de ownership MGC ausente durante a fase M03'
+    || fail 'token de ownership DCI ausente durante a fase M03'
   export M03_RUN_TOKEN
 }
 
@@ -2470,7 +2470,7 @@ phase_verify_entrypoint() {
     return 0
   fi
   load_marker_context
-  mgc_m03_assert_active
+  dci_m03_assert_active
   [[ -d "${M03_EVIDENCE_DIR}" ]] \
     || fail "diretório de evidência da fase ausente: ${M03_EVIDENCE_DIR}"
   wait_for_route_convergence "${M03_VERIFY_PHASE}"
@@ -2494,23 +2494,23 @@ normal_entrypoint() {
   trap 'm03_signal INT' INT
   trap 'm03_signal TERM' TERM
 
-  say 'labctl mgc up --m03: baseline e fase M03 owned'
-  "${LAB_ROOT}/labctl" mgc up --m03 \
+  say 'labctl dci up --m03: baseline e fase M03 owned'
+  "${LAB_ROOT}/labctl" dci up --m03 \
     --evidence "${M03_EVIDENCE_DIR}/lifecycle-up" \
-    || fail 'labctl mgc up --m03 falhou'
-  say 'labctl mgc verify --m03: gate positivo antes do controle negativo'
-  "${LAB_ROOT}/labctl" mgc verify --m03 \
+    || fail 'labctl dci up --m03 falhou'
+  say 'labctl dci verify --m03: gate positivo antes do controle negativo'
+  "${LAB_ROOT}/labctl" dci verify --m03 \
     --evidence "${M03_EVIDENCE_DIR}/positive-pre-negative" \
-    || fail 'labctl mgc verify --m03 falhou antes do controle negativo'
+    || fail 'labctl dci verify --m03 falhou antes do controle negativo'
 
   run_ping
-  say 'labctl mgc verify --m03: gate após o probe ICMP'
-  "$LAB_ROOT/labctl" mgc verify --m03 \
+  say 'labctl dci verify --m03: gate após o probe ICMP'
+  "$LAB_ROOT/labctl" dci verify --m03 \
     --evidence "$M03_EVIDENCE_DIR/positive-post-ping" \
-    || fail 'labctl mgc verify --m03 falhou após o probe ICMP'
+    || fail 'labctl dci verify --m03 falhou após o probe ICMP'
 
   M03_POSITIVE_GATES_COMPLETE=1
-  say 'controle negativo causal: remover connected somente em lrp-mgc-tenant'
+  say 'controle negativo causal: remover connected somente em lrp-dci-tenant'
   run_negative_causal
   [[ "$M03_NEGATIVE_CONTROL_STATUS" == PASS ]] \
     || fail 'controle negativo causal não passou'
@@ -2520,7 +2520,7 @@ normal_entrypoint() {
 
 cleanup_phase_up_direct() {
   local lrp_restored=0 frr_stopped=1
-  if ! (mgc_m03_validate_return_filter_owned); then
+  if ! (dci_m03_validate_return_filter_owned); then
     cleanup_rc=1
     say 'filtro de retorno divergiu; recursos M03 e marker preservados' >&2
     check_historical_canaries post || cleanup_rc=1
@@ -2547,7 +2547,7 @@ cleanup_phase_up_direct() {
     check_historical_canaries post || cleanup_rc=1
     return 1
   fi
-  if ! (mgc_m03_restore_return_filter); then
+  if ! (dci_m03_restore_return_filter); then
     cleanup_rc=1
     say 'filtro de retorno não foi restaurado; recursos M03 e marker preservados' >&2
     check_historical_canaries post || cleanup_rc=1
@@ -2565,7 +2565,7 @@ cleanup_phase_up_direct() {
     return 1
   fi
   if [[ "${lrp_restored}" -eq 1 ]]; then
-    mgc_m03_remove_tenant_vrf || cleanup_rc=1
+    dci_m03_remove_tenant_vrf || cleanup_rc=1
   else
     cleanup_rc=1
     say 'VRF tenant preservado: LRP não foi restaurado com sucesso' >&2
@@ -2580,8 +2580,8 @@ cleanup_phase_up_direct() {
   check_historical_canaries post || cleanup_rc=1
   assert_post_rollback || cleanup_rc=1
   if [[ "${cleanup_rc}" -eq 0 && -e "${M03_MARKER_FILE}" ]] \
-    && ! mgc_m03_physical_resource_present; then
-    mgc_m03_remove_marker "${M03_MARKER_TOKEN}" || {
+    && ! dci_m03_physical_resource_present; then
+    dci_m03_remove_marker "${M03_MARKER_TOKEN}" || {
       cleanup_rc=1
       say 'marker M03 não foi removido após rollback da fase up' >&2
     }
@@ -2616,32 +2616,32 @@ cleanup() {
       say 'rollback da fase up: FRR temporário, links e peer'
       cleanup_phase_up_direct || cleanup_rc=1
     else
-      if mgc_m03_resource_present; then
-        say 'rollback: labctl mgc down --m03 e restauração do baseline'
-        "${LAB_ROOT}/labctl" mgc down --m03 \
+      if dci_m03_resource_present; then
+        say 'rollback: labctl dci down --m03 e restauração do baseline'
+        "${LAB_ROOT}/labctl" dci down --m03 \
           --evidence "${M03_EVIDENCE_DIR}/rollback-down" \
           >/dev/null 2>&1 || cleanup_rc=1
       else
         say 'rollback M03 omitido: fase up não deixou marker ou recurso owned'
       fi
-      # The M03 marker must be gone before ordinary MGC reconciliation.  Do
+      # The M03 marker must be gone before ordinary DCI reconciliation.  Do
       # not invoke default up/verify while any owned or marker residue remains.
-      if mgc_m03_resource_present; then
+      if dci_m03_resource_present; then
         cleanup_rc=1
         say 'baseline up/verify omitidos: marker ou resíduo M03 ainda presente' >&2
       else
-        "${LAB_ROOT}/labctl" mgc up \
+        "${LAB_ROOT}/labctl" dci up \
           --evidence "${M03_EVIDENCE_DIR}/rollback-up" \
           >/dev/null 2>&1 || cleanup_rc=1
-        "${LAB_ROOT}/labctl" mgc verify \
+        "${LAB_ROOT}/labctl" dci verify \
           --evidence "${M03_EVIDENCE_DIR}/rollback-verify" \
           >/dev/null 2>&1 || cleanup_rc=1
         check_historical_canaries post || cleanup_rc=1
       fi
       assert_post_rollback || cleanup_rc=1
-      if mgc_m03_resource_present; then
+      if dci_m03_resource_present; then
         cleanup_rc=1
-        say 'resíduo M03 ainda detectado após labctl mgc down --m03' >&2
+        say 'resíduo M03 ainda detectado após labctl dci down --m03' >&2
       fi
     fi
   fi
@@ -2658,7 +2658,7 @@ cleanup() {
       echo "cleanup_recovery_result=${M03_CLEANUP_RECOVERY_RESULT}"
       echo "m03_run_token=${M03_RUN_TOKEN}"
       echo "m03_marker_token=${M03_MARKER_TOKEN}"
-      echo "mgc_owner_token=${M03_OWNER_TOKEN}"
+      echo "dci_owner_token=${M03_OWNER_TOKEN}"
       echo "k01_uid_pre=${M03_K01_UID_PRE}"
       echo "k01_uid_post=${M03_K01_UID_POST}"
       echo "p003_gw_uid_pre=${M03_P003_UID_PRE}"
@@ -2671,7 +2671,7 @@ cleanup() {
   fi
   if [[ "${original_rc}" -eq 0 && "${M03_ALL_GATES_COMPLETE}" -eq 1 \
     && "${cleanup_rc}" -eq 0 ]]; then
-    say "PASS: M03 provado e baseline MGC restaurado; evidência=${M03_EVIDENCE_DIR}"
+    say "PASS: M03 provado e baseline DCI restaurado; evidência=${M03_EVIDENCE_DIR}"
     exit 0
   fi
   if [[ "${original_rc}" -ne 0 || "${cleanup_rc}" -ne 0 \
@@ -2682,7 +2682,7 @@ cleanup() {
 }
 
 
-if [[ "${DRY_RUN}" == 0 && "${MGC_M03_PHASE_CHILD:-0}" != 1 ]]; then
+if [[ "${DRY_RUN}" == 0 && "${DCI_M03_PHASE_CHILD:-0}" != 1 ]]; then
   exec 9>"${M03_LOCK_FILE}" || fail "não foi possível abrir lock ${M03_LOCK_FILE}"
   flock -n 9 || fail "outra execução M03 já detém ${M03_LOCK_FILE}"
   export M03_LOCK_HELD_FD=9 M03_LOCK_FILE

@@ -29,10 +29,10 @@ from typing import Any, Callable, Mapping
 
 PRODUCTION_ROOT = "/opt/poc-k8s-fabric"
 PRODUCTION_STORE = "/var/lib/p004-reviewed-source-stage"
-PRODUCTION_LOCK = "/run/lock/labctl-mgc-m03.lock"
+PRODUCTION_LOCK = "/run/lock/labctl-dci-m03.lock"
 PRODUCTION_MARKERS = (
-    "/run/labctl/mgc-m03/active",
-    "/run/labctl/mgc-x05/active",
+    "/run/labctl/dci-m03/active",
+    "/run/labctl/dci-x05/active",
 )
 APPROVED_ARCHIVE_SHA256 = "c574f03de2035dcfb7626afb281520215e732963615dd400197396c777f9398d"
 APPROVED_MANIFEST_SHA256 = "558647b45997a2f81f1f55b185da503c57c41ddd8c6df8cfb77e10fcd353fa79"
@@ -119,7 +119,7 @@ def _fixture_config(
     evidence = root / "evidence"
     s002 = evidence / "P004" / "S002"
     markers_dir = fixture / "markers"
-    markers = (str(markers_dir / "mgc-m03-active"), str(markers_dir / "mgc-x05-active"))
+    markers = (str(markers_dir / "dci-m03-active"), str(markers_dir / "dci-x05-active"))
     lock_path = fixture / "lock"
     for path in (root, evidence, s002, markers_dir):
         info = os.lstat(path)

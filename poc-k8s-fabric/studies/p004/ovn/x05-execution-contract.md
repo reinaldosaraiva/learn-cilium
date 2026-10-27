@@ -8,17 +8,17 @@ to repeat. Literal VNI removal remains a separate `NOT_RUN` characterization.
 ## State and serialization
 
 The delivered baseline has **no** M03 marker or peer. The coordinator
-acquires `/var/lock/labctl-mgc-m03.lock` on FD 9 before any read that can
+acquires `/var/lock/labctl-dci-m03.lock` on FD 9 before any read that can
 authorize a mutation. Under that lock it validates the historical receipt,
-calls `labctl mgc up --m03` with `M03_PREFLIGHT_RECEIPT`, and runs
-`labctl mgc verify --m03`. This is setup for X05, not a repeat of the M03
+calls `labctl dci up --m03` with `M03_PREFLIGHT_RECEIPT`, and runs
+`labctl dci verify --m03`. This is setup for X05, not a repeat of the M03
 causal experiment. It holds the lock through X05 cleanup, then calls
-`labctl mgc down --m03` and baseline `labctl mgc verify` before release.
-`M03_LOCK_HELD_FD=9` is passed to `labctl mgc`
-only after path and inode checks, as in `mgc_m03_lock_action`. The X05 marker
-is `/run/labctl/mgc-x05/active`, mode 0600, owned by root. A marker may be
+`labctl dci down --m03` and baseline `labctl dci verify` before release.
+`M03_LOCK_HELD_FD=9` is passed to `labctl dci`
+only after path and inode checks, as in `dci_m03_lock_action`. The X05 marker
+is `/run/labctl/dci-x05/active`, mode 0600, owned by root. A marker may be
 removed only after every X05 resource is absent and the B LSP is back in its
-original LS. Normal `labctl mgc up`, `verify`, and `down` must refuse an X05
+original LS. Normal `labctl dci up`, `verify`, and `down` must refuse an X05
 marker unless they are the locked X05 coordinator. A stale marker stops the
 run and leaves recovery to the owned rollback path.
 The run identifier is six lowercase hex digits. The marker owner token is
@@ -40,14 +40,14 @@ PASS.
 
 | Owner | Resource | Exact identity | Precondition | Rollback |
 |---|---|---|---|---|
-| M03 | A LS/LR/LRP and return filter | `ls-mgc-tenant`, `lr-mgc-tenant`, `lrp-mgc-tenant` | Valid M03 marker and fingerprint after setup | X05 changes only the A LS `ports` set during the explicit control; restore the exact set; then M03 teardown |
-| X05 | A sentinel | LSP `x05-tenant-a-vm`, netns/tap on chassis 1, `192.168.100.11`, distinct MAC | LS A belongs to MGC; LSP/netns/tap absent | Remove only owned LSP and netns/tap |
+| M03 | A LS/LR/LRP and return filter | `ls-dci-tenant`, `lr-dci-tenant`, `lrp-dci-tenant` | Valid M03 marker and fingerprint after setup | X05 changes only the A LS `ports` set during the explicit control; restore the exact set; then M03 teardown |
+| X05 | A sentinel | LSP `x05-tenant-a-vm`, netns/tap on chassis 1, `192.168.100.11`, distinct MAC | LS A belongs to DCI; LSP/netns/tap absent | Remove only owned LSP and netns/tap |
 | X05 | B tenant | `ls-x05-tenant-b`, `lr-x05-tenant-b`, `lrp-x05-tenant-b`, chassis 2, table 400, VNI 50200 | Names, UUIDs, mapping and Linux links absent | Remove in reverse dependency order by UUID/owner |
 | X05 | B sentinel | LSP `x05-tenant-b-vm`, netns/tap on chassis 2, `192.168.100.12`, distinct MAC | B LS exists and port/tap absent | Restore parent to B first; then remove by UUID |
 | X05 | B external connections | `lr-x05-300/400`, `ls-x05-300/400-external`, `lrp-x05-300/400-external`, `lsp-x05-300/400-router`, `ln-x05-300/400`, `bgpvrf300/400`; VLAN/VRF 300 on gw1 and 400 on gw2, `/30` values reused from A | No X05 NB/OVS/FRR residue | Withdraw FRR, remove mirror/OVS ports, then NB rows |
 | X05 | B transit | `ls-x05-300/400-transit`, `lrp-x05-300/400-tenant`, `lsp-x05-300/400-tenant`, `lrp-x05-tenant-b-300/400`, `lsp-x05-tenant-b-300/400` | Rows absent, unique UUIDs | Remove routes and LRPs/LSPs before LS/LR rows |
-| X05 | B client | `mgc-client-2`, AS201, both `/30` legs, `10.0.0.0/16` | Docker name/ports absent | Remove its OVS ports and labeled container |
-| X05 | B EVPN | chassis 2 pathspace, peer `mgc-x05-peer-2`, source `10.251.0.1/32`, VNI 50200 | Pathspace, peer, links and filter absent | Withdraw Type 5, stop FRR, remove labeled links/peer/filter |
+| X05 | B client | `dci-client-2`, AS201, both `/30` legs, `10.0.0.0/16` | Docker name/ports absent | Remove its OVS ports and labeled container |
+| X05 | B EVPN | chassis 2 pathspace, peer `dci-x05-peer-2`, source `10.251.0.1/32`, VNI 50200 | Pathspace, peer, links and filter absent | Withdraw Type 5, stop FRR, remove labeled links/peer/filter |
 | X05 | Captures | run-specific files and PIDs on fabric and both nodes | Evidence directory unique | Stop only PIDs in the marker; preserve files |
 
 The B transit addresses are `10.31.100.1/30`↔`.2/30` and
@@ -68,7 +68,7 @@ The peer uses `vrf-x05-peer`, `br-x05-peer`, `vxlan-x05-pr` and
 `evpn-x05-pr` in its own pathspace. B LS options point only to the B links;
 B LR uses `dynamic-routing-vrf-id=400`, chassis 2 and distinct transit routes
 via `10.31.100.2`/`10.41.100.2`. The executable inventory must still freeze
-the baseline and inverse for each key before a Go. The pinned MGC profile
+the baseline and inverse for each key before a Go. The pinned DCI profile
 currently writes `external_ids:ovn-evpn-local-ip=50100-170.168.0.6` on
 chassis 2. OVN 26.03 supports a comma-separated per-VNI address list, so the
 planned chassis 2 value is `50100-170.168.0.6,50200-170.168.0.6`; UDP 4789
@@ -83,7 +83,7 @@ Every X05-created NB object must carry `external_ids:x05-owner=<token>`.
 The M03-owned A LS keeps its original owner; only its complete `ports` set
 changes temporarily under the guarded control transaction. Linux links use
 `ip link alias <token>`, OVS interfaces use `external_ids:x05-owner`, Docker
-objects use an X05 label plus the MGC profile label, and FRR state is scoped
+objects use an X05 label plus the DCI profile label, and FRR state is scoped
 to an X05 pathspace or exact named VRF/neighbor. An owner token alone is not
 enough for deletion: name, UUID or interface index, type, and expected parent
 must agree. The M03 marker digest and A LS/LR/LRP UUIDs and complete A LS
@@ -169,16 +169,16 @@ after each NB commit; an NB success does not prove datapath convergence.
 
 | Gate | Required observation | Failure result |
 |---|---|---|
-| G0 | Local hashes, receipt, 5 MGC OVN nodes, M03/X05 absence, `p003-os=exited`, memory, k01/p003-gw UIDs and 10/10 canaries | STOP before mutation |
-| G0a | Under shared lock, `labctl mgc up --m03` and `verify --m03` pass; M03 marker/owner and A UUID/ports fingerprint captured | M03 owned rollback; no X05 mutation |
+| G0 | Local hashes, receipt, 5 DCI OVN nodes, M03/X05 absence, `p003-os=exited`, memory, k01/p003-gw UIDs and 10/10 canaries | STOP before mutation |
+| G0a | Under shared lock, `labctl dci up --m03` and `verify --m03` pass; M03 marker/owner and A UUID/ports fingerprint captured | M03 owned rollback; no X05 mutation |
 | G1 | Both B BGP legs established in distinct VRFs; A legs still established; each client RIB/FIB has its own `192.168.100.0/24` route | Rollback, no PASS |
 | G2 | Simultaneous A/B EVPN Type 5 for the same prefix, respective VNI 50100/50200, correct VRF RIB/FIB/route-get, scoped `Learned_Route` on each tenant LRP/datapath | Rollback, no PASS |
 | G3 | A→`.11` and B→`.12` pass; A→`.12` and B→`.11` fail while their own routes remain; peer sources `10.250.0.1` and `10.251.0.1` pass only to their own sentinel | Rollback, no PASS |
 | G4 | Fabric and node captures show UDP 4789 and correct VNI plus tap request/reply on the intended sentinel; zero cross-tenant packets on the other tap | Rollback, no PASS |
 | G5 | After the LSP move, A→`.12` passes with B tap request/reply, B→`.12` loses reachability, LSP UUID unchanged and parent A only | Restore immediately; no PASS if any observation missing |
 | G6 | After inverse move, A→`.12` fails, B→`.12` passes, same UUID and B-only parent; positive gates remain | Rollback, no PASS |
-| G7 | X05 resources/marker absent, M03 marker digest, A UUIDs and complete A LS `ports` set unchanged, `labctl mgc verify --m03` passes | Retain marker or incident evidence; no PASS |
-| G8 | `labctl mgc down --m03` and baseline `verify` pass; M03 marker/peer absent, historical canaries/UIDs 10/10 | No PASS; preserve incident evidence |
+| G7 | X05 resources/marker absent, M03 marker digest, A UUIDs and complete A LS `ports` set unchanged, `labctl dci verify --m03` passes | Retain marker or incident evidence; no PASS |
+| G8 | `labctl dci down --m03` and baseline `verify` pass; M03 marker/peer absent, historical canaries/UIDs 10/10 | No PASS; preserve incident evidence |
 
 Each probe records command, exit status, UTC time, output, and capture hash in
 `evidence/P004/S002/<run>/08-x05/`. ICMP alone does not establish isolation.
@@ -191,7 +191,7 @@ UDP/VNI, ICMP semantics and bounded windows.
 Rollback order: stop captures; restore B LSP and prove its parent; withdraw B
 EVPN and B gateway BGP; remove X05 sentinel ports/netns; remove B peer/client
 ports and containers; remove X05 links, mirrors, filters, NB rows and FRR
-state; prove X05 absence; verify M03; call `labctl mgc down --m03`, baseline
+state; prove X05 absence; verify M03; call `labctl dci down --m03`, baseline
 `verify`, and check canaries. X05 failure cleanup must attempt this sequence
 once X05 absence is proven; if X05 ownership or LSP restoration is uncertain,
 it retains both markers and stops before M03 teardown.

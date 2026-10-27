@@ -60,7 +60,7 @@ validate() {
       exit 1
     }
   done
-  grep -Fqx 'hostname mgc-client-2' "${fixture_dir}/x05-client2.conf"
+  grep -Fqx 'hostname dci-client-2' "${fixture_dir}/x05-client2.conf"
   grep -Fqx 'router bgp 201' "${fixture_dir}/x05-client2.conf"
   grep -Fqx 'router bgp 200' "${fixture_dir}/frr-client.conf"
   grep -Fqx '  network 10.0.0.0/16' "${fixture_dir}/x05-client2.conf"
@@ -70,7 +70,7 @@ validate() {
   grep -Fqx ' vni 50200' "${fixture_dir}/x05-peer.conf"
   grep -Fq '10.251.0.1/32' "${fixture_dir}/x05-peer.conf"
   grep -Fq 'LSP **real**' "${fixture_dir}/x05-topology.md"
-  grep -Fq '/var/lock/labctl-mgc-m03.lock' "${fixture_dir}/x05-execution-contract.md"
+  grep -Fq '/var/lock/labctl-dci-m03.lock' "${fixture_dir}/x05-execution-contract.md"
   grep -Fq 'ABSENT -> M03_ACTIVE -> INTENT -> BUILT' "${fixture_dir}/x05-execution-contract.md"
   grep -Fq '10.31.100.1/30' "${fixture_dir}/x05-execution-contract.md"
   grep -Fq '10.41.100.1/30' "${fixture_dir}/x05-execution-contract.md"
@@ -137,8 +137,8 @@ fi
 before="$(snapshot)"
 printf 'mode=dry-run\n'
 printf 'scope=local fixtures only; no lab state was read or changed\n'
-printf 'client_a=mgc-client-1 AS200 VLAN100/200\n'
-printf 'client_b=mgc-client-2 AS201 VLAN300/400\n'
+printf 'client_a=dci-client-1 AS200 VLAN100/200\n'
+printf 'client_b=dci-client-2 AS201 VLAN300/400\n'
 printf 'same_p2p=169.254.254.0/30,169.254.254.4/30\n'
 printf 'same_onprem=10.0.0.0/16\n'
 printf 'same_vpc=192.168.100.0/24\n'
@@ -154,7 +154,7 @@ printf 'runtime_inventory=43 non-NB resources, owner/before/parent/rollback loca
 printf 'runtime_preflight=schema-only evidence check, never mutation authority; complete M03/OVS/FRR selftest PASS; live mode not invoked\n'
 printf 'runtime_admission=session-bound PreparedAdmission/consume API and FD9 lifecycle fake-runner selftest PASS; standalone producer CLI disabled, coordinator owns handoff\n'
 printf 'coordinator=fixed one-shot execute(prepared), 12 windows, semantic PCAP decoder, exact CAS inverse and G7/G8 ordering\n'
-printf 'lock=/var/lock/labctl-mgc-m03.lock (shared with M03 and labctl mgc)\n'
+printf 'lock=/var/lock/labctl-dci-m03.lock (shared with M03 and labctl dci)\n'
 printf 'state=ABSENT>M03_ACTIVE>INTENT>BUILT>BASELINE_PROVED>LEAK_PROVED>RESTORED>X05_CLEANED>ABSENT\n'
 printf 'gates=G0 preflight; G0a M03 setup; G1 BGP; G2 simultaneous EVPN; G3 traffic; G4 captures; G5 leak; G6 restore; G7 X05 cleanup; G8 M03 baseline\n'
 printf 'rollback=restore LSP; withdraw B routes; remove only X05-owned resources; verify M03; down M03; baseline verify and canaries\n'

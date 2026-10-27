@@ -1,5 +1,5 @@
 # =============================================================================
-# PoC Magalu Cloud - variante 100% autocontida (ensaio / dry-run)
+# PoC DCI Cloud - variante 100% autocontida (ensaio / dry-run)
 # Containerlab sobe o fabric E um cluster kind de 3 nos.
 # Use esta topologia para ensaiar o roteiro antes de tocar no cluster real.
 #

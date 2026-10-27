@@ -86,7 +86,7 @@ plan() {
             {"router-port": "lrp-x05-tenant-b"}; {}),
         lsp("x05-tenant-b-vm"; "ls-x05-tenant-b"; "";
             ["02:00:00:10:00:12 192.168.100.12"]; {}; {}),
-        lsp("x05-tenant-a-vm"; "ls-mgc-tenant"; "";
+        lsp("x05-tenant-a-vm"; "ls-dci-tenant"; "";
             ["02:00:00:10:00:11 192.168.100.11"]; {}; {}),
         route("route-x05-b-return-300"; "lr-x05-tenant-b";
               "10.0.0.0/16"; "10.31.100.2";
@@ -99,9 +99,9 @@ plan() {
        route_identity: "plan name is synthetic; select NB row by router UUID, prefix and nexthop, then capture UUID",
        reference_resolution: "references hold plan IDs; resolve to captured NB UUIDs before setting database reference columns",
        exceptions: [
-         {name: "ls-mgc-tenant", owner: "M03", change: "ports set only, guarded CAS; restore exact original set"},
-         {name: "lr-mgc-tenant", owner: "M03", change: "none"},
-         {name: "lrp-mgc-tenant", owner: "M03", change: "none"}],
+         {name: "ls-dci-tenant", owner: "M03", change: "ports set only, guarded CAS; restore exact original set"},
+         {name: "lr-dci-tenant", owner: "M03", change: "none"},
+         {name: "lrp-dci-tenant", owner: "M03", change: "none"}],
        objects: $objects,
        inverse_dependency_order: ($objects | reverse | map(.id))}
   '
@@ -130,13 +130,13 @@ plan | jq -e '
   .schema == "p004-x05-nb-plan-v1"
   and .owner_token_placeholder == "<token>"
   and .adoption == "forbidden; every X05 row must be absent before creation"
-  and ([.exceptions[].name] == ["ls-mgc-tenant", "lr-mgc-tenant", "lrp-mgc-tenant"])
+  and ([.exceptions[].name] == ["ls-dci-tenant", "lr-dci-tenant", "lrp-dci-tenant"])
   and (.objects | length) == 34
   and ([.objects[].name] == expected_names)
   and ([.objects[].id] | unique | length) == 34
   and ([.objects[] | select(.values.external_ids."x05-owner" != "<token>")] | length) == 0
   and ([.objects[] | select(.precondition != "absent; never adopt")] | length) == 0
-  and ([.objects[] | select(.parent == "ls-mgc-tenant")] | map(.name) == ["x05-tenant-a-vm"])
+  and ([.objects[] | select(.parent == "ls-dci-tenant")] | map(.name) == ["x05-tenant-a-vm"])
   and ([.objects[] | select(.name == "x05-tenant-a-vm" or .name == "x05-tenant-b-vm") | .values.addresses[0]] ==
        ["02:00:00:10:00:12 192.168.100.12", "02:00:00:10:00:11 192.168.100.11"])
   and ([.objects[] | select(.values.networks[]? | test("^10\\.(31|41)\\.100\\.[12]/30$"))] | length) == 4
@@ -149,6 +149,6 @@ plan | jq -e '
         | .values.options."dynamic-routing-maintain-vrf"] == ["true"])
   and ([.objects[] | select(.values.networks[]? | test("10\\.(300|400)\\."))] | length) == 0
   and (.inverse_dependency_order == ([.objects[].id] | reverse))
-  and ([.objects[] | select(.parent != null and .parent != "ls-mgc-tenant") | .parent] - [.objects[].name] | length) == 0
+  and ([.objects[] | select(.parent != null and .parent != "ls-dci-tenant") | .parent] - [.objects[].name] | length) == 0
 ' >/dev/null
 printf 'X05 NB plan PASS: 34 owned rows, M03 exceptions, explicit transit and inverse order\n'
