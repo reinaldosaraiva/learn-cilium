@@ -267,20 +267,20 @@ KubeVirt). O Quadro 5 distingue esses estudos dos ambientes usados nos exercíci
 
 | Ambiente | Componentes | Versões | Papel |
 |---|---|---|---|
-| **Lab de referência `k01`** | 2 spines + 3 leaves SR Linux, `border1` FRR, `client-ext`, kind com 3 nós | SR Linux `25.3.2`, FRR `8.4.1`, Kubernetes `v1.35.0`, Cilium `1.20.1` | Módulos 1 a 5; protegido, somente leitura |
-| **Sandbox `p003-gw`** | segundo fabric containerlab + kind com 3 nós + cliente `198.19.0.10` | Cilium `1.20.2`, Gateway API `1.6.1` (CRDs standard + experimental) | Módulos 6 a 11; onde o instrutor muda configuração |
-| **Testbed OpenStack** | DevStack em container (Neutron OVS, qrouter, qdhcp, SG) | neutron `34.x`, cirros `0.6.0` | Módulo 11; VMs do tenant |
-| **VM em KVM real** | `qemu` no host ligado ao `br-int` do testbed por um par veth | cirros `0.6.0` | Módulo 11, caso C5 |
-| **Estudo histórico de nós reais na nuvem** | 3 VMs na nuvem, cluster `kubeadm` e FRR na mesma VPC | Kubernetes `1.35.2`, Cilium `1.20.1` | Módulo 12; leitura, infraestrutura fora da aula |
-| **Réplica DCI (`P004-S002`)** | `labctl dci`: OVN `26.03.3`, 1 central, 2 chassis, 2 gateways, FRR multi-VRF e cliente AS 200 | Linux VRFs nos gateways; EVPN Type 5 (`M01–M03`, `X05`) | Módulo 13.1; leitura de resultados históricos (`labctl dci down` após os ensaios) |
-| **Plano OVN-Kubernetes + Fabric EVPN (`P004-S003` e `S004`)** | `labctl evpn-fabric` + `labctl ovnk`: kind 3 nós + `ovnk-evpn-peer` + KubeVirt `/dev/kvm` | OVN-Kubernetes `v1.4.0`, KubeVirt `v1.9.0`, `frr-k8s` `v0.0.21`/`v0.0.27` | Módulo 13.2; leitura de resultados históricos (`K01–K04`, `X01–X04`, `X06–X07`) |
-| **Braços Cilium A e B + KubeVirt (`P004-S005` a `S008`)** | `p003-gw` + KubeVirt `/dev/kvm` + `DaemonSet/frr-node` (no Braço B sob `R6=0`) | Cilium `1.20.2`, KubeVirt `v1.9.0`, FRR `10.7.1` (`table-map RM-NO-KERNEL`) | Módulos 13.3 e 13.4; leitura de resultados históricos (`V00–V09`, `G01`, `G02`, `G06–G08`) |
+| **Lab de referência `k01`** | 2 spines + 3 leaves SR Linux, `border1` FRR, `client-ext`, kind com 3 nós | SR Linux 25.3.2, FRR 8.4.1, Kubernetes v1.35.0, Cilium 1.20.1 | Módulos 1 a 5; protegido, somente leitura |
+| **Sandbox `p003-gw`** | segundo fabric containerlab + kind com 3 nós + cliente `198.19.0.10` | Cilium 1.20.2, Gateway API 1.6.1 (CRDs standard + experimental) | Módulos 6 a 11; onde o instrutor muda configuração |
+| **Testbed OpenStack** | DevStack em container (Neutron OVS, qrouter, qdhcp, SG) | neutron 34.x, cirros 0.6.0 | Módulo 11; VMs do tenant |
+| **VM em KVM real** | `qemu` no host ligado ao `br-int` do testbed por um par veth | cirros 0.6.0 | Módulo 11, caso C5 |
+| **Estudo histórico de nós reais na nuvem** | 3 VMs na nuvem, cluster `kubeadm` e FRR na mesma VPC | Kubernetes 1.35.2, Cilium 1.20.1 | Módulo 12; leitura, infraestrutura fora da aula |
+| **Réplica DCI (`P004-S002`)** | `labctl dci`: OVN 26.03.3, 1 central, 2 chassis, 2 gateways, FRR multi-VRF e cliente AS 200 | Linux VRFs nos gateways; EVPN Type 5 (`M01–M03`, `X05`) | Módulo 13.1; leitura de resultados históricos (`labctl dci down` após os ensaios) |
+| **Plano OVN-Kubernetes + Fabric EVPN (`P004-S003` e `S004`)** | `labctl evpn-fabric` + `labctl ovnk`: kind 3 nós + `ovnk-evpn-peer` + KubeVirt `/dev/kvm` | OVN-Kubernetes v1.4.0, KubeVirt v1.9.0, `frr-k8s` v0.0.21/v0.0.27 | Módulo 13.2; leitura de resultados históricos (`K01–K04`, `X01–X04`, `X06–X07`) |
+| **Braços Cilium A e B + KubeVirt (`P004-S005` a `S008`)** | `p003-gw` + KubeVirt `/dev/kvm` + `DaemonSet/frr-node` (no Braço B sob `R6=0`) | Cilium 1.20.2, KubeVirt v1.9.0, FRR 10.7.1 (`table-map RM-NO-KERNEL`) | Módulos 13.3 e 13.4; leitura de resultados históricos (`V00–V09`, `G01`, `G02`, `G06–G08`) |
 
 Fonte: elaborado pelo autor (2026).
 
 O Quadro 5 descreve os ambientes e estudos documentados, sem indicar
 disponibilidade simultânea em tempo real (os perfis pesados operam em regime
-*time-shared* via `labctl` para respeitar `R3: MemAvailable >= 4,00 GiB`). Os
+*time-shared* via `labctl` para respeitar `R3: MemAvailable >= 4,00 GiB`). As
 Figuras 1 e 2 ilustram os ambientes P001–P003; as Figuras 16, 17 e 18, no
 Módulo 13, ilustram a arquitetura e os resultados de P004.
 
@@ -309,6 +309,10 @@ Endereços que aparecem nos exercícios:
 | Rede do tenant OpenStack | não há | `10.30.0.0/24` (subnet-a), externa `10.40.0.0/24` |
 
 Fonte: elaborado pelo autor (2026).
+
+```{=latex}
+\FloatBarrier
+```
 
 ### A pergunta central: cada pod anuncia `/32`?
 
@@ -1181,7 +1185,6 @@ Fonte: elaborada pelo autor (2026).
 
 Onda concluída com **PASS**; estudos `E26` e `E30` e saneamento do `Bloco C1`. O `E26` usa o hashing consistente Maglev (Eisenbud et al., 2016).
 
-- **Braço A — LoadBalancer TCX/XDP, Anúncio BGP Seletivo (`ETP=Local` vs `ETP=Cluster`) e Maglev Consistent Hashing ([`26-lb-xdp-dsr-maglev-clustermesh.md`](estudos/26-lb-xdp-dsr-maglev-clustermesh.md)):**
 **Braço A — LoadBalancer TCX/XDP, anúncio BGP seletivo e Maglev ([`26-lb-xdp-dsr-maglev-clustermesh.md`](estudos/26-lb-xdp-dsr-maglev-clustermesh.md)):**
 
 - **E26 — anúncio seletivo e Maglev:** o estudo comparou três VIPs BGP, duas com `externalTrafficPolicy: Cluster` e uma com `externalTrafficPolicy: Local`. As VIPs `Cluster` foram anunciadas em ECMP pelos dois workers. A VIP `Local` foi anunciada só pelo worker que hospeda o backend, o que eliminou o salto intermediário e preservou 100% (10/10) do IP real do cliente externo; nas VIPs `Cluster`, o nó aplicou SNAT. No anel Maglev (`M=16381`), a remoção de um backend realocou apenas os slots dele: houve 0 rehash colateral nos backends restantes, e o serviço respondeu 20/20 HTTP 200.
@@ -1189,7 +1192,7 @@ Onda concluída com **PASS**; estudos `E26` e `E30` e saneamento do `Bloco C1`. 
 **Braço B — Cluster Mesh e MCS-API com failover global sobre BGP ([`26-lb-xdp-dsr-maglev-clustermesh.md`](estudos/26-lb-xdp-dsr-maglev-clustermesh.md)):**
 
 - **E30 — serviço global entre dois clusters:** o estudo uniu os clusters `k01` e `p003-gw`, cada um com identidade de cluster própria, e publicou um `Service` global. O Cilium mesclou os backends locais e remotos nos mapas eBPF de balanceamento. Com os dois clusters ativos, o serviço respondeu 20/20 no tráfego leste-oeste e 20/20 no norte-sul via BGP. Ao escalar o deployment local para 0, o failover global ocorreu sem perda: os mesmos 20/20 passaram a ser servidos pelo cluster remoto.
-- **E30 — controles negativos:** uma `CiliumNetworkPolicy` com `egressDeny` para o cluster remoto bloqueou 5/5 conexões (`3A`). Retirar a exportação dos backends remotos, com o local em 0, esvaziou o mapa BPF e recusou 5/5 conexões (3B).
+- **E30 — controles negativos:** uma `CiliumNetworkPolicy` com `egressDeny` para o cluster remoto bloqueou 5/5 conexões (`3A`). Retirar a exportação dos backends remotos, com o local em 0, esvaziou o mapa BPF e recusou 5/5 conexões (`3B`).
 
 **Braço C — saneamento crítico do Bloco C1 ([`revisao-projeto-2026-09-26.md`](revisao-projeto-2026-09-26.md)):**
 
@@ -1203,7 +1206,7 @@ Onda concluída com **PASS**; estudos `E27` e `E31` e saneamento do `Bloco C2`. 
 
 - **E27 — três regimes de datapath:** no Cilium `1.20.2` com kernel 6.8, o estudo comparou `veth` com MTU 1500 e GSO de 64k, `veth` com MTU 9000 e BIG TCP de 192k, e `netkit mode l3` com MTU 9000 e BIG TCP de 192k. Numa transferência TCP de fluxo único de 512 MiB, o throughput IPv4 subiu de 39,20 Gbps para 46,31 Gbps (+18,1%) com `veth` e para 46,08 Gbps (+17,6%) com `netkit`. Em IPv6, subiu de 41,61 Gbps para 46,60 Gbps (+12,0%) e 45,73 Gbps (+9,9%).
 - **E27 — menos pacotes e menos interrupções:** os pacotes no fio caíram de -59,6% a -60,8%, e as interrupções `NET_RX` caíram de -51,0% a -51,6%. O kernel gerou super-pacotes de até 187.974 B em IPv4 e 187.582 B em IPv6.
-- **E27 — PMTU blackhole:** com MTU assimétrica (`9000 -> 1500 -> 9000`), a conexão convergiu enquanto o ICMP Frag-Needed chegava (5/5, `3A`). Com esse ICMP filtrado e `tcp_mtu_probing=0`, a conexão travou: 0/5 e timeout na transferência TCP (3B). Com `tcp_mtu_probing=2`, a descoberta de PMTU da RFC 4821 recuperou a transferência sem depender de ICMP (`3C`).
+- **E27 — PMTU blackhole:** com MTU assimétrica (`9000 -> 1500 -> 9000`), a conexão convergiu enquanto o ICMP Frag-Needed chegava (5/5, `3A`). Com esse ICMP filtrado e `tcp_mtu_probing=0`, a conexão travou: 0/5 e timeout na transferência TCP (`3B`). Com `tcp_mtu_probing=2`, a descoberta de PMTU da RFC 4821 recuperou a transferência sem depender de ICMP (`3C`).
 
 **Braço B — SRv6 L3VPN sem VXLAN para sub-redes sobrepostas ([`27-big-tcp-netkit-srv6-l3vpn.md`](estudos/27-big-tcp-netkit-srv6-l3vpn.md)):**
 
@@ -1282,11 +1285,11 @@ Onda concluída com **PASS**; estudos `E34` e `E35`. O `E34` aplica a RFC 8326 (
 - **Braço A — BGP Graceful Shutdown e dreno de nó sem perda ([`30-bgp-gshut-spiffe-mtls-wireguard.md`](estudos/30-bgp-gshut-spiffe-mtls-wireguard.md)):**
   - **E34 — dreno sem perda com GSHUT:** dois nós anunciaram a mesma VIP anycast a um ToR, em ECMP. O ToR rebaixa para `LOCAL_PREF=0` qualquer rota marcada com a community well-known `graceful-shutdown` (`65535:0`). Sob fluxo contínuo de 50 pps (150 pacotes numerados), o dreno abrupto, que encerra o backend antes de retirar a rota, perdeu 8/150 pacotes (5,33%) com 662,15 ms de blackout. O dreno ordenado anuncia `65535:0` e mantém o pod vivo em `PreStop` por 0,80 s; o ToR desviou 100% dos novos pacotes para o outro nó e a perda caiu para 0/150 (0,00 ms de blackout).
   - **E34 — GSHUT declarativo no Cilium:** no Cilium `1.20.2`, um `CiliumBGPAdvertisement` injetou a community `65535:0` e `localPreference: 0` na VIP sem configuração manual no roteador.
-  - **E34 — controles:** uma rota em GSHUT ainda encaminhou 10/10 pacotes como último recurso quando não havia alternativa (`3A`). Ela caiu para 0/5 quando os dois nós retiraram a rota (3B) e voltou a 10/10 em ECMP ao remover `65535:0` (`3C`, `R6=0`).
+  - **E34 — controles:** uma rota em GSHUT ainda encaminhou 10/10 pacotes como último recurso quando não havia alternativa (`3A`). Ela caiu para 0/5 quando os dois nós retiraram a rota (`3B`) e voltou a 10/10 em ECMP ao remover `65535:0` (`3C`, `R6=0`).
 - **Braço B — autenticação mútua SPIFFE com criptografia WireGuard ([`30-bgp-gshut-spiffe-mtls-wireguard.md`](estudos/30-bgp-gshut-spiffe-mtls-wireguard.md)):**
   - **E35 — WireGuard entre nós:** sem túnel, o `tcpdump` no underlay leu 20 pacotes HTTP em texto claro. Com `cilium_wg0` (`UDP :51871`), o serviço respondeu 10/10 HTTP 200; a captura mostrou 102 pacotes UDP cifrados e 0 vazamentos em texto claro.
   - **E35 — mTLS com identidade SPIFFE:** uma CA SPIFFE emitiu certificados X.509 SVID para cliente e servidor. A `CiliumNetworkPolicy` exigiu autenticação (`authentication.mode: "required"`). O servidor respondeu 10/10 HTTP 200 com autenticação mútua em `TLSv1.3`.
-  - **E35 — controles:** o Cilium bloqueou 100% das tentativas em três casos. Um SVID válido com SPIFFE ID não autorizado recebeu 5/5 HTTP 403 (`3A`). Um SVID assinado por CA externa falhou no handshake com `SSLV3_ALERT_BAD_CERTIFICATE` (0/5, 3B). Uma regra `ingressDeny` bloqueou 0/5 (`3C`), e o acesso voltou a 10/10 ao remover a regra (`R6=0`).
+  - **E35 — controles:** o Cilium bloqueou 100% das tentativas em três casos. Um SVID válido com SPIFFE ID não autorizado recebeu 5/5 HTTP 403 (`3A`). Um SVID assinado por CA externa falhou no handshake com `SSLV3_ALERT_BAD_CERTIFICATE` (0/5, `3B`). Uma regra `ingressDeny` bloqueou 0/5 (`3C`), e o acesso voltou a 10/10 ao remover a regra (`R6=0`).
 
 ### 16.2 Onda 2 (P007-S002): Local Redirect Policy e workloads dual-homed com Multus
 
@@ -1295,15 +1298,15 @@ Onda concluída com **PASS** na versão `v2.6.0`; estudos `E36` e `E37`.
 - **Braço A — Local Redirect Policy e atalho local no datapath eBPF ([`31-local-redirect-multus-ipvlan-dualhomed.md`](estudos/31-local-redirect-multus-ipvlan-dualhomed.md)):**
   - **E36 — redirecionar um Service para o pod do próprio nó:** sem a política, chamadas ao `ClusterIP` de um cache em `DaemonSet` cruzaram para o outro nó em ~40%–60% das vezes. Com uma `CiliumLocalRedirectPolicy` de `serviceMatcher`, cada `cilium-agent` marcou a entrada do Service no mapa BPF como `[LocalRedirect]`. 100% (20/20) das requisições ficaram no próprio nó, com 0 pacotes entre nós.
   - **E36 — redirecionar um endereço sem Service:** com `addressMatcher`, o endereço link-local `169.254.20.10:8080/TCP` foi entregue ao pod local em 10/10 conexões em cada nó.
-  - **E36 — controles:** tirar a label de seleção de um nó afetou só esse nó (0/5), e o outro manteve 10/10 (`3A`). Apagar as duas políticas limpou 100% das entradas `[LocalRedirect]`, com 0 resíduos, e o balanceamento normal voltou (20/20, 3B, `R6=0`).
+  - **E36 — controles:** tirar a label de seleção de um nó afetou só esse nó (0/5), e o outro manteve 10/10 (`3A`). Apagar as duas políticas limpou 100% das entradas `[LocalRedirect]`, com 0 resíduos, e o balanceamento normal voltou (20/20, `3B`, `R6=0`).
 - **Braço B — workloads dual-homed com Multus, `ipvlan` e `macvlan` ([`31-local-redirect-multus-ipvlan-dualhomed.md`](estudos/31-local-redirect-multus-ipvlan-dualhomed.md)):**
   - **E37 — duas interfaces no mesmo pod:** um `NetworkAttachmentDefinition` deu aos pods uma segunda interface `net1` (`ipvlan mode l2`, `MTU 9000`) ao lado da `eth0` do Cilium. A `eth0` continuou protegida por `CiliumNetworkPolicy` e respondeu 10/10 HTTP 200. A `net1` respondeu 10/10 HTTP 200 e 10/10 pings Jumbo de 8972 B com `DF=1`, 0% de perda e `RTT avg = 0,069 ms`.
   - **E37 — desempenho:** num fluxo TCP único de 512 MiB, o `veth 1500` atingiu 33,01 Gbps, o `macvlan` 32,49 Gbps e o `ipvlan l2` 30,63 Gbps. O `ipvlan l3` (`NOARP`) foi o mais rápido: 36,76 Gbps, +11,4% sobre o `veth 1500` e +20,0% sobre o `ipvlan l2`.
-  - **E37 — antispoofing de nuvem:** um filtro que só aceita o MAC da NIC do host imitou a porta de uma nuvem pública. O `macvlan` usa MAC próprio e perdeu 100% dos pacotes (0/5); o `ipvlan mode l2` reaproveita o MAC do host e passou 10/10 (`3A`). Derrubar a `net1` não afetou a `eth0`, que manteve 10/10 (3B, `R6=0`).
+  - **E37 — antispoofing de nuvem:** um filtro que só aceita o MAC da NIC do host imitou a porta de uma nuvem pública. O `macvlan` usa MAC próprio e perdeu 100% dos pacotes (0/5); o `ipvlan mode l2` reaproveita o MAC do host e passou 10/10 (`3A`). Derrubar a `net1` não afetou a `eth0`, que manteve 10/10 (`3B`, `R6=0`).
 
 ### 16.3 Exercícios de interpretação
 
-1. No estudo `E34` (**BGP Graceful Shutdown `RFC 8326`**), por que anunciar a community well-known `65535:0` (`GSHUT`, `LOCAL_PREF=0`) antes de iniciar o término do pod reduz a perda de pacotes de 8/150 (662,15 ms de blackout no dreno abrupto) para **0/150 (0,00 ms)**, e por que manter a rota com `LOCAL_PREF=0` é mais seguro do que retirá-la imediatamente se o segundo nó também falhar (`3A` vs 3B)?
+1. No estudo `E34` (**BGP Graceful Shutdown `RFC 8326`**), por que anunciar a community well-known `65535:0` (`GSHUT`, `LOCAL_PREF=0`) antes de iniciar o término do pod reduz a perda de pacotes de 8/150 (662,15 ms de blackout no dreno abrupto) para **0/150 (0,00 ms)**, e por que manter a rota com `LOCAL_PREF=0` é mais seguro do que retirá-la imediatamente se o segundo nó também falhar (`3A` vs `3B`)?
 2. No estudo `E35` (**Cilium Mutual Auth SPIFFE + WireGuard**), quais ameaças distintas são mitigadas pelo túnel L3 `cilium_wg0` (`UDP :51871`) versus o handshake mTLS com SVID X.509 (`spiffe://spiffe.cilium/ns/.../sa/...`), e por que um pod com certificado criptograficamente válido assinado pela mesma CA `spiffe.cilium` ainda recebe `HTTP 403` no controle `3A` (`e35-client-rogue`)?
 3. No estudo `E36` (**`CiliumLocalRedirectPolicy`**), qual é a diferença operacional entre usar `serviceMatcher` (sobrescrevendo um `ClusterIP` existente com `[LocalRedirect]` no mapa BPF de cada nó) e `addressMatcher` (interceptando um IP link-local como `169.254.20.10:8080/TCP` sem criar `Service`), e o que acontece em um nó específico se o pod local de cache deixar de rodar nele (`3A`)?
 4. No estudo `E37` (**Multus + `ipvlan L2/L3` vs `macvlan`**), por que switches de nuvem pública (VPC / SDN com *Port-Security* / *MAC Anti-Spoofing*) bloqueiam pacotes de interfaces `macvlan` (0/5 no controle `3A`) mas permitem `ipvlan mode l2/l3` (10/10), e por que o `ipvlan mode l3` (`NOARP`, `MTU 9000`) atingiu o maior throughput (36,76 Gbps, +11,4% sobre `veth 1500`)?
@@ -1348,9 +1351,9 @@ Onda concluída com **PASS** na versão `v2.7.0`; estudos `E40` e `E41`. O `E40`
 
 ### 17.3 Exercícios de interpretação
 
-1. No estudo `E38` (**Cilium Host Firewall + XDP Early DDoS Prefilter**), por que descartar um flood L3 no hook `BPF_PROG_TYPE_XDP` (`XDP_DROP`) mantém `conntrack_flood_entries=0` e consome menos CPU/memória do que bloqueá-lo apenas na 2ª camada TC Host Firewall (`CiliumClusterwideNetworkPolicy`), e por que a política de Host Firewall deve sempre incluir as portas de controle (`:10250`, `:6443`, `:4240`, `:179`) antes da ativação (3B)?
+1. No estudo `E38` (**Cilium Host Firewall + XDP Early DDoS Prefilter**), por que descartar um flood L3 no hook `BPF_PROG_TYPE_XDP` (`XDP_DROP`) mantém `conntrack_flood_entries=0` e consome menos CPU/memória do que bloqueá-lo apenas na 2ª camada TC Host Firewall (`CiliumClusterwideNetworkPolicy`), e por que a política de Host Firewall deve sempre incluir as portas de controle (`:10250`, `:6443`, `:4240`, `:179`) antes da ativação (`3B`)?
 2. No estudo `E39` (**`CiliumEnvoyConfig` L7 Traffic Management**), como o filtro `envoy.filters.http.local_ratelimit` protege o pod backend durante uma rajada de 15 requisições (5/15 `200 OK`, 10/15 `429 Too Many Requests` com `rl_hits=5` no backend), e como `retry_policy` (`retry_on: 5xx`, `num_retries: 3`) mascara falhas transitórias de 50% (`5/10 -> 10/10` HTTP 200) sem exigir alterações no código da aplicação?
-3. No estudo `E40` (**iBGP Route Reflector `RFC 4456` + SRv6 Dual-Stack `End.DT4`/`End.DT6`**), qual é a função dos atributos `ORIGINATOR_ID` e `CLUSTER_LIST` ao refletir rotas entre workers sem sessões full-mesh (`direct_w1_w2=0`), e por que a revogação do SID `End.DT6` (`fc00:40:2::d6a/128`) interrompe apenas o tráfego IPv6 do Tenant A (0/5) mantendo seu tráfego IPv4 (`End.DT4`, 10/10) intacto (3B)?
+3. No estudo `E40` (**iBGP Route Reflector `RFC 4456` + SRv6 Dual-Stack `End.DT4`/`End.DT6`**), qual é a função dos atributos `ORIGINATOR_ID` e `CLUSTER_LIST` ao refletir rotas entre workers sem sessões full-mesh (`direct_w1_w2=0`), e por que a revogação do SID `End.DT6` (`fc00:40:2::d6a/128`) interrompe apenas o tráfego IPv6 do Tenant A (0/5) mantendo seu tráfego IPv4 (`End.DT4`, 10/10) intacto (`3B`)?
 4. No estudo `E41` (**Matriz 2×2 `netkit` + BIG TCP + `WireGuard`**), por que o throughput do `cilium_wg0` cai para 1,56 Gbps sobre `veth MTU 1500` (`R2`, `1.569.813` pacotes para 2 GiB) mas salta **+459,0% (5,59x, para 8,72 Gbps e 243.767 pacotes)** sobre `netkit L3 MTU 9000` (`R4`), e por que `ping -M do -s 8892` passa (10/10) enquanto `-s 8893` falha (0/5) em um link de underlay com `MTU 9000`?
 
 ## Considerações finais
