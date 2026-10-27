@@ -71,19 +71,22 @@ cd learn-cilium
 Para gerar o PDF do guia em um ambiente limpo e rodar a suíte de lint/testes (`v2.7.0`):
 
 ~~~bash
-python3 -m venv .venv
-. .venv/bin/activate
-brew install pandoc tectonic
 make pdf
 make lint
 make test
 ~~~
 
+O `make pdf` exige `pandoc` e `tectonic` no `PATH`. No macOS:
+`brew install pandoc tectonic`. No Linux: instale o `pandoc` pelo gerenciador
+de pacotes da distribuição e o `tectonic` pelo binário oficial
+(https://tectonic-typesetting.github.io/). O `make lint` não depende deles.
+
 O resultado fica em [cilium-lab-student-guide.pdf](output/pdf/cilium-lab-student-guide.pdf),
 a edição ABNT (abnTeX2) gerada por `poc-k8s-fabric/tools/build_latex.py` a partir
 de `poc-k8s-fabric/docs/lab-guide-student.md`; o LaTeX intermediário fica em
 `poc-k8s-fabric/docs/latex/`. Para guias derivados de outros laboratórios, o
-builder ReportLab (`poc-k8s-fabric/tools/build_guide.py`) aceita `--source`,
+builder ReportLab (`poc-k8s-fabric/tools/build_guide.py`, dependências em
+`poc-k8s-fabric/tools/requirements-guide.txt`) aceita `--source`,
 `--output` e `--scaffold`; imagens Markdown são resolvidas em relação ao
 diretório do documento e uma imagem ausente interrompe a geração com erro claro.
 
