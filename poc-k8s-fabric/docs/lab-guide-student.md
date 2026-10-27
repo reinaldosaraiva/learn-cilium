@@ -8,66 +8,34 @@
 
 > **Objetivo do guia**
 >
-> Ao terminar este roteiro, a pessoa estudante consegue localizar os ambientes descritos para os exercícios dos módulos 1–11, explicar o que o Cilium anuncia por BGP, validar um Gateway HTTP/TCP/UDP exposto por VIP anycast, ler uma decisão de autorização na borda e no datapath, distinguir autorização por identidade de autorização por endereço em um tenant com pods Kubernetes e VMs OpenStack ou KubeVirt, e interpretar como leituras históricas o estudo em nuvem do módulo 12, os resultados comparados de P004 (DCI/OVN, OVN-Kubernetes `C/D`, Cilium OSS `A`, Cilium + FRR `B` e critérios de aceite para PoC do INV) do módulo 13, os 16 estudos avançados de P005 (Ondas 1 a 4: conexão dedicada eBGP `E09–E19` e datapath eBPF, `netkit`, burst IPAM, XLB, DRA e Hubble `E21–E25`) do módulo 14, os 8 estudos avançados de Fase 2 de P006 (Ondas 1 a 4: LoadBalancer TCX/XDP + Maglev `E26`, Cluster Mesh `E30`, BIG TCP `E27`, SRv6 L3VPN `E31`, Bandwidth Manager EDT + BBR `E28`, Tetragon `E32`, BGP Unnumbered + L2 Announcements `E29` e KubeVirt Live Migration sob tráfego contínuo `E33`) do módulo 15, os 4 estudos avançados de Fase 3 de P007 (Ondas 1 e 2: BGP Graceful Shutdown `RFC 8326` `E34`, Cilium Mutual Auth SPIFFE + WireGuard `E35`, `CiliumLocalRedirectPolicy` `E36` e Workloads Dual-Homed com Multus + `ipvlan L2/L3` vs `macvlan` `E37`) do módulo 16 e os 4 estudos avançados de Fase 4 de P008 (Ondas 1 e 2: Cilium Host Firewall + XDP Early DDoS Prefilter `E38`, `CiliumEnvoyConfig` L7 Traffic Management & Resilience `E39`, iBGP Route Reflector `RFC 4456` + SRv6 L3VPN Dual-Stack `End.DT4`/`End.DT6` `E40` e Matriz 2×2 de Sinergia `netkit` + BIG TCP + `WireGuard` `E41`) do módulo 17.
+> Ao final do guia, a pessoa estudante deve conseguir:
+>
+> - explicar o que o Cilium anuncia por BGP e como o tráfego chega a um pod ou a uma VIP anycast;
+> - validar um Gateway HTTP, TCP e UDP exposto por VIP e ler decisões de autorização na borda e no datapath;
+> - distinguir autorização por identidade de autorização por endereço em tenants com pods e VMs;
+> - interpretar, como evidência histórica, os estudos avançados dos módulos 12 a 17.
 
-Esta edição preserva os módulos 1–11, com exercícios guiados e estudos das
-trilhas P001–P003 sobre BGP, Gateway API, segurança, IPAM e tenants híbridos.
-O módulo 12 é leitura do estudo histórico de nós reais na nuvem; essa
-infraestrutura não faz parte da aula. O módulo 13 apresenta a leitura completa dos
-resultados de `P004-S001` a `P004-S008` (concluídas com **PASS**):
-a réplica DCI com OVN, FRR e EVPN (`M01–M03` e `X05`), o plano OVN-Kubernetes +
-UDN/CUDN + EVPN + KubeVirt (`K01–K04`), os casos cruzados entre os três planos
-(`X01–X04`, `X06` e `X07`), o Braço Cilium A com KubeVirt `v1.9.0` no cluster
-`p003-gw` (`V00–V08-A`, `C-neg` / `G01` / `G02`), o Braço Cilium B com `FRR 10.7.1`
-no nó sob o invariante `R6=0` (`H6`/`G06`, `V09`/`H7`, `V07-B`, `V08-B`), o
-blueprint de transição para a Fase 2 (`Braços C e D`) e os critérios objetivos
-de aceite para uma PoC comercial do INV (`G07`) seguidos da higiene final dos
-laboratórios (`G08`). O módulo 14 sintetiza os 16 estudos avançados de `P005-S001` a
-`P005-S004` (todos concluídos com **PASS**): Braço A eBGP (`E09–E19`: idempotência `10x`,
-TCP MD5 + ASN 32 bits, `max-prefix` + filtro de import, communities/prepend/MED, BFD `< 1 s`,
-dual-border + Graceful Restart, eBGP IPv6 nativo `fd14::a/128`, VRF por tenant via community,
-3 modos de retorno + `CiliumEgressGatewayPolicy`, e MTU 9000/QinQ/MACsec vs WireGuard) e
-Braço B Datapath eBPF (`E21–E25`: `netkit` vs `veth`, burst IPAM com warm pool, XLB L7 `sockmap`/`sk_msg` vs Envoy,
-DRA `resource.k8s.io/v1` `NetworkDeviceData`, e observabilidade contínua BGP + Hubble L3/L4/L7/TLS).
-O módulo 15 sintetiza os 8 estudos avançados de Fase 2 e o saneamento integral de
-`P006-S001` a `P006-S004` (todos concluídos com **PASS** em `v2.5.0`, totalizando `33/33`
-estudos `E01–E33` e `100%` de [`revisao-projeto-2026-09-26.md`](revisao-projeto-2026-09-26.md)):
-Braço A Datapath/BGP (`E26` LoadBalancer TCX/XDP + DSR & Maglev `M=16381`, `E27` BIG TCP
-`192 KiB` + `netkit` + MTU 9000, `E28` Bandwidth Manager EDT + `qdisc fq` + `TCP BBR` vs `CUBIC`,
-e `E29` BGP Unnumbered `RFC 5549`/`8950` + `CiliumL2AnnouncementPolicy`), Braço B Plataforma/Segurança
-(`E30` Cilium Cluster Mesh / MCS-API sobre BGP, `E31` SRv6 L3VPN `End.DT4` sem VXLAN, `E32`
-Tetragon Runtime Security `TracingPolicyNamespaced`, e `E33` KubeVirt Live Migration sob
-tráfego contínuo `50 pps` `Cilium B /32 BGP` vs `OVN-K EVPN Type-2`) e Braço C Saneamento
-(`Blocos C1–C4`, `Makefile` `make lint`/`test`/`pdf` e índices `s011/s012`).
-O módulo 16 sintetiza os 4 estudos avançados de Fase 3 de `P007-S001` e `P007-S002`
-(todos concluídos com **PASS** em `v2.6.0`, totalizando `37/37` estudos `E01–E37`):
-Braço A Borda BGP & Roteamento Node-Local (`E34` BGP Graceful Shutdown `RFC 8326` `65535:0` +
-`LOCAL_PREF=0` com `0/150` pacotes perdidos vs `8/150` / `662,15 ms` no dreno abrupto, e
-`E36` `CiliumLocalRedirectPolicy` `serviceMatcher` `[LocalRedirect]` `20/20` local + `addressMatcher`
-`169.254.20.10:8080/TCP`) e Braço B Segurança Zero-Trust & Workloads Dual-Homed (`E35` Cilium
-Mutual Authentication `SPIFFE` X.509 SVID mTLS + `cilium_wg0` WireGuard `:51871` com `0`
-vazamentos em texto claro, e `E37` Multus `NetworkAttachmentDefinition` + `ipvlan L2/L3` vs
-`macvlan` `MTU 9000` com `36,76 Gbps` em `ipvlan-l3` e bypass de Cloud L2 MAC Anti-Spoofing).
-O módulo 17 sintetiza os 4 estudos avançados de Fase 4 de `P008-S001` e `P008-S002`
-(todos concluídos com **PASS** em `v2.7.0`, totalizando **`41/41` estudos `E01–E41`**):
-Braço A Proteção de Nó XDP/Host-FW & Escalabilidade iBGP/SRv6 (`E38` Cilium Host Firewall
-`CiliumClusterwideNetworkPolicy` `nodeSelector` + XDP Early DDoS Prefilter `XDP_DROP` com
-`conntrack_flood_entries=0`, e `E40` iBGP Route Reflector `RFC 4456` `cluster-id 10.255.40.1` +
-SRv6 L3VPN Dual-Stack `End.DT4` + `End.DT6` sem VXLAN isolando CIDRs sobrepostos IPv4/IPv6) e
-Braço B Resiliência L7 Envoy & Sinergia `netkit` + BIG TCP + WireGuard (`E39` `CiliumEnvoyConfig`
-Weighted Canary `90/10`, Header Routing, Token-Bucket Rate Limiting `429` e Retries `503 -> 200`, e
-`E41` Matriz 2×2 `veth 1500` vs `netkit L3 MTU 9000 + BIG TCP 192 KiB` × `Cleartext` vs `WireGuard MTU 8920`,
-demonstrando ganho de `+459,0%` / `5,59x` no throughput cifrado e redução de `-84,5%` nos pacotes ChaCha20-Poly1305).
-Os módulos 12, 13, 14, 15, 16 e 17 interpretam evidência
-histórica; não exigem acesso em tempo real a essas infraestruturas. Nenhum
-módulo mede desempenho de hardware de produção.
+Este livro acompanha um laboratório de redes Kubernetes construído com Cilium,
+BGP e um fabric de data center simulado em contêineres. Ele foi escrito para
+quem já conhece o básico de IP e roteamento e quer entender, com evidência
+medida, o que o Cilium faz e onde ele para.
 
-O guia tem 17 módulos. Os módulos 1–11 trazem exercícios guiados apoiados nos
-ambientes P001–P003; o módulo 12 é leitura histórica do estudo em nuvem, cuja
-infraestrutura fica fora da aula; os módulos 13 a 17 leem os resultados
-completos de P004 a P008, totalizando `41/41` estudos `E01–E41`. As citações
-seguem o sistema autor-data da ABNT NBR 10520:2023, e as referências, a ABNT
-NBR 6023:2018.
+O guia tem 17 módulos, organizados em quatro blocos:
+
+- **Módulos 1 a 5, fundamentos no lab `k01`:** o que o Cilium anuncia por BGP, VIP anycast, dual-stack IPv6, falhas e escala. São exercícios práticos.
+- **Módulos 6 a 11, plataforma no sandbox `p003-gw`:** Gateway API, autorização externa, WireGuard, isolamento de tenants, Multi-Pool IPAM e tenants híbridos com VMs OpenStack. Também são práticos.
+- **Módulos 12 e 13, estudos históricos:** nós reais em nuvem e a trilha P004, que compara o Cilium com OVN-Kubernetes, FRR e EVPN para VMs KubeVirt.
+- **Módulos 14 a 17, estudos avançados P005 a P008:** 32 estudos sobre borda eBGP, datapath eBPF, multicluster, SRv6, segurança em tempo de execução e desempenho, todos concluídos com PASS.
+
+Os módulos 12 a 17 são leitura: não exigem acesso às infraestruturas que
+descrevem. Nenhum módulo mede desempenho de hardware de produção; os números
+vêm de um laboratório em contêineres e valem como comparação entre
+configurações, não como valor absoluto.
+
+Os códigos que aparecem ao longo do texto, como `P004-S003`, `E27` e `G07`,
+identificam trilhas, sessões, estudos e critérios do projeto; o Quadro 2, na
+Introdução, explica como lê-los. As citações seguem o sistema autor-data da
+ABNT NBR 10520:2023, e as referências, a ABNT NBR 6023:2018.
 
 ## Sumário
 
@@ -96,9 +64,135 @@ NBR 6023:2018.
 
 ## Introdução
 
-Esta introdução reúne o que a pessoa estudante precisa antes do Módulo 1:
+Esta introdução apresenta o Cilium e o vocabulário do guia, discute quando faz
+sentido usá-lo e reúne o que a pessoa estudante precisa antes do Módulo 1:
 objetivos, regras de segurança, onde cada comando roda, o mapa dos
-laboratórios, o vocabulário mínimo e a pergunta central do guia.
+laboratórios e a pergunta central do guia.
+
+### O que é o Cilium
+
+O Cilium é um software de código aberto que fornece rede, segurança e
+observabilidade para cargas em contêineres, principalmente no Kubernetes
+(Cilium Authors, 2026d). No Kubernetes, ele atua como plugin CNI: cria a
+interface de rede de cada pod, atribui endereços e encaminha o tráfego entre
+pods, nós e o mundo externo.
+
+A base do Cilium é o eBPF, tecnologia que executa programas verificados e
+isolados dentro do kernel Linux, sem alterar o código do kernel nem carregar
+módulos (eBPF Foundation, [2026]). Em vez de depender de longas cadeias de
+regras do `iptables`, o Cilium anexa programas eBPF aos pontos por onde os
+pacotes passam e guarda o estado em mapas eBPF. É por isso que, no Módulo 4, o
+datapath continua encaminhando enquanto o agente reinicia.
+
+Três ideias do Cilium aparecem em quase todos os módulos:
+
+- **identidade em vez de endereço:** o Cilium atribui uma identidade de segurança a cada conjunto de labels e aplica as políticas sobre ela, não sobre o IP (Cilium Authors, 2026d); o Módulo 11 mostra a consequência prática quando um IP muda de dono;
+- **um agente por nó:** o `cilium-agent` programa o datapath do nó e, com o BGP Control Plane habilitado, mantém as sessões BGP daquele nó (Cilium Authors, 2026b);
+- **funções integradas:** balanceamento de Services sem o `kube-proxy`, Gateway API com Envoy embutido, criptografia transparente com WireGuard e observabilidade de fluxos com o Hubble vêm do mesmo projeto (Cilium Authors, 2026d).
+
+O Cilium foi criado pela Isovalent, entrou na Cloud Native Computing
+Foundation (CNCF) como projeto incubado em outubro de 2021 e foi graduado em
+outubro de 2023 (Cloud Native Computing Foundation, 2023). A versão usada no
+laboratório, a 1.20, exige kernel Linux 5.10 ou superior, ou equivalente como o
+4.18 do RHEL 8.10 (Cilium Authors, 2026g).
+
+### A Isovalent e o ecossistema comercial
+
+A Isovalent é a empresa que criou o Cilium e que vende distribuições
+comerciais do projeto, com suporte e recursos adicionais. Em abril de 2024, a
+Cisco concluiu a aquisição da Isovalent (Isovalent, 2024). O Cilium segue como
+projeto graduado da CNCF, com mantenedores de várias empresas (Cloud Native
+Computing Foundation, 2023).
+
+Este guia usa apenas o Cilium de código aberto (OSS). A sigla **INV**, que
+aparece no Módulo 13, designa o *Isovalent Networking for Virtualization*,
+oferta comercial voltada a máquinas virtuais no Kubernetes (Isovalent, 2026).
+A trilha P004 compara as capacidades que essa oferta anuncia com o que se
+obtém combinando projetos abertos; ela não testa o produto comercial.
+
+### Termos principais
+
+O Quadro 1 reúne os termos técnicos usados ao longo do guia, e o Quadro 2,
+os códigos que identificam trilhas, sessões, estudos e critérios do projeto.
+Vale consultá-los sempre que um termo ou código parecer obscuro.
+
+**Quadro 1 – Termos principais usados no guia**
+
+| Termo | Significado neste laboratório |
+|---|---|
+| **eBPF** | tecnologia do kernel Linux que executa programas verificados e isolados em pontos do caminho dos pacotes |
+| **CNI** | interface pela qual o Kubernetes pede a um plugin de rede que conecte cada pod; o Cilium é um plugin CNI |
+| **datapath** | conjunto de programas eBPF e mapas que encaminham, filtram e balanceiam os pacotes no nó |
+| **XDP e TC/TCX** | pontos do kernel onde o Cilium anexa programas eBPF: XDP na chegada do pacote à interface, TC/TCX na pilha de rede |
+| **identidade** | número que o Cilium atribui a um conjunto de labels; as políticas são avaliadas sobre a identidade, não sobre o IP |
+| **speaker** | o agente Cilium em um nó, que mantém a sessão BGP daquele nó |
+| **PodCIDR** | bloco de IP reservado para pods de um nó; `/24` IPv4 por nó no IPAM `kubernetes` |
+| **VIP** | endereço de serviço anunciado como `/32` por vários nós |
+| **native routing** | o pacote do pod viaja com o IP real do pod, roteado pelo fabric, sem encapsulamento |
+| **overlay VXLAN** | o pacote do pod viaja encapsulado em UDP entre os nós; o fabric vê apenas os IPs dos nós |
+| **ECMP** | vários próximos saltos equivalentes para o mesmo prefixo |
+| **GR** | Graceful Restart: o vizinho mantém as rotas enquanto a sessão BGP reinicia (Sangli et al., 2007) |
+| **Gateway API** | recursos `Gateway`, `HTTPRoute`, `TCPRoute`, `UDPRoute` implementados pelo Cilium com Envoy (Kubernetes SIG Network, 2026) |
+| **Envoy** | proxy L7 que o Cilium executa no nó para a Gateway API, as políticas HTTP e o `CiliumEnvoyConfig` |
+| **ExternalAuth** | filtro do Gateway API que consulta um serviço externo antes de encaminhar a requisição |
+| **CNP** | `CiliumNetworkPolicy`; `fromEndpoints` seleciona por label, `fromCIDR` por endereço (Cilium Authors, 2026h) |
+| **Multi-Pool** | IPAM do Cilium em que cada nó recebe blocos de um `CiliumPodIPPool`, com `maskSize` configurável (Cilium Authors, 2026e) |
+| **Hubble** | camada de observabilidade do Cilium que registra fluxos L3/L4 e L7 |
+| **WireGuard** | protocolo de túnel cifrado que o Cilium usa para criptografar o tráfego entre nós |
+| **VRF** | tabela de roteamento isolada; permite que tenants diferentes usem o mesmo CIDR |
+| **EVPN** | família do BGP que anuncia redes L2 (Type 2) e prefixos IP (Type 5) de tenants, em geral sobre VXLAN |
+| **SRv6** | roteamento por segmentos sobre IPv6; aqui, usado como VPN L3 (`End.DT4`/`End.DT6`) sem VXLAN |
+| **KubeVirt** | extensão que executa máquinas virtuais como recursos do Kubernetes |
+| **OVN-Kubernetes** | plugin CNI baseado em OVN e OVS, usado como alternativa aberta no Módulo 13 |
+| **SG** | Security Group do Neutron, o firewall stateful da porta de uma VM |
+| **RX morto** | a VM envia mas não recebe; limitação de KVM aninhado em container |
+
+Fonte: elaborado pelo autor (2026).
+
+**Quadro 2 – Códigos do projeto usados no guia**
+
+| Código | Significado | Exemplo |
+|---|---|---|
+| `P001`–`P008` | trilha (plano de trabalho) do projeto | `P004`: DCI, OVN-Kubernetes e KubeVirt |
+| `S001`, `S002`... | sessão de execução dentro de uma trilha | `P004-S003` |
+| `E01`–`E41` | estudo experimental | `E27`: BIG TCP com `netkit` |
+| Onda e Braço | grupo de estudos executados juntos e frente de trabalho dentro da onda | Onda 2, Braço A |
+| `G00`–`G09` | gate: critério que a trilha precisa cumprir para ser fechada | `G07`: critérios de aceite do INV |
+| letras e número (`M01`, `K02`, `X05`, `V07-A`, `C04`, `T07`, `A08`, `I01`) | caso de teste dentro de uma matriz | `K02`: live migration no OVN-Kubernetes |
+| **PASS** | sessão ou estudo concluído com todos os critérios atendidos | P005-S001 concluída com PASS |
+| `R3`, `R6` | regras invariantes do laboratório | `R6=0`: nenhuma rota BGP instalada na tabela `main` do kernel |
+| `INV-PoC-01`–`INV-PoC-06` | critérios de aceite para uma prova de conceito do INV | Módulo 13.4 |
+| `L1`–`L8` | lições operacionais | Apêndice A |
+
+Fonte: elaborado pelo autor (2026).
+
+### Quando usar e quando não usar o Cilium
+
+Não existe resposta universal. O Quadro 3 resume o que os estudos deste guia
+mostraram a favor e contra o Cilium, com o módulo em que cada evidência
+aparece.
+
+**Quadro 3 – Situações a favor e contra o Cilium, segundo os estudos do guia**
+
+| Situação | Indicação | Evidência no guia |
+|---|---|---|
+| Política de rede por identidade, inclusive em L7 | o Cilium é forte candidato | Módulos 9 e 11 |
+| Anunciar PodCIDRs e VIPs de Service por BGP a um fabric físico | o BGP Control Plane do Cilium atende | Módulos 1 a 5 |
+| Observar fluxos L3 a L7 sem sidecar | o Cilium com o Hubble atende | Módulo 14 (`E25`) |
+| Gateway API, criptografia e balanceamento no mesmo componente | o Cilium reduz o número de peças | Módulos 6 a 8 |
+| VRF, CIDR sobreposto ou EVPN na interface primária do pod | o Cilium OSS não atende; o OVN-Kubernetes atendeu | Módulo 13 (`V07-A`, `C-neg`, `K01`) |
+| Live migration de VM KubeVirt preservando IP e sessões | o Cilium OSS troca o IP; o OVN-Kubernetes preservou | Módulo 13 (`V05`, `K02`) |
+| Aprender rotas BGP no kernel, limitar prefixos ou usar BFD | manter essas funções no roteador de borda | Módulos 4 e 14 (`E10`, `E11`) |
+| Kernel Linux anterior ao 5.10 (exceto equivalentes, como o 4.18 do RHEL 8.10) | o Cilium 1.20 não é suportado | requisitos do Cilium 1.20 |
+| Apenas conectividade básica entre pods, sem política nem integração BGP | um CNI mais simples pode bastar | — |
+
+Fonte: elaborado pelo autor (2026).
+
+Em resumo, o Cilium é a escolha natural quando política por identidade,
+observabilidade e integração BGP com o fabric são requisitos. Quando o
+requisito central é multi-tenancy L3 com VRF e CIDR sobreposto para VMs, os
+resultados do Módulo 13 apontam para o OVN-Kubernetes ou para uma oferta
+comercial, a ser avaliada pelos critérios `INV-PoC-01` a `INV-PoC-06`.
 
 ### Objetivos de aprendizagem
 
@@ -123,7 +217,7 @@ laboratórios, o vocabulário mínimo e a pergunta central do guia.
 
 ### Onde um comando roda
 
-**Quadro 1 – Rótulos que indicam onde cada comando roda**
+**Quadro 4 – Rótulos que indicam onde cada comando roda**
 
 | Rótulo | Significado |
 |---|---|
@@ -167,9 +261,9 @@ Os exercícios práticos dos módulos 1–11 usam os ambientes documentados nas
 linhas abaixo. O módulo 12 é leitura de um estudo com infraestrutura em nuvem
 que não faz parte da aula; o módulo 13 lê resultados históricos completos da
 trilha P004 (DCI, OVN-Kubernetes + EVPN, casos cruzados e Braços Cilium A/B +
-KubeVirt). O Quadro 2 distingue esses estudos dos ambientes usados nos exercícios:
+KubeVirt). O Quadro 5 distingue esses estudos dos ambientes usados nos exercícios:
 
-**Quadro 2 – Ambientes e estudos documentados no guia**
+**Quadro 5 – Ambientes e estudos documentados no guia**
 
 | Ambiente | Componentes | Versões | Papel |
 |---|---|---|---|
@@ -184,7 +278,7 @@ KubeVirt). O Quadro 2 distingue esses estudos dos ambientes usados nos exercíci
 
 Fonte: elaborado pelo autor (2026).
 
-O Quadro 2 descreve os ambientes e estudos documentados, sem indicar
+O Quadro 5 descreve os ambientes e estudos documentados, sem indicar
 disponibilidade simultânea em tempo real (os perfis pesados operam em regime
 *time-shared* via `labctl` para respeitar `R3: MemAvailable >= 4,00 GiB`). Os
 Figuras 1 e 2 ilustram os ambientes P001–P003; as Figuras 16, 17 e 18, no
@@ -204,7 +298,7 @@ Fonte: elaborada pelo autor (2026).
 
 Endereços que aparecem nos exercícios:
 
-**Quadro 3 – Endereços usados nos exercícios**
+**Quadro 6 – Endereços usados nos exercícios**
 
 | Recurso | Lab `k01` | Sandbox `p003-gw` |
 |---|---|---|
@@ -213,26 +307,6 @@ Endereços que aparecem nos exercícios:
 | Cliente externo ao cluster | `client-ext` `203.0.113.10` | `fabric-client` `198.19.0.10` |
 | Gateway | não há | `p003-main` no namespace `p003-gateway`, listeners 8080/HTTP, 15432/TCP, 15353/UDP |
 | Rede do tenant OpenStack | não há | `10.30.0.0/24` (subnet-a), externa `10.40.0.0/24` |
-
-Fonte: elaborado pelo autor (2026).
-
-### Vocabulário mínimo
-
-**Quadro 4 – Vocabulário mínimo do laboratório**
-
-| Termo | Significado neste laboratório |
-|---|---|
-| **speaker** | o agente Cilium em um nó, que mantém a sessão BGP daquele nó |
-| **PodCIDR** | bloco de IP reservado para pods de um nó; `/24` IPv4 por nó no IPAM `kubernetes` |
-| **VIP** | endereço de serviço anunciado como `/32` por vários nós |
-| **ECMP** | vários próximos saltos equivalentes para o mesmo prefixo |
-| **GR** | Graceful Restart: o vizinho mantém as rotas enquanto a sessão BGP reinicia (Sangli et al., 2007) |
-| **Gateway API** | recursos `Gateway`, `HTTPRoute`, `TCPRoute`, `UDPRoute` implementados pelo Cilium com Envoy (Kubernetes SIG Network, 2026) |
-| **ExternalAuth** | filtro do Gateway API que consulta um serviço externo antes de encaminhar a requisição |
-| **CNP** | `CiliumNetworkPolicy`; `fromEndpoints` seleciona por label, `fromCIDR` por endereço (Cilium Authors, 2026f) |
-| **Multi-Pool** | IPAM do Cilium em que cada nó recebe blocos de um `CiliumPodIPPool`, com `maskSize` configurável (Cilium Authors, 2026d) |
-| **SG** | Security Group do Neutron, o firewall stateful da porta de uma VM |
-| **RX morto** | a VM envia mas não recebe; limitação de KVM aninhado em container |
 
 Fonte: elaborado pelo autor (2026).
 
@@ -314,12 +388,12 @@ sudo docker exec clab-poc-k8s-kind-spine1 sr_cli \
   "show network-instance default route-table ipv4-unicast prefix 10.201.255.10/32 detail"
 ~~~
 
-Esperado: os três `/24` e a VIP com dois próximos saltos. Em native routing (Cilium Authors, 2026e)
+Esperado: os três `/24` e a VIP com dois próximos saltos. Em native routing (Cilium Authors, 2026f)
 o fabric vê o IP real do pod; a evidência histórica registra zero pacotes
 UDP/8472 no fio e um handshake `203.0.113.10 > 10.244.2.198:8080` direto ao
 pod.
 
-**Quadro 5 – Registro do Módulo 1: valores esperados e observados**
+**Quadro 7 – Registro do Módulo 1: valores esperados e observados**
 
 | Item | Esperado | Observado |
 |---|---|---|
@@ -556,7 +630,7 @@ $C2 dig @"$VIP" -p 15353 study.p003 TXT +short +notcp +tries=1 +time=2
 $C2 sh -c "echo P003-gw04 | nc -w 3 $VIP 15433"
 ~~~
 
-**Quadro 6 – Registro do Módulo 6: listeners e controle negativo**
+**Quadro 8 – Registro do Módulo 6: listeners e controle negativo**
 
 | Caso | Esperado | Observado |
 |---|---|---|
@@ -659,7 +733,7 @@ cliente.
 Ambiente: sandbox `p003-gw`. Origem: P003-S007 e P003-S008. Os perfis são
 trocados pelo instrutor com `helm upgrade`; a pessoa estudante confere
 interfaces e capturas. O Cilium usa o WireGuard (Donenfeld, 2017) na interface
-`cilium_wg0`, na porta UDP 51871 (Cilium Authors, 2026g). A Figura 10 sintetiza o entregável do módulo.
+`cilium_wg0`, na porta UDP 51871 (Cilium Authors, 2026i). A Figura 10 sintetiza o entregável do módulo.
 
 **Figura 10 – Síntese visual do entregável do Módulo 8: WireGuard W0/W1/W2 em UDP/51871 e fronteira de criptografia do hostns no Native Routing**
 
@@ -669,7 +743,7 @@ Fonte: elaborada pelo autor (2026).
 
 ### 8.1 Três perfis
 
-**Quadro 7 – Perfis de criptografia W0, W1 e W2**
+**Quadro 9 – Perfis de criptografia W0, W1 e W2**
 
 | Perfil | Configuração | Sinal na bridge do underlay |
 |---|---|---|
@@ -711,7 +785,7 @@ Fonte: elaborada pelo autor (2026).
 
 ### 9.1 Três controles diferentes
 
-**Quadro 8 – Controles de isolamento de tenant**
+**Quadro 10 – Controles de isolamento de tenant**
 
 | Controle | Mecanismo | O que impede |
 |---|---|---|
@@ -759,7 +833,7 @@ Fonte: elaborada pelo autor (2026).
 
 ### 10.1 Dois braços com a mesma variável
 
-**Quadro 9 – Braços M24 e M32 do estudo Multi-Pool IPAM**
+**Quadro 11 – Braços M24 e M32 do estudo Multi-Pool IPAM**
 
 | Braço | Pool | `maskSize` | `preAllocate` | Anúncio |
 |---|---|---|---|---|
@@ -776,7 +850,7 @@ sudo docker exec clab-p003-gw-fabric-border1 vtysh -c 'show ip bgp' | grep -E '1
 
 ### 10.2 O que muda entre `/24` e `/32`
 
-**Quadro 10 – Comportamento dos blocos `/24` e `/32` no Multi-Pool IPAM**
+**Quadro 12 – Comportamento dos blocos `/24` e `/32` no Multi-Pool IPAM**
 
 | Pergunta | M24 | M32 |
 |---|---|---|
@@ -828,7 +902,7 @@ monitor` no worker do pod e os contadores `/proc/net/snmp` dentro do pod.
 
 ### 11.3 O contraste que importa
 
-**Quadro 11 – Autorização por identidade versus por endereço (C03 e C05)**
+**Quadro 13 – Autorização por identidade versus por endereço (C03 e C05)**
 
 | Aspecto | C03: pods, `fromEndpoints` | C05: VM, `fromCIDR` |
 |---|---|---|
@@ -1042,7 +1116,10 @@ As respostas comentadas, a matriz comparativa completa (`Cilium A` × `Cilium B`
 
 ## Módulo 14 — Estudos avançados P005: conexão dedicada eBGP e datapath eBPF
 
-A trilha **P005** executa os 16 estudos remanescentes (`E09–E19` e `E21–E25`) em quatro ondas paralelas sobre `vm-cilium`, combinando o **Braço A (Plano de Controle eBGP / Direct Connect)** com o **Braço B (Datapath eBPF, Escala e Observabilidade)**. A Figura 19 sintetiza o entregável do módulo.
+A trilha P005 reúne 16 estudos (`E09`–`E19` e `E21`–`E25`), executados em
+quatro ondas. Cada onda tem dois braços: o Braço A trata da borda eBGP de uma
+conexão dedicada (Direct Connect), e o Braço B, do datapath eBPF, da escala e
+da observabilidade. A Figura 19 sintetiza o entregável do módulo.
 
 **Figura 19 – Síntese visual do entregável do Módulo 14: Estudos Avançados P005 (16/16 PASS — Borda eBGP Dedicada ∥ Datapath eBPF, Observabilidade e DRA)**
 
@@ -1110,7 +1187,12 @@ Onda concluída com **PASS**; estudos `E15`, `E16`, `E18` e `E24`. O `E18` compa
 
 ## Módulo 15 — Trilha P006: datapath avançado, multicluster, SRv6 e saneamento
 
-A trilha **P006** conclui a Fase 2 do projeto em quatro ondas paralelas sobre `vm-cilium`, combinando o **Braço A (Datapath eBPF Avançado e Borda BGP `E26–E29`)**, o **Braço B (Multi-Cluster, SRv6 L3VPN, Runtime Security e Live Migration `E30–E33`)** e o **Braço C (Saneamento Integral de `revisao-projeto-2026-09-26.md` `Blocos C1–C4`)**, fechando `33/33` estudos (`E01–E33`) em `v2.5.0`. A Figura 20 sintetiza o entregável do módulo.
+A trilha P006 encerra a Fase 2 do projeto em quatro ondas e três braços. O
+Braço A aprofunda o datapath eBPF e a borda BGP (`E26`–`E29`); o Braço B cobre
+multicluster, SRv6, segurança em tempo de execução e live migration
+(`E30`–`E33`); e o Braço C saneia os scripts e a documentação apontados na
+revisão técnica de 26/09/2026 (Blocos C1–C4). Ao final, na versão `v2.5.0`, o
+projeto somava 33 estudos concluídos. A Figura 20 sintetiza o entregável do módulo.
 
 **Figura 20 – Síntese visual do entregável do Módulo 15: Trilha P006 (E26–E33 + Saneamento C1–C4 — Maglev, BIG TCP, EDT/BBR, Unnumbered, Cluster Mesh, SRv6, Tetragon e Live Migration)**
 
@@ -1172,7 +1254,11 @@ Onda concluída com **PASS** na versão `v2.5.0`; estudos `E29` e `E33` e saneam
 
 ## Módulo 16 — Trilha P007: BGP sem perda, SPIFFE com WireGuard, Local Redirect e Multus
 
-A trilha **P007** conclui a Fase 3 do projeto em duas ondas paralelas sobre `vm-cilium`, combinando o **Braço A (Operação BGP Zero-Loss na Borda e Roteamento Node-Local eBPF `E34`, `E36`)** e o **Braço B (Zero-Trust SPIFFE mTLS + WireGuard e Workloads Dual-Homed com Multus + `ipvlan L2/L3` `E35`, `E37`)**, fechando **`37/37` estudos (`E01–E37`)** em `v2.6.0`. A Figura 21 sintetiza o entregável do módulo.
+A trilha P007 encerra a Fase 3 em duas ondas. O Braço A trata da operação BGP
+sem perda de pacotes e do roteamento local ao nó (`E34` e `E36`); o Braço B, de
+segurança zero-trust com SPIFFE e WireGuard e de workloads com duas interfaces
+via Multus (`E35` e `E37`). Com ela, na versão `v2.6.0`, o projeto chegou a 37
+estudos. A Figura 21 sintetiza o entregável do módulo.
 
 **Figura 21 – Síntese visual do entregável do Módulo 16: Trilha P007 (E34–E37 — BGP Graceful Shutdown Zero-Loss, SPIFFE mTLS + WireGuard, Local Redirect eBPF e Multus ipvlan L2/L3)**
 
@@ -1207,7 +1293,11 @@ Onda concluída com **PASS** na versão `v2.6.0`; estudos `E36` e `E37`.
 
 ## Módulo 17 — Trilha P008: Host Firewall, CiliumEnvoyConfig, Route Reflector e matriz netkit
 
-A trilha **P008** conclui a Fase 4 do projeto em duas ondas paralelas sobre `vm-cilium`, combinando o **Braço A (Proteção de Nó com Cilium Host Firewall + XDP Early DDoS Prefilter e Escalabilidade iBGP Route Reflector `RFC 4456` + SRv6 L3VPN Dual-Stack `End.DT4`/`End.DT6` `E38`, `E40`)** e o **Braço B (Engenharia de Tráfego e Resiliência L7 com `CiliumEnvoyConfig` e Matriz 2×2 de Sinergia no Datapath `netkit L3` + BIG TCP + `WireGuard` `E39`, `E41`)**, fechando **`41/41` estudos (`E01–E41`)** em `v2.7.0`. A Figura 22 sintetiza o entregável do módulo.
+A trilha P008 encerra a Fase 4 em duas ondas. O Braço A protege o nó com Host
+Firewall e XDP e escala o BGP com Route Reflector e SRv6 dual-stack (`E38` e
+`E40`); o Braço B trata de resiliência L7 com `CiliumEnvoyConfig` e mede a
+combinação de `netkit`, BIG TCP e WireGuard (`E39` e `E41`). Com ela, na versão
+`v2.7.0`, o projeto completou os 41 estudos (`E01`–`E41`). A Figura 22 sintetiza o entregável do módulo.
 
 **Figura 22 – Síntese visual do entregável do Módulo 17: Trilha P008 (E38–E41 — Host Firewall + XDP_DROP, CiliumEnvoyConfig L7, iBGP RR + SRv6 Dual-Stack e Matriz netkit + BIG TCP + WireGuard 5,59x)**
 
@@ -1244,20 +1334,24 @@ Onda concluída com **PASS** na versão `v2.7.0`; estudos `E40` e `E41`. O `E40`
 
 ### Limites do que foi demonstrado
 
-- O fabric roda em containers com simulação userspace; use relações, nunca valores absolutos de throughput ou latência.
-- A VIP IPv6 e o pod→pod IPv6 cross-node ficaram limitados pela topologia IPv4 do underlay externo.
-- ExternalAuth é experimental na 1.20.2 e tem os defeitos listados no Módulo 7; a fixture não é um IdP.
-- Nos módulos P001–P003 e no Braço Cilium A (`P004-S005` e `P004-S006`), os tenants Cilium foram isolados por identidade eBPF (`CiliumNetworkPolicy`); o Cilium OSS não suporta VRF nem CIDR sobreposto na interface primária `eth0` (`V07-A` / `C-neg`). O Braço Cilium B (`P004-S006` e `P004-S007`) demonstrou EVPN Type 5 (`V09`) e isolamento de CIDRs sobrepostos em VRFs Linux auxiliares do `FRR 10.7.1` no nó (`V07-B`, mantendo `0` rotas BGP na tabela `main` via `R6`), enquanto o braço DCI (`P004-S002`) e o braço OVN-Kubernetes + EVPN (`P004-S003` e `P004-S004`) provaram nativamente o isolamento de CIDRs sobrepostos na interface primária (`UserDefinedNetwork` `10.100.0.0/24` em `K01`), EVPN Type 5 / Type 2 (`K03`, `X02`, `X05`, `X07`) e Live Migration sem mudança de IP (`K02`) versus mudança de IP do `virt-launcher` no Cilium OSS (`V05`/`V06`).
-- A sincronização entre identidade Kubernetes e Security Group Neutron não foi implementada; a conclusão da trilha híbrida é "seguro sob sequenciamento manual".
-- Nas **4 Ondas de `P005` (`P005-S001` a `P005-S004` — `16/16` estudos concluídos com `PASS`)**, foram provados: idempotência declarativa `10x` e reuso de VIP BGP sem resíduo (`E19`), autenticação TCP MD5 (`RFC 2385`, `authSecretRef`) com ASN de 32 bits (`4200000001`) e rotação de chave em produção (`E09`), substituição de `veth` por `netkit` (`mode l3`, `NOARP`) no datapath eBPF (`E23`), eliminação de `postIpamFailure` em rajadas de pods (`agnhost:2.47`) com `ipam.multiPoolPreAllocation` (`E21`), limite de prefixos `maximum-prefix 100` e filtro de import na borda FRR vs ausência de import no Cilium (`E11`), marcação de BGP communities no Cilium acionando `MED` e `AS-path prepend` na borda (`E12`), detecção de falha sub-segundo com BFD (`359 ms < 1 s`) na borda FRR vs piso de `3045 ms` nos timers `1/3 s` do Cilium (`E10`), aceleração L7 in-kernel via `sockmap`/`bpf_sock_ops`/`sk_msg` (`XLB`) vs `Envoy L7` (`E22`), redundância dual-border ECMP e restart do `cilium-agent` sem perda com Graceful Restart (`139/139` c/ GR vs `8879 ms` s/ GR, `E13`), sessão eBGP IPv6 dedicada servindo a VIP `fd14::a/128` fim a fim (`30/30` HTTP `200`, `E14`), observabilidade contínua BGP por 3 leituras consecutivas (`ACTIVE`/`DOWN`/`UNKNOWN`, `E17`) combinada com fluxos Hubble `L3/L4`, `L7 HTTP/DNS`, `TLS :8443` e métricas Prometheus (`E25`), isolamento de VRF por tenant no border via BGP community (`65400:1010` vs `65400:1020`, `E15`), os 3 modos de retorno PE/CE (`Rota Estática`, `FRR no Nó` e `CiliumEgressGatewayPolicy`, `E16`), a fronteira física/enlace de `MTU 9000` Jumbo Frames, `QinQ 802.1ad` e `MACsec 802.1AE` vs `WireGuard` (`E18`), e a alocação dinâmica de dispositivos de rede via DRA `resource.k8s.io/v1` (`NetworkDeviceData`, `E24`).
-- Nós reais na nuvem provaram overlay e BGP; native routing e VIP anycast dependem da postura de spoofing da porta.
-- Nas **4 Ondas de `P006` (`P006-S001` a `P006-S004` — `8/8` estudos de Fase 2 `E26–E33` e `100%` de saneamento `C1–C4` concluídos com `PASS` em `v2.5.0`)**, foram provados: LoadBalancer TCX/XDP + anúncio seletivo BGP `ETP=Local` (`100%` preservação de IP) vs `ETP=Cluster` e anel primo Maglev (`M=16381`, `0` rehash colateral, `E26`), Cilium Cluster Mesh / MCS-API (`EndpointSlice` multi-cluster) com failover global automático sobre BGP e `CiliumNetworkPolicy` cross-cluster (`E30`), BIG TCP (`gso_max_size=196608`, super-pacotes `188 KiB`, `46,31 Gbps` `veth` / `46,08 Gbps` `netkit`, `-51,6%` `NET_RX`) + `netkit mode l3` + Jumbo MTU 9000 e recuperação de blackhole PMTU via RFC 4821 (`E27`), SRv6 L3VPN in-kernel (`seg6local action End.DT4`, `30/30` HTTP `200` entre subnets `10.253.31.0/24` 100% sobrepostas sem VXLAN, `E31`), Bandwidth Manager (`EDT` + `qdisc fq`, pacing `50M`/`100M` com `97%–99%` de precisão e remoção dinâmica sem restart) + `TCP BBR` vs `CUBIC` (`+37,5%` a `+43,8%` sob perda/latência, `E28`), Tetragon Runtime Security (`TracingPolicyNamespaced` correlacionando identidade Cilium e aplicando `Sigkill` `rc=137` síncrono em leitura de `/etc/shadow` e socket `:4444`, `E32`), BGP Unnumbered (`RFC 5549`/`8950` Extended Next-Hop `10.206.29.0/24 via inet6 fe80::...` com `0` IPv4 no enlace p2p) + L2 Announcements (`CiliumL2AnnouncementPolicy` + `cilium_l2_responder_v4`, `E29`), e KubeVirt Live Migration sob tráfego contínuo (`50 pps`: `Cilium B /32 BGP` `100,45 ms` blackout vs `OVN-K EVPN Type-2` `60,25 ms` blackout, `E33`).
-- Nas **2 Ondas de `P007` (`P007-S001` e `P007-S002` — `4/4` estudos de Fase 3 `E34–E37` concluídos com `PASS` em `v2.6.0`)**, foram provados: BGP Graceful Shutdown (`RFC 8326` well-known community `GSHUT` `65535:0` + `LOCAL_PREF=0` + `PreStop` eliminando `100%` da perda de pacotes no dreno de nó Kubernetes: `0/150` pacotes perdidos e `0,00 ms` de blackout vs `8/150` / `662,15 ms` no dreno abrupto, `E34`), Cilium Mutual Authentication (`SPIFFE` X.509 SVID mTLS `spiffe://spiffe.cilium/ns/p007-e35/sa/...` em `TLSv1.3` combinada com criptografia L3 `WireGuard` `cilium_wg0` `:51871/UDP` com `0` vazamentos em texto claro e bloqueio `100%` de SVID não autorizado / CA externa / `ingressDeny`, `E35`), Cilium Local Redirect Policy (`CiliumLocalRedirectPolicy` com `serviceMatcher` `[LocalRedirect]` mantendo `20/20` das requisições no pod local sem tráfego cross-node e `addressMatcher` interceptando `169.254.20.10:8080/TCP`, `E36`), e Workloads Dual-Homed com Multus (`NetworkAttachmentDefinition`) + `ipvlan mode l2/l3` vs `macvlan` (`MTU 9000`, `10/10` pings Jumbo `8972 B`, `36,76 Gbps` em `ipvlan-l3` `+11,4%` vs `veth 1500`, e travessia `10/10` sob filtro Cloud L2 Port-Security `tc flower src_mac` onde `macvlan` sofre `0/5` blackhole, `E37`).
-- Nas **2 Ondas de `P008` (`P008-S001` e `P008-S002` — `4/4` estudos de Fase 4 `E38–E41` concluídos com `PASS` em `v2.7.0`)**, foram provados: Cilium Host Firewall (`enable-host-firewall=true` + `CiliumClusterwideNetworkPolicy` `nodeSelector` bloqueando `0/5` em `:19100` com `tc_host_fw_drops=5` e preservando `:10250` `10/10` anti-lockout) combinado com XDP Early DDoS Prefilter (`BPF_PROG_TYPE_XDP` `e38_xdp_prog` JIT `101 B` descartando `200/200` pacotes SYN flood em `XDP_DROP` antes de `sk_buff` com `conntrack_flood_entries=0`, `E38`), `CiliumEnvoyConfig` (`cilium.io/v2`) L7 Traffic Management & Resilience (`cilium-envoy 1.37.6`: Weighted Canary `90/10` -> `v1=86, v2=14`, Header Routing `X-Canary: true` -> `10/10` `v2`, Token-Bucket Local Rate Limit `5/15` `200 OK` + `10/15` `429 Too Many Requests` e Automatic Retries `retry_on: 5xx` recuperando upstream com `50%` `503` de `5/10` para `10/10` HTTP `200`, `E39`), iBGP Route Reflector (`RFC 4456` `cluster-id 10.255.40.1`, `Originator: 10.208.40.2`, `direct_w1_w2=0`, `10/10` IPv4/IPv6) combinado com SRv6 L3VPN Dual-Stack (`seg6local action End.DT4` + `End.DT6` sem VXLAN isolando CIDRs `10.253.40.0/24` e `fd40:253:40::/64` 100% sobrepostos com `10/10` HTTP `200` nas 4 combinações e revogação seletiva `End.DT6` `0/5` preservando `End.DT4` `10/10`, `E40`), e Matriz 2×2 de Sinergia no Datapath (`veth MTU 1500` vs `netkit L3 MTU 9000 + BIG TCP 192 KiB` × `Cleartext` vs `WireGuard cilium_wg0 MTU 8920`, elevando o throughput em texto claro de `34,55 Gbps` para `43,91 Gbps` `+27,1%` e o throughput cifrado WireGuard de `1,56 Gbps` para **`8,72 Gbps` `+459,0%` / `5,59x`** com **`-84,5%` invocações ChaCha20-Poly1305**, `E41`).
+- O fabric roda em contêineres com simulação em espaço de usuário; use relações entre medidas, nunca valores absolutos de throughput ou latência.
+- A VIP IPv6 e o tráfego pod→pod IPv6 entre nós ficaram limitados pela topologia IPv4 do underlay externo.
+- O ExternalAuth é experimental na 1.20.2 e tem os defeitos listados no Módulo 7; a fixture não é um IdP.
+- Nos módulos P001–P003 e no Braço Cilium A (`P004-S005` e `P004-S006`), os tenants foram isolados por identidade eBPF (`CiliumNetworkPolicy`). O Cilium OSS não suporta VRF nem CIDR sobreposto na interface primária `eth0` (`V07-A`, `C-neg`).
+- O Braço Cilium B (`P004-S006` e `P004-S007`) obteve EVPN Type 5 (`V09`) e isolou CIDRs sobrepostos apenas em VRFs Linux auxiliares do `FRR 10.7.1` no nó (`V07-B`), mantendo `R6=0`.
+- Os planos DCI (`P004-S002`) e OVN-Kubernetes + EVPN (`P004-S003` e `P004-S004`) isolaram CIDRs sobrepostos na própria interface primária (`K01`), anunciaram EVPN Type 5 e Type 2 (`K03`, `X02`, `X05`, `X07`) e migraram VMs sem trocar o IP (`K02`). No Cilium OSS, a migração troca o IP do `virt-launcher` (`V05`, `V06`).
+- A sincronização entre identidade Kubernetes e Security Group Neutron não foi implementada; a trilha híbrida é segura apenas sob sequenciamento manual.
+- Nós reais na nuvem provaram overlay e BGP; native routing e VIP anycast dependem da postura de antispoofing da porta.
+- Os 32 estudos das trilhas P005 a P008 (Módulos 14 a 17) foram concluídos com PASS, mas herdam as mesmas ressalvas: laboratório em contêineres, kernel Linux `6.8` e fabric simulado. Os resultados detalhados estão nesses módulos.
 
 ### Próximos estudos
 
-As trilhas completas de `P003`, `P004`, `P005`, `P006`, `P007` e `P008` (somando **`41/41` estudos totais do repositório entre `E01` e `E41`** e **`100%` do backlog de revisão técnica**) encontram-se **integralmente concluídas com `PASS` (`v2.7.0`)** e consolidadas em [`docs/proximos-estudos.md`](proximos-estudos.md), [`docs/revisao-projeto-2026-09-26.md`](revisao-projeto-2026-09-26.md) e nos dossiês listados no Apêndice B.
+Todas as trilhas, de P003 a P008, estão concluídas com PASS na versão `v2.7.0`:
+são 41 estudos (`E01`–`E41`) e todo o backlog da revisão técnica de
+26/09/2026. Os candidatos a próximos estudos estão em
+[`docs/proximos-estudos.md`](proximos-estudos.md), a revisão técnica em
+[`docs/revisao-projeto-2026-09-26.md`](revisao-projeto-2026-09-26.md) e os
+dossiês de cada trilha no Apêndice B.
 
 ## Referências
 
@@ -1273,19 +1367,27 @@ CILIUM AUTHORS. **Cilium BGP Control Plane**. Versão 1.20. [S. l.]: Cilium Proj
 
 CILIUM AUTHORS. **Gateway API Support**. Versão 1.20. [S. l.]: Cilium Project, 2026c. Disponível em: https://docs.cilium.io/en/v1.20/network/servicemesh/gateway-api/gateway-api/. Acesso em: 27 out. 2026.
 
-CILIUM AUTHORS. **Multi-Pool**. Versão 1.20. [S. l.]: Cilium Project, 2026d. Disponível em: https://docs.cilium.io/en/v1.20/network/concepts/ipam/multi-pool/. Acesso em: 27 out. 2026.
+CILIUM AUTHORS. **Introduction to Cilium & Hubble**. Versão 1.20. [S. l.]: Cilium Project, 2026d. Disponível em: https://docs.cilium.io/en/v1.20/overview/intro/. Acesso em: 27 out. 2026.
 
-CILIUM AUTHORS. **Routing**. Versão 1.20. [S. l.]: Cilium Project, 2026e. Disponível em: https://docs.cilium.io/en/v1.20/network/concepts/routing/. Acesso em: 27 out. 2026.
+CILIUM AUTHORS. **Multi-Pool**. Versão 1.20. [S. l.]: Cilium Project, 2026e. Disponível em: https://docs.cilium.io/en/v1.20/network/concepts/ipam/multi-pool/. Acesso em: 27 out. 2026.
 
-CILIUM AUTHORS. **Using Kubernetes Constructs In Policy**. Versão 1.20. [S. l.]: Cilium Project, 2026f. Disponível em: https://docs.cilium.io/en/v1.20/security/policy/kubernetes/. Acesso em: 27 out. 2026.
+CILIUM AUTHORS. **Routing**. Versão 1.20. [S. l.]: Cilium Project, 2026f. Disponível em: https://docs.cilium.io/en/v1.20/network/concepts/routing/. Acesso em: 27 out. 2026.
 
-CILIUM AUTHORS. **WireGuard Transparent Encryption**. Versão 1.20. [S. l.]: Cilium Project, 2026g. Disponível em: https://docs.cilium.io/en/v1.20/security/network/encryption-wireguard/. Acesso em: 27 out. 2026.
+CILIUM AUTHORS. **System Requirements**. Versão 1.20. [S. l.]: Cilium Project, 2026g. Disponível em: https://docs.cilium.io/en/v1.20/operations/system_requirements/. Acesso em: 27 out. 2026.
+
+CILIUM AUTHORS. **Using Kubernetes Constructs In Policy**. Versão 1.20. [S. l.]: Cilium Project, 2026h. Disponível em: https://docs.cilium.io/en/v1.20/security/policy/kubernetes/. Acesso em: 27 out. 2026.
+
+CILIUM AUTHORS. **WireGuard Transparent Encryption**. Versão 1.20. [S. l.]: Cilium Project, 2026i. Disponível em: https://docs.cilium.io/en/v1.20/security/network/encryption-wireguard/. Acesso em: 27 out. 2026.
+
+CLOUD NATIVE COMPUTING FOUNDATION. **Cloud Native Computing Foundation Announces Cilium Graduation**. San Francisco, 11 out. 2023. Disponível em: https://www.cncf.io/announcements/2023/10/11/cloud-native-computing-foundation-announces-cilium-graduation/. Acesso em: 27 out. 2026.
 
 DEVANTLER. **Gateway API ExternalAuth: cross-node ext_authz request to the backend pod gets no response (WireGuard, tunnel mode)**. [S. l.]: GitHub, 27 jun. 2026. Issue 46768 do repositório cilium/cilium. Disponível em: https://github.com/cilium/cilium/issues/46768. Acesso em: 27 out. 2026.
 
 DONENFELD, J. A. WireGuard: Next Generation Kernel Network Tunnel. In: NETWORK AND DISTRIBUTED SYSTEM SECURITY SYMPOSIUM, 2017, San Diego. **Proceedings** [...]. Reston: Internet Society, 2017. DOI: 10.14722/ndss.2017.23160. Disponível em: https://www.ndss-symposium.org/ndss2017/ndss-2017-programme/wireguard-next-generation-kernel-network-tunnel/. Acesso em: 27 out. 2026.
 
 DSWAFFORDCW. **CFP: BGP Route Learning**. [S. l.]: GitHub, 12 set. 2024. Issue 34841 do repositório cilium/cilium. Disponível em: https://github.com/cilium/cilium/issues/34841. Acesso em: 27 out. 2026.
+
+EBPF FOUNDATION. **What is eBPF?** An Introduction and Deep Dive into the eBPF Technology. [S. l.], [2026]. Disponível em: https://ebpf.io/what-is-ebpf/. Acesso em: 27 out. 2026.
 
 EISENBUD, D. E. et al. Maglev: A Fast and Reliable Software Network Load Balancer. In: USENIX SYMPOSIUM ON NETWORKED SYSTEMS DESIGN AND IMPLEMENTATION, 13., 2016, Santa Clara. **Proceedings** [...]. Berkeley: USENIX Association, 2016. p. 523-535. Disponível em: https://www.usenix.org/conference/nsdi16/technical-sessions/presentation/eisenbud. Acesso em: 27 out. 2026.
 
@@ -1298,6 +1400,10 @@ HEFFERNAN, A. **Protection of BGP Sessions via the TCP MD5 Signature Option**. [
 INSTITUTE OF ELECTRICAL AND ELECTRONICS ENGINEERS. **IEEE Std 802.1ad-2005**: IEEE Standard for Local and Metropolitan Area Networks: Virtual Bridged Local Area Networks: Amendment 4: Provider Bridges. New York: IEEE, 2006. DOI: 10.1109/IEEESTD.2006.6044678.
 
 INSTITUTE OF ELECTRICAL AND ELECTRONICS ENGINEERS. **IEEE Std 802.1AE-2018**: IEEE Standard for Local and Metropolitan Area Networks: Media Access Control (MAC) Security. New York: IEEE, 2018. DOI: 10.1109/IEEESTD.2018.8585421.
+
+ISOVALENT. **Cisco Completes Acquisition of Cloud Native Networking & Security Leader Isovalent**. [S. l.], 13 abr. 2024. Disponível em: https://isovalent.com/blog/post/cisco-acquires-isovalent. Acesso em: 27 out. 2026. Publicado originalmente em 21 dez. 2023.
+
+ISOVALENT. **Isovalent Networking for Virtualization**: Enterprise-Grade Network Segmentation and Multi-Tenancy for VMs in Kubernetes. [S. l.], 2 jun. 2026. Disponível em: https://isovalent.com/blog/post/isovalent-networking-for-virtualization/. Acesso em: 27 out. 2026.
 
 KATZ, D.; WARD, D. **Bidirectional Forwarding Detection (BFD)**. [S. l.]: IETF, jun. 2010. (Request for Comments, 5880). DOI: 10.17487/RFC5880. Disponível em: https://www.rfc-editor.org/rfc/rfc5880. Acesso em: 27 out. 2026.
 
@@ -1399,7 +1505,7 @@ IPAM `kubernetes`, sem pools) e remova objetos de teste por nome exato.
 
 ### Lições operacionais
 
-**Quadro 12 – Lições operacionais e gates correspondentes**
+**Quadro 14 – Lições operacionais e gates correspondentes**
 
 | # | Lição | Gate |
 |---|---|---|
