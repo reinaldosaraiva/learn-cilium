@@ -1,4 +1,4 @@
-# learn-cilium
+# Aprendendo Cilium na Prática (`learn-cilium`)
 
 Um laboratório didático para entender Cilium, Kubernetes e BGP por meio de um
 fabric leaf–spine reproduzível. O cenário principal coloca tudo dentro de uma
