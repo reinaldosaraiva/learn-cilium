@@ -150,7 +150,7 @@ Durante a execução de `E16`, documentou-se uma restrição de configuração i
 
 | Dimensão | IEEE 802.1AE MACsec (`ip macsec`, L2 Hop-by-Hop) | Cilium WireGuard (`enable-wireguard: true`, L3 Node-to-Node) |
 |---|---|---|
-| **Camada OSI e Ethertype / Porta** | Camada 2 (`ethertype 0x88e5`, ICV `16 B`, overhead total `32 B` com SCI) | Camada 3/4 (`UDP/51820`, `ChaCha20-Poly1305`, overhead `60–80 B`) |
+| **Camada OSI e Ethertype / Porta** | Camada 2 (`ethertype 0x88e5`, ICV `16 B`, overhead total `32 B` com SCI) | Camada 3/4 (`UDP/51871` no Cilium, `ChaCha20-Poly1305`, overhead `60–80 B`) |
 | **Escopo de Proteção** | **Enlace ponto a ponto (Hop-by-Hop)** entre o nó K8s e o switch/PE da operadora (protege inclusive ARP/ND, LLDP e a sessão **eBGP TCP/179** com o border) | **Pod-to-Pod / Node-to-Node L3** dentro do cluster Kubernetes (não cifra o peering eBGP com roteadores externos que não rodam o agente Cilium) |
 | **Offload em Hardware (NIC)** | Amplamente suportado em NICs Data Center (ConnectX-6/7, Intel E810) em *line-rate* `25/100/400 GbE` | Geralmente processado em CPU (kernel WireGuard), com ganhos via GSO/GRO mas sem offload ASIC universal em switches ToR |
 | **Recomendação de Uso Conjunto** | Usar **MACsec `802.1AE`** na interconexão física/VLAN dedicada (`Direct Connect` / `Cross-Connect` Nó <-> PE) e **WireGuard** para tráfego L3 leste-oeste entre nós do cluster sobre fabric não confiável | Complementares — nunca substitutos diretos na borda PE/CE |

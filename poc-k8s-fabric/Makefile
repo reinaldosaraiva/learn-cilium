@@ -5,7 +5,7 @@ SHELL := /usr/bin/env bash
 REPO_ROOT := $(abspath ..)
 PYTHON_PDF ?= $(shell if [ -x "$(REPO_ROOT)/.venv/bin/python3" ]; then echo "$(REPO_ROOT)/.venv/bin/python3"; else command -v python3; fi)
 
-.PHONY: all lint test pdf help p008-e38 p008-e39 p008-e40 p008-e41 p008-s001 p008-s002 p008-all
+.PHONY: all lint test pdf latex pdf-abnt help p008-e38 p008-e39 p008-e40 p008-e41 p008-s001 p008-s002 p008-all
 
 all: lint test
 
@@ -22,6 +22,8 @@ lint:
 		echo "ERRO: Chave privada estática encontrada!" >&2; exit 1; \
 	fi
 	@echo "  -> OK (zero chaves privadas estáticas)"
+	@echo "[lint ABNT] Verificando citações, referências e numeração do guia..."
+	@"$(PYTHON_PDF)" -I tools/build_latex.py --check-only
 	@echo "[lint 3/4] Executando go vet na fixture ExternalAuth (studies/p003/fixtures/auth)..."
 	@if command -v go >/dev/null 2>&1; then \
 		(cd studies/p003/fixtures/auth && go vet ./...); \
@@ -76,3 +78,12 @@ pdf:
 	@echo "[pdf] Compilando apostila PDF via tools/build_guide.py..."
 	@(cd "$(REPO_ROOT)" && "$(PYTHON_PDF)" poc-k8s-fabric/tools/build_guide.py)
 	@ls -lh "$(REPO_ROOT)/output/pdf/cilium-lab-student-guide.pdf"
+
+latex:
+	@echo "[latex] Gerando edição ABNT (abnTeX2) em docs/latex/lab-guide-student.tex..."
+	@(cd "$(REPO_ROOT)" && "$(PYTHON_PDF)" -I poc-k8s-fabric/tools/build_latex.py --no-pdf)
+
+pdf-abnt:
+	@echo "[pdf-abnt] Compilando edição ABNT via pandoc + tectonic..."
+	@(cd "$(REPO_ROOT)" && "$(PYTHON_PDF)" -I poc-k8s-fabric/tools/build_latex.py)
+	@ls -lh "$(REPO_ROOT)/output/pdf/cilium-lab-student-guide-abnt.pdf"
