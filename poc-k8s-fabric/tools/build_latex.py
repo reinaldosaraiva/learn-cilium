@@ -22,7 +22,7 @@ from typing import Sequence
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SOURCE = ROOT / "poc-k8s-fabric" / "docs" / "lab-guide-student.md"
 DEFAULT_TEX = ROOT / "poc-k8s-fabric" / "docs" / "latex" / "lab-guide-student.tex"
-DEFAULT_PDF = ROOT / "output" / "pdf" / "cilium-lab-student-guide-abnt.pdf"
+DEFAULT_PDF = ROOT / "output" / "pdf" / "cilium-lab-student-guide.pdf"
 FILTER = Path(__file__).resolve().parent / "abnt" / "guide.lua"
 FIELD = re.compile(r"\*\*([^*:]+):\*\*\s*([^·]+?)\s*(?=·|$)")
 YEAR = r"\[?c?\d{4}[a-z]?\]?"

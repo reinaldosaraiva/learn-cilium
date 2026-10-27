@@ -5,7 +5,7 @@ SHELL := /usr/bin/env bash
 REPO_ROOT := $(abspath ..)
 PYTHON_PDF ?= $(shell if [ -x "$(REPO_ROOT)/.venv/bin/python3" ]; then echo "$(REPO_ROOT)/.venv/bin/python3"; else command -v python3; fi)
 
-.PHONY: all lint test pdf latex pdf-abnt help p008-e38 p008-e39 p008-e40 p008-e41 p008-s001 p008-s002 p008-all
+.PHONY: all lint test pdf latex help p008-e38 p008-e39 p008-e40 p008-e41 p008-s001 p008-s002 p008-all
 
 all: lint test
 
@@ -75,15 +75,10 @@ p008-s002: p008-e40 p008-e41
 p008-all: p008-s001 p008-s002
 
 pdf:
-	@echo "[pdf] Compilando apostila PDF via tools/build_guide.py..."
-	@(cd "$(REPO_ROOT)" && "$(PYTHON_PDF)" poc-k8s-fabric/tools/build_guide.py)
+	@echo "[pdf] Compilando a apostila ABNT (abnTeX2) via pandoc + tectonic..."
+	@(cd "$(REPO_ROOT)" && "$(PYTHON_PDF)" -I poc-k8s-fabric/tools/build_latex.py)
 	@ls -lh "$(REPO_ROOT)/output/pdf/cilium-lab-student-guide.pdf"
 
 latex:
 	@echo "[latex] Gerando edição ABNT (abnTeX2) em docs/latex/lab-guide-student.tex..."
 	@(cd "$(REPO_ROOT)" && "$(PYTHON_PDF)" -I poc-k8s-fabric/tools/build_latex.py --no-pdf)
-
-pdf-abnt:
-	@echo "[pdf-abnt] Compilando edição ABNT via pandoc + tectonic..."
-	@(cd "$(REPO_ROOT)" && "$(PYTHON_PDF)" -I poc-k8s-fabric/tools/build_latex.py)
-	@ls -lh "$(REPO_ROOT)/output/pdf/cilium-lab-student-guide-abnt.pdf"

@@ -37,7 +37,6 @@ from reportlab.pdfbase import pdfmetrics
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SOURCE = ROOT / "poc-k8s-fabric" / "docs" / "lab-guide-student.md"
-DEFAULT_OUTPUT = ROOT / "output" / "pdf" / "cilium-lab-student-guide.pdf"
 PAGE_WIDTH, PAGE_HEIGHT = A4
 LEFT_MARGIN = 18 * mm
 RIGHT_MARGIN = 16 * mm
@@ -948,7 +947,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE,
                         help="Source Markdown document to compile")
     parser.add_argument("--output", type=Path, default=None,
-                        help="Output PDF path (defaults to docs/<source-stem>.pdf or DEFAULT_OUTPUT)")
+                        help="Output PDF path (defaults to <source>.pdf next to the Markdown)")
     parser.add_argument("--title", type=str, default=None,
                         help="Document title override")
     parser.add_argument("--subtitle", type=str, default=None,
@@ -985,10 +984,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not output.is_absolute():
             output = (Path.cwd() / output).resolve()
     else:
-        if source == DEFAULT_SOURCE or source.resolve() == DEFAULT_SOURCE.resolve():
-            output = DEFAULT_OUTPUT
-        else:
-            output = source.with_suffix(".pdf")
+        output = source.with_suffix(".pdf")
 
     pages, headings = build_pdf(
         source,
