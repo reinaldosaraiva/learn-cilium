@@ -134,7 +134,7 @@ O guia tem 17 módulos, organizados em quatro blocos:
 \item
   \textbf{Módulos 12 e 13, estudos históricos:} nós reais em nuvem e a trilha P004, que compara o Cilium com OVN-Kubernetes, FRR e EVPN para VMs KubeVirt.
 \item
-  \textbf{Módulos 14 a 17, estudos avançados P005 a P008:} 32 estudos sobre borda eBGP, datapath eBPF, multicluster, SRv6, segurança em tempo de execução e desempenho, todos concluídos com PASS.
+  \textbf{Módulos 14 a 17, estudos avançados P005 a P008:} 32 estudos sobre borda eBGP, datapath eBPF, multicluster, SRv6, segurança em tempo de execução e desempenho, com síntese das medições e limites.
 \end{itemize}
 
 Os módulos 12 a 17 são leitura: não exigem acesso às infraestruturas que
@@ -487,7 +487,7 @@ exercício e pode alterar a referência.
 \addcontentsline{toc}{section}{Mapa dos laboratórios}
 
 \begin{figure}[!htbp]
-\caption{Visão geral do laboratório dentro da vm-cilium}
+\caption{Laboratório em uma VM}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/05-laboratorio-vm-cilium-quadro-branco-v2.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -554,7 +554,7 @@ sandbox, os nós usam AS 65301/65302, os leaves 65201/65202/65203, os spines
 65600 e o border 65400. Os enlaces spine--leaf são IPv4 numerados em \texttt{/\allowbreak{}31}.
 
 \begin{figure}[!htbp]
-\caption{Explicação para iniciantes: entrega, rotas e VIP}
+\caption{Rotas e entrega da VIP}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/06-laboratorio-explicado-iniciantes.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -614,11 +614,10 @@ quantidade de rotas e o momento em que um bloco é alocado e retirado.
 
 \chapter{Baseline e o que o Cilium anuncia}\label{baseline-e-o-que-o-cilium-anuncia}
 
-Ambiente: lab \texttt{k01}. Origem: P001 (REQ-001 a REQ-007). A Figura 3 sintetiza o entregável do módulo.
+Ambiente: lab \texttt{k01}. Origem: P001 (REQ-001 a REQ-007). A Figura 3 situa a VIP no caminho BGP dos PodCIDRs.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 1: Baseline BGP, 3 PodCIDRs /24,
-VIP /32 e Native Routing sem VXLAN}
+\caption{BGP, PodCIDRs e VIP anycast}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m01-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -699,11 +698,10 @@ Next-hops da VIP no spine & 2 &  \\
 
 \chapter{VIP anycast e caminho do tráfego}\label{vip-anycast-e-caminho-do-truxe1fego}
 
-Ambiente: lab \texttt{k01}. Origem: P001 (REQ-008 a REQ-010). A Figura 4 sintetiza o entregável do módulo.
+Ambiente: lab \texttt{k01}. Origem: P001 (REQ-008 a REQ-010). A Figura 4 acompanha o caminho da requisição até a VIP.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 2: VIP Anycast ECMP + Maglev,
-ETP=Cluster vs ETP=Local e túnel SSH}
+\caption{Caminho da VIP e balanceamento}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m02-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -759,11 +757,10 @@ uma falha.
 
 \chapter{Dual-stack IPv6 no plano de controle}\label{dual-stack-ipv6-no-plano-de-controle}
 
-Ambiente: lab \texttt{k01} reconstruído com \texttt{values-{}\allowbreak{}dualstack.\allowbreak{}yaml}. Origem: P002-S001. A Figura 5 sintetiza o entregável do módulo.
+Ambiente: lab \texttt{k01} reconstruído com \texttt{values-{}\allowbreak{}dualstack.\allowbreak{}yaml}. Origem: P002-S001. A Figura 5 situa a VIP nas duas famílias do plano de controle BGP.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 3: Dual-Stack IPv6 no plano de
-controle BGP e fronteira do underlay L3}
+\caption{IPv6 no plano de controle BGP}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m03-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -797,11 +794,10 @@ spines.
 \chapter{Falhas, Graceful Restart e convergência}\label{falhas-graceful-restart-e-converguxeancia}
 
 Ambiente: lab \texttt{k01}. Origem: P001 REQ-011, P002-S002 e P002-S004. Os gatilhos
-de falha são tarefa do instrutor; a pessoa estudante lê e interpreta. A Figura 6 sintetiza o entregável do módulo.
+de falha são tarefa do instrutor; a pessoa estudante lê e interpreta. A Figura 6 relaciona as falhas BGP à convergência ECMP.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 4: Resiliência a falhas de
-fabric, BGP Graceful Restart e convergência ECMP}
+\caption{Falhas BGP e convergência ECMP}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m04-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -859,11 +855,10 @@ validação do lab. Essa lacuna é o ponto de partida de um dos próximos estudo
 
 \chapter{Escala e desempenho}\label{escala-e-desempenho}
 
-Ambiente: lab \texttt{k01}. Origem: P002-S003. A Figura 7 sintetiza o entregável do módulo.
+Ambiente: lab \texttt{k01}. Origem: P002-S003. A Figura 7 relaciona a escala de pods e VIPs à vazão.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 5: Escala 6 a 40 pods sem crescer
-a RIB, burst de +30 VIPs e throughput Native vs VXLAN}
+\caption{Escala de pods, VIPs e throughput}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m05-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -909,11 +904,10 @@ SR Linux em container e veths do kind; use apenas as relações.
 \chapter{Gateway API HTTP, TCP e UDP por VIP BGP}\label{gateway-api-http-tcp-e-udp-por-vip-bgp}
 
 Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw}. Origem: P003-S003 e P003-S004. A implementação
-da Gateway API pelo Cilium segue a documentação do projeto (Cilium Authors, 2026c). A Figura 8 sintetiza o entregável do módulo.
+da Gateway API pelo Cilium segue a documentação do projeto (Cilium Authors, 2026c). A Figura 8 destaca os listeners HTTP, TCP e UDP do Gateway.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 6: Gateway API HTTP, TCP e UDP
-sobre a VIP BGP 10.202.255.10/32}
+\caption{Gateway API sobre VIP BGP}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m06-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -986,15 +980,14 @@ ou a VIP por BGP.
 
 \chapter{Autorização externa na borda}\label{autorizauxe7uxe3o-externa-na-borda}
 
-Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw}. Origem: P003-S005, P003-S006 e P003-S009 (T05).
+Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw}. Origem: P003-S005, P003-S006 e P003-S009 (T05). A Figura 9 mostra o fluxo de autorização externa na borda.
 O ExternalAuth do Gateway API é experimental na 1.20.2; o CRD \texttt{HTTPRoute}
 recebeu o schema experimental por um patch de spec, porque o
 \texttt{experimental-{}\allowbreak{}install.\allowbreak{}yaml} estoura o limite de annotations no Kubernetes
-1.35.0. A Figura 9 sintetiza o entregável do módulo.
+1.35.0.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 7: ExternalAuth HTTP e gRPC na
-borda Envoy e garantia 100\% Fail-Closed}
+\caption{Autorização externa na borda}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m07-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -1072,11 +1065,10 @@ cliente.
 Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw}. Origem: P003-S007 e P003-S008. Os perfis são
 trocados pelo instrutor com \texttt{helm upgrade}; a pessoa estudante confere
 interfaces e capturas. O Cilium usa o WireGuard (Donenfeld, 2017) na interface
-\texttt{cilium\_\allowbreak{}wg0}, na porta UDP 51871 (Cilium Authors, 2026i). A Figura 10 sintetiza o entregável do módulo.
+\texttt{cilium\_\allowbreak{}wg0}, na porta UDP 51871 (Cilium Authors, 2026i). A Figura 10 compara os caminhos WireGuard em native routing e VXLAN.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 8: WireGuard W0/W1/W2 em
-UDP/51871 e fronteira de criptografia do hostns no Native Routing}
+\caption{WireGuard em dois datapaths}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m08-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -1123,12 +1115,10 @@ Envoy do nó como tráfego de nó.
 
 \chapter{Tenants: rede, borda e configuração}\label{tenants-rede-borda-e-configurauxe7uxe3o}
 
-Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw}. Origem: P003-S009, matriz T01--T17. A Figura 11 sintetiza o entregável do módulo.
+Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw}. Origem: P003-S009, matriz T01--T17. A Figura 11 situa os controles de isolamento de tenants nas três camadas.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 9: Isolamento Multi-Tenant
-T01--T17 em 3 camadas (Rede CNP, Borda ExternalAuth/TLS e Governança
-K8s)}
+\caption{Isolamento de tenants T01--T17 em três camadas}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m09-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -1184,11 +1174,10 @@ L4 ser aplicada (T07). Autorização L7 não é política L4.
 \chapter{Multi-Pool IPAM: /24 versus /32}\label{multi-pool-ipam-24-versus-32}
 
 Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw}, com IPAM trocado para \texttt{multi-{}\allowbreak{}pool} pelo instrutor
-e restaurado ao final. Origem: P003-S010, matriz I01--I10. A Figura 12 sintetiza o entregável do módulo.
+e restaurado ao final. Origem: P003-S010, matriz I01--I10. A Figura 12 compara os pools \texttt{/\allowbreak{}24} e \texttt{/\allowbreak{}32} do Multi-Pool IPAM.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 10: Multi-Pool IPAM /24 vs /32,
-BGP Communities e retenção preAllocate=8}
+\caption{Multi-Pool IPAM: pools /24 e /32}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m10-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -1258,11 +1247,10 @@ um bloco depende de \texttt{pre\allowbreak{}Allocate}, não da morte do pod; um 
 
 Ambiente: sandbox \texttt{p003-{}\allowbreak{}gw} + testbed OpenStack + VM em KVM real. Origem:
 P003-S011 a S016. As sínteses públicas completas estão em
-E08 e C5. A Figura 13 sintetiza o entregável do módulo.
+E08 e C5. A Figura 13 mostra o tenant híbrido entre pods e VMs.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 11: Tenant híbrido Pod K8s ↔ VM
-KVM/OpenStack e contraste Identidade (fromEndpoints) vs IP (fromCIDR)}
+\caption{Tenant híbrido com pod e VM}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m11-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -1343,11 +1331,10 @@ VLAN no veth do container, ou o dnsmasq do \texttt{qdhcp} não recarregou o
 \chapter{Nós reais na nuvem: o que muda}\label{nuxf3s-reais-na-nuvem-o-que-muda}
 
 Origem: P002-S005 e P002-S006. Este módulo é leitura; a infraestrutura de
-nuvem não faz parte da aula. A Figura 14 sintetiza o entregável do módulo.
+nuvem não faz parte da aula. A Figura 14 situa BGP e native routing na topologia da nuvem.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 12: Nós reais na nuvem, eBGP na
-VPC e impacto do IP Spoofing Guard da NIC}
+\caption{BGP em nós reais na nuvem}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m12-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -1372,167 +1359,151 @@ do Cilium.
 
 \chapter{DCI, OVN, FRR e EVPN: o que os resultados provam}\label{dci-ovn-frr-e-evpn-o-que-os-resultados-provam}
 
-Este módulo é uma leitura guiada dos resultados históricos de \texttt{P004-{}\allowbreak{}S001} a
-\texttt{P004-{}\allowbreak{}S008}, todas concluídas com \textbf{PASS}. Os perfis do \texttt{labctl} e os
-artefatos de \texttt{studies/\allowbreak{}p004/\allowbreak{}} ficam no repositório como referência do
-instrutor. A atividade aqui é interpretar as medições comparadas, sem depender
-do estado atual da VM. A Figura 15 sintetiza o entregável do módulo.
+Cilium aplica políticas à identidade eBPF do endpoint, mas isso não cria uma VRF nem separa domínios de rede.
+No Cilium B, FRR usou VRFs auxiliares, enquanto \texttt{eth0} permaneceu no mapa global do Cilium.
+OVN-Kubernetes isolou CIDRs sobrepostos em redes primárias com EVPN e preservou o IP e a sessão TCP das VMs na live migration testada.
+
+\begin{quadro}[!htbp]
+\caption{Comparação dos planos de rede testados}
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.504\hsize}X|>{\raggedright\arraybackslash\hsize=1.228\hsize}X|>{\raggedright\arraybackslash\hsize=1.026\hsize}X|>{\raggedright\arraybackslash\hsize=1.242\hsize}X|}
+\hline
+\textbf{Plano} & \textbf{VRF e CIDR sobreposto} & \textbf{EVPN} & \textbf{Mobilidade de VM} \\
+\hline
+Cilium A & Política por identidade eBPF; a API não oferece VRF para CIDRs iguais na
+\texttt{eth0} primária. & API BGP v2 rejeitou \texttt{vrf}, \texttt{evpn} e \texttt{l2vpn};
+anúncio EVPN não foi provado. & Live migration mudou o IP do \texttt{virt-{}\allowbreak{}launcher} e
+derrubou a sessão TCP para o IP antigo. \\
+\hline
+Cilium B & FRR isolou CIDRs iguais em VRFs Linux auxiliares; \texttt{eth0}
+permaneceu no mapa global \texttt{cilium\_\allowbreak{}lxc}. & FRR anunciou/importou EVPN Type 5 nas VRFs auxiliares;
+\texttt{R6=\allowbreak{}0}. & Cutover pela rota \texttt{/\allowbreak{}32}: 40 s, 30/30 HTTP. Este
+comparativo P004 não mediu live migration. \\
+\hline
+OVN-Kubernetes & UDNs primárias usaram o mesmo CIDR e IP, isolados entre tenants. & \texttt{Route\allowbreak{}Advertisements} anunciou Type 5; outro caso
+mediu extensão L2 com Type 2. & Live migration preservou IP e sessão TCP: 60/60 pings, sem perda. \\
+\hline
+\end{tabularx}
+\fonte{elaborado pelo autor (2026).}
+\nota{cada linha descreve somente os casos testados. Os três planos foram
+ensaiados separadamente; resultados do Cilium A não demonstram o
+comportamento do Cilium B. A Figura 15 situa pods e VMs nos planos
+comparados. As medições e ressalvas estão no dossiê P004.}
+\end{quadro}
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 13: Síntese P004 (DCI Connect,
-OVN-Kubernetes + EVPN, Braços Cilium A/B + KubeVirt, R6=0 e
-INV-PoC-01..06)}
+\caption{Planos de rede testados com pods e VMs}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m13-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
 
-\section{Plano DCI Connect (P004-S002): OVN, FRR multi-VRF e X05}\label{plano-dci-connect-p004-s002-ovn-frr-multi-vrf-e-x05}
+\section{Réplica DCI: OVN e FRR por VRF}\label{ruxe9plica-dci-ovn-e-frr-por-vrf}
 
 \begin{figure}[!htbp]
-\caption{Caminhos históricos da réplica DCI, com o cliente legado e o peer EVPN
-separados}
+\caption{Caminhos DCI: cliente legado e peer EVPN}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/07-dci-caminhos.png}
 \fonte{elaborada pelo autor (2026).}
-\nota{topologia lógica dos caminhos medidos na réplica DCI; o desenho não
-representa um inventário ou estado operacional atual.}
 \end{figure}
 
-A réplica tem dois caminhos distintos, e cada caso usa um deles:
+Os caminhos distintos da réplica DCI aparecem na Figura 16.
+
+Nota: topologia lógica dos caminhos medidos na réplica DCI; o desenho não representa um inventário ou estado operacional atual.
+
+A réplica tinha dois caminhos distintos:
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Caminho do cliente legado (M01 e M02):} o tenant OVN usou a rede \texttt{192.\allowbreak{}168.\allowbreak{}100.\allowbreak{}0/\allowbreak{}24}, com uma VM simulada. Dois Connect Gateways tinham as VRFs Linux \texttt{ovnvrf100} e \texttt{ovnvrf200}, com FRR dentro dos próprios gateways. Cada gateway mantinha uma sessão BGP com o cliente legado AS 200, que anunciava \texttt{10.\allowbreak{}0.\allowbreak{}0.\allowbreak{}0/\allowbreak{}16}.
+  \textbf{Cliente legado:} o tenant OVN usou \texttt{192.\allowbreak{}168.\allowbreak{}100.\allowbreak{}0/\allowbreak{}24} com uma VM simulada. Dois Connect Gateways tinham as VRFs Linux \texttt{ovnvrf100} e \texttt{ovnvrf200}, com FRR nos próprios gateways; cada um mantinha BGP com o cliente legado AS 200, que anunciava \texttt{10.\allowbreak{}0.\allowbreak{}0.\allowbreak{}0/\allowbreak{}16}.
 \item
-  \textbf{Caminho do peer EVPN (M03 e X05):} um peer externo recebeu as rotas EVPN Type 5 (Rabadan et al., 2021) dos tenants, identificadas pelo VNI 50100 (tenant A) e pelo VNI 50200 (tenant B, em X05). Esse peer não era o cliente legado das VLANs 100 e 200.
+  \textbf{Peer EVPN:} o peer externo recebeu rotas EVPN Type 5 (Rabadan et al., 2021), no VNI 50100 para o tenant A e no VNI 50200 para o tenant B. Esse peer não era o cliente legado das VLANs 100 e 200.
 \end{itemize}
 
 \begin{figure}[!htbp]
-\caption{Estado histórico consolidado das trilhas e gates de P004 (S001 a S008
-PASS)}
+\caption{Histórico das sessões P004}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/08-p004-estado.png}
 \fonte{elaborada pelo autor (2026).}
-\nota{trilha P004 concluída com PASS de S001 a S008 (\texttt{G01} a
-\texttt{G08} fechados).}
 \end{figure}
 
-Os quatro casos do plano DCI:
+A Figura 17 registra a sequência histórica das sessões P004.
+
+Nota: registro histórico do plano; não representa o estado operacional atual.
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{M01 --- falhas no plano de controle:} withdraws e falhas controladas preservaram o tráfego medido. Há uma ressalva de escopo: a falha de FRR parou \texttt{bgpd}, \texttt{bfdd} e \texttt{zebra} dentro do gateway \texttt{ovn-{}\allowbreak{}gw-{}\allowbreak{}1}, e não um contêiner FRR separado. Os gateways usaram FRR 10.7.0, e o cliente, 8.4.1\_git. A falha do chassis \texttt{ovn-{}\allowbreak{}chassis-{}\allowbreak{}1}, que hospedava a VM simulada, não foi testada.
+  \textbf{Falhas no plano de controle (M01):} withdraws e falhas controladas preservaram o tráfego medido. A falha de FRR parou \texttt{bgpd}, \texttt{bfdd} e \texttt{zebra} dentro de \texttt{ovn-{}\allowbreak{}gw-{}\allowbreak{}1}, não em um contêiner FRR separado. Os gateways usaram FRR 10.7.0 e o cliente, 8.4.1\_git. A falha do chassis \texttt{ovn-{}\allowbreak{}chassis-{}\allowbreak{}1}, que hospedava a VM simulada, não foi testada.
 \item
-  \textbf{M02 --- MTU:} com MTU 1500, pacotes pequenos passaram 30/30, mas o pacote IPv4 jumbo de 9000 B com DF não teve resposta (0/30) e o roteador devolveu ICMP Frag Needed com MTU 1500. Com MTU 9000, pacotes pequenos e jumbo passaram 30/30. As MTUs foram restauradas a 1500 ao final. A reprodução literal da fragmentação no tap físico da PoC ficou parcial.
+  \textbf{MTU e pacotes jumbo (M02):} com MTU 1500, pacotes pequenos passaram 30/30; o pacote IPv4 jumbo de 9000 B com DF teve 0/30 respostas, e o roteador enviou ICMP Frag Needed com MTU 1500. Com MTU 9000, pacotes pequenos e jumbo passaram 30/30. As MTUs voltaram a 1500; a fragmentação literal no tap físico da PoC ficou parcialmente reproduzida.
 \item
-  \textbf{M03 --- anúncio EVPN Type 5 com controle causal:} o positivo alcançou \texttt{192.\allowbreak{}168.\allowbreak{}100.\allowbreak{}0/\allowbreak{}24} como Type 5 no VNI 50100, e o ping respondeu 30/30. No controle causal, a chave \texttt{dynamic-{}\allowbreak{}routing-{}\allowbreak{}redistribute=\allowbreak{}static} na LRP do tenant excluiu as rotas \texttt{connected} dos anúncios. Com isso, a rota saiu do SB, da tabela do tenant, do Type 5 e da FIB, e o ping teve 0/3 respostas; BGP e VTEP continuaram ativos. Ao remover a chave, o ping voltou a 3/3. O controle negativo literal do VNI ficou NOT\_RUN, por falta de causalidade com o withdraw da rota.
+  \textbf{Anúncio causal de EVPN Type 5 (M03):} o positivo alcançou \texttt{192.\allowbreak{}168.\allowbreak{}100.\allowbreak{}0/\allowbreak{}24} no VNI 50100 e respondeu 30/30. No controle negativo, \texttt{dynamic-{}\allowbreak{}routing-{}\allowbreak{}redistribute=\allowbreak{}static} retirou rotas \texttt{connected} do anúncio: a rota saiu do SB, da tabela do tenant, do Type 5 e da FIB, e o ping caiu a 0/3, embora BGP e VTEP seguissem ativos. Ao remover a chave, o ping voltou a 3/3. O controle negativo literal do VNI não foi executado, pois não tinha causalidade com o withdraw da rota.
 \item
-  \textbf{X05 --- dois tenants com a mesma sub-rede:} concluído com \textbf{PASS} em 23/10/2026. O tenant B reutilizou a sub-rede \texttt{192.\allowbreak{}168.\allowbreak{}100.\allowbreak{}0/\allowbreak{}24} e o mesmo \texttt{/\allowbreak{}30} de trânsito \texttt{169.\allowbreak{}254.\allowbreak{}254.\allowbreak{}0/\allowbreak{}30}, isolado no VRF \texttt{ovnvrf50200} (VNI 50200). O alcance dentro de cada tenant passou 30/30, e as quatro direções entre tenants tiveram 0/3 respostas, sem nenhum pacote capturado no destino. Para o peer desencapsular o Type 5, o \texttt{Router MAC} anunciado precisou coincidir com o MAC de \texttt{br-{}\allowbreak{}vxlan50200}. O rollback retirou primeiro os anúncios BGP/EVPN e depois os objetos OVN e os VRFs, sem deixar resíduos.
+  \textbf{CIDRs sobrepostos em tenants OVN (X05):} o tenant B reutilizou \texttt{192.\allowbreak{}168.\allowbreak{}100.\allowbreak{}0/\allowbreak{}24} e o trânsito \texttt{169.\allowbreak{}254.\allowbreak{}254.\allowbreak{}0/\allowbreak{}30}, isolado em \texttt{ovnvrf50200} (VNI 50200). O tráfego interno respondeu 30/30; as quatro direções entre tenants tiveram 0/3 respostas, sem pacote capturado no destino. Para o peer desencapsular Type 5, o \texttt{Router MAC} anunciado precisou coincidir com o MAC de \texttt{br-{}\allowbreak{}vxlan50200}. O rollback retirou anúncios BGP/EVPN antes dos objetos OVN e VRFs, sem resíduos.
 \end{itemize}
 
-\section{OVN-Kubernetes, UDN/EVPN, KubeVirt e casos cruzados (P004-S003 e P004-S004)}\label{ovn-kubernetes-udnevpn-kubevirt-e-casos-cruzados-p004-s003-e-p004-s004}
+\section{OVN-Kubernetes, EVPN e casos entre planos}\label{ovn-kubernetes-evpn-e-casos-entre-planos}
 
 \begin{figure}[!htbp]
-\caption{Arquitetura comparada de P004 (S002 a S008): OVN-K, Fabric EVPN e Braços
-Cilium A e B + KubeVirt}
+\caption{Planos de rede com KubeVirt}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/09-p004-tres-planos-kubevirt.png}
 \fonte{elaborada pelo autor (2026).}
-\nota{comparação experimental entre os braços testados em P004-S002 a
-P004-S008 com KVM nativo (\texttt{/\allowbreak{}dev/\allowbreak{}kvm}),
-EVPN, Cilium 1.20.2 e FRR 10.7.1 (\texttt{R6=\allowbreak{}0}).}
 \end{figure}
 
-A sessão \texttt{P004-{}\allowbreak{}S003} (\textbf{PASS} em 23/10/2026) subiu um cluster kind de 3 nós
-com OVN-Kubernetes \texttt{v1.\allowbreak{}4.\allowbreak{}0} (OVN-Kubernetes, {[}2026{]}), KubeVirt \texttt{v1.\allowbreak{}9.\allowbreak{}0}
-(KubeVirt, {[}2026{]}) em KVM nativo e \texttt{frr-{}\allowbreak{}k8s} \texttt{v0.\allowbreak{}0.\allowbreak{}27}. Ela provou o gate
-\textbf{\texttt{G03}} com quatro casos:
+A Figura 18 compara os planos experimentais nos casos KubeVirt.
+
+Nota: comparação dos planos experimentais com KVM nativo (\texttt{/\allowbreak{}dev/\allowbreak{}kvm}), EVPN, Cilium 1.20.2 e FRR 10.7.1 (\texttt{R6=\allowbreak{}0}).
+
+O cluster kind tinha três nós e usou OVN-Kubernetes \texttt{v1.\allowbreak{}4.\allowbreak{}0} (OVN-Kubernetes, {[}2026{]}), KubeVirt \texttt{v1.\allowbreak{}9.\allowbreak{}0} (KubeVirt, {[}2026{]}) em KVM nativo e \texttt{frr-{}\allowbreak{}k8s} \texttt{v0.\allowbreak{}0.\allowbreak{}27}.
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{K01 --- CIDR sobreposto:} duas \texttt{User\allowbreak{}Defined\allowbreak{}Network} primárias usaram o mesmo CIDR \texttt{10.\allowbreak{}100.\allowbreak{}0.\allowbreak{}0/\allowbreak{}24}. As VMs dos dois tenants receberam o \textbf{mesmo IP \texttt{10.\allowbreak{}100.\allowbreak{}0.\allowbreak{}14}}, responderam 30/30 dentro do próprio tenant e tiveram 0/30 entre tenants.
+  \textbf{CIDR primário sobreposto (K01):} duas \texttt{User\allowbreak{}Defined\allowbreak{}Network} usaram \texttt{10.\allowbreak{}100.\allowbreak{}0.\allowbreak{}0/\allowbreak{}24}. As VMs dos dois tenants receberam o mesmo IP \texttt{10.\allowbreak{}100.\allowbreak{}0.\allowbreak{}14}, responderam 30/30 dentro do próprio tenant e 0/30 entre tenants.
 \item
-  \textbf{K02 --- live migration:} \texttt{virtctl migrate} moveu a VM entre dois workers em \textasciitilde16 s. O IP \texttt{10.\allowbreak{}100.\allowbreak{}0.\allowbreak{}14/\allowbreak{}24} foi preservado, a perda ICMP foi de \textbf{0\%} (60/60) e a \textbf{sessão TCP longa sobreviveu}.
+  \textbf{Live migration com IP preservado (K02):} \texttt{virtctl migrate} moveu a VM entre workers em cerca de 16 s. O IP \texttt{10.\allowbreak{}100.\allowbreak{}0.\allowbreak{}14/\allowbreak{}24} permaneceu igual, houve 0\% de perda ICMP (60/60) e a sessão TCP longa sobreviveu.
 \item
-  \textbf{K03 e K04 --- EVPN Type 5 e lift-and-shift:} uma \texttt{Cluster\allowbreak{}User\allowbreak{}Defined\allowbreak{}Network} (\texttt{10.\allowbreak{}200.\allowbreak{}0.\allowbreak{}0/\allowbreak{}24}) foi anunciada ao fabric EVPN via \texttt{Route\allowbreak{}Advertisements} e \texttt{frr-{}\allowbreak{}k8s} (VNI 10100), com 30/30 no positivo e 0/10 no negativo. O K04 preservou o IP fixo legado \texttt{192.\allowbreak{}168.\allowbreak{}50.\allowbreak{}10/\allowbreak{}24}.
+  \textbf{EVPN Type 5 e lift-and-shift (K03 e K04):} uma \texttt{Cluster\allowbreak{}User\allowbreak{}Defined\allowbreak{}Network} \texttt{10.\allowbreak{}200.\allowbreak{}0.\allowbreak{}0/\allowbreak{}24} foi anunciada ao fabric via \texttt{Route\allowbreak{}Advertisements} e \texttt{frr-{}\allowbreak{}k8s} (VNI 10100): o positivo respondeu 30/30 e o negativo, 0/10. O caso de lift-and-shift manteve o IP legado \texttt{192.\allowbreak{}168.\allowbreak{}50.\allowbreak{}10/\allowbreak{}24}.
 \end{itemize}
 
-A sessão \texttt{P004-{}\allowbreak{}S004} (\textbf{PASS} em 24/10/2026) integrou os planos \texttt{dci},
-\texttt{evpn-{}\allowbreak{}fabric} e \texttt{ovnk} com KubeVirt ao mesmo tempo e provou os gates \textbf{\texttt{G04}} e
-\textbf{\texttt{G05}}:
+A integração entre planos mediu estes casos:
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{X01 --- conectividade do tenant unificado:} 30/30 fim a fim.
+  \textbf{Conectividade do tenant unificado (X01):} o tráfego fim a fim respondeu 30/30.
 \item
-  \textbf{X02 --- isolamento em três planos:} com \texttt{10.\allowbreak{}200.\allowbreak{}0.\allowbreak{}0/\allowbreak{}24} e \texttt{10.\allowbreak{}0.\allowbreak{}0.\allowbreak{}0/\allowbreak{}24} sobrepostos, nenhum pacote vazou.
+  \textbf{Isolamento em três planos (X02):} com \texttt{10.\allowbreak{}200.\allowbreak{}0.\allowbreak{}0/\allowbreak{}24} e \texttt{10.\allowbreak{}0.\allowbreak{}0.\allowbreak{}0/\allowbreak{}24} sobrepostos, nenhum pacote vazou.
 \item
-  \textbf{X03 e X04 --- filtros:} a filtragem por BGP community funcionou, e um Route-Target incorreto bloqueou o tráfego (0/30).
+  \textbf{Comunidade BGP e Route Target (X03 e X04):} a filtragem por community funcionou; um Route Target incorreto bloqueou o tráfego (0/30).
 \item
-  \textbf{X06 e X07 --- colisão e extensão L2:} o X06 detectou colisão de CIDR em VRF hub. O X07 estendeu L2 em \texttt{MAC-{}\allowbreak{}VRF} EVPN Type 2 (Sajassi et al., 2015) com o mesmo CIDR \texttt{172.\allowbreak{}16.\allowbreak{}50.\allowbreak{}0/\allowbreak{}24} em VNIs diferentes (20100 e 20200).
+  \textbf{Colisão de CIDR e extensão L2 (X06 e X07):} o hub detectou colisão em VRF. A extensão L2 usou MAC-VRF EVPN Type 2 (Sajassi et al., 2015), com \texttt{172.\allowbreak{}16.\allowbreak{}50.\allowbreak{}0/\allowbreak{}24} em VNIs 20100 e 20200.
 \end{itemize}
 
-\section{Braço Cilium A: Cilium 1.20.2 com KubeVirt v1.9.0 (P004-S005)}\label{brauxe7o-cilium-a-cilium-1.20.2-com-kubevirt-v1.9.0-p004-s005}
+\section{Cilium A: identidade de endpoint e VM}\label{cilium-a-identidade-de-endpoint-e-vm}
 
-A sessão \texttt{P004-{}\allowbreak{}S005} (\textbf{PASS} em 24/10/2026) instalou o KubeVirt \texttt{v1.\allowbreak{}9.\allowbreak{}0} no
-sandbox \texttt{p003-{}\allowbreak{}gw}, com Cilium 1.20.2. Antes, os perfis \texttt{ovnk}, \texttt{evpn-{}\allowbreak{}fabric} e
-\texttt{dci} foram desligados para cumprir \texttt{Mem\allowbreak{}Available \textgreater{}=\allowbreak{} 4 Gi\allowbreak{}B}. Os casos
-\texttt{V00}--\texttt{V06} foram medidos ao vivo:
+Cilium 1.20.2 no sandbox \texttt{p003-{}\allowbreak{}gw} executou os casos com KubeVirt \texttt{v1.\allowbreak{}9.\allowbreak{}0} em \texttt{/\allowbreak{}dev/\allowbreak{}kvm}. Os perfis \texttt{ovnk}, \texttt{evpn-{}\allowbreak{}fabric} e \texttt{dci} estavam desligados para manter \texttt{Mem\allowbreak{}Available \textgreater{}=\allowbreak{} 4 Gi\allowbreak{}B}.
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{V00 e V01 --- datapath da VM:} uma VM CirrOS sobre \texttt{/\allowbreak{}dev/\allowbreak{}kvm} comunicou-se com pods nos dois sentidos (30/30); com a VM parada, 0/30. No Cilium, o pod \texttt{virt-{}\allowbreak{}launcher} aparece como um \texttt{Cilium\allowbreak{}Endpoint} comum, com IP do PodCIDR do nó, enquanto o guest usa um endereço interno próprio.
+  \textbf{VM e pods (V00 e V01):} uma VM CirrOS comunicou-se com pods nos dois sentidos (30/30); parada, respondeu 0/30. O \texttt{virt-{}\allowbreak{}launcher} aparece como \texttt{Cilium\allowbreak{}Endpoint} com IP do PodCIDR, enquanto o guest usa seu próprio endereço interno.
 \item
-  \textbf{V02 e V03 --- VIP BGP e política:} um \texttt{Service} LoadBalancer da VM foi anunciado por BGP (\texttt{10.\allowbreak{}202.\allowbreak{}255.\allowbreak{}20/\allowbreak{}32}) e respondeu 30/30 ao cliente externo; após o withdraw, caiu para 0/30 em 8 s. Uma \texttt{Cilium\allowbreak{}Network\allowbreak{}Policy} por label permitiu 30/30 do cliente autorizado e bloqueou o outro (0/30), com 18 drops \texttt{Policy denied}.
+  \textbf{VIP BGP e política (V02 e V03):} o LoadBalancer da VM anunciou \texttt{10.\allowbreak{}202.\allowbreak{}255.\allowbreak{}20/\allowbreak{}32} e respondeu 30/30 ao cliente; após withdraw, caiu a 0/30 em 8 s. A \texttt{Cilium\allowbreak{}Network\allowbreak{}Policy} permitiu 30/30 ao cliente autorizado e bloqueou o outro (0/30), com 18 drops \texttt{Policy denied}.
 \item
-  \textbf{V04 --- reuso de IP versus identidade (gate \texttt{G01}):} um pool de IP único (\texttt{10.\allowbreak{}253.\allowbreak{}0.\allowbreak{}100/\allowbreak{}32}) forçou duas VMs a usar o mesmo IP, uma após a outra. A primeira obteve 30/30. A segunda herdou o IP, mas recebeu outra identidade de segurança e obteve \textbf{0/30} sob \texttt{from\allowbreak{}Endpoints}, com 25 drops \texttt{Policy denied}. Já uma ACL baseada só no IP concedeu 30/30 à segunda VM.
+  \textbf{Reuso de IP e identidade (V04):} o pool único \texttt{10.\allowbreak{}253.\allowbreak{}0.\allowbreak{}100/\allowbreak{}32} foi atribuído a duas VMs em sequência. A primeira respondeu 30/30; a segunda recebeu outra identidade e, sob \texttt{from\allowbreak{}Endpoints}, teve 0/30 e 25 drops. A ACL baseada só no IP permitiu 30/30 à segunda VM.
 \item
-  \textbf{V05 --- live migration no Cilium OSS:} a migração entre workers levou 22 s, trocou o IP do \texttt{virt-{}\allowbreak{}launcher} e derrubou a sessão TCP aberta para o IP antigo. A VIP BGP \texttt{10.\allowbreak{}202.\allowbreak{}255.\allowbreak{}20/\allowbreak{}32} reconvergiu sozinha, com intervalo máximo de 3000.0ms.
+  \textbf{Live migration no Cilium A (V05):} a migração entre workers levou 22 s, mudou o IP do \texttt{virt-{}\allowbreak{}launcher} e derrubou a sessão TCP aberta para o endereço antigo. A VIP BGP \texttt{10.\allowbreak{}202.\allowbreak{}255.\allowbreak{}20/\allowbreak{}32} reconvergiu, com intervalo máximo de 3000.0 ms.
 \item
-  \textbf{V06 --- Multi-Pool \texttt{/\allowbreak{}32} com migração:} com \texttt{ipam.\allowbreak{}mode=\allowbreak{}multi-{}\allowbreak{}pool} e \texttt{mask\allowbreak{}Size:\allowbreak{} 32}, a VM recebeu \texttt{10.\allowbreak{}252.\allowbreak{}0.\allowbreak{}23/\allowbreak{}32} e respondeu 30/30 a probes diretos. Após migrar, recebeu \texttt{10.\allowbreak{}252.\allowbreak{}0.\allowbreak{}4/\allowbreak{}32} (30/30), enquanto o bloco antigo ficou retido no nó de origem pelo piso \texttt{multi\allowbreak{}Pool\allowbreak{}Pre\allowbreak{}Allocation}. O rollback devolveu o cluster a \texttt{ipam.\allowbreak{}mode=\allowbreak{}kubernetes} sem pools residuais.
+  \textbf{Multi-Pool \texttt{/\allowbreak{}32} com migração (V06):} \texttt{multi-{}\allowbreak{}pool} com \texttt{mask\allowbreak{}Size:\allowbreak{} 32} atribuiu \texttt{10.\allowbreak{}252.\allowbreak{}0.\allowbreak{}23/\allowbreak{}32}; probes diretos responderam 30/30. Depois da migração, o IP mudou para \texttt{10.\allowbreak{}252.\allowbreak{}0.\allowbreak{}4/\allowbreak{}32} e respondeu 30/30. \texttt{multi\allowbreak{}Pool\allowbreak{}Pre\allowbreak{}Allocation} reteve o bloco antigo no nó de origem. O rollback restaurou \texttt{ipam.\allowbreak{}mode=\allowbreak{}kubernetes} sem pools residuais.
 \end{itemize}
 
-\section{Negativos do Braço A, Braço Cilium B e síntese INV × aberto (P004-S006 a P004-S008)}\label{negativos-do-brauxe7o-a-brauxe7o-cilium-b-e-suxedntese-inv-aberto-p004-s006-a-p004-s008}
+\section{Limites comparados e caminhos complementares}\label{limites-comparados-e-caminhos-complementares}
 
-As sessões \texttt{P004-{}\allowbreak{}S006} a \texttt{P004-{}\allowbreak{}S008} (\textbf{PASS}) fecharam a comparação entre
-\textbf{Cilium A}, \textbf{Cilium B}, \textbf{OVN-Kubernetes (\texttt{C/\allowbreak{}D})} e \textbf{INV}.
+No Cilium A, namespaces com CIDR igual usaram a mesma tabela de roteamento, sem isolamento L3 (\texttt{V07-{}\allowbreak{}A}): dois pods que pediram o mesmo IP \texttt{/\allowbreak{}32} no nó colidiram no mapa global \texttt{cilium\_\allowbreak{}lxc}. A API BGP v2 também rejeitou \texttt{vrf}, \texttt{evpn} e \texttt{l2vpn}, não instalou rotas recebidas no kernel (\texttt{proto bgp =\allowbreak{} 0}) e não levou identidade eBPF ao cabeçalho IP externo.
 
-Limites do Braço Cilium A (\texttt{P004-{}\allowbreak{}S006}, gate \texttt{G02}):
+No Cilium B, o \textbf{FRR auxiliar no nó (H6)} pareou com o GoBGP do Cilium e com os ToRs. \texttt{table-{}\allowbreak{}map RM-{}\allowbreak{}NO-{}\allowbreak{}KERNEL} manteve zero rotas BGP na tabela \texttt{main}, preservando \texttt{R6=\allowbreak{}0}. O FRR anunciou/importou EVPN Type 5 e isolou CIDRs e IPs iguais em VRFs auxiliares (V09 e V07-B): 30/30 dentro do VRF, 0/10 entre VRFs. A interface primária \texttt{eth0}, porém, continuou presa ao mapa global \texttt{cilium\_\allowbreak{}lxc}; o ensaio não provou sobreposição nessa interface.
 
-\begin{itemize}
-\tightlist
-\item
-  \textbf{V07-A --- sub-redes sobrepostas:} dois namespaces com o mesmo CIDR caem na mesma tabela de roteamento, sem isolamento L3 (\texttt{vrf\_\allowbreak{}count=\allowbreak{}0}). Dois pods que pedem o mesmo IP \texttt{/\allowbreak{}32} no mesmo nó falham no segundo, com \texttt{is already in use}, por colisão no mapa BPF global \texttt{cilium\_\allowbreak{}lxc}.
-\item
-  \textbf{V08-A --- cutover de VM legada:} uma VM QEMU/KVM legada (30/30 HTTP) foi substituída por uma VM KubeVirt que anuncia o mesmo IP como \texttt{10.\allowbreak{}60.\allowbreak{}0.\allowbreak{}50/\allowbreak{}32}. O \texttt{/\allowbreak{}32} prevaleceu sobre o \texttt{/\allowbreak{}24} no \texttt{border1} em 25 s, e o cutover completo levou 39 s, com 30/30 HTTP.
-\item
-  \textbf{C-neg --- o que a API BGP do Cilium não aceita:} a API BGP v2 rejeita \texttt{vrf}, \texttt{evpn} e \texttt{l2vpn} (\texttt{strict decoding error}), não instala rotas recebidas no kernel (\texttt{proto bgp =\allowbreak{} 0}) e não leva a identidade eBPF no cabeçalho IP externo.
-\end{itemize}
-
-Braço Cilium B, com FRR 10.7.1 no nó sob o invariante \texttt{R6=\allowbreak{}0} (\texttt{P004-{}\allowbreak{}S006} e
-\texttt{P004-{}\allowbreak{}S007}):
-
-\begin{itemize}
-\tightlist
-\item
-  \textbf{H6 --- FRR ao lado do Cilium (gate \texttt{G06}):} um \texttt{Daemon\allowbreak{}Set} com FRR 10.7.1 pareia com o GoBGP do Cilium e com os switches ToR. O \texttt{table-{}\allowbreak{}map RM-{}\allowbreak{}NO-{}\allowbreak{}KERNEL} mantém \textbf{zero rotas BGP} na tabela \texttt{main}, protegendo o datapath eBPF.
-\item
-  \textbf{V09 e V07-B --- EVPN Type 5 em VRFs do nó:} em VRFs Linux do nó (VNIs 10100 e 10200), o FRR anuncia e importa rotas EVPN Type 5 e isola CIDRs e IPs idênticos: 30/30 dentro do VRF, 0/10 entre VRFs, com \texttt{R6=\allowbreak{}0}. A interface primária \texttt{eth0} dos pods e VMs, porém, continua presa ao mapa global \texttt{cilium\_\allowbreak{}lxc}.
-\item
-  \textbf{V08-B --- cutover via FRR no nó:} o mesmo cutover de \texttt{10.\allowbreak{}60.\allowbreak{}0.\allowbreak{}50/\allowbreak{}32}, agora pelo caminho GoBGP do Cilium → FRR no nó → \texttt{border1}, levou 40 s no total, com 30/30 HTTP e \texttt{R6=\allowbreak{}0}.
-\end{itemize}
-
-Síntese e higiene final (\texttt{P004-{}\allowbreak{}S008}, gates \texttt{G07} e \texttt{G08}):
-
-\begin{itemize}
-\tightlist
-\item
-  \textbf{Combinação aberta:} o blueprint da Fase 2 mostra que Cilium A, para clusters cloud-native e L7, somado ao OVN-Kubernetes \texttt{C/\allowbreak{}D}, para clusters KubeVirt com CIDR sobreposto (K01), live migration L2 (K02) e EVPN Type-2/Type-5 (K03, X01, X07), atende 100\% dos requisitos sem lock-in.
-\item
-  \textbf{Avaliação comercial:} uma PoC do \textbf{INV} deve ser julgada pelos seis critérios objetivos \texttt{INV-{}\allowbreak{}Po\allowbreak{}C-{}\allowbreak{}01} a \texttt{INV-{}\allowbreak{}Po\allowbreak{}C-{}\allowbreak{}06}, documentados em \texttt{20-{}\allowbreak{}dci-{}\allowbreak{}estado-{}\allowbreak{}parcial.\allowbreak{}md} §4.2.
-\end{itemize}
+No cutover de VM legada, a rota \texttt{10.\allowbreak{}60.\allowbreak{}0.\allowbreak{}50/\allowbreak{}32} prevaleceu sobre \texttt{/\allowbreak{}24} no \texttt{border1} em 25 s. O corte levou 39 s no Cilium A e 40 s pelo caminho GoBGP → FRR no nó → \texttt{border1}; ambos responderam 30/30 HTTP. O blueprint combina Cilium para workloads cloud-native/L7 com OVN-Kubernetes para os casos de KubeVirt, CIDR sobreposto e EVPN medidos; é uma composição de evidências, não um ensaio único integrado. Os seis critérios para avaliar uma PoC do INV estão no dossiê de critérios e resultados.
 
 \section{Exercícios de interpretação}\label{exercuxedcios-de-interpretauxe7uxe3o}
 
@@ -1540,162 +1511,272 @@ Síntese e higiene final (\texttt{P004-{}\allowbreak{}S008}, gates \texttt{G07} 
 \def\labelenumi{\arabic{enumi}.}
 \tightlist
 \item
-  Por que a limitação ``sem VRF'' dos módulos Cilium OSS não descreve o braço DCI (\texttt{S002}) nem o plano OVN-Kubernetes (\texttt{S003–S004})?
+  Como identidade eBPF, VRFs auxiliares e EVPN diferem nos três planos de rede testados?
 \item
-  Por que a Live Migration preservou o IP \texttt{10.\allowbreak{}100.\allowbreak{}0.\allowbreak{}14} e a sessão TCP no OVN-Kubernetes (\texttt{K02}), mas trocou o IP do \texttt{virt-{}\allowbreak{}launcher} no Cilium OSS (\texttt{V05} e \texttt{V06})?
+  Quais evidências distinguem CIDR sobreposto, anúncio EVPN e migração de VM nos três planos?
 \item
-  Como \texttt{V04} provou com o pool de IP único \texttt{10.\allowbreak{}253.\allowbreak{}0.\allowbreak{}100/\allowbreak{}32} que \texttt{from\allowbreak{}Endpoints} revoga o acesso no reuso de IP entre duas VMs, ao contrário de uma regra baseada apenas no endereço IP?
+  O que ocorreu com IP e sessão TCP durante a migração em cada plataforma?
 \item
-  Por que o \texttt{table-{}\allowbreak{}map RM-{}\allowbreak{}NO-{}\allowbreak{}KERNEL} (invariante \texttt{R6=\allowbreak{}0}) é indispensável no Braço Cilium B (\texttt{H6}/\texttt{V09}), e por que mesmo com FRR \texttt{10.\allowbreak{}7.\allowbreak{}1} no nó a interface primária \texttt{eth0} do Cilium não suporta \texttt{same-{}\allowbreak{}CIDR} entre dois tenants (\texttt{V07-{}\allowbreak{}A} vs \texttt{V07-{}\allowbreak{}B})?
+  Que limites impedem extrapolar resultados do Cilium A para o Cilium B?
 \end{enumerate}
 
-As respostas comentadas, a matriz comparativa completa (\texttt{Cilium A} × \texttt{Cilium B} × \texttt{OVN-{}\allowbreak{}K C/\allowbreak{}D} × \texttt{INV}), os critérios de aceite \texttt{INV-{}\allowbreak{}Po\allowbreak{}C-{}\allowbreak{}01} a \texttt{INV-{}\allowbreak{}Po\allowbreak{}C-{}\allowbreak{}06} (\texttt{G07}) e o mapa de evidências estão em DCI, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001--S008.
+Para detalhes por caso, controles e mapa de evidências, consulte DCI, OVN-K e Cilium + KubeVirt em P004: consolidação das evidências.
 
-\chapter{Estudos avançados P005: conexão dedicada eBGP e datapath eBPF}\label{estudos-avanuxe7ados-p005-conexuxe3o-dedicada-ebgp-e-datapath-ebpf}
+\chapter{Estudos avançados P005: eBGP dedicado e datapath eBPF}\label{estudos-avanuxe7ados-p005-ebgp-dedicado-e-datapath-ebpf}
 
-A trilha P005 reúne 16 estudos (\texttt{E09}--\texttt{E19} e \texttt{E21}--\texttt{E25}), executados em
-quatro ondas. Cada onda tem dois braços: o Braço A trata da borda eBGP de uma
-conexão dedicada (Direct Connect), e o Braço B, do datapath eBPF, da escala e
-da observabilidade. A Figura 19 sintetiza o entregável do módulo.
+Quatro ondas contrastam a borda eBGP dedicada com o datapath eBPF, a alocação de IPs e a observabilidade. A Figura 19 relaciona a borda eBGP ao datapath e à alocação de IPs.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 14: Estudos Avançados P005 (16/16
-PASS --- Borda eBGP Dedicada ∥ Datapath eBPF, Observabilidade e DRA)}
+\caption{Borda eBGP e datapath eBPF}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m14-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
 
-\section{Onda 1 (P005-S001): idempotência BGP, TCP MD5, netkit e burst IPAM}\label{onda-1-p005-s001-idempotuxeancia-bgp-tcp-md5-netkit-e-burst-ipam}
+\section{Onda 1 --- idempotência, TCP MD5, netkit e IPAM}\label{onda-1-idempotuxeancia-tcp-md5-netkit-e-ipam}
 
-Onda concluída com \textbf{PASS}; estudos \texttt{E19}, \texttt{E09}, \texttt{E23} e \texttt{E21}. O \texttt{E09} aplica a autenticação TCP MD5 da RFC 2385 (Heffernan, 1998).
+As medições desta onda estão no Quadro 15.
 
-\begin{itemize}
-\tightlist
-\item
-  \textbf{Braço A, conexão dedicada eBGP (\texttt{19-{}\allowbreak{}bgp-{}\allowbreak{}idempotency-{}\allowbreak{}md5-{}\allowbreak{}asn32.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E19 --- idempotência BGP e reuso de VIP:} o estudo aplicou 10 vezes seguidas os mesmos recursos BGP com \texttt{kubectl apply}. O resultado foi \textbf{0 diferenças} nas políticas, nas rotas anunciadas e na RIB do \texttt{border1}. Ou seja, um loop de GitOps não gera flaps nem \texttt{UPDATE}s espúrios. A remoção limpou 100\% das rotas em 11 s, com \texttt{R6=\allowbreak{}0}, e a mesma VIP, reaproveitada por outro Service, respondeu 30/30 HTTP 200 sem nenhuma resposta antiga.
-  \item
-    \textbf{E09 --- sessão eBGP com TCP MD5 e ASN de 32 bits:} um nó do cluster formou sessão autenticada por \texttt{auth\allowbreak{}Secret\allowbreak{}Ref} com um roteador FRR de ASN 4200000001. A sessão convergiu em 3 s, e o \texttt{tcpdump} mostrou a opção TCP 19 (MD5). Uma senha errada derrubou apenas o peer inválido, sem afetar as 3/3 sessões do fabric. Um \texttt{Secret} ausente falhou de forma segura, e a troca de senha em produção restabeleceu a sessão em \textbf{9,39 s}.
-  \end{itemize}
-\item
-  \textbf{Braço B, datapath eBPF e escala de alocação (\texttt{21-{}\allowbreak{}netkit-{}\allowbreak{}vs-{}\allowbreak{}veth-{}\allowbreak{}ipam-{}\allowbreak{}burst.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E23 --- \texttt{netkit} contra \texttt{veth}:} o estudo comparou os dois tipos de interface de pod no Cilium \texttt{1.\allowbreak{}20.\allowbreak{}2} com kernel 6.8. O \texttt{cilium-{}\allowbreak{}agent} recusou a troca enquanto havia pods \texttt{veth} ativos no nó, o que é uma proteção fail-closed. Com os pods recriados em \texttt{netkit}, o \texttt{iperf3} \textbf{eliminou 100\% das retransmissões TCP} (\texttt{47 -{}\allowbreak{}\textgreater{} 0} no mesmo nó, \texttt{11 -{}\allowbreak{}\textgreater{} 0} entre nós). Os softirqs \texttt{NET\_\allowbreak{}RX} caíram \textbf{-8,9\%} no mesmo nó e \textbf{-20,5\%} entre nós, e a \texttt{Cilium\allowbreak{}Network\allowbreak{}Policy} continuou bloqueando o tráfego proibido.
-  \item
-    \textbf{E21 --- rajada de pods e pool pré-aquecido:} o estudo criou 16 pods ao mesmo tempo em três configurações de IPAM. O modo \texttt{kubernetes} convergiu em 5,40 s, sem falhas. O \texttt{multi-{}\allowbreak{}pool} sem reserva sofreu \textbf{27 falhas} de alocação enquanto o operador criava blocos. Com o pool pré-aquecido por \texttt{multi\allowbreak{}Pool\allowbreak{}Pre\allowbreak{}Allocation}, as falhas caíram de 27 para 0 (-100\%). No controle negativo, um pool \texttt{/\allowbreak{}29}, com 6 IPs para 10 pods, deixou \texttt{6 Running} e \texttt{4 Pending} sem afetar os outros pools.
-  \end{itemize}
-\end{itemize}
-
-\section{Onda 2 (P005-S002): limite de prefixos, communities, BFD e XLB}\label{onda-2-p005-s002-limite-de-prefixos-communities-bfd-e-xlb}
-
-Onda concluída com \textbf{PASS}; estudos \texttt{E11}, \texttt{E12}, \texttt{E10} e \texttt{E22}. Os estudos usam BGP communities (Chandra; Traina; Li, 1996) e BFD (Katz; Ward, 2010).
+\textbf{Borda eBGP} (dossiê de idempotência e TCP MD5)
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Braço A, fronteira PE/CE na borda eBGP (\texttt{11-{}\allowbreak{}bgp-{}\allowbreak{}maxprefix-{}\allowbreak{}communities-{}\allowbreak{}bfd.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E11 --- limite de prefixos e filtro de import:} um roteador FRR enviou 50, 200 e 300 prefixos ao Cilium. O Cilium OSS \texttt{1.\allowbreak{}20.\allowbreak{}2} manteve a sessão \texttt{established} e não instalou nenhuma rota no kernel (\texttt{R6=\allowbreak{}0}), porque a API BGP v2 não tem \texttt{max-{}\allowbreak{}prefix} nem filtro de import; o aprendizado de rotas foi recusado na CFP \texttt{\#34841} de Dswaffordcw (2024). No roteador de borda, com \texttt{prefix-{}\allowbreak{}list} e \texttt{maximum-{}\allowbreak{}prefix 100}, os 50 prefixos declarados foram aceitos e um prefixo não declarado foi bloqueado. O envio de 200 e 300 prefixos derrubou a sessão com \texttt{Maximum-{}\allowbreak{}prefix exceeded}.
-  \item
-    \textbf{E12 --- communities, \texttt{AS-{}\allowbreak{}path prepend} e \texttt{MED}:} a mesma VIP foi anunciada pelos dois racks, cada um com uma community diferente. Sem política na borda, as duas rotas ficaram em ECMP. Com \texttt{route-{}\allowbreak{}map}s que traduzem cada community em \texttt{MED} e prepend, \textbf{10/10 (100\%)} das requisições foram para o rack 1. Ao inverter apenas as communities nos \texttt{Cilium\allowbreak{}BGPAdvertisement}s, \textbf{10/10 (100\%)} migraram para o rack 2 em 4 s, sem tocar na configuração do roteador.
-  \item
-    \textbf{E10 --- detecção de falha com e sem BFD:} o estudo simulou uma falha silenciosa de enlace, que descarta pacotes sem fechar o TCP. O Cilium, com timers 3/9 s, convergiu em \textbf{8901 ms}. No menor timer que a API aceita (1/3 s), convergiu em \textbf{3045 ms}. Já o par FRR--FRR com \textbf{BFD (\texttt{100 ms × 3})} retirou a rota em \textbf{\texttt{359 ms \textless{} 1000 ms}}, cumprindo o requisito \texttt{RNF05}.
-  \end{itemize}
+  \textbf{Idempotência BGP e reuso de VIP (E19):} reaplicar recursos sem drift mantém a RIB estável e permite reutilizar a VIP sem respostas antigas.
 \item
-  \textbf{Braço B, interposição L7 eBPF nos sockets contra Envoy (\texttt{22-{}\allowbreak{}xlb-{}\allowbreak{}ebpf-{}\allowbreak{}socket-{}\allowbreak{}lb-{}\allowbreak{}vs-{}\allowbreak{}envoy.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E22 --- XLB com \texttt{sockmap}/\texttt{sk\_\allowbreak{}msg}, \texttt{Socket\allowbreak{}LB L4} e \texttt{Envoy L7}:} o estudo mediu 100 requisições HTTP sequenciais em cada mecanismo. O \texttt{Envoy L7} teve latência média de 1,014 ms e 985,9 req/s. O \texttt{Socket\allowbreak{}LB L4} reduziu a latência em -61,3\%, para 0,392 ms, com 2550,9 req/s. O XLB, que faz a decisão L7 dentro do kernel, atingiu \textbf{0,413 ms (-59,3\% contra o Envoy) e 2418,9 req/s (+145,4\%)}, com o menor consumo de softirqs \texttt{NET\_\allowbreak{}RX} (-27,9\% contra o Envoy e -6,8\% contra o \texttt{Socket\allowbreak{}LB L4}). Ele também bloqueou \texttt{GET /\allowbreak{}deny} já na chamada \texttt{sendmsg(\allowbreak{})}.
-  \end{itemize}
+  \textbf{Sessão eBGP com TCP MD5 (E09):} a autenticação da sessão protege também peers com ASN de 32 bits (Heffernan, 1998).
 \end{itemize}
 
-\section{Onda 3 (P005-S003): dual-border, Graceful Restart, eBGP IPv6 e observabilidade}\label{onda-3-p005-s003-dual-border-graceful-restart-ebgp-ipv6-e-observabilidade}
-
-Onda concluída com \textbf{PASS}; estudos \texttt{E13}, \texttt{E14}, \texttt{E17} e \texttt{E25}. O \texttt{E13} compara o failover com e sem Graceful Restart (Sangli et al., 2007).
+\textbf{Datapath eBPF e alocação de IPs} (dossiê de netkit e burst IPAM)
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Braço A, alta disponibilidade dual-border, Graceful Restart e eBGP IPv6 (\texttt{13-{}\allowbreak{}bgp-{}\allowbreak{}dual-{}\allowbreak{}border-{}\allowbreak{}gr-{}\allowbreak{}ipv6.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E13 --- duas bordas e restart do agente:} cada rack foi ligado a um roteador de borda diferente, e o cliente distribuiu o tráfego em ECMP entre eles. Ao desligar uma das bordas, o tráfego migrou para a outra com \textbf{0 falhas (71/71 HTTP 200, \texttt{max\_\allowbreak{}gap\_\allowbreak{}ms=\allowbreak{}115 ms})}, e o ECMP voltou após a religação. Num caminho único, o restart do \texttt{cilium-{}\allowbreak{}agent} com Graceful Restart manteve a rota e os mapas eBPF: \textbf{139/139 respostas HTTP 200, sem perdas}. Sem Graceful Restart, a rota sumiu na hora e houve \textbf{78 falhas (\texttt{max\_\allowbreak{}gap\_\allowbreak{}ms=\allowbreak{}8879 ms})}.
-  \item
-    \textbf{E14 --- sessão eBGP IPv6 e VIP \texttt{fd14:\allowbreak{}:\allowbreak{}a/\allowbreak{}128}:} o estudo resolveu a limitação de \texttt{P002-{}\allowbreak{}S001}. Anunciar IPv6 sobre uma sessão TCP IPv4 gera um next-hop IPv4-mapped, que não encaminha IPv6. Com uma sessão BGP puramente IPv6, a borda instalou \texttt{fd14:\allowbreak{}:\allowbreak{}a/\allowbreak{}128} com next-hop IPv6 nativo e serviu \textbf{30/30 requisições HTTP IPv6}. O withdraw bloqueou o acesso em 2 s (5/5), e a restauração voltou a responder 5/5 HTTP 200.
-  \end{itemize}
+  \textbf{netkit contra veth (E23):} trocar o tipo de interface exige recriar pods; a política Cilium continua valendo depois da troca.
 \item
-  \textbf{Braço B, observabilidade contínua do BGP e do Hubble (\texttt{17-{}\allowbreak{}bgp-{}\allowbreak{}hubble-{}\allowbreak{}observability.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E17 --- estado BGP por três leituras consecutivas:} o estudo amostrou as métricas e o \texttt{cilium-{}\allowbreak{}dbg bgp peers} a cada 3 s e só mudou de estado após 3 leituras iguais. Um flap curto, de 2 leituras, não gerou alarme falso. Um flap sustentado passou de \texttt{ACTIVE} para \texttt{DOWN} em \textbf{7596 ms} e voltou em \textbf{11166 ms}. Falhas de coleta levaram ao estado \textbf{\texttt{UNKNOWN}}. A inspeção da RIB mostrou que o \texttt{AS\_\allowbreak{}PATH} completo e as communities só são visíveis no roteador de borda.
-  \item
-    \textbf{E25 --- visibilidade com o Hubble:} o Hubble registrou fluxos L3/L4, incluindo 10 drops por política e o IP externo preservado com \texttt{external\allowbreak{}Traffic\allowbreak{}Policy:\allowbreak{} Local}. No proxy L7, capturou respostas 200, bloqueios 403 e consultas DNS. Em TLS na porta 8443, viu os fluxos com a identidade Cilium e \textbf{0 vazamentos de URL L7}. As métricas no Prometheus continuaram coerentes, e o buffer local seguiu registrando fluxos com o Relay fora do ar.
-  \end{itemize}
+  \textbf{Pool de IP pré-aquecido (E21):} reservar blocos antes da rajada evita falhas enquanto o operador cria novos blocos.
 \end{itemize}
 
-\section{Onda 4 (P005-S004): VRF por tenant, modos de retorno, enlace L2 e DRA}\label{onda-4-p005-s004-vrf-por-tenant-modos-de-retorno-enlace-l2-e-dra}
+\begin{quadro}[!htbp]
+\caption{Resultados de idempotência, netkit e IPAM}
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.715\hsize}X|>{\raggedright\arraybackslash\hsize=0.815\hsize}X|>{\raggedright\arraybackslash\hsize=1.470\hsize}X|}
+\hline
+\textbf{Estudo} & \textbf{Medida} & \textbf{Resultado} \\
+\hline
+Idempotência e reuso de VIP & Reaplicações e estado BGP & 10 aplicações; 0 diferenças em políticas, rotas anunciadas e RIB do
+\texttt{border1} \\
+\hline
+Idempotência e reuso de VIP & Retirada e reuso & 100\% das rotas removidas em 11 s; outra aplicação da VIP respondeu
+30/30 HTTP 200, sem resposta antiga; \texttt{R6=\allowbreak{}0} \\
+\hline
+Sessão eBGP com TCP MD5 & Autenticação & ASN remoto 4200000001; sessão convergiu em 3 s; \texttt{tcpdump} mostrou
+a opção TCP 19 (MD5) \\
+\hline
+Sessão eBGP com TCP MD5 & Controles de credencial & Senha errada isolou o peer inválido; 3/3 sessões mantidas.
+\texttt{Secret} ausente falhou fechado; nova senha recuperou em 9,39 s \\
+\hline
+netkit contra veth & Troca e retransmissões TCP & Cilium 1.20.2/kernel 6.8: troca recusada com pods \texttt{veth}; após
+recriação em \texttt{netkit}, 47→0 no mesmo nó e 11→0 entre nós \\
+\hline
+netkit contra veth & Softirqs e política & \texttt{NET\_\allowbreak{}RX}: -8,9\% no mesmo nó e -20,5\% entre nós; a
+\texttt{Cilium\allowbreak{}Network\allowbreak{}Policy} continuou
+bloqueando tráfego proibido \\
+\hline
+Pool de IP pré-aquecido & Rajada de pods & 16 pods em três configurações: \texttt{kubernetes}, 5,40 s sem falhas;
+\texttt{multi-{}\allowbreak{}pool} sem reserva, 27 falhas; pool
+pré-aquecido, 0 (-100\%) \\
+\hline
+Pool de IP pré-aquecido & Controle de capacidade insuficiente & Pool \texttt{/\allowbreak{}29}, seis IPs para dez pods: 6
+\texttt{Running} e 4 \texttt{Pending}; outros pools não foram afetados \\
+\hline
+\end{tabularx}
+\fonte{elaborado pelo autor (2026).}
+\end{quadro}
 
-Onda concluída com \textbf{PASS}; estudos \texttt{E15}, \texttt{E16}, \texttt{E18} e \texttt{E24}. O \texttt{E18} compara QinQ (Institute of Electrical and Electronics Engineers, 2006) e MACsec (Institute of Electrical and Electronics Engineers, 2018) com o WireGuard; o \texttt{E24} usa a Dynamic Resource Allocation do Kubernetes (Kubernetes Authors, 2026).
+\section{Onda 2 --- prefixos, communities, BFD e XLB}\label{onda-2-prefixos-communities-bfd-e-xlb}
+
+Communities (Chandra; Traina; Li, 1996) selecionam rotas; BFD (Katz; Ward, 2010) acelera a detecção de falhas. Os demais resultados estão no Quadro 16.
+
+\textbf{Limite de prefixos, communities e BFD} (dossiê da borda PE/CE)
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Braço A, VRF por tenant, terminação PE/CE e camada de enlace (\texttt{15-{}\allowbreak{}bgp-{}\allowbreak{}vrf-{}\allowbreak{}return-{}\allowbreak{}paths-{}\allowbreak{}l2-{}\allowbreak{}mtu-{}\allowbreak{}qinq-{}\allowbreak{}macsec.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E15 --- VRF por tenant a partir de communities:} como o Cilium OSS não tem VRF no BGP, um nó anunciou numa única sessão três VIPs, cada uma com uma community. No roteador de borda, \texttt{route-{}\allowbreak{}map}s importaram cada VIP só na VRF do seu tenant. O tráfego dentro de cada tenant respondeu \textbf{30/30 HTTP 200}. Todas as tentativas entre tenants, e a VIP com community não autorizada, ficaram em \textbf{0/5}, com \texttt{R6=\allowbreak{}0}.
-  \item
-    \textbf{E16 --- três formas de rota de retorno:} o estudo avaliou como o pod responde a prefixos anunciados pelo cliente.
-
-    \begin{itemize}
-    \tightlist
-    \item
-      \emph{Rota estática no nó:} sem ela, o tráfego falha (\textbf{0/3}) mesmo com a rota visível no BGP do Cilium. Com a rota, responde \textbf{30/30 HTTP 200}, mantendo \texttt{R6=\allowbreak{}0}.
-    \item
-      \emph{FRR auxiliar no nó com \texttt{prefix-{}\allowbreak{}list}:} o FRR instala a rota no kernel e o serviço responde \textbf{30/30 HTTP 200}; ao encerrar o FRR, \texttt{R6=\allowbreak{}0} volta a valer.
-    \item
-      \emph{\texttt{Cilium\allowbreak{}Egress\allowbreak{}Gateway\allowbreak{}Policy}:} o pod selecionado sai por um nó gateway com SNAT determinístico (\textbf{30/30 HTTP 200}). O pod não selecionado sai com outro IP e é bloqueado pela ACL da borda (0/5).
-    \end{itemize}
-  \item
-    \textbf{E18 --- MTU 9000, QinQ e MACsec comparados ao WireGuard:}
-
-    \begin{itemize}
-    \tightlist
-    \item
-      \emph{MTU 9000:} \textbf{30/30 pings} de 9000 B com bit DF passaram fim a fim. Com um enlace em MTU 1500, \textbf{0/5} passaram, e o roteador devolveu ICMP \texttt{need to frag}.
-    \item
-      \emph{QinQ (IEEE 802.1ad):} a sessão eBGP subiu e \textbf{10/10 pings} passaram com dupla etiqueta VLAN. Com a etiqueta interna errada, \textbf{0/5}.
-    \item
-      \emph{MACsec (IEEE 802.1AE):} a sessão eBGP subiu e \textbf{10/10 pings} passaram, com 100\% dos quadros cifrados e 0 pacotes TCP/179 ou ICMP em claro. Com chave divergente, \textbf{0/5}.
-    \end{itemize}
-  \end{itemize}
+  \textbf{Limite de prefixos e filtro de import (E11):} o Cilium mantém a sessão BGP, mas a borda precisa controlar o que entra e o volume anunciado; a CFP \texttt{\#34841} de Dswaffordcw (2024) registra a limitação de aprendizado.
 \item
-  \textbf{Braço B, Dynamic Resource Allocation no Cilium (\texttt{24-{}\allowbreak{}cilium-{}\allowbreak{}dra-{}\allowbreak{}network-{}\allowbreak{}device.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E24 --- interfaces secundárias por DRA:} o chart estável \texttt{cilium-{}\allowbreak{}1.\allowbreak{}20.\allowbreak{}2.\allowbreak{}tgz} não traz driver DRA, que existe apenas num branch experimental. O Kubernetes \texttt{v1.\allowbreak{}35.\allowbreak{}0} já oferece a API \texttt{resource.\allowbreak{}k8s.\allowbreak{}io/\allowbreak{}v1} estável. Com um \texttt{Resource\allowbreak{}Slice} publicando duas interfaces, o scheduler alocou os claims, e a preparação rodou \textbf{3x de forma idempotente}, sem IPs duplicados. A interface secundária manteve \textbf{10/10 HTTP 200}, enquanto a \texttt{eth0} do Cilium seguiu aplicando política (10/10 permitidos, 5/5 negados) e servindo a VIP BGP. Nos controles negativos, um seletor CEL inválido foi rejeitado, claims acima da capacidade ficaram \texttt{Pending}, e o teardown liberou o dispositivo para o claim seguinte.
-  \end{itemize}
+  \textbf{Communities, prepend e MED (E12):} traduzir communities em política de borda direciona o tráfego sem mudar a configuração do roteador.
+\item
+  \textbf{Falha silenciosa com BFD (E10):} BFD encurta a retirada de rota quando os pacotes somem sem derrubar a sessão TCP.
 \end{itemize}
+
+\textbf{Balanceamento L7 no eBPF} (dossiê do XLB)
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{XLB, SocketLB e Envoy (E22):} decidir no kernel reduz latência em relação ao proxy L7 e ainda permite bloquear uma chamada antes da aplicação.
+\end{itemize}
+
+\begin{quadro}[!htbp]
+\caption{Resultados de prefixos, BFD e XLB}
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.855\hsize}X|>{\raggedright\arraybackslash\hsize=0.819\hsize}X|>{\raggedright\arraybackslash\hsize=1.326\hsize}X|}
+\hline
+\textbf{Estudo} & \textbf{Medida} & \textbf{Resultado} \\
+\hline
+Limite de prefixos e filtro de import & Cilium ao receber prefixos & Enviados 50, 200 e 300; sessão \texttt{established}, sem rota
+\texttt{proto bgp} no kernel (\texttt{R6=\allowbreak{}0}) \\
+\hline
+Limite de prefixos e filtro de import & Filtro de borda com limite 100 & 50 declarados aceitos; um não declarado bloqueado; 200 e 300 derrubaram
+a sessão (\texttt{Maximum-{}\allowbreak{}prefix exceeded}) \\
+\hline
+Communities, prepend e MED & Seleção de rack & Sem política, ECMP; com \texttt{route-{}\allowbreak{}map}, 10/10 no rack
+1; communities invertidas, 10/10 no rack 2 em 4 s \\
+\hline
+Falha silenciosa com BFD & Convergência BGP & Timers 3/9 s: 8901 ms; menor timer aceito, 1/3 s: 3045 ms \\
+\hline
+Falha silenciosa com BFD & Retirada por BFD & FRR--FRR com \texttt{100 ms × 3}: rota retirada em 359 ms, abaixo do
+requisito de 1000 ms (\texttt{RNF05}) \\
+\hline
+XLB, SocketLB e Envoy & Latência em 100 requisições HTTP & Envoy L7: 1,014 ms; SocketLB L4: 0,392 ms (-61,3\%); XLB: 0,413 ms
+(-59,3\% ante Envoy) \\
+\hline
+XLB, SocketLB e Envoy & Throughput em 100 requisições HTTP & Envoy L7: 985,9 req/s; SocketLB L4: 2550,9 req/s; XLB: 2418,9 req/s
+(+145,4\% ante Envoy) \\
+\hline
+XLB, SocketLB e Envoy & CPU e bloqueio & \texttt{NET\_\allowbreak{}RX}: -27,9\% ante Envoy e -6,8\% ante
+SocketLB; XLB bloqueou \texttt{GET /\allowbreak{}deny} em
+\texttt{sendmsg(\allowbreak{})} \\
+\hline
+\end{tabularx}
+\fonte{elaborado pelo autor (2026).}
+\end{quadro}
+
+\section{Onda 3 --- redundância, IPv6 e observabilidade}\label{onda-3-redunduxe2ncia-ipv6-e-observabilidade}
+
+A comparação de Graceful Restart segue Sangli et al.~(2007). As medições de failover e visibilidade estão no Quadro 17.
+
+\textbf{Dual-border, Graceful Restart e eBGP IPv6} (dossiê de redundância e IPv6)
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Failover de borda e reinício do agente (E13):} Graceful Restart mantém o datapath útil durante a reinicialização do agente; a rota ainda precisa desaparecer quando o restart não é protegido.
+\item
+  \textbf{Sessão eBGP IPv6 (E14):} uma sessão nativa IPv6 fornece next hop IPv6 para a VIP e evita o next hop IPv4 mapeado que não encaminha IPv6.
+\end{itemize}
+
+\textbf{Observabilidade BGP e Hubble} (dossiê de observabilidade)
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Estado BGP por leituras consecutivas (E17):} exigir leituras estáveis evita alarmes por flaps curtos, e falhas de coleta permanecem explicitamente desconhecidas.
+\item
+  \textbf{Fluxos e política no Hubble (E25):} observar L3/L4 e L7 relaciona tráfego, identidade e drops sem revelar conteúdo de TLS.
+\end{itemize}
+
+\begin{quadro}[!htbp]
+\caption{Resultados de failover e observabilidade}
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.791\hsize}X|>{\raggedright\arraybackslash\hsize=0.759\hsize}X|>{\raggedright\arraybackslash\hsize=1.451\hsize}X|}
+\hline
+\textbf{Estudo} & \textbf{Medida} & \textbf{Resultado} \\
+\hline
+Failover de borda e reinício do agente & Falha de uma borda & 71/71 HTTP 200,
+\texttt{max\_\allowbreak{}gap\_\allowbreak{}ms=\allowbreak{}115 ms};
+ECMP retornou após religar a borda \\
+\hline
+Failover de borda e reinício do agente & Reinício com e sem Graceful Restart & Com GR, 139/139 HTTP 200 sem perdas; sem GR, 78 falhas e
+\texttt{max\_\allowbreak{}gap\_\allowbreak{}ms=\allowbreak{}8879 ms} \\
+\hline
+Sessão eBGP IPv6 & VIP IPv6 \texttt{fd14:\allowbreak{}:\allowbreak{}a/\allowbreak{}128} & Next hop IPv6 nativo; 30/30 requisições HTTP IPv6; withdraw bloqueou o
+acesso em 2 s (5/5); restauração respondeu 5/5 HTTP 200 \\
+\hline
+Estado BGP por leituras consecutivas & Amostragem e flap curto & Leituras a cada 3 s; estado mudou após 3 leituras consecutivas; flap de
+duas leituras sem alarme; falha de coleta gerou \texttt{UNKNOWN} \\
+\hline
+Estado BGP por leituras consecutivas & Falha sustentada e recuperação & \texttt{DOWN} em 7596 ms; voltou em 11166 ms \\
+\hline
+Estado BGP por leituras consecutivas & Origem dos atributos & \texttt{AS\_\allowbreak{}PATH} completo e communities só ficaram
+visíveis na RIB do roteador de borda \\
+\hline
+Fluxos e política no Hubble & L3/L4, L7 e TLS & 10 drops por política; IP externo preservado com
+\texttt{external\allowbreak{}Traffic\allowbreak{}Policy:\allowbreak{} Local};
+proxy L7 registrou 200, 403 e DNS; TLS na porta 8443 teve 0 vazamentos
+de URL \\
+\hline
+Fluxos e política no Hubble & Métricas e buffer & Métricas Prometheus coerentes; buffer local continuou registrando fluxos
+com o Relay fora do ar \\
+\hline
+\end{tabularx}
+\fonte{elaborado pelo autor (2026).}
+\end{quadro}
+
+\section{Onda 4 --- VRF, retorno, enlace L2 e DRA}\label{onda-4-vrf-retorno-enlace-l2-e-dra}
+
+\texttt{Qin\allowbreak{}Q} (Institute of Electrical and Electronics Engineers, 2006) e \texttt{MACsec} (Institute of Electrical and Electronics Engineers, 2018) são contrastados com WireGuard; a API DRA estável é documentada por Kubernetes Authors (2026). Os resultados estão no Quadro 18.
+
+\textbf{VRF por tenant, retorno e enlace L2} (dossiê de VRF, retorno e enlace)
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{VRF por tenant via communities (E15):} communities podem encaminhar VIPs a VRFs no roteador de borda, embora o Cilium anuncie por uma única sessão.
+\item
+  \textbf{Três rotas de retorno (E16):} o pacote só volta ao pod quando a rota aparece na FIB do nó ou sai por um gateway que conhece o retorno.
+\item
+  \textbf{MTU, QinQ e MACsec (E18):} os três mecanismos resolvem problemas distintos de tamanho de pacote, segmentação L2 e proteção do enlace.
+\end{itemize}
+
+\textbf{Dynamic Resource Allocation} (dossiê de DRA para dispositivos de rede)
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Interfaces secundárias por DRA (E24):} DRA anexa dispositivos adicionais ao workload sem substituir a política e o BGP da interface primária.
+\end{itemize}
+
+\begin{quadro}[!htbp]
+\caption{Resultados de VRF, enlace e DRA}
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.722\hsize}X|>{\raggedright\arraybackslash\hsize=0.722\hsize}X|>{\raggedright\arraybackslash\hsize=1.555\hsize}X|}
+\hline
+\textbf{Estudo} & \textbf{Medida} & \textbf{Resultado} \\
+\hline
+VRF por tenant via communities & Três VIPs e tráfego por tenant & 30/30 HTTP 200 dentro de cada tenant; tentativas entre tenants e
+community não autorizada em 0/5; \texttt{R6=\allowbreak{}0} \\
+\hline
+Três rotas de retorno & Rota estática no nó & Sem rota, 0/3 apesar da rota visível no BGP; com rota, 30/30 HTTP 200 e
+\texttt{R6=\allowbreak{}0} \\
+\hline
+Três rotas de retorno & FRR auxiliar e Egress Gateway & FRR com \texttt{prefix-{}\allowbreak{}list}: 30/30; ao encerrar FRR,
+\texttt{R6=\allowbreak{}0}; pod selecionado pelo Egress Gateway: 30/30;
+outro bloqueado, 0/5 \\
+\hline
+MTU, QinQ e MACsec & MTU 9000 e enlace MTU 1500 & Com DF, 30/30 pings de 9000 B passaram em MTU 9000; em MTU 1500, 0/5 e
+ICMP \texttt{need to frag} \\
+\hline
+MTU, QinQ e MACsec & QinQ & Sessão eBGP estabelecida e 10/10 pings com dupla etiqueta; etiqueta
+interna errada, 0/5 \\
+\hline
+MTU, QinQ e MACsec & MACsec & Sessão eBGP estabelecida e 10/10 pings; 100\% dos quadros cifrados, 0
+pacotes TCP/179 ou ICMP em claro; chave divergente, 0/5 \\
+\hline
+Interfaces secundárias por DRA & API e preparação & Chart Cilium 1.20.2 sem driver DRA; Kubernetes v1.35.0 com
+\texttt{resource.\allowbreak{}k8s.\allowbreak{}io/\allowbreak{}v1}; 2
+interfaces alocadas; preparação idempotente em 3 execuções, sem IP
+duplicado \\
+\hline
+Interfaces secundárias por DRA & Tráfego nas interfaces & \texttt{net1}: 10/10 HTTP 200; \texttt{eth0}: 10/10 permitidos, 5/5
+negados e VIP BGP ativa \\
+\hline
+Interfaces secundárias por DRA & Controles e teardown & Seletor CEL inválido rejeitado; claims excedentes \texttt{Pending};
+teardown liberou o dispositivo \\
+\hline
+\end{tabularx}
+\fonte{elaborado pelo autor (2026).}
+\end{quadro}
 
 \section{Exercícios de interpretação}\label{exercuxedcios-de-interpretauxe7uxe3o-1}
 
@@ -1703,167 +1784,206 @@ Onda concluída com \textbf{PASS}; estudos \texttt{E15}, \texttt{E16}, \texttt{E
 \def\labelenumi{\arabic{enumi}.}
 \tightlist
 \item
-  Por que no estudo \texttt{E11} o Cilium OSS mantém a sessão BGP \texttt{established} ao receber 300 prefixos e continua com 0 rotas \texttt{proto bgp} no kernel (\texttt{R6=\allowbreak{}0}), e por que o \texttt{maximum-{}\allowbreak{}prefix} e o \texttt{prefix-{}\allowbreak{}list} de import precisam residir no roteador de borda FRR/SR Linux?
+  Como o Cilium e o roteador de borda dividem o controle de importação e do limite de prefixos?
 \item
-  Como o estudo \texttt{E13} comprova que \texttt{graceful\allowbreak{}Restart.\allowbreak{}enabled:\allowbreak{} true} no Cilium evita perda de pacotes durante o restart do \texttt{cilium-{}\allowbreak{}agent} (139/139 HTTP 200, 0 falhas vs 78 falhas sem GR), e qual papel os mapas eBPF no kernel Linux desempenham enquanto o agente reinicia?
+  Que comportamento muda quando Graceful Restart preserva o datapath durante a reinicialização do agente?
 \item
-  No estudo \texttt{E16}, por que a presença de uma rota na \texttt{Adj-{}\allowbreak{}RIB-{}\allowbreak{}In} do GoBGP do Cilium (\texttt{Received \textgreater{} 0}) não permite que o pod responda ao cliente sem uma rota de retorno na FIB do kernel Linux, e quando escolher entre Rota Estática (Modo 1), FRR no Nó (Modo 2) ou \texttt{Cilium\allowbreak{}Egress\allowbreak{}Gateway\allowbreak{}Policy} (Modo 3)?
+  Quando uma rota BGP precisa também aparecer na FIB para o pod responder?
 \item
-  Qual é a diferença de camada e escopo entre \textbf{MACsec (\texttt{802.\allowbreak{}1AE}, \texttt{0x88e5})} e \textbf{Cilium WireGuard (\texttt{51871/\allowbreak{}UDP})} demonstrada em \texttt{E18}, e por que o MACsec cifra inclusive a sessão TCP/179 do eBGP entre nó e ToR/PE?
+  Como MACsec e WireGuard diferem em camada, escopo e proteção do tráfego?
 \item
-  Como o estudo \texttt{E24} (\texttt{resource.\allowbreak{}k8s.\allowbreak{}io/\allowbreak{}v1} DRA) preserva a governança do Cilium na interface primária \texttt{eth0} (\texttt{Cilium\allowbreak{}Network\allowbreak{}Policy} + BGP VIP) enquanto anexa interfaces secundárias dedicadas (\texttt{net1}/\texttt{net2}) publicadas em \texttt{status.\allowbreak{}devices[].\allowbreak{}network\allowbreak{}Data}?
+  Que garantias o DRA oferece às interfaces secundárias sem substituir a política da \texttt{eth0}?
 \end{enumerate}
 
-\chapter{Trilha P006: datapath avançado, multicluster, SRv6 e saneamento}\label{trilha-p006-datapath-avanuxe7ado-multicluster-srv6-e-saneamento}
+\chapter{Datapath, multicluster, SRv6 e mobilidade}\label{datapath-multicluster-srv6-e-mobilidade}
 
-A trilha P006 encerra a Fase 2 do projeto em quatro ondas e três braços. O
-Braço A aprofunda o datapath eBPF e a borda BGP (\texttt{E26}--\texttt{E29}); o Braço B cobre
-multicluster, SRv6, segurança em tempo de execução e live migration
-(\texttt{E30}--\texttt{E33}); e o Braço C saneia os scripts e a documentação apontados na
-revisão técnica de 26/09/2026 (Blocos C1--C4). Ao final, na versão \texttt{v2.\allowbreak{}5.\allowbreak{}0}, o
-projeto somava 33 estudos concluídos. A Figura 20 sintetiza o entregável do módulo.
+Este módulo compara balanceamento eBPF, redes multicluster, VRFs com SRv6 e mobilidade de VMs. A Figura 20 aproxima datapath, comunicação multicluster e mobilidade.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 15: Trilha P006 (E26--E33 +
-Saneamento C1--C4 --- Maglev, BIG TCP, EDT/BBR, Unnumbered, Cluster
-Mesh, SRv6, Tetragon e Live Migration)}
+\caption{Datapath, multicluster e mobilidade}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m15-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
 
-\section{Onda 1 (P006-S001): LoadBalancer TCX/XDP com Maglev e Cluster Mesh}\label{onda-1-p006-s001-loadbalancer-tcxxdp-com-maglev-e-cluster-mesh}
+\section{Onda 1 --- LoadBalancer TCX/XDP, Maglev e Cluster Mesh}\label{onda-1-loadbalancer-tcxxdp-maglev-e-cluster-mesh}
 
-Onda concluída com \textbf{PASS}; estudos \texttt{E26} e \texttt{E30} e saneamento do \texttt{Bloco C1}. O \texttt{E26} usa o hashing consistente Maglev (Eisenbud et al., 2016).
+Maglev usa hashing consistente (Eisenbud et al., 2016). As medições dos dois estudos estão no Quadro 19.
 
-\textbf{Braço A --- LoadBalancer TCX/XDP, anúncio BGP seletivo e Maglev (\texttt{26-{}\allowbreak{}lb-{}\allowbreak{}xdp-{}\allowbreak{}dsr-{}\allowbreak{}maglev-{}\allowbreak{}clustermesh.\allowbreak{}md}):}
-
-\begin{itemize}
-\tightlist
-\item
-  \textbf{E26 --- anúncio seletivo e Maglev:} o estudo comparou três VIPs BGP, duas com \texttt{external\allowbreak{}Traffic\allowbreak{}Policy:\allowbreak{} Cluster} e uma com \texttt{external\allowbreak{}Traffic\allowbreak{}Policy:\allowbreak{} Local}. As VIPs \texttt{Cluster} foram anunciadas em ECMP pelos dois workers. A VIP \texttt{Local} foi anunciada só pelo worker que hospeda o backend, o que eliminou o salto intermediário e preservou 100\% (10/10) do IP real do cliente externo; nas VIPs \texttt{Cluster}, o nó aplicou SNAT. No anel Maglev (\texttt{M=\allowbreak{}16381}), a remoção de um backend realocou apenas os slots dele: houve 0 rehash colateral nos backends restantes, e o serviço respondeu 20/20 HTTP 200.
-\end{itemize}
-
-\textbf{Braço B --- Cluster Mesh e MCS-API com failover global sobre BGP (\texttt{26-{}\allowbreak{}lb-{}\allowbreak{}xdp-{}\allowbreak{}dsr-{}\allowbreak{}maglev-{}\allowbreak{}clustermesh.\allowbreak{}md}):}
+\textbf{LoadBalancer e Maglev} (dossiê de LB e Cluster Mesh)
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{E30 --- serviço global entre dois clusters:} o estudo uniu os clusters \texttt{k01} e \texttt{p003-{}\allowbreak{}gw}, cada um com identidade de cluster própria, e publicou um \texttt{Service} global. O Cilium mesclou os backends locais e remotos nos mapas eBPF de balanceamento. Com os dois clusters ativos, o serviço respondeu 20/20 no tráfego leste-oeste e 20/20 no norte-sul via BGP. Ao escalar o deployment local para 0, o failover global ocorreu sem perda: os mesmos 20/20 passaram a ser servidos pelo cluster remoto.
+  \textbf{Anúncio seletivo e Maglev (E26):} \texttt{external\allowbreak{}Traffic\allowbreak{}Policy:\allowbreak{} Local} anuncia a VIP no nó com backend local e preserva o IP do cliente; \texttt{Cluster} distribui os anúncios em ECMP.
 \item
-  \textbf{E30 --- controles negativos:} uma \texttt{Cilium\allowbreak{}Network\allowbreak{}Policy} com \texttt{egress\allowbreak{}Deny} para o cluster remoto bloqueou 5/5 conexões (\texttt{3A}). Retirar a exportação dos backends remotos, com o local em 0, esvaziou o mapa BPF e recusou 5/5 conexões (\texttt{3B}).
+  \textbf{Serviço global entre clusters (E30):} Cluster Mesh combina backends locais e remotos; BGP mantém o serviço alcançável quando o deployment local some.
 \end{itemize}
 
-\textbf{Braço C --- saneamento crítico do Bloco C1 (\texttt{revisao-{}\allowbreak{}projeto-{}\allowbreak{}2026-{}\allowbreak{}09-{}\allowbreak{}26.\allowbreak{}md}):}
+\begin{quadro}[!htbp]
+\caption{Resultados de LoadBalancer e Cluster Mesh}
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.757\hsize}X|>{\raggedright\arraybackslash\hsize=0.703\hsize}X|>{\raggedright\arraybackslash\hsize=1.540\hsize}X|}
+\hline
+\textbf{Estudo} & \textbf{Medida} & \textbf{Resultado} \\
+\hline
+Anúncio seletivo e Maglev & Anúncio das três VIPs & Duas VIPs \texttt{Cluster} anunciadas pelos dois workers em ECMP; a VIP
+\texttt{Local}, só pelo worker com backend \\
+\hline
+Anúncio seletivo e Maglev & Caminho e IP do cliente & Na VIP \texttt{Local}, IP real preservado em 10/10; sem salto
+intermediário \\
+\hline
+Anúncio seletivo e Maglev & Remoção de backend & Anel \texttt{M=\allowbreak{}16381}: só os slots do backend removido
+foram realocados; 0 rehash colateral nos demais; serviço respondeu 20/20
+HTTP 200 \\
+\hline
+Serviço global entre clusters & Tráfego com dois clusters & 20/20 leste-oeste e 20/20 norte-sul via BGP \\
+\hline
+Serviço global entre clusters & Failover & Deployment local em 0: cluster remoto serviu 20/20 \\
+\hline
+Serviço global entre clusters & Controles negativos & \texttt{egress\allowbreak{}Deny} bloqueou 5/5; sem exportação remota e
+local em 0, mapa BPF esvaziou e 5/5 foram recusadas \\
+\hline
+\end{tabularx}
+\fonte{elaborado pelo autor (2026).}
+\end{quadro}
+
+\section{Onda 2 --- BIG TCP, netkit e SRv6 L3VPN}\label{onda-2-big-tcp-netkit-e-srv6-l3vpn}
+
+A descoberta de PMTU segue a RFC 4821 (Mathis; Heffner, 2007); \texttt{End.\allowbreak{}DT4} segue o SRv6 Network Programming (Filsfils et al., 2021). Os resultados estão no Quadro 20.
+
+\textbf{BIG TCP e netkit} (dossiê de BIG TCP e netkit)
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Bloco C1:} os 8 itens críticos (\texttt{A4–A8}, \texttt{A10–A12}) foram resolvidos. A lista inclui erros de sintaxe Bash, a unificação de um documento duplicado, a remoção de chaves privadas estáticas e a leitura de senha a partir de arquivo de configuração.
+  \textbf{Três regimes de datapath (E27):} BIG TCP aumenta os pacotes agregados; a descoberta de PMTU recupera conexões quando um enlace menor filtra ICMP.
+\item
+  \textbf{Isolamento SRv6 com \texttt{End.\allowbreak{}DT4} (E31):} VRFs mantêm sub-redes iguais separadas sem interfaces VXLAN, desde que a rota local use a tabela correta.
 \end{itemize}
 
-\section{Onda 2 (P006-S002): BIG TCP com netkit e SRv6 L3VPN}\label{onda-2-p006-s002-big-tcp-com-netkit-e-srv6-l3vpn}
+\begin{quadro}[!htbp]
+\caption{Resultados de BIG TCP e SRv6}
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.683\hsize}X|>{\raggedright\arraybackslash\hsize=0.924\hsize}X|>{\raggedright\arraybackslash\hsize=1.393\hsize}X|}
+\hline
+\textbf{Estudo} & \textbf{Medida} & \textbf{Resultado} \\
+\hline
+Três regimes de datapath & Throughput IPv4 --- fluxo TCP único de 512 MiB & \texttt{veth} MTU 1500/GSO 64k: 39,20 Gbps; \texttt{veth} MTU 9000/BIG
+TCP 192k: 46,31 Gbps (+18,1\%); \texttt{netkit} L3: 46,08 Gbps (+17,6\%) \\
+\hline
+Três regimes de datapath & Throughput IPv6 --- fluxo TCP único de 512 MiB & \texttt{veth} MTU 1500: 41,61 Gbps; \texttt{veth} MTU 9000: 46,60 Gbps
+(+12,0\%); \texttt{netkit}: 45,73 Gbps (+9,9\%) \\
+\hline
+Três regimes de datapath & Pacotes e interrupções & Pacotes no fio: -59,6\% a -60,8\%; \texttt{NET\_\allowbreak{}RX}:
+-51,0\% a -51,6\% \\
+\hline
+Três regimes de datapath & Super-pacotes & Máximo de 187.974 B em IPv4 e 187.582 B em IPv6 \\
+\hline
+Três regimes de datapath & Controle de PMTU & MTU
+\texttt{9000 -{}\allowbreak{}\textgreater{} 1500 -{}\allowbreak{}\textgreater{} 9000}:
+5/5 com ICMP Frag-Needed; ICMP filtrado e
+\texttt{tcp\_\allowbreak{}mtu\_\allowbreak{}probing=\allowbreak{}0}:
+0/5; com \texttt{=\allowbreak{}2}, transferência recuperada \\
+\hline
+Isolamento SRv6 com \texttt{End.\allowbreak{}DT4} & CIDR e tráfego entre VRFs & Dois tenants no mesmo
+\texttt{10.\allowbreak{}253.\allowbreak{}31.\allowbreak{}0/\allowbreak{}24}:
+30/30 HTTP 200 dentro de cada VRF, 0 interfaces VXLAN e 0/5 entre VRFs \\
+\hline
+Isolamento SRv6 com \texttt{End.\allowbreak{}DT4} & Revogação e kernel & Revogar SID B: 0/5 respostas para B e 5/5 para A;
+\texttt{net.\allowbreak{}vrf.\allowbreak{}strict\_\allowbreak{}mode=\allowbreak{}1};
+\texttt{seg6local dev eth0}; clientes na mesma \texttt{/\allowbreak{}24}
+precisam de rota \texttt{/\allowbreak{}32} \\
+\hline
+\end{tabularx}
+\fonte{elaborado pelo autor (2026).}
+\end{quadro}
 
-Onda concluída com \textbf{PASS}; estudos \texttt{E27} e \texttt{E31} e saneamento do \texttt{Bloco C2}. O \texttt{E27} recorre à descoberta de PMTU da RFC 4821 (Mathis; Heffner, 2007), e o \texttt{E31} usa o comportamento \texttt{End.\allowbreak{}DT4} do SRv6 (Filsfils et al., 2021).
+\section{Onda 3 --- Bandwidth Manager, BBR e Tetragon}\label{onda-3-bandwidth-manager-bbr-e-tetragon}
 
-\textbf{Braço A --- BIG TCP, \texttt{netkit} e MTU 9000 (\texttt{27-{}\allowbreak{}big-{}\allowbreak{}tcp-{}\allowbreak{}netkit-{}\allowbreak{}srv6-{}\allowbreak{}l3vpn.\allowbreak{}md}):}
+BBR e CUBIC são comparados por Cardwell et al.~(2016) e Xu et al.~(2023); Tetragon é documentado por Tetragon Authors (c2024). Os resultados estão no Quadro 21.
+
+\textbf{Bandwidth Manager e Tetragon} (dossiê de EDT, BBR e Tetragon)
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{E27 --- três regimes de datapath:} no Cilium \texttt{1.\allowbreak{}20.\allowbreak{}2} com kernel 6.8, o estudo comparou \texttt{veth} com MTU 1500 e GSO de 64k, \texttt{veth} com MTU 9000 e BIG TCP de 192k, e \texttt{netkit mode l3} com MTU 9000 e BIG TCP de 192k. Numa transferência TCP de fluxo único de 512 MiB, o throughput IPv4 subiu de 39,20 Gbps para 46,31 Gbps (+18,1\%) com \texttt{veth} e para 46,08 Gbps (+17,6\%) com \texttt{netkit}. Em IPv6, subiu de 41,61 Gbps para 46,60 Gbps (+12,0\%) e 45,73 Gbps (+9,9\%).
+  \textbf{Limite de banda por pod (E28):} o Bandwidth Manager aplica pacing no datapath; remover a anotação devolve vazão sem reiniciar o pod.
 \item
-  \textbf{E27 --- menos pacotes e menos interrupções:} os pacotes no fio caíram de -59,6\% a -60,8\%, e as interrupções \texttt{NET\_\allowbreak{}RX} caíram de -51,0\% a -51,6\%. O kernel gerou super-pacotes de até 187.974 B em IPv4 e 187.582 B em IPv6.
-\item
-  \textbf{E27 --- PMTU blackhole:} com MTU assimétrica (\texttt{9000 -{}\allowbreak{}\textgreater{} 1500 -{}\allowbreak{}\textgreater{} 9000}), a conexão convergiu enquanto o ICMP Frag-Needed chegava (5/5, \texttt{3A}). Com esse ICMP filtrado e \texttt{tcp\_\allowbreak{}mtu\_\allowbreak{}probing=\allowbreak{}0}, a conexão travou: 0/5 e timeout na transferência TCP (\texttt{3B}). Com \texttt{tcp\_\allowbreak{}mtu\_\allowbreak{}probing=\allowbreak{}2}, a descoberta de PMTU da RFC 4821 recuperou a transferência sem depender de ICMP (\texttt{3C}).
+  \textbf{Observação e bloqueio em runtime (E32):} a política namespaced relaciona processo, arquivo e conexão ao pod e pode encerrar a ação antes de ocorrer vazamento.
 \end{itemize}
 
-\textbf{Braço B --- SRv6 L3VPN sem VXLAN para sub-redes sobrepostas (\texttt{27-{}\allowbreak{}big-{}\allowbreak{}tcp-{}\allowbreak{}netkit-{}\allowbreak{}srv6-{}\allowbreak{}l3vpn.\allowbreak{}md}):}
+\begin{quadro}[!htbp]
+\caption{Resultados de pacing e runtime security}
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.773\hsize}X|>{\raggedright\arraybackslash\hsize=0.736\hsize}X|>{\raggedright\arraybackslash\hsize=1.491\hsize}X|}
+\hline
+\textbf{Estudo} & \textbf{Medida} & \textbf{Resultado} \\
+\hline
+Limite de banda por pod & Anotação \texttt{50M} e \texttt{100M} & Cilium 1.20.2 com \texttt{qdisc fq}: 49,70 e 49,62 Mbps
+(99,2\%--99,4\%); 97,34 e 97,70 Mbps (97,3\%--97,7\%) \\
+\hline
+Limite de banda por pod & Sem limite e remoção dinâmica & Sem limite: 8,49 e 8,94 Gbps; remover anotação restaurou 8,40 e 9,00
+Gbps sem reinício; anotação inválida não derrubou
+\texttt{cilium-{}\allowbreak{}agent} \\
+\hline
+Limite de banda por pod & BBR versus CUBIC & Enlace WAN \texttt{delay 10ms loss 0.\allowbreak{}5\% rate 500mbit}:
+163,20 contra 118,71 Mbps (+37,5\%) e 237,36 contra 165,01 Mbps
+(+43,8\%) para BBR \\
+\hline
+Observação e bloqueio em runtime & Tentativas bloqueadas & \texttt{Tracing\allowbreak{}Policy\allowbreak{}Namespaced} encerrou
+leitura de \texttt{/\allowbreak{}etc/\allowbreak{}shadow} e conexão à
+porta 4444 com \texttt{SIGKILL} (\texttt{rc=\allowbreak{}137}); 0 bytes
+vazados \\
+\hline
+Observação e bloqueio em runtime & Tráfego legítimo & HTTP legítimo completou 10/10 (100\%) \texttt{HTTP 200 OK} \\
+\hline
+\end{tabularx}
+\fonte{elaborado pelo autor (2026).}
+\end{quadro}
+
+\section{Onda 4 --- BGP unnumbered, L2 Announcements e live migration}\label{onda-4-bgp-unnumbered-l2-announcements-e-live-migration}
+
+O next hop IPv6 para NLRI IPv4 segue as RFCs 5549 e 8950 (Le Faucheur; Rosen, 2009; Litkowski et al., 2020). Os resultados estão no Quadro 22.
+
+\textbf{BGP unnumbered e live migration} (dossiê de unnumbered e live migration)
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{E31 --- isolamento com \texttt{End.\allowbreak{}DT4}:} dois tenants usaram a mesma sub-rede \texttt{10.\allowbreak{}253.\allowbreak{}31.\allowbreak{}0/\allowbreak{}24} e os mesmos IPs, cada um na sua VRF. Ambos obtiveram 30/30 HTTP 200 dentro do próprio tenant, sem vazamento e com 0 interfaces VXLAN. A captura mostrou o cabeçalho SRH do SRv6 com um SID por tenant. O teste entre VRFs deu 0/5, e revogar o SID do Tenant B deu 0/5 para ele, enquanto o Tenant A manteve 5/5.
+  \textbf{eBGP unnumbered e L2 Announcements (E29):} vizinhança IPv6 link-local pode carregar rotas IPv4; eleição por \texttt{Lease} controla qual nó anuncia no segmento L2.
 \item
-  \textbf{E31 --- três exigências do kernel 6.8:} \texttt{net.\allowbreak{}vrf.\allowbreak{}strict\_\allowbreak{}mode=\allowbreak{}1} é obrigatório para criar \texttt{End.\allowbreak{}DT4}. A rota \texttt{seg6local} precisa indicar \texttt{dev eth0} para que o SID vá para a tabela \texttt{main}. Clientes na mesma \texttt{/\allowbreak{}24} lógica precisam de rota \texttt{/\allowbreak{}32} via gateway.
+  \textbf{Live migration sob tráfego contínuo (E33):} EVPN Type 2 atualiza o caminho L2 da VM; o anúncio BGP \texttt{/\allowbreak{}32} exige convergência de rota durante o corte.
 \end{itemize}
 
-\textbf{Braço C --- saneamento de defaults e configurações do Bloco C2 (\texttt{revisao-{}\allowbreak{}projeto-{}\allowbreak{}2026-{}\allowbreak{}09-{}\allowbreak{}26.\allowbreak{}md}):}
-
-\begin{itemize}
-\tightlist
-\item
-  \textbf{Bloco C2:} os 10 itens (\texttt{A1–A3}, \texttt{A9}, \texttt{M1–M6}) foram concluídos. Os defaults dos scripts foram alinhados, a semântica de \texttt{ingress\allowbreak{}Deny}/\texttt{egress\allowbreak{}Deny} foi documentada, chaves inexistentes saíram dos values do Cilium 1.20 e alguns scripts ganharam detecção automática de interface, \texttt{-{}\allowbreak{}-{}\allowbreak{}dry-{}\allowbreak{}run} e versões fixadas.
-\end{itemize}
-
-\section{Onda 3 (P006-S003): Bandwidth Manager com BBR e Tetragon}\label{onda-3-p006-s003-bandwidth-manager-com-bbr-e-tetragon}
-
-Onda concluída com \textbf{PASS}; estudos \texttt{E28} e \texttt{E32} e saneamento do \texttt{Bloco C3}. O \texttt{E28} compara o BBR (Cardwell et al., 2016) com o CUBIC (Xu et al., 2023), e o \texttt{E32} usa o Tetragon (Tetragon Authors, c2024).
-
-\textbf{Braço A --- Bandwidth Manager, pacing por pod e BBR versus CUBIC (\texttt{28-{}\allowbreak{}bandwidth-{}\allowbreak{}edt-{}\allowbreak{}bbr-{}\allowbreak{}tetragon.\allowbreak{}md}):}
-
-\begin{itemize}
-\tightlist
-\item
-  \textbf{E28 --- limite de banda por pod:} no Cilium \texttt{1.\allowbreak{}20.\allowbreak{}2}, o estudo ativou o Bandwidth Manager com \texttt{qdisc fq}. Para isso, foi preciso remontar \texttt{/\allowbreak{}proc/\allowbreak{}sys} como \texttt{rw}, porque os contêineres do \texttt{kind} o montam como \texttt{ro}. A anotação \texttt{kubernetes.\allowbreak{}io/\allowbreak{}egress-{}\allowbreak{}bandwidth} limitou o pod a \texttt{49,\allowbreak{}70 Mbps} e \texttt{49,\allowbreak{}62 Mbps} com teto de \texttt{50M} (\texttt{99,\allowbreak{}2\%–99,\allowbreak{}4\%} de precisão) e a \texttt{97,\allowbreak{}34 Mbps} e \texttt{97,\allowbreak{}70 Mbps} com teto de \texttt{100M} (\texttt{97,\allowbreak{}3\%–97,\allowbreak{}7\%}). Sem limite, o pod alcançou 8,49 Gbps e 8,94 Gbps.
-\item
-  \textbf{E28 --- remoção dinâmica:} retirar a anotação de \texttt{50M} restaurou 8,40 Gbps e 9,00 Gbps sem reiniciar o pod. Uma anotação inválida não derrubou o \texttt{cilium-{}\allowbreak{}agent}.
-\item
-  \textbf{E28 --- BBR versus CUBIC:} num enlace WAN degradado (\texttt{delay 10ms loss 0.\allowbreak{}5\% rate 500mbit}), o BBR superou o CUBIC em +37,5\% (\texttt{163,\allowbreak{}20 Mbps} contra \texttt{118,\allowbreak{}71 Mbps}) e em +43,8\% (\texttt{237,\allowbreak{}36 Mbps} contra \texttt{165,\allowbreak{}01 Mbps}).
-\end{itemize}
-
-\textbf{Braço B --- Tetragon: observação e bloqueio em tempo de execução (\texttt{28-{}\allowbreak{}bandwidth-{}\allowbreak{}edt-{}\allowbreak{}bbr-{}\allowbreak{}tetragon.\allowbreak{}md}):}
-
-\begin{itemize}
-\tightlist
-\item
-  \textbf{E32 --- política \texttt{Tracing\allowbreak{}Policy\allowbreak{}Namespaced}:} a política, aplicada a um namespace, correlacionou execuções de processo, leituras de arquivos críticos e conexões de saída com o pod e com a identidade Cilium. As tentativas de ler \texttt{/\allowbreak{}etc/\allowbreak{}shadow} e de abrir conexão para a porta 4444 foram encerradas na hora com \texttt{SIGKILL} (\texttt{rc=\allowbreak{}137}), com 0 bytes vazados. O tráfego HTTP legítimo completou 10/10 (100\%) \texttt{HTTP 200 OK}.
-\end{itemize}
-
-\textbf{Braço C --- saneamento dos scripts P003 e das fixtures Go/Docker do Bloco C3 (\texttt{revisao-{}\allowbreak{}projeto-{}\allowbreak{}2026-{}\allowbreak{}09-{}\allowbreak{}26.\allowbreak{}md}):}
-
-\begin{itemize}
-\tightlist
-\item
-  \textbf{Bloco C3:} os 9 itens (\texttt{M7–M15}) foram concluídos. Entre eles estão guardas de segurança em scripts do testbed, um contêiner DevStack válido, a fixture de autorização com \texttt{go test .\allowbreak{}/\allowbreak{}.\allowbreak{}.\allowbreak{}.\allowbreak{}} PASS, o código-fonte da fixture TLS, a limpeza de referências privadas e a documentação do \texttt{k8s\allowbreak{}Service\allowbreak{}Host} dinâmico.
-\end{itemize}
-
-\section{Onda 4 (P006-S004): BGP unnumbered, L2 Announcements e live migration}\label{onda-4-p006-s004-bgp-unnumbered-l2-announcements-e-live-migration}
-
-Onda concluída com \textbf{PASS} na versão \texttt{v2.\allowbreak{}5.\allowbreak{}0}; estudos \texttt{E29} e \texttt{E33} e saneamento final do \texttt{Bloco C4}. O \texttt{E29} aplica o next hop IPv6 para NLRI IPv4 definido na RFC 5549 e na RFC 8950 (Le Faucheur; Rosen, 2009; Litkowski et al., 2020).
-
-\textbf{Braço A --- BGP unnumbered e L2 Announcements (\texttt{29-{}\allowbreak{}bgp-{}\allowbreak{}unnumbered-{}\allowbreak{}l2-{}\allowbreak{}live-{}\allowbreak{}migration.\allowbreak{}md}):}
-
-\begin{itemize}
-\tightlist
-\item
-  \textbf{E29 --- eBGP unnumbered:} a sessão eBGP entre o ToR e o nó usou apenas endereços IPv6 link-local, com 0 endereços IPv4 nas interfaces ponto a ponto. Mesmo assim, o kernel instalou as rotas IPv4 com próximo salto IPv6 (\texttt{via inet6 fe80:\allowbreak{}:\allowbreak{}.\allowbreak{}.\allowbreak{}.\allowbreak{}}) e respondeu 10/10 pings, com \texttt{RTT avg =\allowbreak{} 0,\allowbreak{}060 ms}.
-\item
-  \textbf{E29 --- L2 Announcements:} com \texttt{enable-{}\allowbreak{}l2-{}\allowbreak{}announcements=\allowbreak{}true} no Cilium \texttt{1.\allowbreak{}20.\allowbreak{}2}, um nó venceu a eleição de líder pelo objeto \texttt{Lease}. O Cilium programou o mapa \texttt{cilium\_\allowbreak{}l2\_\allowbreak{}responder\_\allowbreak{}v4} e o segmento L2 obteve 10/10 HTTP 200.
-\item
-  \textbf{E29 --- controles negativos:} desativar a família IPv4 retirou a rota da FIB. Remover a label do Service esvaziou na hora o \texttt{cilium\_\allowbreak{}l2\_\allowbreak{}responder\_\allowbreak{}v4}.
-\end{itemize}
-
-\textbf{Braço B --- live migration de VM KubeVirt sob tráfego contínuo (\texttt{29-{}\allowbreak{}bgp-{}\allowbreak{}unnumbered-{}\allowbreak{}l2-{}\allowbreak{}live-{}\allowbreak{}migration.\allowbreak{}md}):}
-
-\begin{itemize}
-\tightlist
-\item
-  \textbf{E33 --- método:} o estudo enviou à VM um fluxo contínuo de 50 pps (20 ms entre pacotes, 150 pacotes UDP numerados por ensaio) durante a migração entre dois workers.
-\item
-  \textbf{E33 --- Cilium B com \texttt{/\allowbreak{}32} por BGP:} a troca de rota perdeu 5/150 pacotes (3,3\%), com blackout de 100,45 ms.
-\item
-  \textbf{E33 --- OVN-Kubernetes com EVPN:} preservando MAC e IP e atualizando o FDB VXLAN, a migração perdeu 3/150 pacotes (2,0\%), com blackout de 60,25 ms, uma janela -40,0\% menor.
-\item
-  \textbf{E33 --- controle negativo:} manter a rota \texttt{/\allowbreak{}32} apontando para o nó de origem após a migração entregou 0/10 pacotes (100\% blackhole); a atualização BGP restaurou 10/10 na hora.
-\end{itemize}
-
-\textbf{Braço C --- higiene contínua e fechamento do Bloco C4 (\texttt{revisao-{}\allowbreak{}projeto-{}\allowbreak{}2026-{}\allowbreak{}09-{}\allowbreak{}26.\allowbreak{}md}):}
-
-\begin{itemize}
-\tightlist
-\item
-  \textbf{Bloco C4:} os itens restantes da revisão foram resolvidos (100\%). Os \texttt{Makefile} e \texttt{poc-{}\allowbreak{}k8s-{}\allowbreak{}fabric/\allowbreak{}Makefile} ganharam \texttt{make lint} (204/204 scripts \texttt{.\allowbreak{}sh} sem erro, 0 chaves privadas, \texttt{go vet} OK), \texttt{make test} (\texttt{go test} 4/4 PASS e 23/23 scripts \texttt{-{}\allowbreak{}-{}\allowbreak{}dry-{}\allowbreak{}run} PASS) e \texttt{make pdf}. Também foram criados os índices \texttt{studies/\allowbreak{}p003/\allowbreak{}cases/\allowbreak{}s011/\allowbreak{}README.\allowbreak{}md} e \texttt{studies/\allowbreak{}p003/\allowbreak{}cases/\allowbreak{}s012/\allowbreak{}README.\allowbreak{}md} e atualizado o \texttt{student-{}\allowbreak{}guide-{}\allowbreak{}template.\allowbreak{}md}.
-\end{itemize}
+\begin{quadro}[!htbp]
+\caption{Resultados de unnumbered, L2 e migração}
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.845\hsize}X|>{\raggedright\arraybackslash\hsize=0.714\hsize}X|>{\raggedright\arraybackslash\hsize=1.442\hsize}X|}
+\hline
+\textbf{Estudo} & \textbf{Medida} & \textbf{Resultado} \\
+\hline
+eBGP unnumbered e L2 Announcements & Next hop IPv6 e rota IPv4 & 0 IPv4 nas interfaces ponto a ponto; kernel instalou rota
+\texttt{via inet6 fe80:\allowbreak{}:\allowbreak{}.\allowbreak{}.\allowbreak{}.\allowbreak{}};
+10/10 pings; \texttt{RTT avg =\allowbreak{} 0,\allowbreak{}060 ms} \\
+\hline
+eBGP unnumbered e L2 Announcements & Anúncio L2 & Cilium 1.20.2; líder eleito por \texttt{Lease}; mapa
+\texttt{cilium\_\allowbreak{}l2\_\allowbreak{}responder\_\allowbreak{}v4};
+10/10 HTTP 200 \\
+\hline
+eBGP unnumbered e L2 Announcements & Controles negativos & Desativar família IPv4 retirou rota da FIB; remover label do Service
+esvaziou o mapa BPF \\
+\hline
+Live migration sob tráfego contínuo & Método e cutover Cilium B & 50 pps, 20 ms entre pacotes, 150 pacotes UDP; rota
+\texttt{/\allowbreak{}32} perdeu 5/150 (3,3\%), blackout 100,45 ms \\
+\hline
+Live migration sob tráfego contínuo & OVN-Kubernetes & EVPN Type 2 preservou MAC/IP e atualizou FDB VXLAN; 3/150 perdas
+(2,0\%), blackout de 60,25 ms (-40,0\%) \\
+\hline
+Live migration sob tráfego contínuo & Controle negativo & Rota antiga: 0/10 entregues; atualização BGP restaurou 10/10 \\
+\hline
+\end{tabularx}
+\fonte{elaborado pelo autor (2026).}
+\end{quadro}
 
 \section{Exercícios de interpretação}\label{exercuxedcios-de-interpretauxe7uxe3o-2}
 
@@ -1871,96 +1991,133 @@ Onda concluída com \textbf{PASS} na versão \texttt{v2.\allowbreak{}5.\allowbre
 \def\labelenumi{\arabic{enumi}.}
 \tightlist
 \item
-  No estudo \texttt{E26}, por que a VIP \texttt{10.\allowbreak{}202.\allowbreak{}255.\allowbreak{}28/\allowbreak{}32} (\texttt{external\allowbreak{}Traffic\allowbreak{}Policy:\allowbreak{} Local}) é anunciada por BGP apenas por \texttt{p003-{}\allowbreak{}gw-{}\allowbreak{}worker2} (\texttt{AS 65302}) e preserva 100\% do IP de origem do cliente (\texttt{198.\allowbreak{}19.\allowbreak{}0.\allowbreak{}10}), e como o anel primo \textbf{Maglev (\texttt{M=\allowbreak{}16381})} evita rehash colateral (0 diffs nos backends sobreviventes) quando um backend sai do pool?
+  Como \texttt{external\allowbreak{}Traffic\allowbreak{}Policy} altera o anúncio da VIP e a preservação do IP do cliente quando um backend sai?
 \item
-  No estudo \texttt{E27} (\textbf{BIG TCP} + \texttt{netkit}) e no estudo \texttt{E31} (\textbf{SRv6 \texttt{End.\allowbreak{}DT4}}), por que bloquear \texttt{ICMP Type 3 Code 4} derruba conexões TCP grandes sob \texttt{tcp\_\allowbreak{}mtu\_\allowbreak{}probing=\allowbreak{}0} mas é contornado automaticamente por \texttt{tcp\_\allowbreak{}mtu\_\allowbreak{}probing=\allowbreak{}2} (\texttt{RFC 4821}), e por que o kernel Linux 6.8 exige \texttt{net.\allowbreak{}vrf.\allowbreak{}strict\_\allowbreak{}mode=\allowbreak{}1} e \texttt{dev eth0} explícito ao instalar rotas locais \texttt{seg6local action End.\allowbreak{}DT4}?
+  Que papel tem a descoberta de PMTU quando uma rota atravessa enlaces de MTU diferente?
 \item
-  No estudo \texttt{E28} (\textbf{Bandwidth Manager EDT}) e no estudo \texttt{E32} (\textbf{Tetragon}), como a remoção dinâmica da anotação \texttt{kubernetes.\allowbreak{}io/\allowbreak{}egress-{}\allowbreak{}bandwidth} restaura a vazão de \texttt{49,\allowbreak{}7 Mbps} para \texttt{\textasciitilde{}9 Gbps} sem reiniciar o pod, e qual a diferença entre bloquear conexões no datapath L3/L4 (\texttt{Cilium\allowbreak{}Network\allowbreak{}Policy}) versus terminar sincronicamente o processo infrator (\texttt{Sigkill} \texttt{rc=\allowbreak{}137}) no hook LSM/kprobe (\texttt{security\_\allowbreak{}file\_\allowbreak{}permission} / \texttt{tcp\_\allowbreak{}connect})?
+  Como o pool pré-aquecido e o pacing afetam falhas de alocação e vazão?
 \item
-  No estudo \texttt{E29} (\textbf{BGP Unnumbered \texttt{RFC 5549}/8950} + \textbf{L2 Announcements}), como o kernel Linux resolve o endereço MAC de próximo salto para um pacote IPv4 cuja rota aponta para \texttt{via inet6 fe80:\allowbreak{}:\allowbreak{}.\allowbreak{}.\allowbreak{}.\allowbreak{}} em uma interface sem endereço IPv4, e qual é o papel do objeto \texttt{Lease/\allowbreak{}cilium-{}\allowbreak{}l2announce-{}\allowbreak{}*} e do mapa BPF \texttt{cilium\_\allowbreak{}l2\_\allowbreak{}responder\_\allowbreak{}v4}?
+  O que distingue o caminho de BGP unnumbered do anúncio L2 por \texttt{Lease}?
 \item
-  No estudo \texttt{E33} (\textbf{KubeVirt Live Migration sob Tráfego Contínuo}), por que a migração com \textbf{OVN-Kubernetes EVPN Type-2 (\texttt{VNI 10033})} apresentou menor tempo de blackout (60,25 ms, 3 pacotes perdidos) e preservou conexões L2 em comparação ao cutover \textbf{Cilium B L3 \texttt{/\allowbreak{}32} BGP} (100,45 ms, 5 pacotes perdidos), e o que ocorre (0/10) se o anúncio \texttt{/\allowbreak{}32} não acompanhar a VM migrada?
+  Que diferenças observáveis aparecem na migração entre EVPN Type 2 e rota BGP \texttt{/\allowbreak{}32}?
 \end{enumerate}
 
-\chapter{Trilha P007: BGP sem perda, SPIFFE com WireGuard, Local Redirect e Multus}\label{trilha-p007-bgp-sem-perda-spiffe-com-wireguard-local-redirect-e-multus}
+\chapter{BGP sem perda, SPIFFE, WireGuard e Multus}\label{bgp-sem-perda-spiffe-wireguard-e-multus}
 
-A trilha P007 encerra a Fase 3 em duas ondas. O Braço A trata da operação BGP
-sem perda de pacotes e do roteamento local ao nó (\texttt{E34} e \texttt{E36}); o Braço B, de
-segurança zero-trust com SPIFFE e WireGuard e de workloads com duas interfaces
-via Multus (\texttt{E35} e \texttt{E37}). Com ela, na versão \texttt{v2.\allowbreak{}6.\allowbreak{}0}, o projeto chegou a 37
-estudos. A Figura 21 sintetiza o entregável do módulo.
+Duas ondas comparam a retirada gradual de rotas, identidade autenticada, redirecionamento local e interfaces secundárias. A Figura 21 situa o dreno BGP ao lado da identidade SPIFFE e das interfaces secundárias.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 16: Trilha P007 (E34--E37 --- BGP
-Graceful Shutdown Zero-Loss, SPIFFE mTLS + WireGuard, Local Redirect
-eBPF e Multus ipvlan L2/L3)}
+\caption{BGP, identidade e rede local}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m16-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
 
-\section{Onda 1 (P007-S001): BGP Graceful Shutdown e autenticação mútua SPIFFE}\label{onda-1-p007-s001-bgp-graceful-shutdown-e-autenticauxe7uxe3o-muxfatua-spiffe}
+\section{Onda 1 --- Graceful Shutdown e identidade SPIFFE}\label{onda-1-graceful-shutdown-e-identidade-spiffe}
 
-Onda concluída com \textbf{PASS}; estudos \texttt{E34} e \texttt{E35}. O \texttt{E34} aplica a RFC 8326 (Francois et al., 2018), e o \texttt{E35} combina identidades SPIFFE (SPIFFE, {[}2026{]}) com o WireGuard (Donenfeld, 2017).
+Graceful Shutdown segue a RFC 8326 (Francois et al., 2018). SPIFFE (SPIFFE, {[}2026{]}) e WireGuard (Donenfeld, 2017) atuam em camadas diferentes. As medições estão no Quadro 23.
 
-\begin{itemize}
-\tightlist
-\item
-  \textbf{Braço A --- BGP Graceful Shutdown e dreno de nó sem perda (\texttt{30-{}\allowbreak{}bgp-{}\allowbreak{}gshut-{}\allowbreak{}spiffe-{}\allowbreak{}mtls-{}\allowbreak{}wireguard.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E34 --- dreno sem perda com GSHUT:} dois nós anunciaram a mesma VIP anycast a um ToR, em ECMP. O ToR rebaixa para \texttt{LOCAL\_\allowbreak{}PREF=\allowbreak{}0} qualquer rota marcada com a community well-known \texttt{graceful-{}\allowbreak{}shutdown} (\texttt{65535:\allowbreak{}0}). Sob fluxo contínuo de 50 pps (150 pacotes numerados), o dreno abrupto, que encerra o backend antes de retirar a rota, perdeu 8/150 pacotes (5,33\%) com 662,15 ms de blackout. O dreno ordenado anuncia \texttt{65535:\allowbreak{}0} e mantém o pod vivo em \texttt{Pre\allowbreak{}Stop} por 0,80 s; o ToR desviou 100\% dos novos pacotes para o outro nó e a perda caiu para 0/150 (0,00 ms de blackout).
-  \item
-    \textbf{E34 --- GSHUT declarativo no Cilium:} no Cilium \texttt{1.\allowbreak{}20.\allowbreak{}2}, um \texttt{Cilium\allowbreak{}BGPAdvertisement} injetou a community \texttt{65535:\allowbreak{}0} e \texttt{local\allowbreak{}Preference:\allowbreak{} 0} na VIP sem configuração manual no roteador.
-  \item
-    \textbf{E34 --- controles:} uma rota em GSHUT ainda encaminhou 10/10 pacotes como último recurso quando não havia alternativa (\texttt{3A}). Ela caiu para 0/5 quando os dois nós retiraram a rota (\texttt{3B}) e voltou a 10/10 em ECMP ao remover \texttt{65535:\allowbreak{}0} (\texttt{3C}, \texttt{R6=\allowbreak{}0}).
-  \end{itemize}
-\item
-  \textbf{Braço B --- autenticação mútua SPIFFE com criptografia WireGuard (\texttt{30-{}\allowbreak{}bgp-{}\allowbreak{}gshut-{}\allowbreak{}spiffe-{}\allowbreak{}mtls-{}\allowbreak{}wireguard.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E35 --- WireGuard entre nós:} sem túnel, o \texttt{tcpdump} no underlay leu 20 pacotes HTTP em texto claro. Com \texttt{cilium\_\allowbreak{}wg0} (\texttt{UDP :\allowbreak{}51871}), o serviço respondeu 10/10 HTTP 200; a captura mostrou 102 pacotes UDP cifrados e 0 vazamentos em texto claro.
-  \item
-    \textbf{E35 --- mTLS com identidade SPIFFE:} uma CA SPIFFE emitiu certificados X.509 SVID para cliente e servidor. A \texttt{Cilium\allowbreak{}Network\allowbreak{}Policy} exigiu autenticação (\texttt{authentication.\allowbreak{}mode:\allowbreak{} "required"}). O servidor respondeu 10/10 HTTP 200 com autenticação mútua em \texttt{TLSv1.\allowbreak{}3}.
-  \item
-    \textbf{E35 --- controles:} o Cilium bloqueou 100\% das tentativas em três casos. Um SVID válido com SPIFFE ID não autorizado recebeu 5/5 HTTP 403 (\texttt{3A}). Um SVID assinado por CA externa falhou no handshake com \texttt{SSLV3\_\allowbreak{}ALERT\_\allowbreak{}BAD\_\allowbreak{}CERTIFICATE} (0/5, \texttt{3B}). Uma regra \texttt{ingress\allowbreak{}Deny} bloqueou 0/5 (\texttt{3C}), e o acesso voltou a 10/10 ao remover a regra (\texttt{R6=\allowbreak{}0}).
-  \end{itemize}
-\end{itemize}
-
-\section{Onda 2 (P007-S002): Local Redirect Policy e workloads dual-homed com Multus}\label{onda-2-p007-s002-local-redirect-policy-e-workloads-dual-homed-com-multus}
-
-Onda concluída com \textbf{PASS} na versão \texttt{v2.\allowbreak{}6.\allowbreak{}0}; estudos \texttt{E36} e \texttt{E37}.
+\textbf{Dreno de nó com BGP} (dossiê de Graceful Shutdown e SPIFFE)
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Braço A --- Local Redirect Policy e atalho local no datapath eBPF (\texttt{31-{}\allowbreak{}local-{}\allowbreak{}redirect-{}\allowbreak{}multus-{}\allowbreak{}ipvlan-{}\allowbreak{}dualhomed.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E36 --- redirecionar um Service para o pod do próprio nó:} sem a política, chamadas ao \texttt{Cluster\allowbreak{}IP} de um cache em \texttt{Daemon\allowbreak{}Set} cruzaram para o outro nó em \textasciitilde40\%--60\% das vezes. Com uma \texttt{Cilium\allowbreak{}Local\allowbreak{}Redirect\allowbreak{}Policy} de \texttt{service\allowbreak{}Matcher}, cada \texttt{cilium-{}\allowbreak{}agent} marcou a entrada do Service no mapa BPF como \texttt{[Local\allowbreak{}Redirect]}. 100\% (20/20) das requisições ficaram no próprio nó, com 0 pacotes entre nós.
-  \item
-    \textbf{E36 --- redirecionar um endereço sem Service:} com \texttt{address\allowbreak{}Matcher}, o endereço link-local \texttt{169.\allowbreak{}254.\allowbreak{}20.\allowbreak{}10:\allowbreak{}8080/\allowbreak{}TCP} foi entregue ao pod local em 10/10 conexões em cada nó.
-  \item
-    \textbf{E36 --- controles:} tirar a label de seleção de um nó afetou só esse nó (0/5), e o outro manteve 10/10 (\texttt{3A}). Apagar as duas políticas limpou 100\% das entradas \texttt{[Local\allowbreak{}Redirect]}, com 0 resíduos, e o balanceamento normal voltou (20/20, \texttt{3B}, \texttt{R6=\allowbreak{}0}).
-  \end{itemize}
+  \textbf{Dreno com Graceful Shutdown (E34):} anunciar a community \texttt{graceful-{}\allowbreak{}shutdown} permite ao ToR desviar tráfego antes de encerrar o pod.
 \item
-  \textbf{Braço B --- workloads dual-homed com Multus, \texttt{ipvlan} e \texttt{macvlan} (\texttt{31-{}\allowbreak{}local-{}\allowbreak{}redirect-{}\allowbreak{}multus-{}\allowbreak{}ipvlan-{}\allowbreak{}dualhomed.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E37 --- duas interfaces no mesmo pod:} um \texttt{Network\allowbreak{}Attachment\allowbreak{}Definition} deu aos pods uma segunda interface \texttt{net1} (\texttt{ipvlan mode l2}, \texttt{MTU 9000}) ao lado da \texttt{eth0} do Cilium. A \texttt{eth0} continuou protegida por \texttt{Cilium\allowbreak{}Network\allowbreak{}Policy} e respondeu 10/10 HTTP 200. A \texttt{net1} respondeu 10/10 HTTP 200 e 10/10 pings Jumbo de 8972 B com \texttt{DF=\allowbreak{}1}, 0\% de perda e \texttt{RTT avg =\allowbreak{} 0,\allowbreak{}069 ms}.
-  \item
-    \textbf{E37 --- desempenho:} num fluxo TCP único de 512 MiB, o \texttt{veth 1500} atingiu 33,01 Gbps, o \texttt{macvlan} 32,49 Gbps e o \texttt{ipvlan l2} 30,63 Gbps. O \texttt{ipvlan l3} (\texttt{NOARP}) foi o mais rápido: 36,76 Gbps, +11,4\% sobre o \texttt{veth 1500} e +20,0\% sobre o \texttt{ipvlan l2}.
-  \item
-    \textbf{E37 --- antispoofing de nuvem:} um filtro que só aceita o MAC da NIC do host imitou a porta de uma nuvem pública. O \texttt{macvlan} usa MAC próprio e perdeu 100\% dos pacotes (0/5); o \texttt{ipvlan mode l2} reaproveita o MAC do host e passou 10/10 (\texttt{3A}). Derrubar a \texttt{net1} não afetou a \texttt{eth0}, que manteve 10/10 (\texttt{3B}, \texttt{R6=\allowbreak{}0}).
-  \end{itemize}
+  \textbf{Autenticação mútua SPIFFE com WireGuard (E35):} WireGuard protege o underlay; mTLS identifica o cliente autorizado na política do Cilium.
 \end{itemize}
+
+\begin{quadro}[!htbp]
+\caption{Resultados de dreno e autenticação}
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.888\hsize}X|>{\raggedright\arraybackslash\hsize=0.697\hsize}X|>{\raggedright\arraybackslash\hsize=1.415\hsize}X|}
+\hline
+\textbf{Estudo} & \textbf{Medida} & \textbf{Resultado} \\
+\hline
+Dreno com Graceful Shutdown & Dreno abrupto & Fluxo de 50 pps e 150 pacotes: 8/150 perdidos (5,33\%); blackout de
+662,15 ms \\
+\hline
+Dreno com Graceful Shutdown & Dreno ordenado & \texttt{65535:\allowbreak{}0} e \texttt{Pre\allowbreak{}Stop} de 0,80 s;
+0/150 perdas e 0,00 ms de blackout; 100\% dos novos pacotes foram ao
+outro nó \\
+\hline
+Dreno com Graceful Shutdown & Anúncio e último recurso & Cilium 1.20.2 aplicou
+\texttt{local\allowbreak{}Preference:\allowbreak{} 0} sem configuração
+manual; controle \texttt{3A}: 10/10 no último recurso \\
+\hline
+Dreno com Graceful Shutdown & Retirada e restauração & Controle \texttt{3B}: 0/5 com ambos os nós sem rota; \texttt{3C}:
+retirar \texttt{65535:\allowbreak{}0} restaurou 10/10 em ECMP,
+\texttt{R6=\allowbreak{}0} \\
+\hline
+Autenticação mútua SPIFFE com WireGuard & WireGuard & Sem túnel, 20 pacotes HTTP em claro; com
+\texttt{cilium\_\allowbreak{}wg0} (\texttt{UDP :\allowbreak{}51871}),
+10/10 HTTP 200, 102 datagramas cifrados, 0 vazamentos \\
+\hline
+Autenticação mútua SPIFFE com WireGuard & mTLS & Com \texttt{authentication.\allowbreak{}mode:\allowbreak{} "required"},
+autenticação mútua respondeu 10/10 HTTP 200 em
+\texttt{TLSv1.\allowbreak{}3} \\
+\hline
+Autenticação mútua SPIFFE com WireGuard & Controles de identidade & SPIFFE ID não autorizado: \texttt{3A}, 5/5 HTTP 403; CA externa:
+\texttt{3B}, 0/5 e
+\texttt{SSLV3\_\allowbreak{}ALERT\_\allowbreak{}BAD\_\allowbreak{}CERTIFICATE} \\
+\hline
+Autenticação mútua SPIFFE com WireGuard & Controle de política & \texttt{ingress\allowbreak{}Deny}: \texttt{3C}, 0/5 conexões permitidas;
+remoção da regra restaurou 10/10, \texttt{R6=\allowbreak{}0} \\
+\hline
+\end{tabularx}
+\fonte{elaborado pelo autor (2026).}
+\end{quadro}
+
+\section{Onda 2 --- Local Redirect e workloads dual-homed}\label{onda-2-local-redirect-e-workloads-dual-homed}
+
+As medições de encaminhamento local e interfaces Multus estão no Quadro 24.
+
+\textbf{Local Redirect e Multus} (dossiê de Local Redirect e workloads dual-homed)
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Redirecionamento local de Service (E36):} \texttt{service\allowbreak{}Matcher} mantém chamadas no nó com cache local; \texttt{address\allowbreak{}Matcher} permite interceptar um endereço sem criar um Service.
+\item
+  \textbf{Interfaces secundárias com Multus (E37):} \texttt{ipvlan} compartilha o MAC do host, enquanto \texttt{macvlan} usa MAC próprio e pode ser bloqueado por anti-spoofing.
+\end{itemize}
+
+\begin{quadro}[!htbp]
+\caption{Resultados de encaminhamento e Multus}
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.755\hsize}X|>{\raggedright\arraybackslash\hsize=0.831\hsize}X|>{\raggedright\arraybackslash\hsize=1.415\hsize}X|}
+\hline
+\textbf{Estudo} & \textbf{Medida} & \textbf{Resultado} \\
+\hline
+Redirecionamento local de Service & \texttt{service\allowbreak{}Matcher} & Sem política, 40\%--60\% das chamadas ao \texttt{Cluster\allowbreak{}IP}
+cruzavam de nó; com Local Redirect, 20/20 ficaram locais, 0 pacotes
+entre nós \\
+\hline
+Redirecionamento local de Service & \texttt{address\allowbreak{}Matcher} & Endereço
+\texttt{169.\allowbreak{}254.\allowbreak{}20.\allowbreak{}10:\allowbreak{}8080/\allowbreak{}TCP}
+entregue ao pod local em 10/10 conexões por nó \\
+\hline
+Redirecionamento local de Service & Controle de seleção & \texttt{3A}: nó sem label, 0/5; outro nó, 10/10 \\
+\hline
+Redirecionamento local de Service & Controle de teardown & \texttt{3B}: 100\% das entradas \texttt{[Local\allowbreak{}Redirect]}
+removidas, 0 resíduos; balanceamento restaurado, 20/20,
+\texttt{R6=\allowbreak{}0} \\
+\hline
+Interfaces secundárias com Multus & Tráfego e MTU & \texttt{net1} \texttt{ipvlan L2} com MTU 9000: 10/10 HTTP 200 e 10/10
+pings de 8972 B com DF, 0\% de perda e
+\texttt{RTT avg =\allowbreak{} 0,\allowbreak{}069 ms}; \texttt{eth0} com
+política Cilium, 10/10 \\
+\hline
+Interfaces secundárias com Multus & Throughput em fluxo TCP único de 512 MiB & \texttt{veth 1500}: 33,01 Gbps; \texttt{macvlan}: 32,49 Gbps;
+\texttt{ipvlan L2}: 30,63 Gbps; \texttt{ipvlan L3} \texttt{NOARP}: 36,76
+Gbps (+11,4\% vs.~\texttt{veth}, +20,0\% vs.~\texttt{ipvlan L2}) \\
+\hline
+Interfaces secundárias com Multus & Anti-spoofing e interface independente & Controle \texttt{3A}: \texttt{macvlan}, 0/5; \texttt{ipvlan L2}, 10/10;
+controle \texttt{3B}: desligar \texttt{net1} manteve \texttt{eth0} em
+10/10 \\
+\hline
+\end{tabularx}
+\fonte{elaborado pelo autor (2026).}
+\end{quadro}
 
 \section{Exercícios de interpretação}\label{exercuxedcios-de-interpretauxe7uxe3o-3}
 
@@ -1968,92 +2125,129 @@ Onda concluída com \textbf{PASS} na versão \texttt{v2.\allowbreak{}6.\allowbre
 \def\labelenumi{\arabic{enumi}.}
 \tightlist
 \item
-  No estudo \texttt{E34} (\textbf{BGP Graceful Shutdown \texttt{RFC 8326}}), por que anunciar a community well-known \texttt{65535:\allowbreak{}0} (\texttt{GSHUT}, \texttt{LOCAL\_\allowbreak{}PREF=\allowbreak{}0}) antes de iniciar o término do pod reduz a perda de pacotes de 8/150 (662,15 ms de blackout no dreno abrupto) para \textbf{0/150 (0,00 ms)}, e por que manter a rota com \texttt{LOCAL\_\allowbreak{}PREF=\allowbreak{}0} é mais seguro do que retirá-la imediatamente se o segundo nó também falhar (\texttt{3A} vs \texttt{3B})?
+  Como o ToR e o pod participam do dreno ordenado de uma VIP anycast?
 \item
-  No estudo \texttt{E35} (\textbf{Cilium Mutual Auth SPIFFE + WireGuard}), quais ameaças distintas são mitigadas pelo túnel L3 \texttt{cilium\_\allowbreak{}wg0} (\texttt{UDP :\allowbreak{}51871}) versus o handshake mTLS com SVID X.509 (\texttt{spiffe:\allowbreak{}/\allowbreak{}/\allowbreak{}spiffe.\allowbreak{}cilium/\allowbreak{}ns/\allowbreak{}.\allowbreak{}.\allowbreak{}.\allowbreak{}/\allowbreak{}sa/\allowbreak{}.\allowbreak{}.\allowbreak{}.\allowbreak{}}), e por que um pod com certificado criptograficamente válido assinado pela mesma CA \texttt{spiffe.\allowbreak{}cilium} ainda recebe \texttt{HTTP 403} no controle \texttt{3A} (\texttt{e35-{}\allowbreak{}client-{}\allowbreak{}rogue})?
+  Que propriedades diferentes WireGuard e SPIFFE mTLS demonstraram no mesmo serviço?
 \item
-  No estudo \texttt{E36} (\textbf{\texttt{Cilium\allowbreak{}Local\allowbreak{}Redirect\allowbreak{}Policy}}), qual é a diferença operacional entre usar \texttt{service\allowbreak{}Matcher} (sobrescrevendo um \texttt{Cluster\allowbreak{}IP} existente com \texttt{[Local\allowbreak{}Redirect]} no mapa BPF de cada nó) e \texttt{address\allowbreak{}Matcher} (interceptando um IP link-local como \texttt{169.\allowbreak{}254.\allowbreak{}20.\allowbreak{}10:\allowbreak{}8080/\allowbreak{}TCP} sem criar \texttt{Service}), e o que acontece em um nó específico se o pod local de cache deixar de rodar nele (\texttt{3A})?
+  Como os dois modos de Local Redirect alteram o caminho de uma chamada?
 \item
-  No estudo \texttt{E37} (\textbf{Multus + \texttt{ipvlan L2/\allowbreak{}L3} vs \texttt{macvlan}}), por que switches de nuvem pública (VPC / SDN com \emph{Port-Security} / \emph{MAC Anti-Spoofing}) bloqueiam pacotes de interfaces \texttt{macvlan} (0/5 no controle \texttt{3A}) mas permitem \texttt{ipvlan mode l2/\allowbreak{}l3} (10/10), e por que o \texttt{ipvlan mode l3} (\texttt{NOARP}, \texttt{MTU 9000}) atingiu o maior throughput (36,76 Gbps, +11,4\% sobre \texttt{veth 1500})?
+  O que mudou entre \texttt{macvlan} e \texttt{ipvlan} no teste de anti-spoofing?
 \end{enumerate}
 
-\chapter{Trilha P008: Host Firewall, CiliumEnvoyConfig, Route Reflector e matriz netkit}\label{trilha-p008-host-firewall-ciliumenvoyconfig-route-reflector-e-matriz-netkit}
+\chapter{Host Firewall, Envoy, Route Reflector e WireGuard}\label{host-firewall-envoy-route-reflector-e-wireguard}
 
-A trilha P008 encerra a Fase 4 em duas ondas. O Braço A protege o nó com Host
-Firewall e XDP e escala o BGP com Route Reflector e SRv6 dual-stack (\texttt{E38} e
-\texttt{E40}); o Braço B trata de resiliência L7 com \texttt{Cilium\allowbreak{}Envoy\allowbreak{}Config} e mede a
-combinação de \texttt{netkit}, BIG TCP e WireGuard (\texttt{E39} e \texttt{E41}). Com ela, na versão
-\texttt{v2.\allowbreak{}7.\allowbreak{}0}, o projeto completou os 41 estudos (\texttt{E01}--\texttt{E41}). A Figura 22 sintetiza o entregável do módulo.
+Duas ondas medem proteção do nó, resiliência L7, reflexão de rotas e custo de criptografia. A Figura 22 conecta proteção do host, tráfego L7 e transporte SRv6.
 
 \begin{figure}[!htbp]
-\caption{Síntese visual do entregável do Módulo 17: Trilha P008 (E38--E41 ---
-Host Firewall + XDP\_DROP, CiliumEnvoyConfig L7, iBGP RR + SRv6
-Dual-Stack e Matriz netkit + BIG TCP + WireGuard 5,59x)}
+\caption{Segurança, tráfego L7 e SRv6}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m17-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
 
-\section{Onda 1 (P008-S001): Host Firewall com XDP e resiliência L7 com CiliumEnvoyConfig}\label{onda-1-p008-s001-host-firewall-com-xdp-e-resiliuxeancia-l7-com-ciliumenvoyconfig}
+\section{Onda 1 --- Host Firewall, XDP e resiliência L7}\label{onda-1-host-firewall-xdp-e-resiliuxeancia-l7}
 
-Onda concluída com \textbf{PASS}; estudos \texttt{E38} e \texttt{E39}.
+As medições de proteção do nó e gestão de tráfego estão no Quadro 25.
 
-\begin{itemize}
-\tightlist
-\item
-  \textbf{Braço A --- Host Firewall e prefiltro XDP no nó (\texttt{32-{}\allowbreak{}host-{}\allowbreak{}firewall-{}\allowbreak{}xdp-{}\allowbreak{}envoy-{}\allowbreak{}l7-{}\allowbreak{}resilience.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E38 --- Host Firewall e descarte antecipado com XDP:} o estudo ativou \texttt{enable-{}\allowbreak{}host-{}\allowbreak{}firewall=\allowbreak{}true} no Cilium \texttt{1.\allowbreak{}20.\allowbreak{}2} e aplicou uma \texttt{Cilium\allowbreak{}Clusterwide\allowbreak{}Network\allowbreak{}Policy} com \texttt{node\allowbreak{}Selector} para proteger as portas do host (\texttt{:\allowbreak{}10250}, \texttt{:\allowbreak{}6443}, \texttt{:\allowbreak{}4240}, \texttt{:\allowbreak{}179}, \texttt{:\allowbreak{}19100}). Sem a política, tanto o cliente administrativo quanto um host não autorizado alcançaram a porta \texttt{:\allowbreak{}19100} (10/10 cada). Com o Host Firewall ativo, o cliente administrativo e o kubelet em \texttt{:\allowbreak{}10250} mantiveram 10/10 HTTP 200, e o host não autorizado caiu para 0/5 (\texttt{tc\_\allowbreak{}host\_\allowbreak{}fw\_\allowbreak{}drops=\allowbreak{}5}). Em seguida, um programa \texttt{BPF\_\allowbreak{}PROG\_\allowbreak{}TYPE\_\allowbreak{}XDP} de 101 B JIT, anexado no driver, descartou 200/200 (100\%) dos pacotes de um flood UDP em \texttt{XDP\_\allowbreak{}DROP}, antes da alocação de \texttt{sk\_\allowbreak{}buff}. O flood não criou entradas de conntrack (\texttt{conntrack\_\allowbreak{}flood\_\allowbreak{}entries=\allowbreak{}0}), e o cliente legítimo recebeu 20/20 HTTP 200. Os controles confirmaram que, sem o XDP, o bloqueio passa à segunda camada (TC Host Firewall, 0/5 entregues), que os nós dos dois clusters seguiram \texttt{Ready} (3/3 em cada) e que o rollback restaurou 10/10 com \texttt{R6=\allowbreak{}0}.
-  \end{itemize}
-\item
-  \textbf{Braço B --- gestão de tráfego L7 com \texttt{Cilium\allowbreak{}Envoy\allowbreak{}Config} (\texttt{32-{}\allowbreak{}host-{}\allowbreak{}firewall-{}\allowbreak{}xdp-{}\allowbreak{}envoy-{}\allowbreak{}l7-{}\allowbreak{}resilience.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E39 --- canário, roteamento por cabeçalho, limite de taxa e retries no Envoy:} o estudo registrou uma \texttt{Cilium\allowbreak{}Envoy\allowbreak{}Config} no \texttt{cilium-{}\allowbreak{}envoy 1.\allowbreak{}37.\allowbreak{}6}, sem sidecars, na frente de um Service. No canário ponderado 90/10, 100 requisições foram para \texttt{v1=\allowbreak{}86} e \texttt{v2=\allowbreak{}14}, todas com HTTP 200. Com o cabeçalho \texttt{X-{}\allowbreak{}Canary:\allowbreak{} true}, 10/10 chamadas foram para a versão \texttt{v2}. O limite de taxa por token bucket (\texttt{max\_\allowbreak{}tokens:\allowbreak{} 5}) deixou passar 5/15 requisições e devolveu 10/15 HTTP \texttt{429 Too Many Requests}; as excedentes pararam no Envoy do nó, sem chegar à aplicação. Contra um upstream que falha 50\% das vezes com HTTP 503, a rota sem retry entregou 5/10 HTTP 200, e a rota com \texttt{retry\_\allowbreak{}policy} (\texttt{retry\_\allowbreak{}on:\allowbreak{} 5xx}, \texttt{num\_\allowbreak{}retries:\allowbreak{} 3}) entregou 10/10 HTTP 200.
-  \end{itemize}
-\end{itemize}
-
-\section{Onda 2 (P008-S002): Route Reflector com SRv6 dual-stack e matriz netkit, BIG TCP e WireGuard}\label{onda-2-p008-s002-route-reflector-com-srv6-dual-stack-e-matriz-netkit-big-tcp-e-wireguard}
-
-Onda concluída com \textbf{PASS} na versão \texttt{v2.\allowbreak{}7.\allowbreak{}0}; estudos \texttt{E40} e \texttt{E41}. O \texttt{E40} aplica a reflexão de rotas da RFC 4456 (Bates; Chen; Chandra, 2006) e os comportamentos \texttt{End.\allowbreak{}DT4} e \texttt{End.\allowbreak{}DT6} do SRv6 (Filsfils et al., 2021).
+\textbf{Host Firewall e XDP} (dossiê de Host Firewall e XDP)
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Braço A --- Route Reflector iBGP e SRv6 dual-stack (\texttt{33-{}\allowbreak{}bgp-{}\allowbreak{}rr-{}\allowbreak{}srv6-{}\allowbreak{}dualstack-{}\allowbreak{}netkit-{}\allowbreak{}wg-{}\allowbreak{}matrix.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E40 --- Route Reflector e VPN L3 SRv6 IPv4 e IPv6:} o estudo trocou a malha completa de sessões iBGP (\texttt{O(\allowbreak{}N\textasciicircum{}2)}) por um Route Reflector (\texttt{O(\allowbreak{}N)}), sem nenhuma sessão direta entre os workers (\texttt{direct\_\allowbreak{}w1\_\allowbreak{}w2=\allowbreak{}0}). O refletor repassou as VIPs IPv4 e IPv6, preservou o next hop do worker que as anunciou e marcou as rotas com os atributos anti-loop \texttt{Originator} e \texttt{Cluster list}; o tráfego direto entre os workers passou 10/10 em IPv4 e 10/10 em IPv6. Depois, o plano SRv6 do \texttt{E31} ganhou suporte dual-stack (\texttt{End.\allowbreak{}DT4} e \texttt{End.\allowbreak{}DT6}), sem nenhuma interface VXLAN. Dois tenants com CIDRs IPv4 e IPv6 100\% sobrepostos trocaram tráfego com 10/10 HTTP 200 nas 4 combinações e 0 vazamentos entre tenants. Nos controles, o \texttt{ORIGINATOR\_\allowbreak{}ID} impediu loops (\texttt{self\_\allowbreak{}paths=\allowbreak{}0}), e revogar só o SID \texttt{End.\allowbreak{}DT6} do Tenant A derrubou apenas o IPv6 desse tenant (0/5), mantendo o IPv4 em 10/10.
-  \end{itemize}
+  \textbf{Host Firewall e prefiltro XDP (E38):} a política protege portas do host e XDP descarta pacotes antes da alocação de \texttt{sk\_\allowbreak{}buff}.
 \item
-  \textbf{Braço B --- matriz 2×2 de \texttt{netkit}, BIG TCP e WireGuard (\texttt{33-{}\allowbreak{}bgp-{}\allowbreak{}rr-{}\allowbreak{}srv6-{}\allowbreak{}dualstack-{}\allowbreak{}netkit-{}\allowbreak{}wg-{}\allowbreak{}matrix.\allowbreak{}md}):}
-
-  \begin{itemize}
-  \tightlist
-  \item
-    \textbf{E41 --- matriz netkit, BIG TCP e WireGuard:} o estudo transferiu 2 GiB por um fluxo TCP único em quatro regimes, cruzando o tipo de interface com a presença de criptografia:
-
-    \begin{itemize}
-    \tightlist
-    \item
-      \textbf{\texttt{R1}} (\texttt{veth}, MTU 1500, sem criptografia): 34,55 Gbps;
-    \item
-      \textbf{\texttt{R2}} (\texttt{veth}, MTU 1500, com \texttt{cilium\_\allowbreak{}wg0}): 1,56 Gbps;
-    \item
-      \textbf{\texttt{R3}} (\texttt{netkit} L3, MTU 9000, BIG TCP, sem criptografia): 43,91 Gbps, +27,1\% sobre \texttt{R1};
-    \item
-      \textbf{\texttt{R4}} (\texttt{netkit} L3, MTU 9000, BIG TCP, com \texttt{cilium\_\allowbreak{}wg0} em MTU 8920): 8,72 Gbps.
-    \end{itemize}
-
-    Com pacotes maiores, o WireGuard cifra menos pacotes: as invocações de ChaCha20-Poly1305 caíram -84,5\%, e a vazão cifrada subiu +459,0\% (5,59x) de \texttt{R2} para \texttt{R4}. O estudo também mostrou que o driver \texttt{wireguard} do kernel Linux 6.8 limita \texttt{tso\_\allowbreak{}max\_\allowbreak{}size} a 65536, por isso o BIG TCP não se aplica à própria \texttt{cilium\_\allowbreak{}wg0}. Os controles mediram o overhead de 80 B do túnel WireGuard IPv4 (8920 B passa, 8921 B falha) e confirmaram 0 vazamentos em texto claro no underlay.
-  \end{itemize}
+  \textbf{Gestão L7 com Envoy (E39):} \texttt{Cilium\allowbreak{}Envoy\allowbreak{}Config} oferece canário, limite de taxa e retry sem sidecar na aplicação.
 \end{itemize}
+
+\begin{quadro}[!htbp]
+\caption{Resultados de segurança do nó e tráfego L7}
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.661\hsize}X|>{\raggedright\arraybackslash\hsize=0.639\hsize}X|>{\raggedright\arraybackslash\hsize=1.700\hsize}X|}
+\hline
+\textbf{Estudo} & \textbf{Medida} & \textbf{Resultado} \\
+\hline
+Host Firewall e prefiltro XDP & Host Firewall & Sem política, cliente administrativo e host não autorizado alcançaram
+\texttt{:\allowbreak{}19100} em 10/10; com política, cliente e kubelet
+em \texttt{:\allowbreak{}10250} mantiveram 10/10 HTTP 200, host não
+autorizado caiu a 0/5 e
+\texttt{tc\_\allowbreak{}host\_\allowbreak{}fw\_\allowbreak{}drops=\allowbreak{}5};
+portas protegidas \texttt{:\allowbreak{}10250},
+\texttt{:\allowbreak{}6443}, \texttt{:\allowbreak{}4240},
+\texttt{:\allowbreak{}179}, \texttt{:\allowbreak{}19100} \\
+\hline
+Host Firewall e prefiltro XDP & XDP e fallback & Programa
+\texttt{BPF\_\allowbreak{}PROG\_\allowbreak{}TYPE\_\allowbreak{}XDP} de
+101 B JIT descartou 200/200 (100\%) em \texttt{XDP\_\allowbreak{}DROP};
+0 entradas de conntrack e cliente legítimo 20/20; sem XDP, TC manteve
+0/5 entregues; nós 3/3 \texttt{Ready}; rollback restaurou 10/10,
+\texttt{R6=\allowbreak{}0} \\
+\hline
+Canário e resiliência com Envoy & Canário ponderado e cabeçalho & \texttt{cilium-{}\allowbreak{}envoy} 1.37.6, sem sidecars; 100
+requisições 90/10 resultaram em \texttt{v1=\allowbreak{}86},
+\texttt{v2=\allowbreak{}14}, todas HTTP 200;
+\texttt{X-{}\allowbreak{}Canary:\allowbreak{} true} enviou 10/10 a
+\texttt{v2} \\
+\hline
+Canário e resiliência com Envoy & Limite de taxa & Token bucket \texttt{max\_\allowbreak{}tokens:\allowbreak{} 5}: 5/15
+passaram, 10/15 retornaram HTTP 429;
+\texttt{rl\_\allowbreak{}hits=\allowbreak{}5} no backend \\
+\hline
+Canário e resiliência com Envoy & Retry de upstream & Upstream com falha HTTP 503 em 50\%: sem retry, 5/10 HTTP 200; com três
+retries, 10/10 HTTP 200 \\
+\hline
+\end{tabularx}
+\fonte{elaborado pelo autor (2026).}
+\end{quadro}
+
+\section{Onda 2 --- Route Reflector, SRv6 e matriz netkit}\label{onda-2-route-reflector-srv6-e-matriz-netkit}
+
+A reflexão de rotas segue a RFC 4456 (Bates; Chen; Chandra, 2006); \texttt{End.\allowbreak{}DT4} e \texttt{End.\allowbreak{}DT6} seguem Filsfils et al.~(2021). As medições estão no Quadro 26.
+
+\textbf{Route Reflector e SRv6 dual-stack} (dossiê de Route Reflector e SRv6)
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Route Reflector e VPN L3 SRv6 (E40):} um refletor evita sessões full-mesh; SRv6 transporta IPv4 e IPv6 sem VXLAN e separa VRFs com CIDRs sobrepostos.
+\item
+  \textbf{Matriz netkit, BIG TCP e WireGuard (E41):} pacotes maiores reduzem chamadas de criptografia, mas o driver WireGuard mantém limite próprio de segmentação.
+\end{itemize}
+
+\begin{quadro}[!htbp]
+\caption{Resultados de Route Reflector, SRv6 e WireGuard}
+\footnotesize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.743\hsize}X|>{\raggedright\arraybackslash\hsize=0.732\hsize}X|>{\raggedright\arraybackslash\hsize=1.524\hsize}X|}
+\hline
+\textbf{Estudo} & \textbf{Medida} & \textbf{Resultado} \\
+\hline
+Route Reflector e VPN L3 SRv6 & Sessões e encaminhamento & Malha iBGP \texttt{O(\allowbreak{}N\textasciicircum{}2)} substituída por
+Route Reflector \texttt{O(\allowbreak{}N)};
+\texttt{direct\_\allowbreak{}w1\_\allowbreak{}w2=\allowbreak{}0};
+tráfego direto 10/10 IPv4 e 10/10 IPv6; next hop preservado; rotas
+marcadas com \texttt{ORIGINATOR\_\allowbreak{}ID} e
+\texttt{CLUSTER\_\allowbreak{}LIST} \\
+\hline
+Route Reflector e VPN L3 SRv6 & CIDRs sobrepostos & Dois tenants com CIDRs IPv4/IPv6 iguais: 10/10 HTTP 200 nas quatro
+combinações, 0 vazamentos e 0 interfaces VXLAN \\
+\hline
+Route Reflector e VPN L3 SRv6 & Controles de loop e SID & \texttt{self\_\allowbreak{}paths=\allowbreak{}0}; revogar
+\texttt{End.\allowbreak{}DT6} do Tenant A produziu 0/5 IPv6 e manteve
+IPv4 em 10/10 \\
+\hline
+Matriz netkit, BIG TCP e WireGuard & Vazão em fluxo TCP único de 2 GiB & \texttt{R1} \texttt{veth} MTU 1500 sem cifra: 34,55 Gbps; \texttt{R2}
+com WireGuard: 1,56 Gbps; \texttt{R3} \texttt{netkit} L3 MTU 9000/BIG
+TCP: 43,91 Gbps (+27,1\%); \texttt{R4} com WireGuard: 8,72 Gbps \\
+\hline
+Matriz netkit, BIG TCP e WireGuard & Custo de cifra e limite do driver & Invocações ChaCha20-Poly1305 caíram 84,5\%; vazão cifrada subiu 459,0\%
+(5,59x) de \texttt{R2} a \texttt{R4}; Linux 6.8 limita
+\texttt{tso\_\allowbreak{}max\_\allowbreak{}size} a 65536, então BIG TCP
+não se aplica à \texttt{cilium\_\allowbreak{}wg0} \\
+\hline
+Matriz netkit, BIG TCP e WireGuard & Overhead e confidencialidade & Túnel WireGuard IPv4 acrescentou 80 B; com underlay MTU 9000, 8920 B
+passaram e 8921 B falharam; 0 vazamentos em claro no underlay \\
+\hline
+\end{tabularx}
+\fonte{elaborado pelo autor (2026).}
+\end{quadro}
 
 \section{Exercícios de interpretação}\label{exercuxedcios-de-interpretauxe7uxe3o-4}
 
@@ -2061,13 +2255,13 @@ Onda concluída com \textbf{PASS} na versão \texttt{v2.\allowbreak{}7.\allowbre
 \def\labelenumi{\arabic{enumi}.}
 \tightlist
 \item
-  No estudo \texttt{E38} (\textbf{Cilium Host Firewall + XDP Early DDoS Prefilter}), por que descartar um flood L3 no hook \texttt{BPF\_\allowbreak{}PROG\_\allowbreak{}TYPE\_\allowbreak{}XDP} (\texttt{XDP\_\allowbreak{}DROP}) mantém \texttt{conntrack\_\allowbreak{}flood\_\allowbreak{}entries=\allowbreak{}0} e consome menos CPU/memória do que bloqueá-lo apenas na 2ª camada TC Host Firewall (\texttt{Cilium\allowbreak{}Clusterwide\allowbreak{}Network\allowbreak{}Policy}), e por que a política de Host Firewall deve sempre incluir as portas de controle (\texttt{:\allowbreak{}10250}, \texttt{:\allowbreak{}6443}, \texttt{:\allowbreak{}4240}, \texttt{:\allowbreak{}179}) antes da ativação (\texttt{3B})?
+  Como o Host Firewall limita o nó quando o XDP não está ligado?
 \item
-  No estudo \texttt{E39} (\textbf{\texttt{Cilium\allowbreak{}Envoy\allowbreak{}Config} L7 Traffic Management}), como o filtro \texttt{envoy.\allowbreak{}filters.\allowbreak{}http.\allowbreak{}local\_\allowbreak{}ratelimit} protege o pod backend durante uma rajada de 15 requisições (5/15 \texttt{200 OK}, 10/15 \texttt{429 Too Many Requests} com \texttt{rl\_\allowbreak{}hits=\allowbreak{}5} no backend), e como \texttt{retry\_\allowbreak{}policy} (\texttt{retry\_\allowbreak{}on:\allowbreak{} 5xx}, \texttt{num\_\allowbreak{}retries:\allowbreak{} 3}) mascara falhas transitórias de 50\% (\texttt{5/\allowbreak{}10 -{}\allowbreak{}\textgreater{} 10/\allowbreak{}10} HTTP 200) sem exigir alterações no código da aplicação?
+  Que diferenças de escopo surgem entre balanceamento L7 no Envoy e no kernel?
 \item
-  No estudo \texttt{E40} (\textbf{iBGP Route Reflector \texttt{RFC 4456} + SRv6 Dual-Stack \texttt{End.\allowbreak{}DT4}/\texttt{End.\allowbreak{}DT6}}), qual é a função dos atributos \texttt{ORIGINATOR\_\allowbreak{}ID} e \texttt{CLUSTER\_\allowbreak{}LIST} ao refletir rotas entre workers sem sessões full-mesh (\texttt{direct\_\allowbreak{}w1\_\allowbreak{}w2=\allowbreak{}0}), e por que a revogação do SID \texttt{End.\allowbreak{}DT6} (\texttt{fc00:\allowbreak{}40:\allowbreak{}2:\allowbreak{}:\allowbreak{}d6a/\allowbreak{}128}) interrompe apenas o tráfego IPv6 do Tenant A (0/5) mantendo seu tráfego IPv4 (\texttt{End.\allowbreak{}DT4}, 10/10) intacto (\texttt{3B})?
+  Como o Route Reflector evita sessões diretas entre workers sem perder o next hop?
 \item
-  No estudo \texttt{E41} (\textbf{Matriz 2×2 \texttt{netkit} + BIG TCP + \texttt{Wire\allowbreak{}Guard}}), por que o throughput do \texttt{cilium\_\allowbreak{}wg0} cai para 1,56 Gbps sobre \texttt{veth MTU 1500} (\texttt{R2}, \texttt{1.\allowbreak{}569.\allowbreak{}813} pacotes para 2 GiB) mas salta \textbf{+459,0\% (5,59x, para 8,72 Gbps e 243.767 pacotes)} sobre \texttt{netkit L3 MTU 9000} (\texttt{R4}), e por que \texttt{ping -{}\allowbreak{}M do -{}\allowbreak{}s 8892} passa (10/10) enquanto \texttt{-{}\allowbreak{}s 8893} falha (0/5) em um link de underlay com \texttt{MTU 9000}?
+  Por que \texttt{netkit} e BIG TCP alteram o custo relativo do WireGuard?
 \end{enumerate}
 
 \chapter*{Considerações finais}
@@ -2080,34 +2274,31 @@ Onda concluída com \textbf{PASS} na versão \texttt{v2.\allowbreak{}7.\allowbre
 \begin{itemize}
 \tightlist
 \item
-  O fabric roda em contêineres com simulação em espaço de usuário; use relações entre medidas, nunca valores absolutos de throughput ou latência.
+  O fabric roda em contêineres com simulação em espaço de usuário; use relações entre medidas, não valores absolutos de throughput ou latência.
 \item
   A VIP IPv6 e o tráfego pod→pod IPv6 entre nós ficaram limitados pela topologia IPv4 do underlay externo.
 \item
-  O ExternalAuth é experimental na 1.20.2 e tem os defeitos listados no Módulo 7; a fixture não é um IdP.
+  O ExternalAuth é experimental no Cilium 1.20.2 e tem os defeitos listados no Módulo 7; a fixture não é um IdP.
 \item
-  Nos módulos P001--P003 e no Braço Cilium A (\texttt{P004-{}\allowbreak{}S005} e \texttt{P004-{}\allowbreak{}S006}), os tenants foram isolados por identidade eBPF (\texttt{Cilium\allowbreak{}Network\allowbreak{}Policy}). O Cilium OSS não suporta VRF nem CIDR sobreposto na interface primária \texttt{eth0} (\texttt{V07-{}\allowbreak{}A}, \texttt{C-{}\allowbreak{}neg}).
+  Cilium A isola políticas por identidade eBPF, mas não cria VRFs nem aceita CIDRs sobrepostos na \texttt{eth0} primária. Cilium B usa VRFs Linux auxiliares com FRR e EVPN Type 5; isso não isola CIDRs iguais na interface primária. Não extrapole resultados de A para B.
 \item
-  O Braço Cilium B (\texttt{P004-{}\allowbreak{}S006} e \texttt{P004-{}\allowbreak{}S007}) obteve EVPN Type 5 (\texttt{V09}) e isolou CIDRs sobrepostos apenas em VRFs Linux auxiliares do \texttt{FRR 10.\allowbreak{}7.\allowbreak{}1} no nó (\texttt{V07-{}\allowbreak{}B}), mantendo \texttt{R6=\allowbreak{}0}.
+  OVN-Kubernetes isolou CIDRs sobrepostos em redes primárias e mediu EVPN Type 2/5; a live migration testada preservou IP e sessão TCP. Essas observações valem para os casos descritos no Módulo 13.
 \item
-  Os planos DCI (\texttt{P004-{}\allowbreak{}S002}) e OVN-Kubernetes + EVPN (\texttt{P004-{}\allowbreak{}S003} e \texttt{P004-{}\allowbreak{}S004}) isolaram CIDRs sobrepostos na própria interface primária (\texttt{K01}), anunciaram EVPN Type 5 e Type 2 (\texttt{K03}, \texttt{X02}, \texttt{X05}, \texttt{X07}) e migraram VMs sem trocar o IP (\texttt{K02}). No Cilium OSS, a migração troca o IP do \texttt{virt-{}\allowbreak{}launcher} (\texttt{V05}, \texttt{V06}).
+  A migração no Cilium A mudou o IP do \texttt{virt-{}\allowbreak{}launcher}; o ensaio do Cilium B mediu um corte de rota \texttt{/\allowbreak{}32}. São caminhos distintos da mobilidade L2 testada no OVN-Kubernetes.
 \item
-  A sincronização entre identidade Kubernetes e Security Group Neutron não foi implementada; a trilha híbrida é segura apenas sob sequenciamento manual.
+  A sincronização entre identidade Kubernetes e Security Group Neutron não foi implementada; a trilha híbrida depende de sequenciamento manual.
 \item
   Nós reais na nuvem provaram overlay e BGP; native routing e VIP anycast dependem da postura de antispoofing da porta.
 \item
-  Os 32 estudos das trilhas P005 a P008 (Módulos 14 a 17) foram concluídos com PASS, mas herdam as mesmas ressalvas: laboratório em contêineres, kernel Linux \texttt{6.\allowbreak{}8} e fabric simulado. Os resultados detalhados estão nesses módulos.
+  Os estudos dos Módulos 14 a 17 herdam as mesmas ressalvas: laboratório em contêineres, kernel Linux \texttt{6.\allowbreak{}8} e fabric simulado. Os Quadros 15 a 26 resumem medidas e controles, com links para os dossiês no Apêndice B.
 \end{itemize}
 
 \section*{Próximos estudos}\label{pruxf3ximos-estudos}
 \addcontentsline{toc}{section}{Próximos estudos}
 
-Todas as trilhas, de P003 a P008, estão concluídas com PASS na versão \texttt{v2.\allowbreak{}7.\allowbreak{}0}:
-são 41 estudos (\texttt{E01}--\texttt{E41}) e todo o backlog da revisão técnica de
-26/09/2026. Os candidatos a próximos estudos estão em
-\texttt{docs/\allowbreak{}proximos-{}\allowbreak{}estudos.\allowbreak{}md}, a revisão técnica em
-\texttt{docs/\allowbreak{}revisao-{}\allowbreak{}projeto-{}\allowbreak{}2026-{}\allowbreak{}09-{}\allowbreak{}26.\allowbreak{}md} e os
-dossiês de cada trilha no Apêndice B.
+As propostas de estudos futuros estão em \texttt{docs/\allowbreak{}proximos-{}\allowbreak{}estudos.\allowbreak{}md}, e a revisão técnica está em \texttt{docs/\allowbreak{}revisao-{}\allowbreak{}projeto-{}\allowbreak{}2026-{}\allowbreak{}09-{}\allowbreak{}26.\allowbreak{}md}. Os dossiês atuais estão reunidos no Apêndice B.
+
+As lições operacionais e os gates de segurança estão no \textbf{Quadro 27}, no Apêndice A.
 
 \postextual
 \chapter*{Referências}
@@ -2309,6 +2500,18 @@ nos containers kind para preservar
 \chapter{Documentos complementares do repositório}\label{documentos-complementares-do-reposituxf3rio}
 
 Os documentos abaixo detalham os estudos sintetizados neste guia e acompanham o repositório.
+
+\begin{mdframed}[linewidth=0.6pt,innertopmargin=6pt,innerbottommargin=6pt]
+\small
+\textbf{Nota histórica.} As sessões de P004 foram registradas entre
+27/09 e 25/10/2026 como concluídas com PASS. As edições internas
+associaram \texttt{v2.\allowbreak{}5.\allowbreak{}0} a P006,
+\texttt{v2.\allowbreak{}6.\allowbreak{}0} a P007 e
+\texttt{v2.\allowbreak{}7.\allowbreak{}0} a P008; P006 também reuniu o
+saneamento dos Blocos C1--C4, relacionado à revisão técnica de
+26/09/2026. Esses marcos registram a evolução do projeto, não resultados
+experimentais; os dossiês abaixo detalham as medições e seus limites.
+\end{mdframed}
 
 \begin{itemize}
 \tightlist
