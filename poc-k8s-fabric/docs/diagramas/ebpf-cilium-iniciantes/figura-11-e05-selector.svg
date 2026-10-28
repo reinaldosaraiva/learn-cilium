@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="800" viewBox="0 0 1400 800" role="img" aria-labelledby="title desc">
+<title id="title">Diagnóstico do Service com selector incorreto</title>
+<desc id="desc">Árvore de diagnóstico: se o Pod backend não está Ready, investigar probe e estado do Pod. Se está Ready, comparar label e selector. Se correspondem, seguir outra hipótese; se não, os valores app=backend e app=backend-ausente mostram o mismatch. A evidência leva à EndpointSlice sem destino pronto e possível erro pela API. Só depois se restaura o Service saudável e se repetem os controles: API 200 e acesso direto ainda negado pela policy.</desc>
+<defs><marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="18" markerHeight="18" refX="18" refY="9" orient="auto"><path d="M0,0 L18,9 L0,18 z" fill="#334155"/></marker></defs>
+<rect width="1400" height="800" fill="#f8fafc"/>
+<text x="55" y="62" font-family="Arial" font-size="44" font-weight="700" fill="#0f172a">E05 · diagnosticar o Service sem reinício geral</text>
+<rect x="420" y="95" width="560" height="90" rx="18" fill="#eff6ff" stroke="#1d4ed8" stroke-width="4"/>
+<text x="460" y="150" font-family="Arial" font-size="31" font-weight="700" fill="#1e3a8a">1 · Pod backend está Ready?</text>
+<path d="M700 187 L700 221" stroke="#334155" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="720" y="211" font-family="Arial" font-size="28" font-weight="700" fill="#14532d">SIM</text>
+<rect x="55" y="215" width="300" height="120" rx="18" fill="#fee2e2" stroke="#b91c1c" stroke-width="4"/>
+<text x="80" y="265" font-family="Arial" font-size="28" font-weight="700" fill="#7f1d1d">Investigar probe</text>
+<text x="80" y="310" font-family="Arial" font-size="28" fill="#0f172a">e estado do Pod</text>
+<path d="M418 140 C402 155 388 210 359 260" fill="none" stroke="#b91c1c" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="270" y="195" font-family="Arial" font-size="28" font-weight="700" fill="#7f1d1d">NÃO</text>
+<rect x="420" y="225" width="560" height="90" rx="18" fill="#fff7ed" stroke="#c2410c" stroke-width="4"/>
+<text x="460" y="280" font-family="Arial" font-size="30" font-weight="700" fill="#7c2d12">2 · A label corresponde ao selector?</text>
+<path d="M982 270 L1051 270" stroke="#15803d" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="990" y="247" font-family="Arial" font-size="28" font-weight="700" fill="#14532d">SIM</text>
+<rect x="1055" y="215" width="290" height="120" rx="18" fill="#dcfce7" stroke="#15803d" stroke-width="4"/>
+<text x="1080" y="265" font-family="Arial" font-size="28" font-weight="700" fill="#14532d">seguir outra</text>
+<text x="1080" y="310" font-family="Arial" font-size="28" fill="#0f172a">hipótese</text>
+<path d="M700 317 L700 346" stroke="#334155" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="720" y="337" font-family="Arial" font-size="28" font-weight="700" fill="#7f1d1d">NÃO</text>
+<rect x="380" y="350" width="640" height="90" rx="18" fill="#ffffff" stroke="#475569" stroke-width="4"/>
+<text x="430" y="387" font-family="Arial" font-size="29" font-weight="700" fill="#0f172a">Pod label: app=backend</text>
+<text x="430" y="423" font-family="Arial" font-size="28" font-weight="700" fill="#7f1d1d">Service selector: app=backend-ausente</text>
+<path d="M700 442 L700 471" stroke="#334155" stroke-width="4" marker-end="url(#arrow)"/>
+<rect x="380" y="475" width="640" height="80" rx="18" fill="#fff7ed" stroke="#c2410c" stroke-width="3"/>
+<text x="430" y="510" font-family="Arial" font-size="29" font-weight="700" fill="#0f172a">EndpointSlice sem destino pronto</text>
+<text x="430" y="541" font-family="Arial" font-size="28" fill="#334155">API pode devolver erro</text>
+<path d="M700 557 L700 586" stroke="#334155" stroke-width="4" marker-end="url(#arrow)"/>
+<rect x="420" y="590" width="560" height="80" rx="18" fill="#eff6ff" stroke="#1d4ed8" stroke-width="3"/>
+<text x="455" y="623" font-family="Arial" font-size="29" font-weight="700" fill="#1e3a8a">Restaurar somente Service</text>
+<text x="455" y="654" font-family="Arial" font-size="28" fill="#334155">YAML saudável da revisão</text>
+<path d="M700 672 L700 701" stroke="#334155" stroke-width="4" marker-end="url(#arrow)"/>
+<rect x="260" y="705" width="880" height="80" rx="18" fill="#f0fdf4" stroke="#15803d" stroke-width="3"/>
+<text x="305" y="739" font-family="Arial" font-size="29" font-weight="700" fill="#14532d">Repetir controles</text>
+<text x="305" y="772" font-family="Arial" font-size="28" fill="#0f172a">API 200; acesso direto continua negado pela policy</text>
+</svg>
