@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="720" viewBox="0 0 1100 720" role="img" aria-labelledby="title desc">
+  <title id="title">Decisão do verifier e limite da conclusão</title>
+  <desc id="desc">Um pedido de carga chega ao verifier, que examina tipos, estado, acessos à memória e caminhos. Um losango separa aceito e rejeitado segundo as propriedades exigidas. Uma faixa final avisa que aceitar não prova a lógica desejada.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M1,1 L11,6 L1,11 Z" fill="#16324f"/></marker>
+    <style>
+      .title{font:700 36px Arial,DejaVu Sans,sans-serif;fill:#16324f}
+      .subtitle{font:400 27px Arial,DejaVu Sans,sans-serif;fill:#293845}
+      .label{font:700 29px Arial,DejaVu Sans,sans-serif;fill:#16324f}
+      .body{font:400 26px Arial,DejaVu Sans,sans-serif;fill:#1f2933}
+      .warn{font:700 26px Arial,DejaVu Sans,sans-serif;fill:#563a0d}
+    </style>
+  </defs>
+  <rect x="12" y="12" width="1076" height="696" rx="22" fill="#ffffff" stroke="#16324f" stroke-width="3"/>
+  <text x="45" y="57" class="title">O que significa “aceito”?</text>
+  <text x="45" y="98" class="subtitle">Uma decisão sobre propriedades verificáveis durante a carga.</text>
+
+  <rect x="355" y="125" width="390" height="80" rx="16" fill="#f0f5f8" stroke="#526777" stroke-width="3"/>
+  <text x="550" y="176" text-anchor="middle" class="label">Pedido de carga</text>
+  <line x1="550" y1="207" x2="550" y2="236" stroke="#16324f" stroke-width="4" marker-end="url(#arrow)"/>
+
+  <rect x="250" y="244" width="600" height="100" rx="16" fill="#e7f1f6" stroke="#1f6a8a" stroke-width="4"/>
+  <text x="550" y="282" text-anchor="middle" class="label">Verifier analisa</text>
+  <text x="550" y="319" text-anchor="middle" class="body">tipos, estado, memória e caminhos</text>
+  <line x1="550" y1="346" x2="550" y2="373" stroke="#16324f" stroke-width="4" marker-end="url(#arrow)"/>
+
+  <path d="M550 376 L780 461 L550 546 L320 461 Z" fill="#fff8db" stroke="#855b12" stroke-width="4"/>
+  <text x="550" y="430" text-anchor="middle" class="label"><tspan x="550">Conseguiu</tspan><tspan x="550" dy="31">provar as regras</tspan><tspan x="550" dy="31">aplicáveis?</tspan></text>
+
+  <path d="M320 461 L250 461 L250 552" fill="none" stroke="#963c35" stroke-width="4" marker-end="url(#arrow)"/>
+  <text x="280" y="446" class="body">não</text>
+  <rect x="60" y="564" width="380" height="72" rx="14" fill="#fae9e7" stroke="#963c35" stroke-width="4"/>
+  <text x="250" y="595" text-anchor="middle" class="label">REJEITADO</text>
+  <text x="250" y="625" text-anchor="middle" class="body">carga termina</text>
+
+  <path d="M780 461 L850 461 L850 552" fill="none" stroke="#2d7042" stroke-width="4" marker-end="url(#arrow)"/>
+  <text x="780" y="446" class="body">sim</text>
+  <rect x="660" y="564" width="380" height="72" rx="14" fill="#e8f4eb" stroke="#2d7042" stroke-width="4"/>
+  <text x="850" y="595" text-anchor="middle" class="label">ACEITO</text>
+  <text x="850" y="625" text-anchor="middle" class="body">pode seguir para attach</text>
+
+  <rect x="90" y="652" width="920" height="42" rx="10" fill="#fff2d5" stroke="#855b12" stroke-width="3"/>
+  <text x="550" y="682" text-anchor="middle" class="warn">Aceitação não prova a lógica nem o resultado desejado.</text>
+</svg>

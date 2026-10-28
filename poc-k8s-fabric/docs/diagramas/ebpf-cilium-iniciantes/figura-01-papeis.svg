@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1150" height="650" viewBox="0 0 1150 650" role="img" aria-labelledby="title desc">
+  <title id="title">O agente configura; o programa atua no hook</title>
+  <desc id="desc">Diagrama conceitual com uma faixa de controle para o agente Cilium e uma faixa do kernel com evento, hook, programa e ação dependente do tipo. Um cartão lateral contém um fragmento YAML ilustrativo e avisa que não é manifesto nem política aplicada.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M1,1 L11,6 L1,11 Z" fill="#16324f"/></marker>
+    <marker id="arrow-dash" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M1,1 L11,6 L1,11 Z" fill="#7451a6"/></marker>
+    <style>
+      .title{font:700 36px Arial,DejaVu Sans,sans-serif;fill:#16324f}
+      .subtitle{font:400 28px Arial,DejaVu Sans,sans-serif;fill:#293845}
+      .label{font:700 30px Arial,DejaVu Sans,sans-serif;fill:#16324f}
+      .body{font:400 26px Arial,DejaVu Sans,sans-serif;fill:#1f2933}
+      .small{font:400 26px Arial,DejaVu Sans,sans-serif;fill:#1f2933}
+      .code{font:600 27px DejaVu Sans Mono,Menlo,monospace;fill:#16324f}
+      .caps{font:700 26px Arial,DejaVu Sans,sans-serif;letter-spacing:1px;fill:#16324f}
+    </style>
+  </defs>
+  <rect x="12" y="12" width="1126" height="626" rx="22" fill="#ffffff" stroke="#16324f" stroke-width="3"/>
+  <text x="48" y="58" class="title">Dois papéis, dois planos</text>
+  <text x="48" y="98" class="subtitle">Configuração em usuário; execução no contexto do kernel.</text>
+
+  <rect x="55" y="122" width="1040" height="108" rx="18" fill="#fff2d5" stroke="#855b12" stroke-width="3"/>
+  <path d="M80 149 h24 v24 H80 Z" fill="#f0bf58" stroke="#5d430d" stroke-width="3"/>
+  <text x="125" y="163" class="label">Agente Cilium · espaço de usuário</text>
+  <text x="125" y="202" class="body">configura componentes e pode preparar programas eBPF</text>
+  <text x="626" y="268" class="body">configura / associa</text>
+  <line x1="575" y1="233" x2="575" y2="287" stroke="#7451a6" stroke-width="4" stroke-dasharray="10 8" marker-end="url(#arrow-dash)"/>
+
+  <rect x="55" y="292" width="1040" height="215" rx="18" fill="#e7f1f6" stroke="#1f6a8a" stroke-width="3"/>
+  <text x="82" y="328" class="caps">KERNEL LINUX · DATAPATH</text>
+  <circle cx="134" cy="409" r="54" fill="#ffffff" stroke="#1f6a8a" stroke-width="4"/>
+  <text x="134" y="418" text-anchor="middle" class="body">evento</text>
+  <line x1="194" y1="409" x2="228" y2="409" stroke="#16324f" stroke-width="4" marker-end="url(#arrow)"/>
+
+  <rect x="240" y="363" width="205" height="92" rx="16" fill="#d9eff6" stroke="#1f6a8a" stroke-width="4"/>
+  <text x="342" y="399" text-anchor="middle" class="label">Hook</text>
+  <text x="342" y="434" text-anchor="middle" class="body">ponto previsto</text>
+  <line x1="448" y1="409" x2="486" y2="409" stroke="#16324f" stroke-width="4" marker-end="url(#arrow)"/>
+
+  <rect x="499" y="363" width="241" height="92" rx="16" fill="#eee7f8" stroke="#7451a6" stroke-width="4" stroke-dasharray="12 7"/>
+  <text x="619" y="399" text-anchor="middle" class="label">Programa eBPF</text>
+  <text x="619" y="434" text-anchor="middle" class="body">contexto do hook</text>
+  <line x1="744" y1="409" x2="782" y2="409" stroke="#16324f" stroke-width="4" marker-end="url(#arrow)"/>
+
+  <rect x="795" y="363" width="265" height="92" rx="16" fill="#ffffff" stroke="#16324f" stroke-width="3"/>
+  <text x="927" y="399" text-anchor="middle" class="label">Ação possível</text>
+  <text x="927" y="434" text-anchor="middle" class="body">depende do tipo</text>
+  <text x="575" y="486" text-anchor="middle" class="body">O evento e o resultado não são iguais para todo hook.</text>
+
+  <rect x="55" y="522" width="1040" height="98" rx="16" fill="#f4f5f7" stroke="#616e7c" stroke-width="3"/>
+  <text x="78" y="556" class="caps">TRECHO YAML ILUSTRATIVO</text>
+  <text x="78" y="596" class="code">metadata: {labels: {app: api}}</text>
+  <text x="637" y="557" class="body">Metadado apenas:</text>
+  <text x="637" y="594" class="body">não é manifesto nem policy aplicada.</text>
+</svg>
