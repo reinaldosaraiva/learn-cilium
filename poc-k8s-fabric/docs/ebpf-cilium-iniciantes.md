@@ -8,9 +8,9 @@ Começamos por três perguntas: onde um comando roda, por onde uma conexão pass
 
 **Como usar:** há dois modos para a mesma prática. No modo guiado, siga os passos E01 a E06 com apoio. No modo de revisão, leia os requisitos dos laboratórios A, B e C e tente produzir as evidências antes de consultar os passos correspondentes ou as soluções. A preparação do ambiente em E01 e a limpeza em E06 continuam assistidas pelo instrutor; pedir ajuda ou consultar a orientação não é reprovação.
 
-Os dois modos usam uma só rodada, uma namespace e o mesmo recibo. Não é preciso dominar Bash nem entender a função `record` para usar os exercícios. Depois da limpeza, as soluções interpretam o recibo já preenchido; não iniciam outra rodada. Antes de cada exercício, estude a figura e anote uma previsão. “Esperado — ILUSTRATIVO” descreve um resultado possível. “NOT_RUN — ainda não executado” marca observações que só podem ser preenchidas depois de uma prática autorizada.
+Os dois modos usam uma só rodada, uma namespace e o mesmo recibo. Não é preciso dominar Bash nem entender a função `record` para usar os exercícios. Depois da limpeza, as soluções interpretam o recibo já preenchido; não iniciam outra rodada. Antes de cada exercício, estude a figura e anote uma previsão. “Esperado — ILUSTRATIVO” descreve um resultado possível. “NOT_RUN — ainda não executado” marca os campos do aluno ainda vazios. As caixas da execução de referência são identificadas como observação, extrato ou síntese, conforme a forma como os dados foram apresentados.
 
-**Edição de trabalho:** os comandos e arquivos do laboratório não foram reproduzidos em cluster; nenhuma imagem instalada, tráfego observado, aprendizagem de leitor ou validação operacional é afirmada. Cilium stable 1.20.4 é uma referência consultada em 28 de outubro de 2026, não uma versão instalada. (Cilium Authors, 2026)
+**Execução de referência:** E01–E06 foram executados em 29 de outubro de 2026 com o guia e os oito manifests do commit `0b30e09`. A rodada também teve comandos suplementares em E05, registrados separadamente; eles não pertenciam ao roteiro-base daquele commit. As caixas do autor selecionam ou sintetizam records, saídas e traces dessa execução. Não são resultados da prática do aluno nem promessa para outro ambiente. Para sua prática, use a revisão e os rótulos que o seu próprio recibo registrar. A trilha documental está descrita no Apêndice A. Esta edição ainda não foi avaliada por leitores iniciantes. Cilium stable 1.20.4 é uma referência documental consultada em 28 de outubro de 2026, não uma versão instalada que esta demonstração tenha identificado. (Cilium Authors, 2026)
 
 ~~~{=latex}
 \makeatletter
@@ -318,11 +318,19 @@ Os seis exercícios formam um percurso; cada etapa deixa uma evidência para a s
 
 **Terminais e lugares de execução**
 
-- **Terminal A · VM Linux:** sessão persistente para os comandos do roteiro, variáveis, atalho k e recibo. Mantenha-o aberto de E01 até a limpeza em E06; não reconstrua uma identidade perdida por suposição.
+- **Terminal A · VM Linux:** mantenha aberta a mesma sessão, variáveis, atalho k e recibo de E01 a E06. Se for fechada, pare e chame o instrutor; não reconstrua contexto, UID ou run-id por suposição.
 - **Terminal B · VM Linux:** sessão temporária usada somente pelo processo de port-forward do E03. Não herda as variáveis de A; encerre o encaminhamento com Ctrl-C depois de E05 ou quando o instrutor pedir.
 - **POD · execução remota:** quando a linha usa `kubectl exec ... --`, kubectl é chamado em A, mas o comando depois de `--` roda no contêiner indicado. Não cole esses comandos no host pessoal.
 
-> **Condição para praticar.** O guia e os manifests são da mesma revisão de trabalho e não foram reproduzidos em cluster. Use somente o ambiente Linux que o instrutor reservou e liberou para a turma. Se uma condição ou identidade estiver desconhecida, pare antes de criar recursos; não instale nem altere Cilium, Hubble ou configuração do cluster.
+> **Condição para praticar.** Use somente o ambiente Linux que o instrutor reservou e liberou para a turma, com o guia e os manifests da mesma revisão. A matriz abaixo descreve a execução de referência do autor em 29 de outubro de 2026, realizada com a revisão-base 0b30e09; não especifica a edição editorial atual nem o ambiente da sua turma. Se uma condição ou identidade estiver desconhecida, pare antes de criar recursos; não instale nem altere Cilium, Hubble ou configuração do cluster.
+
+- **VM:** `vm-cilium`; Linux 6.8.0-139-generic; x86_64.
+- **Cluster e runtime:** `kind-p003-gw`; Kubernetes 1.35.0; kubectl 1.34.11; containerd 2.2.0.
+- **Cilium e Hubble:** Cilium/Relay 1.20.2, conferidos pelo inventário de imagem; cliente Hubble 1.20.2, identificado por `hubble version`.
+- **Nós e Pods:** três nós Debian 12/amd64; os três Pods do laboratório ficaram em `p003-gw-worker2`.
+- **Conexão do cliente Hubble:** acesso plaintext pelo loopback `127.0.0.1:4245`; mTLS permaneceu entre os agentes Cilium e o Relay.
+
+Essa observação cobre uma rodada. Não demonstra tráfego entre nós, portabilidade ARM, TLS alternativo do cliente nem desempenho. Use os dados do ambiente liberado para a sua prática, não os desta matriz.
 
 ### Como preparar o primeiro exercício
 
@@ -332,17 +340,15 @@ No Terminal A, os comandos kubectl, cilium e hubble rodam na VM Linux. O API ser
 
 No E03, abra Terminal B apenas para o port-forward do Relay, pois uma sessão Bash nova não herda as variáveis de A. No Terminal A, uma chamada kubectl exec começa no cliente e o processo após `--` roda no contêiner frontend. Ctrl-C encerra o processo em primeiro plano do terminal atual; use-o no B para parar o encaminhamento, nunca enquanto um comando estiver aplicando ou apagando recursos.
 
-Os comandos centrais usam uma namespace nova por rodada. Se Terminal A for fechado, não reconstrua UID, run-id ou contexto por suposição; pare e peça ao instrutor para recuperar o recibo.
+## Laboratório A — Ambiente e cadeia HTTP
 
-## Laboratório de revisão A: Comprovar a cadeia
-
-Esta revisão reúne E01–E02 para confirmar a identidade e comparar, na mesma namespace e recibo, os caminhos pela API e direto ao backend.
+Esta revisão reúne E01–E02 para confirmar a identidade e comparar as rotas pela API e pelo backend direto, na mesma namespace e recibo.
 
 > **Ficha A. Estado inicial: NOT_RUN**
 >
 > **Requisito:** identidade confirmada e dois caminhos HTTP comparados.
 >
-> **Evidência observada:** ainda não coletada.
+> **Evidência do aluno:** NOT_RUN; ainda não coletada. Os extratos do autor nas etapas guiadas não preenchem esta ficha.
 >
 > **Decisão:** pendente até conferir status, corpo, cabeçalho e destinos.
 
@@ -361,7 +367,7 @@ Esta revisão reúne E01–E02 para confirmar a identidade e comparar, na mesma 
 
 **Apoio opcional:** E01.1–E01.8 e E02.1–E02.5 localizam orientações; preparação e criação em E01 continuam assistidas.
 
-**Entregas e estado de saída:** use os campos existentes para esperado, observado e conclusão; mantenha namespace, Terminal A, variáveis e recibo para B. Não crie outro recibo, reexecute ou limpe.
+**Entregas e estado de saída:** registre esperado, observado e conclusão no mesmo recibo; mantenha namespace, Terminal A e variáveis para B. Não crie outro recibo, reexecute ou limpe.
 
 ## E01 — Reconhecer o ambiente e preparar a rodada
 
@@ -440,161 +446,16 @@ LAB_GUIDE_REL='poc-k8s-fabric/docs/ebpf-cilium-iniciantes.md'
 
 **E01.4 · Terminal A · VM Linux — Defina os atalhos e prepare o recibo**
 
-Esta é a preparação única obrigatória do roteiro. Execute-a uma vez com o instrutor no Terminal A, antes da primeira chamada à API. Você não precisa dominar Bash avançado: copie o bloco inteiro, na ordem, e peça ao instrutor para orientar a colagem. Ele usa os valores de identidade e caminhos preenchidos em E01.3. O atalho k reaproveita kubeconfig e contexto nas chamadas kubectl; record guarda a saída e o código de retorno no recibo local privado. Ao final, o recibo deve existir e k e record devem estar disponíveis na mesma sessão A. Se algo falhar ou não estiver claro, pare e chame o instrutor:
+~~~{=latex}
+\hypertarget{p010-e01-4-preparacao}{}
+~~~
 
-~~~bash
-for name in \
-  LAB_KUBECONFIG LAB_CONTEXT LAB_API_SERVER LAB_CLUSTER_UID \
-  LAB_CILIUM_NS LAB_NS LAB_RUN_ID LAB_GUIDE_REVISION LAB_DIR \
-  LAB_GUIDE LAB_DIR_REL LAB_GUIDE_REL; do
-  if [[ -z "${!name:-}" ]]; then
-    printf 'Falta preencher %s; pare e peça ao instrutor.\n' \
-      "$name" >&2
-    exit 1
-  fi
-done
-if [[ "$LAB_KUBECONFIG" != /* ]]; then
-  printf 'LAB_KUBECONFIG deve ser um caminho absoluto.\n' >&2
-  exit 1
-fi
-if [[ ! "$LAB_GUIDE_REVISION" =~ ^[A-Za-z0-9._/-]+$ ]]; then
-  printf 'Revisão do guia deve ser tag ou commit sem espaços.\n' >&2
-  exit 1
-fi
-if [[ ! "$LAB_NS" =~ ^p010-[a-z0-9]([-a-z0-9]{0,56}[a-z0-9])?$ ||
-      ! "$LAB_RUN_ID" =~ ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$ ]]; then
-  printf 'LAB_NS ou LAB_RUN_ID não atende ao formato combinado.\n' \
-    >&2
-  exit 1
-fi
-if [[ ! -r "$LAB_KUBECONFIG" || ! -d "$LAB_DIR" ||
-      ! -r "$LAB_GUIDE" || ! -d "$LAB_DIR_REL" ||
-      ! -r "$LAB_GUIDE_REL" ]]; then
-  printf 'Kubeconfig, guia ou diretório não está acessível.\n' \
-    >&2
-  exit 1
-fi
-k() {
-  kubectl --kubeconfig "$LAB_KUBECONFIG" \
-    --context "$LAB_CONTEXT" "$@"
-}
-umask 077
-LAB_RECEIPT_DIR="$HOME/lab-receipts/$LAB_RUN_ID"
-if [[ -e "$LAB_RECEIPT_DIR" ]]; then
-  printf 'Recibo existente; escolha outro run-id com o instrutor.\n' \
-    >&2
-  exit 1
-fi
-mkdir -m 700 -p "$LAB_RECEIPT_DIR" || exit 1
-LAB_RECEIPT="$LAB_RECEIPT_DIR/receipt.md"
-cat > "$LAB_RECEIPT" <<EOF || exit 1
-# Recibo local do laboratório
+A preparação do Terminal A é única e obrigatória antes da primeira chamada ao API server, em E01.5. Faça-a uma vez com o instrutor e mantenha esse terminal aberto até E06. Não é preciso dominar Bash: abra o apêndice pelo link abaixo, copie o bloco inteiro e cole no Terminal A, seguindo a orientação do instrutor. Não digite linha por linha nem altere a ordem. Depois, volte a este ponto pelo link de retorno do apêndice ou pesquise “E01.4 · Terminal A · Preparação assistida” no leitor de PDF.
 
-Revisão do guia: $LAB_GUIDE_REVISION
-Início UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-VM Linux: $(uname -srm)
-Contexto esperado: $LAB_CONTEXT
-API server esperado: $LAB_API_SERVER
-UID kube-system esperado: $LAB_CLUSTER_UID
-Namespace/run-id: $LAB_NS / $LAB_RUN_ID
-Modo Hubble: preencher após declaração do instrutor
+O atalho **k** chama kubectl com o kubeconfig e o contexto confirmados. A função **record** executa cada comando, mostra sua saída e código de retorno e os acrescenta ao recibo local. Se faltar um valor, surgir um erro ou algo não estiver claro, pare e chame o instrutor. E01.5–E01.8 continuam em ordem: a primeira chamada à API ocorre em E01.5, e a criação da namespace espera pelas confirmações e guardas seguintes.
 
-Não incluir kubeconfig, token, certificado, chave, Secret ou dado
-pessoal. Resultados vazios são NOT_RUN, nunca suposições.
-
-E01 — gates, versão, memória e criação
-Esperado:
-Observado:
-Códigos de saída:
-UID namespace criado:
-
-E02 — cadeia e probes locais
-Esperado:
-Observado:
-Códigos de saída:
-
-E03 — janela Hubble e modo de conexão declarado
-Esperado:
-Observado:
-Códigos de saída:
-
-E04 — policy e contraprovas
-Esperado:
-Observado:
-Códigos de saída:
-
-E05 — selector e restauração
-Esperado:
-Observado:
-Códigos de saída:
-
-E06 — hashes, versões, imageID, arquitetura e cleanup
-Esperado:
-Observado:
-Códigos de saída:
-ImageIDs e arquitetura: preencher somente após execução admitida
-Resultado do cleanup:
-EOF
-if [[ ! -f "$LAB_RECEIPT" ]]; then
-  printf 'Recibo local ausente; pare antes de consultar o cluster.\n' \
-    >&2
-  exit 1
-fi
-record() {
-  local label="$1"
-  local command_rc
-  local -a header_status
-  local -a output_status
-  local -a result_status
-  shift
-  RECORD_LOG_FAILED=0
-  RECORD_COMMAND_RC=0
-  if [[ -z "${LAB_GUIDE_REVISION:-}" ||
-        -z "${RECORD_STEP:-}" ]]; then
-    RECORD_LOG_FAILED=1
-    printf 'Falta revisão ou passo para identificar o comando.\n' >&2
-    return 125
-  fi
-  printf '\n## guia=%s | passo=%s | %s\n' \
-    "$LAB_GUIDE_REVISION" "$RECORD_STEP" "$label" \
-    | tee -a "$LAB_RECEIPT"
-  header_status=("${PIPESTATUS[@]}")
-  if (( header_status[0] != 0 || header_status[1] != 0 )); then
-    RECORD_LOG_FAILED=1
-    return 125
-  fi
-  "$@" 2>&1 | redact_receipt_output | tee -a "$LAB_RECEIPT"
-  output_status=("${PIPESTATUS[@]}")
-  command_rc=${output_status[0]}
-  RECORD_COMMAND_RC="$command_rc"
-  if (( output_status[1] != 0 || output_status[2] != 0 )); then
-    RECORD_LOG_FAILED=1
-    return 125
-  fi
-  printf 'exit_code=%s\n' "$command_rc" | tee -a "$LAB_RECEIPT"
-  result_status=("${PIPESTATUS[@]}")
-  if (( result_status[0] != 0 || result_status[1] != 0 )); then
-    RECORD_LOG_FAILED=1
-    return 125
-  fi
-  return "$command_rc"
-}
-redact_receipt_output() {
-  local line
-  local path
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    for path in \
-      "${LAB_KUBECONFIG:-}" \
-      "${HUBBLE_TLS_CA_CERT_FILES:-}" \
-      "${HUBBLE_TLS_CLIENT_CERT_FILE:-}" \
-      "${HUBBLE_TLS_CLIENT_KEY_FILE:-}"; do
-      if [[ -n "$path" ]]; then
-        line=${line//"$path"/'[caminho local omitido]'}
-      fi
-    done
-    printf '%s\n' "$line"
-  done
-}
+~~~{=latex}
+\hyperlink{p010-preparacao-assistida}{Abrir o Apêndice A — preparação assistida}
 ~~~
 
 ```{=latex}
@@ -663,10 +524,6 @@ printf 'Namespace ausente antes da criação.\n' \
   | tee -a "$LAB_RECEIPT" || exit 1
 ~~~
 
-```{=latex}
-\clearpage
-```
-
 **Fase 4 — Registre a confirmação e crie a namespace**
 
 **E01.7 · Terminal A · VM Linux — Registre confirmação e hashes**
@@ -728,9 +585,44 @@ Os valores LAB_NS e LAB_RUN_ID foram limitados a caracteres seguros no passo 4 p
 
 ### Confira e registre
 
-**Esperado — ILUSTRATIVO:** versão de cliente/servidor e identidade conferem; capacidade atende o limite definido para a VM; namespace ainda não existe; o instrutor confirma a linha de base e as policies; a namespace criada tem UID próprio e label de run-id. Nenhum desses resultados foi coletado neste documento.
+**Esperado — ILUSTRATIVO:** versão de cliente/servidor e identidade conferem; capacidade atende o limite definido para a VM; namespace ainda não existe; o instrutor confirma a linha de base e as policies; a namespace criada tem UID próprio e label de run-id.
 
-**Observado — NOT_RUN (ainda não executado)**
+~~~{=latex}
+\clearpage
+~~~
+
+**Autor observado — execução E01 em 2026-10-29, 14:53:07Z; revisão do guia 0b30e09; saída e código registrados:**
+
+~~~text
+E01.5 — kubectl version
+Client Version: v1.34.11
+Kustomize Version: v5.7.1
+Server Version: v1.35.0
+exit_code=0
+Contexto observado: kind-p003-gw
+API server observado: https://127.0.0.1:42325
+UID kube-system observado: 6bb32e0f-71f9-4558-ae33-356ba2250c26
+
+E01.6 — MemAvailable
+7069936 KiB disponíveis
+exit_code=0
+Namespace ausente antes da criação.
+
+E01.8 — namespace criada
+namespace=p010-20261029-1445 uid=45bc5a71-ca61-48f9-8802-f9c945848c27 run-id=20261029-1445 exit_code=0
+~~~
+
+**Extrato comentado da execução de referência — passo E01.7, rótulo `hashes do guia e manifests`; guia na revisão `0b30e09`; exit_code=0:**
+
+~~~text
+e60b0c3f466c5852cfb88956bca666fc68ca1b19bc3d1045cbea2410fbb1cb7a  poc-k8s-fabric/docs/ebpf-cilium-iniciantes.md
+ae3a66d72b8d5a46bb341ba1c081017fbf0391d36732cc6c46e2713ce0b52e45  00-config.yaml
+[sete hashes de manifests restantes omitidos neste extrato]
+~~~
+
+O hash do guia acima pertence à revisão 0b30e09 usada na demonstração; não é o hash deste arquivo depois das alterações editoriais. Sete hashes de manifests foram omitidos neste extrato; a lista integral permanece no passo E01.7 do recibo (rótulo `hashes do guia e manifests`) e na trace correspondente do pacote interno de evidências desta edição.
+
+**Anotação do aluno — NOT_RUN (preencher somente na própria prática)**
 
 - Revisão do guia e hashes: \hrulefill
 - Hora UTC e versão da VM: \hrulefill
@@ -755,11 +647,9 @@ As condições prévias foram confirmadas; a identidade explícita conferiu; a n
 
 ### Gabarito para conferir depois
 
-A checagem de endpoint e UID responde “qual cluster”; o nome da namespace com run-id responde “qual rodada”; a reserva responde “quem mais pode estar mudando o ambiente”; e a linha de base/policies respondem “o que não deve ser quebrado”. Uma namespace ajuda a limitar nomes, mas não isola todo recurso nem controla políticas globais.
+A checagem de endpoint e UID identifica o cluster; namespace e run-id, a rodada. Reserva e policies reduzem interferência; a linha de base indica o que preservar. Namespace não isola políticas globais.
 
-### Próxima etapa
-
-Terminal A conserva contexto, namespace, run-id, UID e recibo. Prossiga em E02 na mesma rodada; a conferência do laboratório A termina depois de comparar os dois pedidos. Não crie outra namespace nem limpe a atual.
+**Próxima etapa:** mantenha Terminal A, contexto, namespace, run-id, UID e recibo. Siga E02 nesta rodada; Lab A termina ao comparar os dois pedidos. Não crie outra namespace nem limpe a atual.
 
 ## E02 — Acompanhar uma requisição saudável
 
@@ -829,61 +719,213 @@ record 'E02 ConfigMaps' \
 
 **E02.3 · Terminal A · VM Linux — Crie o backend antes do proxy**
 
-Crie primeiro o Service backend e depois o Deployment. O Service fornece o nome DNS backend; o Pod BusyBox serve / e /health na porta 8080. Aguarde a probe /health:
+Crie o Service e o Deployment do backend nessa ordem. Execute cada caixa no mesmo Terminal A; confira a saída antes de seguir. A probe /health mede a prontidão local do Pod.
+
+**Ação 1 — Criar o Service backend**
 
 ~~~bash
 RECORD_STEP='E02.3'
 record 'E02 criar Service backend antes do NGINX' \
   k apply -n "$LAB_NS" \
   -f "$LAB_DIR/10-backend-service.yaml" || exit 1
+~~~
+
+**Extrato do autor — rótulo `E02 criar Service backend antes do NGINX` (2026-10-29, janela do recibo 14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+service/backend created
+~~~
+
+**Leia:** a resposta do apply informa o resultado da solicitação ao API server. Ela não diz se o Pod backend está pronto.
+
+**Ação 2 — Criar o Deployment backend**
+
+~~~bash
 record 'E02 criar Deployment backend' \
   k apply -n "$LAB_NS" \
   -f "$LAB_DIR/11-backend-deployment.yaml" || exit 1
+~~~
+
+**Extrato do autor — rótulo `E02 criar Deployment backend` (2026-10-29, janela do recibo 14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+deployment.apps/backend created
+~~~
+
+**Leia:** o Deployment descreve o Pod a manter. A saída de apply, sozinha, não confirma que a probe passou.
+
+**Ação 3 — Aguardar a probe do backend**
+
+~~~bash
 record 'E02 aguardar probe backend' \
   k -n "$LAB_NS" rollout status deployment/backend \
   --timeout=90s || exit 1
+~~~
+
+**Extrato do autor — rótulo `E02 aguardar probe backend` (2026-10-29, janela do recibo 14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+Waiting for deployment "backend" rollout to finish: 0 of 1 updated replicas are available...
+deployment "backend" successfully rolled out
+~~~
+
+**Leia:** confira se o comando terminou com código zero dentro do limite. Esse resultado fala da prontidão declarada para o Deployment, não do caminho HTTP completo.
+
+**Ação 4 — Inspecionar o Service backend**
+
+~~~bash
 record 'E02 Service backend' \
   k -n "$LAB_NS" get service backend || exit 1
+~~~
+
+**Extrato do autor — rótulo `E02 Service backend` (2026-10-29, janela do recibo 14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+NAME      TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+backend   ClusterIP   10.112.248.215   <none>        80/TCP    4s
+~~~
+
+**Leia:** confira o nome e a porta do Service. No passo seguinte, a EndpointSlice mostra o destino selecionado e a porta do Pod; o Service é o endereço lógico usado pelos clientes.
+
+**Ação 5 — Inspecionar os destinos do Service**
+
+~~~bash
 record 'E02 EndpointSlice backend' \
   k -n "$LAB_NS" get endpointslice \
   -l kubernetes.io/service-name=backend || exit 1
 ~~~
 
+**Extrato do autor — rótulo `E02 EndpointSlice backend` (2026-10-29, janela do recibo 14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+NAME            ADDRESSTYPE   PORTS   ENDPOINTS     AGE
+backend-jszr6   IPv4          8080    10.245.1.94   4s
+~~~
+
+**Leia:** confira os endereços e as condições dos destinos, se listados. A EndpointSlice mostra a seleção associada ao Service; não é uma resposta HTTP.
+
+~~~{=latex}
+\clearpage
+~~~
+
 **E02.4 · Terminal A · VM Linux — Crie o Service e proxy da API**
 
-Depois de confirmar o Service backend e seu estado, crie o Service api e o Deployment NGINX. A ordem garante que o nome backend existe quando NGINX carrega sua configuração. Aguarde a probe local /ready:
+Crie primeiro o Service api e depois o Deployment NGINX. O NGINX carrega o nome DNS backend; aguarde sua probe local /ready antes de enviar pedidos.
+
+**Ação 1 — Criar o Service api**
 
 ~~~bash
 RECORD_STEP='E02.4'
 record 'E02 criar Service api' \
   k apply -n "$LAB_NS" -f "$LAB_DIR/20-api-service.yaml" \
   || exit 1
+~~~
+
+**Extrato do autor — rótulo `E02 criar Service api` (2026-10-29, janela do recibo 14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+service/api created
+~~~
+
+**Leia:** a saída registra a aceitação do objeto Service; a prontidão da API depende do Deployment e da probe seguintes.
+
+**Ação 2 — Criar o Deployment api**
+
+~~~bash
 record 'E02 criar Deployment api' \
   k apply -n "$LAB_NS" -f "$LAB_DIR/21-api-deployment.yaml" \
   || exit 1
+~~~
+
+**Extrato do autor — rótulo `E02 criar Deployment api` (2026-10-29, janela do recibo 14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+deployment.apps/api created
+~~~
+
+**Leia:** confira o resultado do apply. Ele não substitui a verificação de prontidão.
+
+**Ação 3 — Aguardar a probe local da API**
+
+~~~bash
 record 'E02 aguardar probe local da API' \
   k -n "$LAB_NS" rollout status deployment/api \
   --timeout=90s || exit 1
 ~~~
 
-```{=latex}
+**Extrato do autor — rótulo `E02 aguardar probe local da API` (2026-10-29, janela do recibo 14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+Waiting for deployment "api" rollout to finish: 0 of 1 updated replicas are available...
+deployment "api" successfully rolled out
+~~~
+
+**Leia:** a probe /ready verifica a condição local configurada para o Pod api. Ela ainda não prova que o frontend chega ao backend pela API.
+
+~~~{=latex}
 \clearpage
-```
+~~~
 
 **E02.5 · Terminal A · VM Linux e POD via exec — Inicie o cliente e faça dois pedidos**
 
-Inicie o cliente ocioso frontend por último. Ele executa sleep infinity, não serve HTTP e não gera tráfego sozinho. Faça somente as duas chamadas manuais abaixo; o comando executa curl dentro do contêiner por causa do texto depois de --:
+Inicie por último o frontend ocioso. Ele executa sleep infinity, não serve HTTP nem gera tráfego sozinho. Faça somente as duas chamadas manuais, na ordem, e registre status HTTP e código curl quando ambos existirem.
+
+**Ação 1 — Iniciar o frontend**
 
 ~~~bash
 RECORD_STEP='E02.5'
 record 'E02 criar Deployment frontend' \
   k apply -n "$LAB_NS" -f "$LAB_DIR/30-frontend-deployment.yaml" \
   || exit 1
+~~~
+
+**Extrato do autor — rótulo `E02 criar Deployment frontend` (2026-10-29, janela do recibo 14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+deployment.apps/frontend created
+~~~
+
+**Leia:** a saída do apply registra a solicitação do Deployment. O frontend é um cliente ocioso; sua criação não gera os pedidos de teste.
+
+**Ação 2 — Aguardar a prontidão do frontend**
+
+~~~bash
 record 'E02 aguardar frontend ocioso' \
   k -n "$LAB_NS" rollout status deployment/frontend \
   --timeout=90s || exit 1
+~~~
+
+**Extrato do autor — rótulo `E02 aguardar frontend ocioso` (2026-10-29, janela do recibo 14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+Waiting for deployment "frontend" rollout to finish: 0 of 1 updated replicas are available...
+deployment "frontend" successfully rolled out
+~~~
+
+**Leia:** confira o código de retorno e o estado informado. Esta etapa prepara o cliente, mas não testa a API.
+
+\clearpage
+
+**Ação 3 — Marcar a hora UTC antes do pedido pela API**
+
+~~~bash
 record 'E02 UTC antes do pedido API' \
   date -u +%Y-%m-%dT%H:%M:%SZ || exit 1
+~~~
+
+**Extrato do autor — rótulo `E02 UTC antes do pedido API` (2026-10-29, janela do recibo 14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+2026-10-29T14:53:22Z
+~~~
+
+**Leia:** use o horário para localizar a tentativa correspondente no recibo e, depois, em Hubble.
+
+**Ação 4 — Fazer o pedido pela API**
+
+A parte depois de -- roda dentro do contêiner frontend. curl imprime cabeçalhos e corpo; --fail-with-body também pode devolver código não zero quando recebe uma resposta HTTP de erro.
+
+~~~bash
 if record 'E02 curl via API' \
   k exec -n "$LAB_NS" deploy/frontend -- \
   curl --fail-with-body -sS --connect-timeout 3 \
@@ -898,8 +940,41 @@ else
 fi
 printf 'E02 curl via API rc=%s\n' "$rc_api" \
   | tee -a "$LAB_RECEIPT" || exit 1
+~~~
+
+~~~{=latex}
+\clearpage
+~~~
+
+**Síntese comentada derivada — execução de referência, rótulo `E02 curl via API` (14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+HTTP/1.1 200 OK
+X-Lab-Route: via-api-proxy
+<body>resposta-served-backend</body>
+E02 curl via API rc=0
+~~~
+
+**Leia:** compare status HTTP, cabeçalho, corpo e código curl; são evidências distintas. Este pedido pela API trouxe o cabeçalho que o proxy acrescenta.
+
+**Ação 5 — Marcar a hora UTC antes do pedido direto**
+
+~~~bash
 record 'E02 UTC antes do pedido direto' \
   date -u +%Y-%m-%dT%H:%M:%SZ || exit 1
+~~~
+
+**Extrato do autor — rótulo `E02 UTC antes do pedido direto` (2026-10-29, janela do recibo 14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+2026-10-29T14:53:23Z
+~~~
+
+**Leia:** esse horário distingue o pedido direto do pedido anterior no recibo.
+
+**Ação 6 — Fazer o pedido direto ao backend**
+
+~~~bash
 if record 'E02 curl direto ao backend' \
   k exec -n "$LAB_NS" deploy/frontend -- \
   curl --fail-with-body -sS --connect-timeout 3 \
@@ -916,13 +991,25 @@ printf 'E02 curl direto rc=%s\n' "$rc_direct" \
   | tee -a "$LAB_RECEIPT" || exit 1
 ~~~
 
-Leia os cabeçalhos HTTP e o corpo na saída salva no recibo. `--fail-with-body` mantém o corpo de erro e faz curl devolver código diferente de zero em resposta HTTP de erro. record exibe e anota o código de cada comando; rc_api e rc_direct guardam os códigos de cada pedido separadamente. curl sem `--fail` pode retornar zero mesmo ao receber HTTP 502.
+~~~{=latex}
+\clearpage
+~~~
+
+**Síntese comentada derivada — execução de referência, rótulo `E02 curl direto ao backend` (14:53:05–14:53:23Z; exit_code=0):**
+
+~~~text
+HTTP/1.1 200 OK
+<body>resposta-served-backend</body>
+E02 curl direto rc=0
+~~~
+
+**Leia:** a resposta direta teve o mesmo status e corpo, sem `X-Lab-Route`. Compare esses campos com a resposta pela API; código curl e status HTTP não são intercambiáveis.
 
 ### Confira e registre
 
-**Esperado — ILUSTRATIVO:** o primeiro pedido deve exibir HTTP 200, mensagem curta do backend e cabeçalho X-Lab-Route: via-api-proxy; o segundo deve exibir HTTP 200 e a mesma mensagem, sem esse cabeçalho. A imagem, DNS e ambiente reais podem divergir; nenhuma saída foi coletada neste guia.
+**Esperado — ILUSTRATIVO:** o primeiro pedido deve exibir HTTP 200, mensagem curta do backend e cabeçalho X-Lab-Route: via-api-proxy; o segundo deve exibir HTTP 200 e a mesma mensagem, sem esse cabeçalho. A demonstração do autor produziu os extratos acima; os campos abaixo continuam reservados ao aluno.
 
-**Observado — NOT_RUN (ainda não executado)**
+**Anotação do aluno — NOT_RUN (preencher somente na própria prática)**
 
 - UTC e revisão/hash dos manifests: \hrulefill
 - Versão cliente/servidor: \hrulefill
@@ -953,15 +1040,15 @@ O frontend é cliente, não servidor. DNS localiza um Service, o Service selecio
 
 Ao concluir E02, mantenha a namespace, Terminal A, variáveis e recibo; confira a ficha A com os dois resultados esperados. O laboratório B reúne os requisitos de E03 e E04 antes dos passos guiados. É a continuação da mesma rodada, sem recriar a cadeia.
 
-## Laboratório de revisão B: Observar e restringir
+## Laboratório B — Hubble e policies
 
-Esta revisão relaciona pedidos a fluxos e compara a rota pela API à contraprova direta no ambiente já admitido.
+Esta revisão reúne E03–E04 para correlacionar pedidos e fluxos e comparar a rota pela API com o acesso direto sob policy.
 
 > **Ficha B. Estado inicial: NOT_RUN**
 >
 > **Requisito:** Hubble no modo declarado; duas rotas correlacionadas.
 >
-> **Evidência observada:** ainda não coletada.
+> **Evidência do aluno:** NOT_RUN; ainda não coletada. Os extratos do autor nas etapas guiadas não preenchem esta ficha.
 >
 > **Decisão:** pendente por UTC, origem/destino e verdict.
 
@@ -1137,6 +1224,16 @@ record 'E03 status Hubble no modo declarado' \
 \clearpage
 ~~~
 
+**Extrato do autor — rótulos `modo Hubble declarado pelo instrutor` e `E03 status Hubble no modo declarado` (consulta às 14:55:05–14:55:13Z; exit_code=0):**
+
+~~~text
+HUBBLE_MODE=loopback-plaintext
+Healthcheck (via 127.0.0.1:4245): Ok
+Connected Nodes: 3/3
+~~~
+
+**Leia:** a consulta confirmou a saúde e os três nós conectados naquele momento; não informa a versão do cliente nem a do Relay.
+
 **E03.4 · Terminal A · VM Linux e POD via exec — Gere poucos pedidos**
 
 Gere poucos requests novos no terminal A, sem loop. record guarda a saída e o código de cada pedido, mesmo se um status HTTP provocar curl não zero:
@@ -1177,9 +1274,14 @@ printf 'E03 request direto rc=%s\n' "$rc_direct" \
   | tee -a "$LAB_RECEIPT" || exit 1
 ~~~
 
-~~~{=latex}
-\clearpage
+**Síntese comentada derivada — execução de referência, records `E03 request via API` e `E03 request direto antes de E04` (14:55:08Z; ambos exit_code=0):**
+
+~~~text
+14:55:08Z — API: HTTP/1.1 200 OK; X-Lab-Route: via-api-proxy; corpo resposta-served-backend; rc=0
+14:55:08Z — direto: HTTP/1.1 200 OK; mesmo corpo; rc=0; sem X-Lab-Route no cabeçalho completo
 ~~~
+
+**Leia:** a API e o acesso direto retornaram o mesmo conteúdo; o cabeçalho identifica o trecho que passou pelo proxy.
 
 **E03.5 · Terminal A · VM Linux — Consulte a janela curta de Hubble**
 
@@ -1193,17 +1295,31 @@ record 'E03 Hubble flows no modo do E03' \
   --since 2m || exit 1
 ~~~
 
+~~~{=latex}
+\clearpage
+~~~
+
+**Extrato do autor — rótulo `E03 Hubble flows no modo do E03` (consulta da janela de 2 min após requests em 14:55:08; exit_code=0):**
+
+~~~text
+Oct 29 14:55:08.419: p010-20261029-1445/frontend-55747b74f9-zns7t:48662 (ID:192873) -> p010-20261029-1445/api-c6676f5d4-6bbcw:8080 (ID:162070) to-endpoint FORWARDED (TCP Flags: SYN)
+Oct 29 14:55:08.420: p010-20261029-1445/api-c6676f5d4-6bbcw:36732 (ID:162070) -> p010-20261029-1445/backend-56674bb69-b7rpw:8080 (ID:158250) to-endpoint FORWARDED (TCP Flags: SYN)
+Oct 29 14:55:08.814: p010-20261029-1445/frontend-55747b74f9-zns7t:36306 (ID:192873) -> p010-20261029-1445/backend-56674bb69-b7rpw:8080 (ID:158250) to-endpoint FORWARDED (TCP Flags: SYN)
+~~~
+
+O modo `loopback-plaintext` descreve a conexão do cliente pelo encaminhamento local; a comunicação interna entre agentes e Relay permaneceu mTLS. O extrato reduz as três aberturas TCP correlacionadas; a consulta completa também continha DNS, probes e outros fluxos, omitidos aqui. Não apareceu campo HTTP/L7 neste extrato. `FORWARDED` descreve o verdict de fluxo observado, não substitui os status HTTP.
+
 **E03.6 · Terminal A · VM Linux — Registre os campos da consulta**
 
 Registre intervalo UTC, filtro, origem/destino, protocolo, verdict e campos ausentes. record salva o retorno de cada comando. Ctrl-C, somente no terminal B, encerra o encaminhamento depois de E05 ou quando o instrutor pedir.
 
 ### Confira e registre
 
-**Esperado — ILUSTRATIVO:** `hubble status` conecta no modo declarado e confirma a saúde. Podem surgir fluxos recentes entre frontend e api e entre api e backend; antes da policy, também pode surgir frontend e backend direto. Hubble pode mostrar FORWARDED ou um verdict equivalente e detalhes L7 se estiverem habilitados. A saída exata, nome do processo e metadados variam; nenhuma observação real foi feita.
+**Esperado — ILUSTRATIVO:** `hubble status` conecta no modo declarado e confirma a saúde. Podem surgir fluxos recentes entre frontend e api e entre api e backend; antes da policy, também pode surgir frontend e backend direto. Hubble pode mostrar FORWARDED ou um verdict equivalente e detalhes L7 se estiverem habilitados. A saída exata, nome do processo e metadados variam.
 
-**Observado — NOT_RUN (ainda não executado)**
+**Anotação do aluno — NOT_RUN (preencher somente na própria prática)**
 
-- Versões CLI e Relay: \hrulefill
+- Versão do cliente Hubble e fonte independente para versão do Relay: \hrulefill
 - Modo e confirmação do instrutor, sem segredo: \hrulefill
 - Namespace Cilium e endereço local anunciado: \hrulefill
 - UTC inicial/final, filtro e janela: \hrulefill
@@ -1293,6 +1409,18 @@ record 'E04 policies presentes' \
 \clearpage
 ~~~
 
+**Extrato do autor — rótulos `E04 aplicar policies de ingresso / E04 policies presentes` (recibo E03-E04, janela 14:55:05–14:55:13Z; exit_code=0):**
+
+~~~text
+networkpolicy.networking.k8s.io/allow-frontend-to-api created
+networkpolicy.networking.k8s.io/allow-api-to-backend created
+NAME                    POD-SELECTOR   AGE
+allow-api-to-backend    app=backend    0s
+allow-frontend-to-api   app=api        0s
+~~~
+
+**Leia:** as duas policies foram criadas e selecionam os Pods `api` e `backend`, respectivamente.
+
 **E04.3 · Terminal A · VM Linux e POD via exec — Teste o caminho positivo**
 
 Abra uma conexão nova para a cadeia positiva pela API. Leia status HTTP e o cabeçalho do proxy:
@@ -1316,6 +1444,21 @@ fi
 printf 'E04 curl via API rc=%s\n' "$rc_api" \
   | tee -a "$LAB_RECEIPT" || exit 1
 ~~~
+
+~~~{=latex}
+\clearpage
+~~~
+
+**Síntese comentada derivada — execução de referência, rótulo `E04 curl positivo via API` (2026-10-29 UTC; exit_code=0):**
+
+~~~text
+2026-10-29T14:55:09Z — HTTP/1.1 200 OK
+X-Lab-Route: via-api-proxy
+<body>resposta-served-backend</body>
+E04 curl via API rc=0
+~~~
+
+**Leia:** a chamada positiva preservou a resposta pela API após aplicar as policies.
 
 **E04.4 · Terminal A · VM Linux e POD via exec — Teste o caminho direto**
 
@@ -1341,6 +1484,19 @@ printf 'E04 curl direto rc=%s\n' "$rc_direct" \
   | tee -a "$LAB_RECEIPT" || exit 1
 ~~~
 
+~~~{=latex}
+\clearpage
+~~~
+
+**Extrato do autor — rótulo `E04 curl negativo direto ao backend` (pedido em 14:55:09Z; exit_code=28):**
+
+~~~text
+2026-10-29T14:55:09Z — curl: (28) Connection timed out after 3001 milliseconds
+command terminated with exit code 28
+~~~
+
+**Leia:** `28` é o código de saída do curl. Nenhum status HTTP foi recebido, então este resultado não identifica, sozinho, a causa do timeout.
+
 **E04.5 · Terminal A · VM Linux — Registre resultado e evidência Hubble**
 
 Anote horário, saída curl, status HTTP se houve resposta e destino. Em seguida examine a janela curta de Hubble e as policies efetivamente presentes:
@@ -1357,11 +1513,34 @@ record 'E04 objetos e labels do lab' \
   --show-labels || exit 1
 ~~~
 
+**Extrato do autor — rótulo `E04 Hubble flows no modo do E03` (janela Hubble consultada após o teste; evento em 14:55:10.015; exit_code=0):**
+
+~~~text
+Oct 29 14:55:10.015: p010-20261029-1445/frontend-55747b74f9-zns7t:36308 (ID:192873) <> p010-20261029-1445/backend-56674bb69-b7rpw:8080 (ID:158250) policy-verdict:none INGRESS DENIED (TCP Flags: SYN)
+Oct 29 14:55:10.015: p010-20261029-1445/frontend-55747b74f9-zns7t:36308 (ID:192873) <> p010-20261029-1445/backend-56674bb69-b7rpw:8080 (ID:158250) Policy denied DROPPED (TCP Flags: SYN)
+~~~
+
+O evento corresponde ao SYN do frontend para o backend na tentativa direta. Repetições em 14:55:11.025 e 14:55:12.049 foram omitidas. Outros fluxos da janela não são usados como prova.
+
+~~~{=latex}
+\clearpage
+~~~
+
+**Extrato do autor — rótulos `E04 objetos e labels do lab` (recibo E03-E04, janela 14:55:05–14:55:13Z; exit_code=0):**
+
+~~~text
+pod/api-c6676f5d4-6bbcw         1/1 Running   app=api,pod-template-hash=c6676f5d4
+pod/backend-56674bb69-b7rpw     1/1 Running   app=backend,pod-template-hash=56674bb69
+pod/frontend-55747b74f9-zns7t   1/1 Running   app=frontend,pod-template-hash=55747b74f9
+~~~
+
+Extrato dos três Pods prontos e suas labels; demais colunas e objetos foram omitidos.
+
 ### Confira e registre
 
 **Esperado — ILUSTRATIVO:** a cadeia via API segue com HTTP 200. O acesso direto tende a não receber HTTP; o código curl pode indicar timeout ou outro erro de conexão. Correlacione a tentativa recente, o destino backend e um fluxo DROPPED / Policy denied. Policies do Kubernetes aplicáveis ao mesmo sentido são aditivas, e respostas de conexões permitidas podem retornar; outras policies ou restrições globais podem influir. (Kubernetes Authors, 2026) (Cilium Authors, 2026)
 
-**Observado — NOT_RUN (ainda não executado)**
+**Anotação do aluno — NOT_RUN (preencher somente na própria prática)**
 
 - UTC e namespace: \hrulefill
 - Policy e revisão do manifesto: \hrulefill
@@ -1391,15 +1570,15 @@ api aceita ingresso de frontend na porta 8080; backend aceita ingresso de api na
 
 As duas policies permanecem aplicadas. Mantenha Terminal A e o port-forward próprio de B para o laboratório C, que reúne os requisitos de E05 e E06. A falha continua limitada ao selector previsto; a limpeza de E06 permanece assistida.
 
-## Laboratório de revisão C: Diagnosticar e encerrar
+## Laboratório C — Diagnóstico e limpeza
 
-Esta revisão reúne E05 e E06 para explicar a falha prevista, restaurar somente o Service e encerrar a mesma rodada com limpeza confirmada pelo instrutor.
+Esta revisão reúne E05–E06 para diagnosticar o selector, restaurar somente o Service e encerrar a mesma rodada com limpeza assistida.
 
 > **Ficha C. Estado inicial: NOT_RUN**
 >
 > **Requisito:** distinguir saúde do Pod de seleção do destino, restaurar o Service e confirmar a remoção da namespace própria.
 >
-> **Evidência observada:** ainda não coletada.
+> **Evidência do aluno:** NOT_RUN; ainda não coletada. Os extratos do autor nas etapas guiadas não preenchem esta ficha.
 >
 > **Decisão:** pendente até conferir restauração, controles finais e ausência.
 
@@ -1417,7 +1596,7 @@ Esta revisão reúne E05 e E06 para explicar a falha prevista, restaurar somente
 
 **Apoio opcional:** E05.1–E05.5/E06.1–E06.5 localizam as verificações; limpeza de E06 é sempre assistida. Não repita a rodada.
 
-**Entregas, diagnóstico e estado de saída:** guarde falha, comparação, restauração e conferência no mesmo recibo, que não é audit log. Após interrupção de mutação, preserve erro/recibo e peça recuperação assistida; identidade ausente ou divergente bloqueia mutação. Ao concluir, namespace própria ausente, port-forward parado e recibo preservado; as soluções não reabrem a rodada.
+**Entregas, diagnóstico e estado de saída:** guarde falha, comparação e restauração no mesmo recibo (não é audit log). Se a identidade faltar/divergir ou uma mutação for interrompida, preserve o erro e peça recuperação assistida; não prossiga. Ao concluir, confirme namespace própria ausente, port-forward parado e recibo preservado; as soluções não reabrem a rodada.
 
 ## E05 — Diagnosticar e restaurar um selector incorreto
 
@@ -1487,13 +1666,22 @@ record 'E05 EndpointSlice' \
 record 'E05 readiness backend' \
   k -n "$LAB_NS" rollout status deployment/backend \
   --timeout=30s || exit 1
-record 'E05 logs API recentes' \
-  k -n "$LAB_NS" logs deployment/api --since=2m || exit 1
 ~~~
+
+**Síntese comentada derivada — execução de referência, records `E05 Pod labels`, `E05 Service selector`, `E05 EndpointSlice` e `E05 readiness backend` (etapa E05.3, recibo 14:56:00–14:56:12Z; cada comando exit_code=0):**
+
+~~~text
+Pod backend: 1/1 Running; label app=backend
+Service selector: app=backend-ausente
+EndpointSlice backend-jszr6: endpoints=null; ports=null
+deployment "backend" successfully rolled out
+~~~
+
+**Leia:** o Pod manteve a probe e a label `app=backend`, enquanto o Service buscou `app=backend-ausente`; a EndpointSlice ficou sem destinos. Isso separa prontidão do Pod de seleção do Service.
 
 **E05.4 · Terminal A · VM Linux e POD via exec — Registre a falha pelo proxy**
 
-Faça uma chamada pela API, registre código de saída e status HTTP se presente. Não tente corrigir a falha usando acesso direto: E04 continua selecionando o Pod backend e bloqueando esse atalho:
+Faça uma chamada pela API e registre o código de saída e o status HTTP, se houver resposta. Depois da tentativa, consulte os logs recentes da API para que a coleta inclua o pedido defeituoso. Não tente corrigir a falha usando acesso direto: E04 continua selecionando o Pod backend e bloqueando esse atalho:
 
 ~~~bash
 RECORD_STEP='E05.4'
@@ -1513,7 +1701,19 @@ else
 fi
 printf 'E05 request com defeito rc=%s\n' "$rc_fault" \
   | tee -a "$LAB_RECEIPT" || exit 1
+record 'E05 logs API após tentativa com defeito' \
+  k -n "$LAB_NS" logs deployment/api --since=2m || exit 1
 ~~~
+
+**Síntese comentada derivada — execução de referência: record `E05 request API com selector defeituoso` e suplemento `E05.4-supplement` de logs após a tentativa (curl às 14:56:02Z, exit_code=28; consulta posterior, exit_code=0):**
+
+~~~text
+curl: (28) Operation timed out after 5001 milliseconds with 0 bytes received
+command terminated with exit code 28
+10.245.1.27 - - [29/Oct/2026:14:56:07 +0000] "GET / HTTP/1.1" 499 0 "-" "curl/8.23.0"
+~~~
+
+**Leia:** o curl terminou por timeout sem bytes; nenhum status HTTP foi recebido. `499` aparece somente no access log consultado depois, não como status recebido pelo cliente. As demais linhas de logs (incluindo probes) foram omitidas.
 
 ~~~{=latex}
 \clearpage
@@ -1521,7 +1721,7 @@ printf 'E05 request com defeito rc=%s\n' "$rc_fault" \
 
 **E05.5 · Terminal A · VM Linux e POD via exec — Restaure só o Service e refaça os controles**
 
-Restaure somente o Service saudável e repita os dois controles. Não reaplique tudo e não reinicie Deployment:
+Restaure somente o Service saudável e repita os dois controles. Depois deles, faça uma nova consulta Hubble no modo declarado em E03. Compare a janela consultada com os horários registrados em E05.5; não conte eventos anteriores à restauração como confirmação. Não reaplique tudo e não reinicie Deployment:
 
 ~~~bash
 RECORD_STEP='E05.5'
@@ -1565,27 +1765,47 @@ else
 fi
 printf 'E05 request direto rc=%s\n' "$rc_direct" \
   | tee -a "$LAB_RECEIPT" || exit 1
+record 'E05 Hubble após restauração e controle direto' \
+  hubble observe --server "$HUBBLE_SERVER" \
+  "${HUBBLE_CONNECTION_ARGS[@]}" --namespace "$LAB_NS" \
+  --since 2m || exit 1
 ~~~
+
+**Síntese comentada derivada — execução de referência: controles E05.5 do roteiro-base e consulta Hubble suplementar `E05.5-supplement` (14:56:08–14:56:09Z; request direto exit_code=28; consulta Hubble exit_code=0):**
+
+~~~text
+Service backend restaurado: selector=app=backend; ClusterIP=10.112.248.215; UID=1d259046-eb93-4976-87d7-c4e56adb1324
+EndpointSlice: backend-jszr6 IPv4 port 8080 -> 10.245.1.94
+API 14:56:08Z: HTTP/1.1 200 OK; X-Lab-Route: via-api-proxy; rc=0
+Direto 14:56:08Z: curl (28) Connection timed out after 3000 milliseconds; rc=28
+Oct 29 14:56:07.025: 10.112.248.215 (world) <> p010-20261029-1445/api-c6676f5d4-6bbcw (ID:162070) Policy denied DROPPED (ICMPv4 DestinationUnreachable(Port))
+Oct 29 14:56:09.121: p010-20261029-1445/frontend-55747b74f9-zns7t:47214 (ID:192873) <> p010-20261029-1445/backend-56674bb69-b7rpw:8080 (ID:158250) policy-verdict:none INGRESS DENIED (TCP Flags: SYN)
+Oct 29 14:56:09.121: p010-20261029-1445/frontend-55747b74f9-zns7t:47214 (ID:192873) <> p010-20261029-1445/backend-56674bb69-b7rpw:8080 (ID:158250) Policy denied DROPPED (TCP Flags: SYN)
+~~~
+
+**Leia:** o pedido direto terminou em `rc=28` após 3.000 ms; nenhum status HTTP foi recebido. A linha ICMP de `world` para `api` é outro evento. Correlacione horário, origem, destino e protocolo: a contraprova é o SYN do `frontend:47214` ao `backend:8080`, observado em 14:56:09.121, depois do pedido. Um `DROPPED` de outro fluxo não demonstra o bloqueio do acesso direto. Outros fluxos da janela de dois minutos foram omitidos.
 
 ### Confira e registre
 
-**Esperado — ILUSTRATIVO:** o Pod backend permanece Ready; sem correspondência de label, o Service perde destino correspondente e a chamada via API pode falhar. Depois da restauração, o EndpointSlice volta a refletir o Pod pronto, a chamada via API retorna HTTP 200 e a chamada direta continua bloqueada pela policy. EndpointSlices são gerados a partir dos Pods que correspondem ao selector do Service. (Kubernetes Authors, 2026)
+**Esperado — ILUSTRATIVO:** o Pod backend permanece Ready; sem correspondência de label, o Service perde destino correspondente e a chamada via API pode falhar. Depois da restauração, o EndpointSlice volta a refletir o Pod pronto, a chamada via API retorna HTTP 200 e a chamada direta continua bloqueada pela policy. Uma consulta Hubble executada depois dos dois controles pode mostrar os eventos recentes; compare os horários com as chamadas de E05.5 e não use eventos anteriores à restauração como confirmação. EndpointSlices são gerados a partir dos Pods que correspondem ao selector do Service. (Kubernetes Authors, 2026)
 
-**Observado — NOT_RUN (ainda não executado)**
+**Anotação do aluno — NOT_RUN (preencher somente na própria prática)**
 
 - UTC da linha de base e da tentativa: \hrulefill
 - Labels do Pod e selector antes/depois: \hrulefill
 - Destinos e condição na EndpointSlice: \hrulefill
 - Readiness do backend: \hrulefill
 - Falha via API — status se houve e código: \hrulefill
+- Logs da API após a tentativa — trecho e limites: \hrulefill
 - Service restaurado e EndpointSlice: \hrulefill
 - API restaurada — status, cabeçalho e código: \hrulefill
 - Acesso direto pós-policy — status se houve e código: \hrulefill
+- Hubble após os controles — horário, origem, destino e verdict correlacionados: \hrulefill
 - Diagnóstico ou hipótese não confirmada: \hrulefill
 
 ### Interprete
 
-Readiness é uma pergunta local sobre a probe do Pod; selector e EndpointSlice descrevem a seleção feita pelo Service. Um processo saudável pode estar sem destino associado. A restauração de um único objeto testa se a hipótese explica a falha sem remover as policies.
+Readiness é uma pergunta local sobre a probe do Pod; selector e EndpointSlice descrevem a seleção feita pelo Service. Um processo saudável pode estar sem destino associado. A restauração de um único objeto testa se a hipótese explica a falha sem remover as policies. A consulta Hubble é feita depois das chamadas restauradas, mas sua janela de dois minutos pode incluir eventos anteriores: correlacione os horários de E05.5 com origem, destino e verdict. Hubble não substitui o status HTTP nem o código curl.
 
 ### Se falhar
 
@@ -1644,7 +1864,7 @@ Qual informação permite distinguir esperado de observado? Um recibo escrito lo
 
 **E06.1 · Terminal A · VM Linux — Confira e complete o recibo local**
 
-E01 criou o arquivo local `receipt.md` antes da primeira chamada ao API server, com permissões restritas. Confira que o mesmo arquivo está presente; não crie um segundo recibo. Os comandos `record` seguintes acrescentam revisão do guia, exercício e passo, rótulo, saída e código de saída. Não escrevem os argumentos expandidos, que podem conter caminhos locais. O modo 700 restringe a leitura no sistema de arquivos, mas não prova autoria nem fornece custódia imutável:
+E01 criou o arquivo local receipt.md antes da primeira chamada ao API server, com permissões restritas. Confira que o mesmo arquivo está presente; não crie um segundo recibo. Os comandos record acrescentam revisão do guia, exercício e passo, rótulo, saída e código de saída. Leia a sequência assim: use a revisão guia para abrir a versão exata, o passo para localizar o exercício e o rótulo para encontrar a chamada record no bloco de comandos; então compare essa invocação com a saída e o código registrados. record não grava os argumentos expandidos, que podem conter caminhos locais, portanto o recibo, sozinho, não prova a lista exata de argumentos. O modo 700 restringe a leitura no sistema de arquivos, mas não prova autoria nem fornece custódia imutável:
 
 ~~~bash
 RECORD_STEP='E06.1'
@@ -1686,9 +1906,33 @@ if ! record 'E06 arquitetura e SO dos nós' \
 fi
 ~~~
 
+**Síntese comentada derivada — execução de referência, records `E06 imageIDs e nós dos Pods` e `E06 arquitetura e SO dos nós` (14:58:10Z; ambos exit_code=0):**
+
+~~~text
+api: ghcr.io/nginx/nginx-unprivileged@sha256:2daef144b574804198caccc4041819fa1801ecd5df2252a39646bfa2b1ff3bea
+backend: docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+frontend: docker.io/curlimages/curl@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93
+api, backend, frontend: p003-gw-worker2
+p003-gw-worker2: amd64; Debian GNU/Linux 12 (bookworm)
+~~~
+
+Os três Pods estavam no mesmo nó. Esta execução não demonstra tráfego entre nós nem portabilidade ARM. O hash do guia coletado em E06 pertence à revisão 0b30e09 executada antes destas alterações editoriais; não o interprete como hash deste arquivo atualizado.
+
 **E06.2 · Terminal A · VM Linux — Separe esperado, observado e conclusão**
 
-E01 já registrou `kubectl version`; o status Hubble do E03 registra a versão anunciada pelo Relay. Confirme esses registros e acrescente a revisão, versão do guia e conclusão. Para cada observação, mantenha rótulo da etapa, UTC, código de saída, status HTTP se houver, valor esperado, saída observada e conclusão limitada. Registre NOT_RUN (ainda não executado) ou inconclusivo quando uma verificação não ocorreu. Não copie kubeconfig, token, certificados, chaves, Secrets ou caminhos pessoais para uma cópia compartilhada do recibo.
+E01 registra as versões do kubectl. O `hubble status` do E03 confirmou a saúde e os nós conectados, mas não informou a versão do cliente Hubble nem a do Relay. Para identificar o cliente, execute `hubble version` separadamente; não deduza sua versão a partir do status:
+
+~~~bash
+hubble version
+~~~
+
+**Extrato do autor — captura explícita do cliente Hubble; não proveniente de `hubble status`:**
+
+~~~text
+hubble v1.20.2@HEAD-90adec1 compiled with go1.27.1 on linux/amd64
+~~~
+
+Para cada observação, mantenha rótulo da etapa, UTC, código de saída, status HTTP se houver, valor esperado, saída observada e conclusão limitada. Registre NOT_RUN (ainda não executado) ou inconclusivo quando uma verificação não ocorreu. Não copie kubeconfig, token, certificados, chaves, Secrets ou caminhos pessoais para uma cópia compartilhada do recibo.
 
 **E06.3 · Terminal A · VM Linux — Reconfirme as identidades antes de limpar**
 
@@ -1741,6 +1985,18 @@ printf 'Namespace própria ausente após o wait.\n' \
   | tee -a "$LAB_RECEIPT" || exit 1
 ~~~
 
+**Execução de referência — observação do autor, E06 cleanup em 2026-10-29, 14:58:11–14:58:54Z; exit_code=0:**
+
+~~~text
+2026-10-29T14:58:11Z
+namespace "p010-20261029-1445" deleted
+namespace/p010-20261029-1445 condition met
+E06 conferência final de namespace exit_code=0
+Namespace própria ausente após o wait.
+~~~
+
+O port-forward próprio foi encerrado e o bind local 127.0.0.1:4245 ficou ausente após a limpeza. O UID da namespace desta rodada foi preservado nos registros.
+
 **E06.5 · Terminal A · VM Linux — Registre o resultado da limpeza**
 
 Anote hora e código de saída. Se houver timeout, pare e comunique o instrutor; não force finalizers. O wait confirma a remoção observável do objeto namespace, não auditoria imutável nem exclusão de cópias do recibo local.
@@ -1749,7 +2005,7 @@ Anote hora e código de saída. Se houver timeout, pare e comunique o instrutor;
 
 **Esperado — ILUSTRATIVO:** o recibo contém a trilha pretendida e observada sem credenciais; os guardas comparam contexto, endpoint, UIDs e run-id; a namespace própria desaparece após o pedido de remoção. Nada neste exercício prova que o API server tinha audit habilitado.
 
-**Observado — NOT_RUN (ainda não executado)**
+**Anotação do aluno — NOT_RUN (preencher somente na própria prática)**
 
 - Revisão e hashes do guia/manifests: \hrulefill
 - UTC, versões e identidade conferida: \hrulefill
@@ -1952,6 +2208,181 @@ Fonte: Elaboração própria (2026), com base em (Linux Kernel Documentation, 20
 **Erro comum:** “O verifier aceitou, então a policy está correta.” A conclusão não decorre da verificação: uma análise de segurança de execução não valida, por si só, a intenção lógica ou o comportamento completo da aplicação.
 
 **Resumo:** o agente configura componentes; o kernel verifica a carga; attach conecta programa e hook; um evento compatível pode executar o programa; aceitar não prova a lógica.
+
+## Apêndice A – Atalhos k e record
+
+~~~{=latex}
+\hypertarget{p010-preparacao-assistida}{}
+~~~
+
+Este é o bloco obrigatório indicado em E01.4, dentro deste mesmo livro. Execute-o uma vez no Terminal A com o instrutor, na mesma sessão que seguirá até a limpeza em E06. O bloco verifica valores e caminhos locais, cria o recibo privado e define os atalhos; não cria a namespace nem substitui a confirmação do instrutor. Se algo falhar ou estiver incerto, pare.
+
+Depois de copiar o bloco inteiro e executá-lo no Terminal A, retorne ao roteiro pelo link abaixo. Em uma cópia sem navegação, pesquise o título E01.4 no leitor de PDF ou use o marcador da página:
+
+~~~{=latex}
+\hyperlink{p010-e01-4-preparacao}{Voltar ao passo E01.4}
+~~~
+
+~~~bash
+for name in \
+  LAB_KUBECONFIG LAB_CONTEXT LAB_API_SERVER LAB_CLUSTER_UID \
+  LAB_CILIUM_NS LAB_NS LAB_RUN_ID LAB_GUIDE_REVISION LAB_DIR \
+  LAB_GUIDE LAB_DIR_REL LAB_GUIDE_REL; do
+  if [[ -z "${!name:-}" ]]; then
+    printf 'Falta preencher %s; pare e peça ao instrutor.\n' \
+      "$name" >&2
+    exit 1
+  fi
+done
+if [[ "$LAB_KUBECONFIG" != /* ]]; then
+  printf 'LAB_KUBECONFIG deve ser um caminho absoluto.\n' >&2
+  exit 1
+fi
+if [[ ! "$LAB_GUIDE_REVISION" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+  printf 'Revisão do guia deve ser tag ou commit sem espaços.\n' >&2
+  exit 1
+fi
+if [[ ! "$LAB_NS" =~ ^p010-[a-z0-9]([-a-z0-9]{0,56}[a-z0-9])?$ ||
+      ! "$LAB_RUN_ID" =~ ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$ ]]; then
+  printf 'LAB_NS ou LAB_RUN_ID não atende ao formato combinado.\n' \
+    >&2
+  exit 1
+fi
+if [[ ! -r "$LAB_KUBECONFIG" || ! -d "$LAB_DIR" ||
+      ! -r "$LAB_GUIDE" || ! -d "$LAB_DIR_REL" ||
+      ! -r "$LAB_GUIDE_REL" ]]; then
+  printf 'Kubeconfig, guia ou diretório não está acessível.\n' \
+    >&2
+  exit 1
+fi
+k() {
+  kubectl --kubeconfig "$LAB_KUBECONFIG" \
+    --context "$LAB_CONTEXT" "$@"
+}
+umask 077
+LAB_RECEIPT_DIR="$HOME/lab-receipts/$LAB_RUN_ID"
+if [[ -e "$LAB_RECEIPT_DIR" ]]; then
+  printf 'Recibo existente; escolha outro run-id com o instrutor.\n' \
+    >&2
+  exit 1
+fi
+mkdir -m 700 -p "$LAB_RECEIPT_DIR" || exit 1
+LAB_RECEIPT="$LAB_RECEIPT_DIR/receipt.md"
+cat > "$LAB_RECEIPT" <<EOF || exit 1
+# Recibo local do laboratório
+
+Revisão do guia: $LAB_GUIDE_REVISION
+Início UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+VM Linux: $(uname -srm)
+Contexto esperado: $LAB_CONTEXT
+API server esperado: $LAB_API_SERVER
+UID kube-system esperado: $LAB_CLUSTER_UID
+Namespace/run-id: $LAB_NS / $LAB_RUN_ID
+Modo Hubble: preencher após declaração do instrutor
+
+Não incluir kubeconfig, token, certificado, chave, Secret ou dado
+pessoal. Resultados vazios são NOT_RUN, nunca suposições.
+
+E01 — gates, versão, memória e criação
+Esperado:
+Observado:
+Códigos de saída:
+UID namespace criado:
+
+E02 — cadeia e probes locais
+Esperado:
+Observado:
+Códigos de saída:
+
+E03 — janela Hubble e modo de conexão declarado
+Esperado:
+Observado:
+Códigos de saída:
+
+E04 — policy e contraprovas
+Esperado:
+Observado:
+Códigos de saída:
+
+E05 — selector e restauração
+Esperado:
+Observado:
+Códigos de saída:
+
+E06 — hashes, versões, imageID, arquitetura e cleanup
+Esperado:
+Observado:
+Códigos de saída:
+ImageIDs e arquitetura: preencher somente após execução admitida
+Resultado do cleanup:
+EOF
+if [[ ! -f "$LAB_RECEIPT" ]]; then
+  printf 'Recibo local ausente; pare antes de consultar o cluster.\n' \
+    >&2
+  exit 1
+fi
+record() {
+  local label="$1"
+  local command_rc
+  local -a header_status
+  local -a output_status
+  local -a result_status
+  shift
+  RECORD_LOG_FAILED=0
+  RECORD_COMMAND_RC=0
+  if [[ -z "${LAB_GUIDE_REVISION:-}" ||
+        -z "${RECORD_STEP:-}" ]]; then
+    RECORD_LOG_FAILED=1
+    printf 'Falta revisão ou passo para identificar o comando.\n' >&2
+    return 125
+  fi
+  printf '\n## guia=%s | passo=%s | %s\n' \
+    "$LAB_GUIDE_REVISION" "$RECORD_STEP" "$label" \
+    | tee -a "$LAB_RECEIPT"
+  header_status=("${PIPESTATUS[@]}")
+  if (( header_status[0] != 0 || header_status[1] != 0 )); then
+    RECORD_LOG_FAILED=1
+    return 125
+  fi
+  "$@" 2>&1 | redact_receipt_output | tee -a "$LAB_RECEIPT"
+  output_status=("${PIPESTATUS[@]}")
+  command_rc=${output_status[0]}
+  RECORD_COMMAND_RC="$command_rc"
+  if (( output_status[1] != 0 || output_status[2] != 0 )); then
+    RECORD_LOG_FAILED=1
+    return 125
+  fi
+  printf 'exit_code=%s\n' "$command_rc" | tee -a "$LAB_RECEIPT"
+  result_status=("${PIPESTATUS[@]}")
+  if (( result_status[0] != 0 || result_status[1] != 0 )); then
+    RECORD_LOG_FAILED=1
+    return 125
+  fi
+  return "$command_rc"
+}
+redact_receipt_output() {
+  local line
+  local path
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    for path in \
+      "${LAB_KUBECONFIG:-}" \
+      "${HUBBLE_TLS_CA_CERT_FILES:-}" \
+      "${HUBBLE_TLS_CLIENT_CERT_FILE:-}" \
+      "${HUBBLE_TLS_CLIENT_KEY_FILE:-}"; do
+      if [[ -n "$path" ]]; then
+        line=${line//"$path"/'[caminho local omitido]'}
+      fi
+    done
+    printf '%s\n' "$line"
+  done
+}
+~~~
+
+**Rastreabilidade da execução de referência.**
+
+O roteiro-base e os oito manifests da execução do autor são do commit `0b30e09`. O roteiro-base não continha os rótulos de suplemento E05.4/5: `execution-package/stage-E05.sh` mostra a coleta de logs registrada como `E05.4-supplement` depois do pedido defeituoso e a consulta Hubble `E05.5-supplement` depois dos controles restaurados. As traces preservam as invocações realmente executadas; não atribua esses suplementos ao arquivo-base.
+
+Para conferir as sínteses deste apêndice, consulte o pacote interno desta edição em `poc-k8s-fabric/evidence/P010/S003/20261029-academic-alignment/runtime-demonstration/`: `runtime-summary.md` e os receipts resumem as observações do ambiente; `curated-author-receipt.md` organiza esperado, observado e códigos e liga passos a records e traces; `execution-package/stage-E05.sh` documenta os suplementos; `runtime-logs/trace-E05.log` preserva as invocações expandidas; `runtime-logs-return-manifest.json` relaciona os arquivos retornados à origem e ao SHA-256. O pacote é material interno de evidência, separado dos arquivos do aluno; sua presença em uma publicação no GitHub não está garantida. Na sua prática, siga a revisão e os rótulos que o próprio recibo registrar.
 
 ## Referências
 
