@@ -6,30 +6,13 @@
 
 Começamos por três perguntas: onde um comando roda, por onde uma conexão passa e que evidência ajuda a localizar uma falha? C01–C03 apresentam Linux, rede e Kubernetes. Depois, E01–E06 levam do reconhecimento do ambiente à cadeia de aplicações, observação, controle de tráfego, diagnóstico e limpeza.
 
-**Como usar:** leia primeiro os capítulos; antes de cada exercício, estude a figura e anote uma previsão. “Esperado — ILUSTRATIVO” descreve um resultado possível. “NOT_RUN — ainda não executado” marca observações que só podem ser preenchidas depois de uma prática autorizada.
+**Como usar:** há dois modos para a mesma prática. No modo guiado, siga os passos E01 a E06 com apoio. No modo de revisão, leia os requisitos dos laboratórios A, B e C e tente produzir as evidências antes de consultar os passos correspondentes ou as soluções. A preparação do ambiente em E01 e a limpeza em E06 continuam assistidas pelo instrutor; pedir ajuda ou consultar a orientação não é reprovação.
+
+Os dois modos usam uma só rodada, uma namespace e o mesmo recibo. Não é preciso dominar Bash nem entender a função `record` para usar os exercícios. Depois da limpeza, as soluções interpretam o recibo já preenchido; não iniciam outra rodada. Antes de cada exercício, estude a figura e anote uma previsão. “Esperado — ILUSTRATIVO” descreve um resultado possível. “NOT_RUN — ainda não executado” marca observações que só podem ser preenchidas depois de uma prática autorizada.
 
 **Edição de trabalho:** os comandos e arquivos do laboratório não foram reproduzidos em cluster; nenhuma imagem instalada, tráfego observado, aprendizagem de leitor ou validação operacional é afirmada. Cilium stable 1.20.4 é uma referência consultada em 28 de outubro de 2026, não uma versão instalada. (Cilium Authors, 2026)
 
 ~~~{=latex}
-\setcounter{tocdepth}{0}
-\settocdepth{chapter}
-\hypersetup{bookmarksdepth=0}
-\definecolor{GuiaNavy}{HTML}{17324D}
-\definecolor{GuiaTeal}{HTML}{147C83}
-\definecolor{GuiaMist}{HTML}{F1F5F4}
-\newmdenv[
-  backgroundcolor=GuiaMist,
-  linecolor=GuiaTeal,
-  linewidth=0.7pt,
-  skipabove=0.6\baselineskip,
-  skipbelow=0.6\baselineskip,
-  innerleftmargin=8pt,
-  innerrightmargin=8pt,
-  innertopmargin=5pt,
-  innerbottommargin=5pt,
-  leftmargin=0pt,
-  rightmargin=0pt
-]{guiaNota}
 \makeatletter
 \LetLtxMacro\guiaPdfBookmarkOriginal\pdfbookmark
 \renewcommand{\pdfbookmark}[3][0]{%
@@ -47,12 +30,6 @@ Começamos por três perguntas: onde um comando roda, por onde uma conexão pass
 
 ~~~{=latex}
 \RecustomVerbatimEnvironment{verbatim}{Verbatim}{breaklines,breakanywhere,fontsize=\normalsize,frame=single,framesep=2mm}
-\setlength{\parindent}{0pt}
-\setlength{\parskip}{0.35\baselineskip}
-\makeatletter
-\renewcommand{\ABNTEXchapterfont}{\color{GuiaNavy}\rmfamily\bfseries\raggedright\hyphenpenalty=10000\exhyphenpenalty=10000}
-\renewcommand{\ABNTEXsectionfont}{\color{GuiaTeal}\rmfamily\bfseries\raggedright\hyphenpenalty=10000\exhyphenpenalty=10000}
-\makeatother
 ~~~
 
 ~~~{=latex}
@@ -92,7 +69,7 @@ Nota: é um modelo didático, não um diagrama de um cluster medido.
 
 Um **terminal** é a interface onde você digita e lê texto. Um **shell**, como Bash, interpreta essa linha e chama programas. Uma **variável** guarda um valor durante a sessão; escrever LAB_NS=valor atribui um valor ao nome LAB_NS, e $LAB_NS pede o valor guardado. Aspas duplas mantêm junto um valor que tenha espaços e deixam variáveis serem expandidas. Aspas simples preservam o conteúdo literalmente. A barra / separa diretórios e também aparece em URLs e caminhos; seu significado depende do contexto. O escape com barra invertida muda como o shell interpreta o próximo caractere. (GNU Project, 2025)
 
-Um **código de saída** é o número que o comando devolve ao shell: zero costuma indicar conclusão sem erro para aquele comando; valor diferente de zero indica falha segundo o próprio programa. Isso não é o mesmo que um código HTTP. Com curl --fail-with-body, uma resposta HTTP de erro também faz curl devolver código diferente de zero; sem a opção, curl pode terminar com código zero mesmo ao receber HTTP 502. Registre os dois sinais quando ambos existirem. (GNU Project, 2025)
+Um **código de saída** é o número que o comando devolve ao shell: zero costuma indicar conclusão sem erro para aquele comando; valor diferente de zero indica falha segundo o próprio programa. Isso não é o mesmo que um código HTTP. Com `curl --fail-with-body`, uma resposta HTTP de erro também faz curl devolver código diferente de zero; sem a opção, curl pode terminar com código zero mesmo ao receber HTTP 502. Registre os dois sinais quando ambos existirem. (GNU Project, 2025)
 
 A tecla **Ctrl-C** envia uma interrupção ao comando em primeiro plano daquele terminal. No exercício E03, a porta encaminhada roda em outro terminal; Ctrl-C nele encerra somente aquele encaminhamento. Não pressione Ctrl-C em um terminal que esteja aplicando ou apagando recursos.
 
@@ -109,7 +86,7 @@ Leia os locais:
 
 1. Um contêiner Linux padrão tem um kernel próprio?
 2. O que namespaces e cgroups organizam?
-3. Onde roda o comando depois de kubectl exec ... --?
+3. Onde roda o comando depois de `kubectl exec ... --`?
 4. Se curl devolveu código 22, isso informa diretamente o código HTTP exato?
 
 **Gabarito comentado:** (1) não; um contêiner Linux comum compartilha o kernel Linux do host. (2) namespaces organizam visões de recursos; cgroups organizam e acompanham recursos de grupos de processos. (3) no contêiner e no Pod selecionados, não no shell da VM. (4) não; o código 22 sinaliza uma classe de resposta HTTP não bem-sucedida em curl, enquanto o status HTTP deve ser lido nos cabeçalhos. Um código de saída descreve o resultado reportado pelo processo, não substitui a evidência da aplicação.
@@ -325,7 +302,7 @@ Antes dos exercícios, separe palavras parecidas que apontam para coisas diferen
 
 ## Laboratório guiado
 
-Os seis exercícios formam um percurso; cada etapa deixa uma evidência para a seguinte:
+Os seis exercícios formam um percurso; cada etapa deixa uma evidência para a seguinte. Os laboratórios de revisão A, B e C organizam esses mesmos passos por resultados, sem criar outra rodada:
 
 1. **E01 · Preparar e reconhecer:** conferir versão, identidade, reserva, memória e revisão; só então criar a namespace da rodada.
 2. **E02 · Ver a cadeia saudável:** criar a API proxy e comparar o pedido pelo caminho completo com o acesso direto ao backend.
@@ -343,13 +320,9 @@ Os seis exercícios formam um percurso; cada etapa deixa uma evidência para a s
 
 - **Terminal A · VM Linux:** sessão persistente para os comandos do roteiro, variáveis, atalho k e recibo. Mantenha-o aberto de E01 até a limpeza em E06; não reconstrua uma identidade perdida por suposição.
 - **Terminal B · VM Linux:** sessão temporária usada somente pelo processo de port-forward do E03. Não herda as variáveis de A; encerre o encaminhamento com Ctrl-C depois de E05 ou quando o instrutor pedir.
-- **POD · execução remota:** quando a linha usa kubectl exec ... --, kubectl é chamado em A, mas o comando depois de -- roda no contêiner indicado. Não cole esses comandos no host pessoal.
+- **POD · execução remota:** quando a linha usa `kubectl exec ... --`, kubectl é chamado em A, mas o comando depois de `--` roda no contêiner indicado. Não cole esses comandos no host pessoal.
 
-~~~{=latex}
-\begin{guiaNota}
-\textbf{Condição para praticar.} O guia e os manifests são da mesma revisão de trabalho e não foram reproduzidos em cluster. Use somente o ambiente Linux que o instrutor reservou e liberou para a turma. Se uma condição ou identidade estiver desconhecida, pare antes de criar recursos; não instale nem altere Cilium, Hubble ou configuração do cluster.
-\end{guiaNota}
-~~~
+> **Condição para praticar.** O guia e os manifests são da mesma revisão de trabalho e não foram reproduzidos em cluster. Use somente o ambiente Linux que o instrutor reservou e liberou para a turma. Se uma condição ou identidade estiver desconhecida, pare antes de criar recursos; não instale nem altere Cilium, Hubble ou configuração do cluster.
 
 ### Como preparar o primeiro exercício
 
@@ -357,9 +330,38 @@ Os manifests acompanham o guia em poc-k8s-fabric/k8s/p010-iniciantes/. Obtenha o
 
 No Terminal A, os comandos kubectl, cilium e hubble rodam na VM Linux. O API server e os agentes Cilium ficam no cluster. Um comando termina com código de saída; curl também pode imprimir um status HTTP. Registre os dois sinais quando ambos existirem. Aspas duplas preservam variáveis como "$LAB_NS" como uma unidade; aspas simples preservam texto literal. Uma barra invertida no fim da linha continua o comando na linha seguinte.
 
-No E03, abra Terminal B apenas para o port-forward do Relay, pois uma sessão Bash nova não herda as variáveis de A. No Terminal A, uma chamada kubectl exec começa no cliente e o processo após -- roda no contêiner frontend. Ctrl-C encerra o processo em primeiro plano do terminal atual; use-o no B para parar o encaminhamento, nunca enquanto um comando estiver aplicando ou apagando recursos.
+No E03, abra Terminal B apenas para o port-forward do Relay, pois uma sessão Bash nova não herda as variáveis de A. No Terminal A, uma chamada kubectl exec começa no cliente e o processo após `--` roda no contêiner frontend. Ctrl-C encerra o processo em primeiro plano do terminal atual; use-o no B para parar o encaminhamento, nunca enquanto um comando estiver aplicando ou apagando recursos.
 
 Os comandos centrais usam uma namespace nova por rodada. Se Terminal A for fechado, não reconstrua UID, run-id ou contexto por suposição; pare e peça ao instrutor para recuperar o recibo.
+
+## Laboratório de revisão A: Comprovar a cadeia
+
+Esta revisão reúne E01–E02 para confirmar a identidade e comparar, na mesma namespace e recibo, os caminhos pela API e direto ao backend.
+
+> **Ficha A. Estado inicial: NOT_RUN**
+>
+> **Requisito:** identidade confirmada e dois caminhos HTTP comparados.
+>
+> **Evidência observada:** ainda não coletada.
+>
+> **Decisão:** pendente até conferir status, corpo, cabeçalho e destinos.
+
+**Apoio visual:** Figuras 4 e 5. Cada desenho aparece no exercício correspondente, antes dos comandos.
+
+**Estado de entrada:** o instrutor confirma reserva, revisão e condições; a namespace ainda não existe. Preparação e criação em E01 são obrigatoriamente assistidas e só ocorrem após as confirmações.
+
+**Critérios de saída:** contexto, API server e UIDs conferem; ambas as rotas retornam HTTP 200 e o mesmo corpo; só a API traz o cabeçalho. Probes e EndpointSlice não provam a cadeia HTTP.
+
+**Tarefas por resultado:**
+
+1. **Identificar a rodada:** registre revisão, UTC, contexto, API server, UID de `kube-system` e run-id. Dado ausente ou incerto exige parada; o instrutor acompanha a criação só após confirmar as condições.
+2. **Comprovar o caminho:** observe probes, Service e EndpointSlice; compare respostas pela API e diretas e registre status, corpo e código. Só a API deve incluir `X-Lab-Route: via-api-proxy`.
+
+**Decisão diagnóstica:** se probe falhar ou faltar destino, compare labels, selector e EndpointSlice; Pod Ready confirma só a probe, e erro de curl não prova a causa.
+
+**Apoio opcional:** E01.1–E01.8 e E02.1–E02.5 localizam orientações; preparação e criação em E01 continuam assistidas.
+
+**Entregas e estado de saída:** use os campos existentes para esperado, observado e conclusão; mantenha namespace, Terminal A, variáveis e recibo para B. Não crie outro recibo, reexecute ou limpe.
 
 ## E01 — Reconhecer o ambiente e preparar a rodada
 
@@ -603,7 +605,7 @@ redact_receipt_output() {
 
 **E01.5 · Terminal A · VM Linux — Confira cliente, servidor e identidade**
 
-Compare a versão do cliente e do servidor, o contexto selecionado por --context, o endpoint e o UID da namespace kube-system com o registro recebido. O UID de kube-system é uma impressão de identidade fornecida pelo instrutor, não um nome global padronizado para cluster. Salve a versão no recibo e encerre em qualquer erro:
+Compare a versão do cliente e do servidor, o contexto selecionado por `--context`, o endpoint e o UID da namespace kube-system com o registro recebido. O UID de kube-system é uma impressão de identidade fornecida pelo instrutor, não um nome global padronizado para cluster. Salve a versão no recibo e encerre em qualquer erro:
 
 ~~~bash
 RECORD_STEP='E01.5'
@@ -669,7 +671,7 @@ printf 'Namespace ausente antes da criação.\n' \
 
 **E01.7 · Terminal A · VM Linux — Registre confirmação e hashes**
 
-Peça ao instrutor a confirmação da reserva exclusiva, capacidade, Cilium/Hubble, baseline protegida e policies globais. A baseline pode viver em outro contexto: não consulte nem altere esse contexto com a identidade desta prática. Registre a confirmação, a revisão e os hashes dos arquivos no recibo local:
+Peça ao instrutor a confirmação efetiva da reserva exclusiva, da capacidade, de Cilium/Hubble, da baseline protegida e das policies globais. A baseline pode viver em outro contexto: não consulte nem altere esse contexto com a identidade desta prática. No recibo local, preencha com o instrutor a confirmação recebida, a revisão consultada e a hora UTC. A frase impressa pelo comando é um marcador incompleto; não confirma as condições nem substitui os dados efetivos. Se faltar confirmação, revisão ou hora UTC, pare e não avance para E01.8. Registre também os hashes dos arquivos:
 
 ~~~bash
 RECORD_STEP='E01.7'
@@ -757,7 +759,7 @@ A checagem de endpoint e UID responde “qual cluster”; o nome da namespace co
 
 ### Próxima etapa
 
-Terminal A conserva contexto, namespace, run-id, UID e recibo. E02 usa essa mesma identidade para criar a cadeia e testar se a resposta percorre o proxy até o backend.
+Terminal A conserva contexto, namespace, run-id, UID e recibo. Prossiga em E02 na mesma rodada; a conferência do laboratório A termina depois de comparar os dois pedidos. Não crie outra namespace nem limpe a atual.
 
 ## E02 — Acompanhar uma requisição saudável
 
@@ -914,7 +916,7 @@ printf 'E02 curl direto rc=%s\n' "$rc_direct" \
   | tee -a "$LAB_RECEIPT" || exit 1
 ~~~
 
-Leia os cabeçalhos HTTP e o corpo na saída salva no recibo. --fail-with-body mantém o corpo de erro e faz curl devolver código diferente de zero em resposta HTTP de erro. record exibe e anota o código de cada comando; rc_api e rc_direct guardam os códigos de cada pedido separadamente. curl sem --fail pode retornar zero mesmo ao receber HTTP 502.
+Leia os cabeçalhos HTTP e o corpo na saída salva no recibo. `--fail-with-body` mantém o corpo de erro e faz curl devolver código diferente de zero em resposta HTTP de erro. record exibe e anota o código de cada comando; rc_api e rc_direct guardam os códigos de cada pedido separadamente. curl sem `--fail` pode retornar zero mesmo ao receber HTTP 502.
 
 ### Confira e registre
 
@@ -949,7 +951,37 @@ O frontend é cliente, não servidor. DNS localiza um Service, o Service selecio
 
 ### Próxima etapa
 
-Service, Pods e recibo continuam em Terminal A. E03 registra poucos pedidos novos e os compara com uma janela curta de eventos Hubble.
+Ao concluir E02, mantenha a namespace, Terminal A, variáveis e recibo; confira a ficha A com os dois resultados esperados. O laboratório B reúne os requisitos de E03 e E04 antes dos passos guiados. É a continuação da mesma rodada, sem recriar a cadeia.
+
+## Laboratório de revisão B: Observar e restringir
+
+Esta revisão relaciona pedidos a fluxos e compara a rota pela API à contraprova direta no ambiente já admitido.
+
+> **Ficha B. Estado inicial: NOT_RUN**
+>
+> **Requisito:** Hubble no modo declarado; duas rotas correlacionadas.
+>
+> **Evidência observada:** ainda não coletada.
+>
+> **Decisão:** pendente por UTC, origem/destino e verdict.
+
+**Apoio visual:** Figuras 6 e 7. Cada desenho aparece no exercício correspondente, antes dos comandos.
+
+**Estado de entrada:** E02 e A usam a mesma namespace, Terminal A e recibo. O instrutor confirmou Relay, modo, versões, reserva e baseline. Não habilite nem altere Cilium.
+
+**Critérios de saída:** Hubble no modo confirmado; UTC/filtro/identidades registrados; API 200 com cabeçalho; tentativa direta sem resposta, correlacionada ao backend/verdict. L7 ausente é neutro se desativado; timeout sem correlação é inconclusivo.
+
+**Tarefas por resultado:**
+
+1. **Estabelecer a observação:** com o instrutor, conecte no modo declarado e mantenha o port-forward próprio; sem fallback.
+2. **Correlacionar:** registre UTC, filtro, namespace, origem/destino, protocolo, verdict e campos ausentes.
+3. **Comparar:** preserve a API positiva e a contraprova direta; explique a diferença pelo evento recente do backend.
+
+**Apoio opcional:** E03.1–E03.6/E04.1–E04.5. Conexão e port-forward são assistidos.
+
+**Entregas e decisão diagnóstica:** anote versões CLI/Relay, modo sem segredo, janela, fluxos e HTTP no mesmo recibo. Diferencie saída de fluxo ausente; falha do Relay/timeout não prova bloqueio. Sem correlação, marque inconclusivo; não altere recursos nem policies.
+
+**Saída para C:** mantenha policies, namespace, Terminal A, recibo e port-forward.
 
 ## E03 — Observar uma janela curta com Hubble
 
@@ -1022,6 +1054,10 @@ cilium hubble port-forward \
 
 Deixe o processo em primeiro plano no terminal B. A saída deve anunciar `127.0.0.1:4245`; confirme que não escuta em interfaces externas. Se o endereço estiver diferente ou incerto, pare. Mantenha o encaminhamento aberto até concluir E05.
 
+```{=latex}
+\clearpage
+```
+
 **E03.3a · Terminal A · VM Linux — Declare o modo informado**
 
 No terminal A, declare o servidor local e o modo de conexão que o instrutor confirmou. Não tente TLS e depois plaintext automaticamente:
@@ -1031,10 +1067,6 @@ RECORD_STEP='E03.3'
 export HUBBLE_SERVER='127.0.0.1:4245'
 export HUBBLE_MODE='verified-tls'
 ~~~
-
-```{=latex}
-\clearpage
-```
 
 **E03.3b · Terminal A · VM Linux — Monte os argumentos do modo declarado**
 
@@ -1101,6 +1133,10 @@ record 'E03 status Hubble no modo declarado' \
   "${HUBBLE_CONNECTION_ARGS[@]}" || exit 1
 ~~~
 
+~~~{=latex}
+\clearpage
+~~~
+
 **E03.4 · Terminal A · VM Linux e POD via exec — Gere poucos pedidos**
 
 Gere poucos requests novos no terminal A, sem loop. record guarda a saída e o código de cada pedido, mesmo se um status HTTP provocar curl não zero:
@@ -1139,6 +1175,10 @@ else
 fi
 printf 'E03 request direto rc=%s\n' "$rc_direct" \
   | tee -a "$LAB_RECEIPT" || exit 1
+~~~
+
+~~~{=latex}
+\clearpage
 ~~~
 
 **E03.5 · Terminal A · VM Linux — Consulte a janela curta de Hubble**
@@ -1349,7 +1389,35 @@ api aceita ingresso de frontend na porta 8080; backend aceita ingresso de api na
 
 ### Próxima etapa
 
-As duas policies permanecem aplicadas. E05 usa a falha prevista no selector do Service para separar saúde do Pod de seleção do destino; depois restaura somente o Service.
+As duas policies permanecem aplicadas. Mantenha Terminal A e o port-forward próprio de B para o laboratório C, que reúne os requisitos de E05 e E06. A falha continua limitada ao selector previsto; a limpeza de E06 permanece assistida.
+
+## Laboratório de revisão C: Diagnosticar e encerrar
+
+Esta revisão reúne E05 e E06 para explicar a falha prevista, restaurar somente o Service e encerrar a mesma rodada com limpeza confirmada pelo instrutor.
+
+> **Ficha C. Estado inicial: NOT_RUN**
+>
+> **Requisito:** distinguir saúde do Pod de seleção do destino, restaurar o Service e confirmar a remoção da namespace própria.
+>
+> **Evidência observada:** ainda não coletada.
+>
+> **Decisão:** pendente até conferir restauração, controles finais e ausência.
+
+**Apoio visual:** Figuras 8 e 9. Cada desenho aparece no exercício correspondente, antes dos comandos.
+
+**Estado de entrada:** cadeia positiva e contraprovas de E04 registradas; policies, namespace, contexto, Terminal A e recibo preservados. Pare se identidade ou baseline divergir.
+
+**Critérios de saída:** relacione Pod Ready/labels/selector/destino; restaure só o Service saudável; confirme API 200 e acesso direto bloqueado. Na limpeza assistida, confirme identidade, namespace ausente e port-forward parado.
+
+**Tarefas por resultado:**
+
+1. **Diagnosticar:** relacione Pod Ready, selector/labels, EndpointSlice e erro da API; use só o selector defeituoso previsto, sem contornar policy.
+2. **Restaurar:** recupere apenas o Service saudável; confira EndpointSlice, API positiva e acesso direto ainda bloqueado.
+3. **Encerrar com o instrutor:** registre esperado/observado, reconfirme contexto/API/UID/run-id, remova só a namespace própria e pare o port-forward após confirmar ausência.
+
+**Apoio opcional:** E05.1–E05.5/E06.1–E06.5 localizam as verificações; limpeza de E06 é sempre assistida. Não repita a rodada.
+
+**Entregas, diagnóstico e estado de saída:** guarde falha, comparação, restauração e conferência no mesmo recibo, que não é audit log. Após interrupção de mutação, preserve erro/recibo e peça recuperação assistida; identidade ausente ou divergente bloqueia mutação. Ao concluir, namespace própria ausente, port-forward parado e recibo preservado; as soluções não reabrem a rodada.
 
 ## E05 — Diagnosticar e restaurar um selector incorreto
 
@@ -1521,7 +1589,9 @@ Readiness é uma pergunta local sobre a probe do Pod; selector e EndpointSlice d
 
 ### Se falhar
 
-Se a probe backend falhar, pare: não é apenas uma falha de selector. Se EndpointSlice ainda tem destino, compare label, selector, Service e condição do endpoint. Se a chamada não falhar, preserve essa observação e peça ajuda ao instrutor; pode existir outro Service ou resolução diferente. Se restaurar não devolver destino, confira somente o YAML saudável e Pod Ready; não execute rollout restart, delete all ou force.
+Se a probe backend falhar, pare: não é apenas uma falha de selector. Se a EndpointSlice ainda tiver destino, compare label, selector, Service e condição do endpoint. Se a chamada não falhar, preserve essa observação e peça ajuda ao instrutor; pode existir outro Service ou resolução diferente. Se a restauração não devolver o destino, confira somente o YAML saudável e a probe do Pod e peça ajuda.
+
+Se a sessão for interrompida depois de uma mutação, não retome com base no estado parcial. Preserve a saída, o erro e o recibo e peça recuperação assistida ao instrutor. Antes de qualquer restauração, reconfira nos registros originais o contexto, o API server, os UIDs do cluster e da namespace e o run-id. Se qualquer identidade estiver ausente, divergente ou desconhecida, não altere o ambiente. Com a identidade confirmada, siga somente a restauração do Service saudável e os controles previstos em E05.5. Não use trap automático, retomada por suposição, rollout restart, remoção ampla ou force.
 
 ### Critério para seguir
 
@@ -1648,7 +1718,7 @@ fi
 
 **E06.4 · Terminal A · VM Linux — Limpe somente a namespace confirmada**
 
-Se todos os valores conferirem e o instrutor liberar o encerramento, peça ao Kubernetes para apagar somente a namespace nominal. Não use --force, finalizers, delete all, selector amplo ou política global:
+Se todos os valores conferirem e o instrutor liberar o encerramento, peça ao Kubernetes para apagar somente a namespace nominal. Não use `--force`, finalizers, delete all, selector amplo ou política global:
 
 ~~~bash
 RECORD_STEP='E06.4'
@@ -1742,7 +1812,37 @@ Probes, Services, DNS, EndpointSlices, NetworkPolicy, segurança de Pods e audit
 
 ### Próxima etapa
 
-Após confirmar a limpeza e salvar o recibo, reveja o que cada evidência permite concluir, quais lacunas permaneceram e o que seria necessário observar em uma próxima rodada. A prática só ocorre depois da reserva exclusiva e da admissão do ambiente; enquanto isso, as observações desta ficha permanecem NOT_RUN (ainda não executado).
+Depois da limpeza assistida em E06.5, confira o recibo da mesma rodada e leia as soluções comentadas A, B e C como interpretação das evidências reunidas. Não repita os passos nem abra uma nova namespace. Se uma observação não ocorreu, mantenha NOT_RUN ou inconclusivo; consultar apoio não é reprovação.
+
+~~~{=latex}
+\clearpage
+~~~
+
+## Soluções comentadas A, B e C
+
+Esta seção interpreta o recibo da única rodada. Não acrescenta comandos nem preenche observações ausentes; mantenha NOT_RUN ou inconclusivo quando faltar evidência.
+
+### Solução A: Comprovar a cadeia
+
+Em E01.5/E01.7, revisão, UTC, contexto, API server, confirmação do instrutor e UIDs/run-id identificam a rodada. O texto impresso por E01.7 é só marcador: sem confirmação, revisão e hora no recibo, não se cria a namespace.
+
+E02.3–E02.5 comparam probes, Service, EndpointSlice e rotas. HTTP 200 com o mesmo corpo indica respostas saudáveis naquele momento; só a API traz `X-Lab-Route: via-api-proxy`. Divergências pedem o diagnóstico de E02; a lista de Pods não prova a cadeia.
+
+### Solução B: Observar e restringir
+
+E03.3a/b registram o modo do Relay; E03.4 marca pedidos; E03.5/3.6 registram fluxo filtrado, identidades, protocolo e verdict. UTC e identidade fazem a correlação. Campo L7 ausente é neutro se não habilitado; sem fluxo correlacionável, a conclusão é inconclusiva.
+
+E04.3–E04.5 contrastam API positiva e acesso direto. Evento recente para backend com verdict de policy sustenta a hipótese; timeout só indica falta de resposta. Sem tempo ou identidade suficientes, não infira enforcement pelo erro do cliente.
+
+### Solução C: Diagnosticar e encerrar
+
+E05.3 relaciona prontidão do Pod, selector/labels e EndpointSlice. Pod Ready sem destino é compatível com falha de seleção, mas erro da API não prova a causa. E05.5 restaura só o Service saudável; confira EndpointSlice, API e acesso direto sob as policies de E04.
+
+E06.1–E06.5 seguem assistidos. Reconfirme contexto, API server, UIDs e run-id antes de limpar; identidade desconhecida bloqueia mutação. O wait confirma ausência observável, não audit log. Pare o port-forward próprio e interprete o recibo sem reabrir a rodada.
+
+~~~{=latex}
+\clearpage
+~~~
 
 ## Prévia: como eBPF responde a eventos
 
