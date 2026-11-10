@@ -291,7 +291,14 @@ lab_env="$(make --no-print-directory lab-env LAB=fundamentos)" \
   && eval "$lab_env" \
   || { echo "lab-env falhou; veja a mensagem acima"; false; }
 unset lab_env
+k01() { kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
+C1="sudo docker exec clab-poc-k8s-kind-client-ext"
 ~~~
+
+As duas últimas linhas definem os atalhos usados de M1 a M5: `k01` chama
+`kubectl` com o kubeconfig e o contexto do perfil, e `$C1` executa comandos no
+cliente do fabric. Sem elas os comandos dos módulos falham com
+`command not found`.
 
 Depois do status `up` e do verify, carregue `lab-env` antes de definir os
 atalhos ou usar `kubectl`, `cilium` e `hubble`. `fundamentos` não usa
@@ -534,9 +541,20 @@ cilium --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" bgp routes advert
 k01 get ciliumbgpclusterconfigs,ciliumbgppeerconfigs,ciliumbgpadvertisements
 ~~~
 
-Esperado: três sessões `established` (uma por nó, nunca uma por pod), timers
-hold 9 s e keepalive 3 s, Graceful Restart habilitado com `restartTime` 30 s.
-Entre os anúncios aparecem o PodCIDR do nó e a VIP `10.201.255.10/32`.
+Esperado: três sessões `established` (uma por nó, nunca uma por pod), cada uma
+com as famílias ipv4 e ipv6. Entre os anúncios aparecem o PodCIDR de cada nó, a
+VIP `10.201.255.10/32` nos três nós e `10.201.255.11/32` só nos dois workers.
+
+Os timers e o Graceful Restart não aparecem nos comandos acima; consulte-os no
+`CiliumBGPPeerConfig`:
+
+~~~bash
+k01 get ciliumbgppeerconfigs fabric-peer \
+  -o jsonpath='{.spec.timers}{"\n"}{.spec.gracefulRestart}{"\n"}'
+~~~
+
+Esperado: `holdTimeSeconds` 9 e `keepAliveTimeSeconds` 3; Graceful Restart
+`enabled: true` com `restartTimeSeconds` 30.
 
 O anúncio da VIP só existe porque o `CiliumBGPAdvertisement` (Cilium Authors, 2026a)
 tem um `selector`
@@ -592,6 +610,12 @@ completa. Os prefixos coincidem com o conjunto observado em 03.
 - `10.244.2.0/24` → `10.255.1.0/31` (indirect/local), pela
   `ethernet-1/1.0`.
 
+A associação entre PodCIDR, worker e interface do spine depende da ordem em que
+os nós se registram e muda de uma rodada para outra. Na rodada de 10/11/2026 em
+VM limpa, por exemplo, `10.244.1.0/24` saiu pela `ethernet-1/1.0` e
+`10.244.2.0/24` pela `ethernet-1/2.0`. Leia a sua associação em `k01 get nodes`
+e confira as contagens do Quadro 7, não as interfaces deste registro.
+
 O probe 09 terminou `rc=0` às 08:28:49.128–08:28:50.263 UTC. Este trecho é
 literal; campos não exibidos foram omitidos:
 
@@ -645,6 +669,9 @@ for i in $(seq 1 20); do
   $C1 curl -fsS --max-time 5 http://10.201.255.10/hostname; echo
 done | sort | uniq -c
 ~~~
+
+O código de saída desse pipeline é o do `uniq`, então uma falha do `curl` não
+aparece nele. Some as contagens da primeira coluna: o total deve ser 20.
 
 Esperado: `echo-anycast` com `10.201.255.10` e `externalTrafficPolicy:
 Cluster`; `echo-local` com `10.201.255.11` e `Local`. Vinte amostras não
@@ -794,7 +821,9 @@ sudo docker exec clab-poc-k8s-kind-spine1 sr_cli \
 k01 get deploy echo
 ~~~
 
-Anote o total de rotas IPv4 no spine e o número de réplicas. O perfil atual não
+O `summary` imprime a tabela inteira antes dos totais. Anote o valor da linha
+`IPv4 routes total` (26 na rodada de 10/11/2026 em VM limpa) e o número de
+réplicas (`6/6`). O perfil atual não
 oferece um alvo de escala deste exercício; não altere réplicas para tentar
 recriar a tabela histórica.
 
@@ -2011,7 +2040,14 @@ lab_env="$(make --no-print-directory lab-env LAB=fundamentos)" \
   && eval "$lab_env" \
   || { echo "lab-env falhou; veja a mensagem acima"; false; }
 unset lab_env
+k01() { kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
+C1="sudo docker exec clab-poc-k8s-kind-client-ext"
 ~~~
+
+As duas últimas linhas definem os atalhos usados de M1 a M5: `k01` chama
+`kubectl` com o kubeconfig e o contexto do perfil, e `$C1` executa comandos no
+cliente do fabric. Sem elas os comandos dos módulos falham com
+`command not found`.
 
 `lab-status` informa o estado persistido; `lab-verify` consulta as identidades
 e condições implementadas para o perfil. Uma execução histórica não substitui
