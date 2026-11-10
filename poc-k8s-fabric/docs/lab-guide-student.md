@@ -34,7 +34,7 @@ descreve uma composição híbrida ainda bloqueada; os M12–M17
 continuam leitura de resultados históricos.
 
 - **Módulos 1 a 5, fundamentos:** o perfil `LAB=fundamentos` cria um cluster e fabric próprios com os nomes de referência `k01` e `poc-k8s-kind`. M1–M3 observam baseline/BGP/IPv6; as falhas e medidas de escala em M4–M5 são resultados históricos, sem mutação habilitada neste perfil.
-- **Módulos 6 a 10, plataforma:** `LAB=plataforma` usa um cenário por vez: `baseline`, `auth`, `wireguard-native`, `wireguard-vxlan`, `tenants`, `ipam24` ou `ipam32`. As práticas atuais ainda precisam passar por revisão e execução fresca; os números e saídas reproduzidos no livro continuam históricos.
+- **Módulos 6 a 10, plataforma:** `LAB=plataforma` usa um cenário por vez: `baseline`, `auth`, `wireguard-native`, `wireguard-vxlan`, `tenants`, `ipam24` ou `ipam32`. Os sete cenários foram executados em uma VM Ubuntu 24.04 limpa em 10/11/2026 (Quadro 4A); os números e saídas históricos reproduzidos nos módulos continuam sendo registros dos estudos P003, e cada módulo diz o que foi observado nessa rodada.
 - **Módulo 11, preparação híbrida:** um novo desenho de QEMU, Neutron/OVS, CirrOS, BGP e Cilium está em revisão. `lab-up`, `lab-env`, `lab-verify` e `lab-session` para `LAB=hibrido` recusam a ação antes de criar recursos. Não é um laboratório executável nesta edição.
 - **Módulos 12 e 13, estudos históricos:** nós reais em nuvem e a trilha P004, que compara o Cilium com OVN-Kubernetes, FRR e EVPN para VMs KubeVirt.
 - **Módulos 14 a 17, estudos avançados P005 a P008:** 32 estudos sobre borda eBGP, datapath eBPF, multicluster, SRv6, segurança em tempo de execução e desempenho, com síntese das medições e limites.
@@ -342,6 +342,13 @@ verify; não repita preflight sobre a infraestrutura ativa. Só use lab-down
 quando a identidade persistida for sua, confirme down e então inicie uma nova
 admissão. Nunca limpe recursos por nome.
 
+Se `lab-up` falhar no meio da subida, o laboratório fica em estado parcial. De
+propósito, `lab-env` e `lab-verify` recusam esse estado imediatamente: não há
+kubeconfig confiável para carregar nem o que verificar. Rode
+`make --no-print-directory lab-status LAB=plataforma` para ver por que a subida
+parou e `make --no-print-directory lab-down LAB=plataforma` antes de tentar de
+novo. Não monte `LAB_KUBECONFIG` ou `LAB_CONTEXT` à mão para contornar a recusa.
+
 O `lab-preflight` recusa a subida quando a memória disponível medida no
 momento (`MemAvailable`) fica abaixo do pico estimado do perfil mais uma
 reserva de 4096 MiB. O quadro a seguir reúne o gate real de cada perfil e o que
@@ -355,7 +362,7 @@ checagem recusar.
 |---|---|---|---|---|---|
 | `iniciantes` | 4 | 8 GiB (4 vCPU, 40 GiB de disco) | 6656 MiB (pico 2560 MiB + 4096 MiB) | 25 GiB (25600 MiB) | validado em 10/11/2026: `lab-up` em 4 min 20 s, `status`, `verify`, `session` e `env` com `rc=0` |
 | `fundamentos` | 8 | 24 GiB (8 vCPU, 80 GiB de disco) | 10240 MiB (pico 6144 MiB + 4096 MiB) | 40 GiB (40960 MiB) | validado somente com 24 GiB; com 16 GiB o gate recusou |
-| `plataforma` | 8 | não determinada | 10240 MiB (pico 6144 MiB + 4096 MiB) | 40 GiB (40960 MiB) | ainda não validado em VM limpa |
+| `plataforma` | 8 | 24 GiB (8 vCPU, 80 GiB de disco, cerca de 70 GiB livres) | 10240 MiB (pico 6144 MiB + 4096 MiB) | 40 GiB (40960 MiB) | validado em 10/11/2026 com 8 vCPU, 24 GiB e 80 GiB de disco: os sete cenários e os perfis W0, W1 e W2; primeiro `lab-up` em 7 min 30 s, os demais em 284–326 s |
 | `hibrido` | 12 | não aplicável | 19456 MiB, mais `/dev/kvm` | 80 GiB (81920 MiB) | incompleto: `lab-up` recusa por desenho; o preflight termina em `PRECHECK_OK_CAPACITY_ONLY`, que só atesta capacidade |
 
 Fonte: elaborado pelo autor (2026).
@@ -364,7 +371,12 @@ Na rodada de `iniciantes` de 10/11/2026, o preflight imprimiu CPU 4/4 vCPU,
 RAM total 7940 MiB (recomendado 8192), `MemAvailable` 7228 MiB, disco livre
 36436 MiB para 25600 MiB exigidos e `PRECHECK_OK`. A observação F07, no Apêndice A,
 mediu uma única execução de `fundamentos` com 24 GiB e não mede o perfil
-`plataforma`.
+`plataforma`. Este foi validado em outra rodada de 10/11/2026, em VM limpa com
+8 vCPU, 24 GiB de RAM (`MemAvailable` de 23129 MiB na entrada) e cerca de
+70 GiB de disco livre: `baseline`, `auth`, `wireguard-native`,
+`wireguard-vxlan` (ambos com W0, W1 e W2), `tenants`, `ipam24` e `ipam32`
+subiram e passaram no `lab-verify`. Cada configuração é um caso observado, não
+o menor tamanho suportado.
 
 No perfil iniciante, `lab-session` cria a identidade da prática, mas não cria a
 namespace. Capture apenas depois do status `up`, da verificação bem-sucedida e
@@ -849,9 +861,10 @@ SR Linux em container e veths do kind; use apenas as relações.
 
 ## Módulo 6 — Gateway API HTTP, TCP e UDP por VIP BGP
 
-> **Aviso.** Este cenário ainda não foi executado em uma VM Ubuntu limpa. As
-> saídas esperadas e os números deste módulo são históricos; compare-os com o que
-> a sua rodada mostrar, sem tratá-los como resultado garantido.
+> **Aviso.** O cenário `baseline` foi executado em uma VM Ubuntu 24.04 limpa em
+> 10/11/2026 e as seções 6.1 e 6.2 deram o resultado descrito abaixo. A matriz de
+> 30/30 e os controles de mutação da 6.2 e a seção 6.3 são resultados históricos,
+> só de leitura; compare-os com o que a sua rodada mostrar.
 
 Ambiente de prática: perfil próprio `LAB=plataforma EXERCISE=baseline`. Origem
 dos resultados: P003-S003 e P003-S004, execução histórica. A implementação
@@ -899,9 +912,17 @@ $C2 sh -c "echo P003-gw04 | nc -w 3 $VIP 15433"
 | HTTP com Host errado | 404 do Envoy | |
 | TCP 15432 | o nonce volta idêntico | |
 | UDP 15353 | `"P003-OK"` | |
-| TCP 15433 sem listener | timeout, nenhuma chegada na fixture | |
+| TCP 15433 sem listener | `nc` sem nenhuma saída e `rc=1` | |
 
 Fonte: elaborado pelo autor (2026).
+
+Na rodada limpa de 10/11/2026, os quatro primeiros comandos imprimiram, nesta
+ordem e por exemplo, `http-echo-77c4577645-2b6kj` e `200`, depois `404`, `P003-nonce-1` e
+`"P003-OK"`. O controle em 15433 não imprimiu nada e o `nc` saiu com `rc=1`
+(confira com `echo $?` logo depois do comando). Isso mostra que não houve
+resposta, mas o livro não traz nenhum comando que leia a fixture de destino;
+por isso "o pacote não chegou ao backend" é uma inferência por ausência de
+listener, não uma observação direta. O que você observa é só a falta de resposta.
 
 A matriz histórica registrou 30/30 em cada listener, 503 com
 EndpointSlice vazio quando o backend foi escalado a zero e recuperação
@@ -919,9 +940,10 @@ ou a VIP por BGP.
 
 ## Módulo 7 — Autorização externa na borda
 
-> **Aviso.** Este cenário ainda não foi executado em uma VM Ubuntu limpa. As
-> saídas esperadas e os números deste módulo são históricos; compare-os com o que
-> a sua rodada mostrar, sem tratá-los como resultado garantido.
+> **Aviso.** O cenário `auth` foi executado em uma VM Ubuntu 24.04 limpa em
+> 10/11/2026: a seção 7.2 deu o resultado descrito abaixo. A 7.1 e a 7.3 (fixture
+> e fail-closed sob degradação) e os números das matrizes são resultados
+> históricos, só de leitura; compare-os com o que a sua rodada mostrar.
 
 Ambiente de prática: perfil próprio `LAB=plataforma EXERCISE=auth`. Origem
 dos números: P003-S005, P003-S006 e P003-S009 (T05), execução histórica. A
@@ -995,9 +1017,10 @@ cliente.
 
 ## Módulo 8 — WireGuard em native routing e VXLAN
 
-> **Aviso.** Este cenário ainda não foi executado em uma VM Ubuntu limpa. As
-> saídas esperadas e os números deste módulo são históricos; compare-os com o que
-> a sua rodada mostrar, sem tratá-los como resultado garantido.
+> **Aviso.** O módulo foi executado em uma VM Ubuntu 24.04 limpa em 10/11/2026,
+> com `wireguard-native` e `wireguard-vxlan`, cada um em W0, W1 e W2; a seção 8.1
+> deu o resultado descrito abaixo. A 8.2, as 24 células e a captura de pacotes na
+> bridge do underlay são resultados históricos, só de leitura.
 
 Ambiente de prática: perfil próprio `LAB=plataforma EXERCISE=wireguard-native`
 ou `wireguard-vxlan`, com `WG=W0|W1|W2` selecionado antes de `lab-up`.
@@ -1024,10 +1047,41 @@ Fonte: elaborada pelo autor (2026).
 
 Fonte: elaborado pelo autor (2026).
 
+A coluna "Sinal na bridge do underlay" é só leitura: o livro e a automação não
+trazem nenhum comando que capture o tráfego na bridge, e a rodada limpa de
+10/11/2026 não o capturou. Os comandos abaixo mostram apenas o estado de
+criptografia do agente e da interface, não os pacotes no fio.
+
 ~~~bash
 ks -n kube-system exec ds/cilium -- cilium-dbg encrypt status
 ks -n kube-system exec ds/cilium -- ip -br link show cilium_wg0
 ~~~
+
+Esperado em W1 e em W2, nos dois cenários (`wireguard-native` e
+`wireguard-vxlan`); a chave pública varia a cada subida:
+
+~~~text
+Encryption: Wireguard
+Interface: cilium_wg0
+	Public key: <chave pública do nó>
+	Number of peers: 2
+cilium_wg0       UNKNOWN        <POINTOPOINT,NOARP,UP,LOWER_UP>
+~~~
+
+Em W0 a criptografia está desligada e o segundo comando falha, o que é o
+resultado esperado para W0, não um erro do laboratório:
+
+~~~text
+Encryption: Disabled
+Device "cilium_wg0" does not exist.
+command terminated with exit code 1
+~~~
+
+Os dois pares de linhas (`rc=0` em W1 e W2, `rc=1` em W0) vêm da rodada limpa de
+10/11/2026. Esses comandos não distinguem W1 de W2: a saída observada é idêntica nos
+dois, e a diferença entre eles é a criptografia de nó (`nodeEncryption`), que
+essas leituras não mostram. A escolha de `WG=W1` ou `WG=W2` que você fez antes
+de `lab-up` é a única fonte para saber qual dos dois está ativo.
 
 ### 8.2 O que as 24 células mostraram
 
@@ -1046,9 +1100,10 @@ Envoy do nó como tráfego de nó.
 
 ## Módulo 9 — Tenants: rede, borda e configuração
 
-> **Aviso.** Este cenário ainda não foi executado em uma VM Ubuntu limpa. As
-> saídas esperadas e os números deste módulo são históricos; compare-os com o que
-> a sua rodada mostrar, sem tratá-los como resultado garantido.
+> **Aviso.** O cenário `tenants` foi executado em uma VM Ubuntu 24.04 limpa em
+> 10/11/2026: as quatro `CiliumNetworkPolicy` ficaram `VALID` e a seção 9.2 deu o
+> resultado descrito abaixo. A matriz T01–T17 e a seção 9.3 são resultados
+> históricos, só de leitura.
 
 Ambiente de prática: perfil próprio `LAB=plataforma EXERCISE=tenants`. Origem
 dos resultados: P003-S009, matriz T01–T17, execução histórica. A Figura 11
@@ -1098,6 +1153,22 @@ Com a policy de isolamento ativa, o `curl` de A para B deve esgotar o tempo
 (`http=000`). Se o monitor não listar nenhum drop, repita com o agente do nó do
 cliente A: o drop pode ser registrado no nó de origem.
 
+Na rodada limpa de 10/11/2026 foi exatamente isso. O `ks get ciliumnetworkpolicies -A`
+listou as quatro policies (`p003-a-backend-policy`, `p003-a-client-policy`,
+`p003-b-backend-policy` e `p003-b-client-policy`) com `VALID True`; o `curl` deu
+`curl: (28) Connection timed out` e `A->B http=000`; e o monitor do nó B não
+imprimiu nenhum drop. No agente do nó A (o nó do `p003-a-client`) apareceram
+três linhas de `Policy denied`. Aqui o drop foi registrado no nó do cliente, a
+origem do tráfego; ele costuma aparecer primeiro no nó A, e começar por ele
+poupa uma rodada. As identidades e IPs mudam a cada subida; um exemplo:
+
+~~~text
+xx drop (Policy denied) flow 0x34c29b2f to endpoint 0, ifindex 16, file bpf_lxc.c:1663, , identity 185947->134971: 10.245.2.14:34608 -> 10.245.1.7:8080 tcp SYN
+~~~
+
+O monitor também pode listar ruído sem relação, como
+`drop (Unsupported L3 protocol) … icmp RouterSolicitation`.
+
 Na execução histórica, com tráfego A→B, foram observados drops com
 `Policy denied` e o log da aplicação de destino vazio. Compare com a sua
 observação; um pacote que não chegou pode ter falhado em outra camada. Isso é diferente de
@@ -1118,9 +1189,10 @@ L4 ser aplicada (T07). Autorização L7 não é política L4.
 
 ## Módulo 10 — Multi-Pool IPAM: /24 versus /32
 
-> **Aviso.** Este cenário ainda não foi executado em uma VM Ubuntu limpa. As
-> saídas esperadas e os números deste módulo são históricos; compare-os com o que
-> a sua rodada mostrar, sem tratá-los como resultado garantido.
+> **Aviso.** Os cenários `ipam24` e `ipam32` foram executados em uma VM Ubuntu
+> 24.04 limpa em 10/11/2026 e a seção 10.1 deu o resultado descrito abaixo. A
+> matriz I01–I10 e o Quadro 12 são resultados históricos, só de leitura, exceto
+> onde o texto indica o que foi observado em repouso.
 
 Ambiente de prática: perfil próprio `LAB=plataforma EXERCISE=ipam24` ou
 `ipam32`, selecionado antes de `lab-up`. Origem dos números: P003-S010,
@@ -1145,10 +1217,31 @@ Fonte: elaborada pelo autor (2026).
 Fonte: elaborado pelo autor (2026).
 
 ~~~bash
-ks get ciliumpodippools -o wide
+ks get ciliumpodippools -o custom-columns=NAME:.metadata.name,CIDRS:.spec.ipv4.cidrs,MASK:.spec.ipv4.maskSize
+ks -n kube-system get configmap cilium-config \
+  -o jsonpath='{.data.ipam-multi-pool-pre-allocation}{"\n"}'
 ks get ciliumnodes -o custom-columns=NODE:.metadata.name,POOLS:.spec.ipam.pools.allocated
 sudo docker exec clab-p003-gw-fabric-border1 vtysh -c 'show ip bgp' | grep -E '10\.25[02]\.'
 ~~~
+
+O `-o wide` de `ciliumpodippools` mostra só `NAME` e `AGE`; `maskSize` e as
+faixas estão em `spec.ipv4`, por isso o `custom-columns` acima. O `preAllocate`
+não é campo do pool: vem do valor `multiPoolPreAllocation` do Cilium, que o
+agente lê no `ConfigMap` `cilium-config` (segundo comando), no formato
+`pool=N,...`; esperado `default=8,p003-m24=8` em `ipam24` e
+`default=8,p003-m24=8,p003-m32=8` em `ipam32`. Esse valor é verificado pela
+automação em `lab-verify`; se o segundo comando não imprimir isso, não conclua
+sobre `preAllocate`.
+
+Na rodada limpa de 10/11/2026 o primeiro comando listou, em `ipam32`, três
+pools: `default` (`10.251.0.0/16`, máscara 24), `p003-m24` (`10.250.0.0/16`,
+máscara 24) e `p003-m32` (`10.252.0.0/16`, máscara 32); em `ipam24` só os dois
+primeiros. O pool `default` existe nos dois cenários e não faz parte do estudo
+`/24` versus `/32`: ele serve aos pods que não pedem um pool. No terceiro
+comando, cada nó recebeu um `/24` de `default` (`10.251.N.0/24`) e um de
+`p003-m24` (`10.250.N.0/24`). No border, o `vtysh` imprime antes da tabela o
+aviso `Can't open configuration file /etc/frr/vtysh.conf`; ele pode ser
+ignorado. Em `ipam24` o border listou 3 rotas `10.250.x.0/24`.
 
 ### 10.2 O que muda entre `/24` e `/32`
 
@@ -1160,11 +1253,22 @@ sudo docker exec clab-p003-gw-fabric-border1 vtysh -c 'show ip bgp' | grep -E '1
 | 40 pods | 3 rotas no border | 40 rotas no border, uma por pod |
 | Pod `NotReady` sem delete | bloco e rota permanecem; IP direto responde 200; o Service exclui o pod | idêntico |
 | Apagar 1 pod | bloco retido: `roundUp(inUse+8, 8)` não encolhe | idêntico; o piso de `preAllocate` domina |
-| Voltar a zero pods | blocos `/24` retidos por mais de 120 s | encolhe em 42 s no operador e 48 s na RIB, até o piso de 8 `/32` por nó |
+| Voltar a zero pods | blocos `/24` retidos por mais de 120 s | encolhe em 42 s no operador e 48 s na RIB, até o piso de `preAllocate`: 8 `/32` por nó sem pod em uso (registro histórico); em repouso na rodada limpa, 16 por nó (nota abaixo) |
 | Recriar pod no mesmo nó | IP novo dentro do mesmo `/24` | alterna entre `/32` recém-liberados; sem IP estável |
 | Peer BGP do border desligado | prefixos somem em ~10 s; pod e VIP dão 000 | idêntico |
 
 Fonte: elaborado pelo autor com dados de P003-S010, matriz I01–I10 (2026).
+
+Na rodada limpa de 10/11/2026, `ipam32` em repouso, logo depois do `lab-verify`,
+mostrou 16 `/32` do pool `p003-m32` por nó, em dois blocos de 8 (por exemplo,
+`10.252.0.8` a `.15` e `.24` a `.31` no nó `p003-gw-control-plane`), e não 8. O
+border listou 48 rotas `/32` (3 nós × 16) mais as 3 rotas `/24` de `p003-m24`,
+que o cenário também mantém. Isso é coerente com a regra `roundUp(inUse+8, 8)`
+do próprio quadro: com pelo menos um pod em uso no nó, o alvo passa de 8 para
+16; só sem nenhum pod em uso o piso é de 8 `/32`. A captura não registrou o
+`inUse` de cada nó, então a correspondência com a regra é uma leitura, não uma
+medição. Trate "8 `/32` por nó" como o piso de `preAllocate` sem pods, e não
+como o que `ipam32` mostra logo depois de subir.
 
 Duas lições. O datapath não gateia readiness: rota e alcance direto ao pod
 existem enquanto o IP existir, e só o Service respeita `Ready`. A retirada de
@@ -2064,7 +2168,9 @@ registro em "Fundamentos M1–M5: execução F07 observada" e o Quadro 4A.
 M6–M10 usam um cenário por execução. `EXERCISE` e `WG` só se aplicam a
 `lab-preflight` e `lab-up`; `lab-status`, `lab-verify`, `lab-env` e `lab-down`
 recebem somente `LAB=plataforma`. Para trocar o cenário, primeiro use
-`lab-down LAB=plataforma` e confirme o estado final com `lab-status`.
+`lab-down LAB=plataforma` e confirme o estado final com `lab-status`. Se um
+`lab-up` falhar, o laboratório fica parcial: `lab-env` e `lab-verify` o recusam
+de propósito; use `lab-status` para ver o motivo e `lab-down` antes de repetir.
 
 - **M6:** `LAB=plataforma EXERCISE=baseline`.
 - **M7:** `LAB=plataforma EXERCISE=auth`.
@@ -2098,8 +2204,9 @@ novo shell; não rode preflight sobre a infraestrutura ativa.
 
 O gate de `plataforma` exige 8 vCPU, 40 GiB de disco livre e `MemAvailable` de
 pelo menos 10240 MiB (pico estimado de 6144 MiB mais a reserva de 4096 MiB).
-F07 avaliou somente `fundamentos`; o perfil `plataforma` ainda não foi
-validado em VM limpa e não há RAM total comprovada para ele (Quadro 4A).
+F07 avaliou somente `fundamentos`; o perfil `plataforma` foi validado em outra
+rodada de VM limpa, em 10/11/2026, com 24 GiB de RAM (Quadro 4A). Esse é um
+caso observado, não um mínimo comprovado de RAM.
 
 ### Iniciantes: preparar a rodada e carregar o ambiente
 
@@ -2186,9 +2293,9 @@ localizar essas linhas de rc e ao interpretar a parada normal do port-forward
 reconstrua. O fechamento da VM não demonstra execução do alvo público
 `lab-down`: a etapa seguinte e o down/repetição de down ficaram `NOT_RUN`, portanto essa
 coleta é evidência limitada, não aceite integral. Fundamentos, plataforma e
-híbrido não foram testados por essas execuções; o gate de memória de
+híbrido não foram testados por essas execuções (`plataforma` foi validado em outra rodada, de 10/11/2026); o gate de memória de
 fundamentos/plataforma (10240 MiB disponíveis) não tem piso de RAM total medido
-além dos 24 GiB de F07. O alvo público para `LAB=hibrido`
+abaixo dos 24 GiB observados (F07 e a rodada de `plataforma` de 10/11/2026). O alvo público para `LAB=hibrido`
 continua bloqueado enquanto os controles desse perfil não forem implementados
 e validados.
 
