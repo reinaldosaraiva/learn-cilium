@@ -26,6 +26,7 @@ routingMode: {{ student_exercise_config.routing_mode }}
 {% if student_exercise_config.tunnel_protocol | default('') %}
 tunnelProtocol: {{ student_exercise_config.tunnel_protocol }}
 autoDirectNodeRoutes: false
+directRoutingSkipUnreachable: false
 {% endif %}
 encryption:
   enabled: {{ 'true' if student_effective_wireguard_mode in ['W1', 'W2'] else 'false' }}
