@@ -376,6 +376,19 @@
       ansible.builtin.include_tasks: tasks/up.yml
       when: student_action == 'up'
 
+    - name: Refuse to verify a lab that is not up
+      ansible.builtin.assert:
+        that:
+          - student_has_state
+          - student_state.status == 'up'
+        fail_msg: >-
+          lab-verify exige um laboratório com status up; o estado atual é
+          {{ student_state.status | default('ausente') if student_has_state else 'ausente' }}.
+          Rode lab-status para ver o motivo e lab-down antes de um novo lab-up.
+      when:
+        - student_action == 'verify'
+        - student_profile_name != 'hibrido'
+
     - name: Verify the lab
       ansible.builtin.include_tasks: tasks/verify.yml
       vars:
