@@ -597,7 +597,9 @@
       become: true
       register: student_gateway_crds
       changed_when: "'configured' in student_gateway_crds.stdout or 'created' in student_gateway_crds.stdout"
-      when: student_profile_name == 'plataforma'
+      when:
+        - student_profile_name == 'plataforma'
+        - student_exercise_config.gateway_crds | default('') != 'experimental'
 
     - name: Install experimental Gateway API schemas with server-side apply when Auth is selected
       ansible.builtin.command:
