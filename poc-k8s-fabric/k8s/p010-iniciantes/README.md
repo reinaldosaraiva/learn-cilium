@@ -1,15 +1,16 @@
 # Manifests do laboratório iniciante P010
 
-Este diretório acompanha a edição de trabalho do livro `docs/ebpf-cilium-iniciantes.md`. Use livro, Makefiles, manifests e automação da mesma cópia de revisão; a disponibilidade pública dos mesmos bytes não está garantida. Os comandos Kubernetes rodam na VM Ubuntu própria, usando kubeconfig, contexto e namespace da sessão criada pelo perfil.
+Este diretório acompanha o livro `docs/ebpf-cilium-iniciantes.md`. Use livro, Makefiles, manifests e automação do mesmo clone do repositório. Os comandos Kubernetes rodam na VM Ubuntu própria, usando kubeconfig, contexto e namespace da sessão criada pelo perfil.
 
 ## Pré-requisitos e limites
 
-- VM Ubuntu 24.04 amd64, conta não-root com sudo, Internet e cópia completa do projeto. Instale os pré-requisitos: `sudo apt update && sudo apt install -y git make`.
+- VM Ubuntu 24.04 amd64 limpa, conta não-root com sudo e Internet. Requisitos do perfil: 4 vCPU, 8 GiB de RAM (a configuração que funcionou), `MemAvailable` de pelo menos 6656 MiB no preflight e 25 GiB livres em `/`.
+- Passo 0: instale os pré-requisitos e clone o repositório, que precisa ser um clone Git: `sudo apt-get update && sudo apt-get install -y git make`, depois `git clone --branch docs/p010-s001-20261028 https://github.com/reinaldosaraiva/learn-cilium.git` e `cd learn-cilium`.
 - Antes de criar objetos de prática, execute `make --no-print-directory lab-preflight LAB=iniciantes`, `make --no-print-directory lab-up LAB=iniciantes`, `make --no-print-directory lab-status LAB=iniciantes` e `make --no-print-directory lab-verify LAB=iniciantes`; depois crie uma identidade com `make --no-print-directory lab-session LAB=iniciantes` e capture `make --no-print-directory lab-env LAB=iniciantes`. O fluxo detalhado está em [E01](../../docs/ebpf-cilium-iniciantes.md#e01--reconhecer-o-ambiente-e-preparar-a-rodada).
 - Os manifests omitem `metadata.namespace` intencionalmente. Todo comando de aplicação do guia passa `-n "$LAB_NS"` e usa kubeconfig/contexto explícitos.
 - Não altere o estado privado, Cilium, Hubble, charts ou políticas globais. Pare se um gate recusar ou uma consulta estiver inconclusiva. O alvo público de M11 híbrido continua bloqueado antes de efeitos.
-- Os digests são referências de índice de imagem conferidas em um recibo de origem. Nenhuma imagem foi puxada ou executada por esta edição. O `imageID` e a arquitetura reais só podem ser registrados depois de uma execução admitida.
-- As respostas esperadas no guia são ilustrativas. O manifesto não declara que o cluster aceita essas imagens ou que os comandos foram reproduzidos.
+- Os digests são referências de índice de imagem. O perfil foi executado de ponta a ponta, de E01 a E06, em 10/11/2026, em uma VM Ubuntu 24.04.5 limpa (4 vCPU, 8 GiB): o cluster baixou e executou as três imagens, e o `imageID` e a arquitetura reais (nó único `p010-student-control-plane`, amd64) foram registrados em E06.1.
+- As caixas “Saída real” do guia vêm dessa execução; run-id, UIDs, endereços IP e nomes de Pods mudam a cada rodada. “Esperado — ILUSTRATIVO” continua descrevendo um resultado possível, não uma garantia.
 
 ## Arquivos e ordem
 
@@ -40,4 +41,4 @@ Não passe credenciais para Pods ou recibos. Não registre conteúdo de kubeconf
 
 ## Verificação offline desta revisão
 
-YAML e relações entre labels, portas, probes, imagens e guards devem ser verificadas localmente antes do uso. A checagem offline não valida schema contra o servidor, admissão, runtime, disponibilidade de imagem, alcance de rede, policy enforcement ou compatibilidade da versão do cluster. Nenhum `kubectl dry-run=server` foi executado durante a edição.
+YAML e relações entre labels, portas, probes, imagens e guards podem ser verificadas localmente antes do uso. A checagem offline não valida schema contra o servidor, admissão, runtime, disponibilidade de imagem, alcance de rede, policy enforcement ou compatibilidade da versão do cluster; essas condições foram exercitadas na execução de 10/11/2026 descrita acima, no cluster `kind-p010-student` do perfil.

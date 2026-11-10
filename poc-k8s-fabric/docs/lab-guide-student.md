@@ -6,6 +6,11 @@
 
 ## Apresentação
 
+~~~{=latex}
+\setmonofont{DejaVuSansMono}[Extension=.ttf,Scale=0.91,BoldFont=*-Bold,ItalicFont=*-Oblique,BoldItalicFont=*-BoldOblique]
+\RecustomVerbatimEnvironment{verbatim}{Verbatim}{breaklines,breakanywhere,fontsize=\normalsize,frame=single,framesep=2mm}
+~~~
+
 > **Objetivo do guia**
 >
 > Ao final do guia, a pessoa estudante deve conseguir:
@@ -20,10 +25,17 @@ BGP e um fabric de data center simulado em contêineres. Ele foi escrito para
 quem já conhece o básico de IP e roteamento e quer entender, com evidência
 medida, o que o Cilium faz e onde ele para.
 
-O guia tem 17 módulos, organizados em quatro blocos:
+O guia tem 17 módulos, organizados em quatro blocos. Para as práticas M1–M10,
+a pessoa estudante prepara uma VM Ubuntu própria por meio de Make e Ansible,
+seleciona um perfil, verifica seu estado e usa o kubeconfig gerado para os
+comandos do livro. A VM e o estado são próprios da pessoa estudante; o fluxo
+não depende de UID ou confirmação operacional fornecidos por outra pessoa. O M11
+descreve uma composição híbrida ainda bloqueada; os M12–M17
+continuam leitura de resultados históricos.
 
-- **Módulos 1 a 5, fundamentos no lab `k01`:** o que o Cilium anuncia por BGP, VIP anycast, dual-stack IPv6, falhas e escala. São exercícios práticos.
-- **Módulos 6 a 11, plataforma no sandbox `p003-gw`:** Gateway API, autorização externa, WireGuard, isolamento de tenants, Multi-Pool IPAM e tenants híbridos com VMs OpenStack. Também são práticos.
+- **Módulos 1 a 5, fundamentos:** o perfil `LAB=fundamentos` cria um cluster e fabric próprios com os nomes de referência `k01` e `poc-k8s-kind`. M1–M3 observam baseline/BGP/IPv6; as falhas e medidas de escala em M4–M5 são resultados históricos, sem mutação habilitada neste perfil.
+- **Módulos 6 a 10, plataforma:** `LAB=plataforma` usa um cenário por vez: `baseline`, `auth`, `wireguard-native`, `wireguard-vxlan`, `tenants`, `ipam24` ou `ipam32`. As práticas atuais ainda precisam passar por revisão e execução fresca; os números e saídas reproduzidos no livro continuam históricos.
+- **Módulo 11, preparação híbrida:** um novo desenho de QEMU, Neutron/OVS, CirrOS, BGP e Cilium está em revisão. `lab-up`, `lab-env`, `lab-verify` e `lab-session` para `LAB=hibrido` recusam a ação antes de criar recursos. Não é um laboratório executável nesta edição.
 - **Módulos 12 e 13, estudos históricos:** nós reais em nuvem e a trilha P004, que compara o Cilium com OVN-Kubernetes, FRR e EVPN para VMs KubeVirt.
 - **Módulos 14 a 17, estudos avançados P005 a P008:** 32 estudos sobre borda eBGP, datapath eBPF, multicluster, SRv6, segurança em tempo de execução e desempenho, com síntese das medições e limites.
 
@@ -50,7 +62,7 @@ ABNT NBR 10520:2023, e as referências, a ABNT NBR 6023:2018.
 - [Módulo 8 — WireGuard em native routing e VXLAN](#módulo-8--wireguard-em-native-routing-e-vxlan)
 - [Módulo 9 — Tenants: rede, borda e configuração](#módulo-9--tenants-rede-borda-e-configuração)
 - [Módulo 10 — Multi-Pool IPAM: /24 versus /32](#módulo-10--multi-pool-ipam-24-versus-32)
-- [Módulo 11 — Tenant híbrido: pods e VMs OpenStack](#módulo-11--tenant-híbrido-pods-e-vms-openstack)
+- [Módulo 11 — Tenant híbrido: pods e VMs OpenStack (em validação)](#módulo-11--tenant-híbrido-pods-e-vms-openstack-em-validação)
 - [Módulo 12 — Nós reais na nuvem: o que muda](#módulo-12--nós-reais-na-nuvem-o-que-muda)
 - [Módulo 13 — DCI, OVN, FRR e EVPN: o que os resultados provam](#módulo-13--dci-ovn-frr-e-evpn-o-que-os-resultados-provam)
 - [Módulo 14 — Estudos avançados P005: eBGP dedicado e datapath eBPF](#módulo-14--estudos-avançados-p005-ebgp-dedicado-e-datapath-ebpf)
@@ -59,8 +71,9 @@ ABNT NBR 10520:2023, e as referências, a ABNT NBR 6023:2018.
 - [Módulo 17 — Host Firewall, Envoy, Route Reflector e WireGuard](#módulo-17--host-firewall-envoy-route-reflector-e-wireguard)
 - [Considerações finais](#considerações-finais)
 - [Referências](#referências)
-- [Apêndice A – Roteiro do instrutor](#apêndice-a--roteiro-do-instrutor)
+- [Apêndice A – Preparar, verificar e encerrar o laboratório próprio](#apêndice-a--preparar-verificar-e-encerrar-o-laboratório-próprio)
 - [Apêndice B – Documentos complementares do repositório](#apêndice-b--documentos-complementares-do-repositório)
+- [Apêndice C – Diagnóstico curto de conectividade no laboratório próprio](#apêndice-c--diagnóstico-curto-de-conectividade-no-laboratório-próprio)
 
 ## Introdução
 
@@ -208,12 +221,14 @@ comercial, a ser avaliada pelos critérios `INV-PoC-01` a `INV-PoC-06`.
 
 ### Regras de segurança
 
-- Os exercícios da pessoa estudante são de leitura e de requisição HTTP/TCP/UDP. Mutação é tarefa do instrutor e está marcada como tal.
-- Não use `kubectl delete`, `kubectl drain`, `docker stop`, `clab destroy` ou o script de teardown como parte deste roteiro.
-- Nunca dependa do contexto implícito do `kubectl`. Cada comando traz `--kubeconfig` e `--context`.
-- O cluster `k01` é a referência histórica protegida. Os estudos P003 rodam em um segundo cluster, o sandbox `p003-gw`. Antes de qualquer comando no sandbox, confirme o UID do cluster com o valor entregue pelo instrutor.
-- Se `127.0.0.1:18081` já responder no seu computador, existe um túnel ativo. Reutilize-o.
-- O módulo 13 é somente leitura de evidências históricas: não traz comandos interativos para DCI, OVN-Kubernetes ou KubeVirt e não pede acesso à VM atual.
+- Use uma VM Ubuntu 24.04 amd64 própria, uma cópia coerente do repositório e o usuário não-root com sudo. Cada perfil tem estado, identificadores, locks e diretório de execução próprios em `~/.local/state/p010-student-lab`.
+- Não edite `state.json`, não adote recursos pelo nome e não escolha contexto ou UID manualmente. `lab-status`, `lab-verify` e `lab-env` consultam a identidade persistida; divergência, falha de consulta ou capacidade insuficiente exige parada.
+- Não use rotas, interfaces, firewall, sysctl, bridge ou configuração de Docker do host como atalho. Não rode `helm upgrade`, `clab destroy`, `docker stop` nem scripts históricos do apêndice antigo.
+- `lab-down` limpa somente a infraestrutura cuja identidade foi persistida e validada. No perfil iniciante, E06 remove primeiro a namespace da rodada por UID e `LAB_RUN_ID`; depois `lab-down` encerra o cluster e o fabric próprios.
+- Nunca dependa do contexto implícito do `kubectl`. Use o kubeconfig/contexto gerados e mantidos no shell desta rodada.
+- Os módulos 12–17 e os resultados tabelados de execuções anteriores são leitura histórica; números passados não são prova de uma execução nova.
+
+Para separar uma falha de aplicação de uma falha de rede sem alterar o laboratório, consulte o procedimento proposto no [Apêndice C](#apêndice-c--diagnóstico-curto-de-conectividade-no-laboratório-próprio); ele não registra execução nova.
 
 ### Onde um comando roda
 
@@ -221,44 +236,183 @@ comercial, a ser avaliada pelos critérios `INV-PoC-01` a `INV-PoC-06`.
 
 | Rótulo | Significado |
 |---|---|
-| **Mac** | computador da pessoa estudante |
-| **vm-cilium** | sessão SSH no host Linux do laboratório |
-| **container** | comando precedido por `sudo docker exec` na vm-cilium |
-| **Kubernetes k01** | `sudo kubectl --kubeconfig "$K01_KUBECONFIG" --context kind-k01` |
-| **Kubernetes sandbox** | `sudo kubectl --kubeconfig "$STUDY_KUBECONFIG" --context kind-p003-gw` |
-| **testbed OpenStack** | `sudo docker exec -i <container-do-testbed> bash` e, dentro dele, `openstack` |
+| **VM Ubuntu própria · Terminal A** | shell em que se executa Make, se carrega `lab-env` e se mantém a prática |
+| **Kubernetes fundamentos** | função `k01`, ligada a `LAB_KUBECONFIG` e `LAB_CONTEXT` do perfil `fundamentos` |
+| **Kubernetes plataforma** | função `ks`, ligada aos mesmos campos do perfil `plataforma` |
+| **Cliente do fabric** | `sudo docker exec` no cliente pertencente ao perfil selecionado, dentro da própria VM |
+| **Terminal B** | shell separado que recarrega o mesmo `lab-env`; usado para o port-forward Hubble quando o perfil o habilita |
 
 Fonte: elaborado pelo autor (2026).
 
-Defina as variáveis uma vez por sessão na **vm-cilium**. Os valores abaixo são
-os do laboratório de referência; use os que o instrutor entregar:
+### Preparar uma rodada própria
+
+Os exemplos e nomes históricos `k01`/`p003-gw` continuam nos comandos para
+facilitar a comparação com os registros do estudo. A automação cria recursos
+próprios na VM do aluno e recusa colisões; não conecte a outro laboratório com
+os mesmos nomes.
+
+**Passo 0 — obter a cópia do repositório.** Parta de uma VM Ubuntu 24.04 amd64
+limpa, com uma conta não-root com sudo e acesso à Internet. O repositório é
+público e já traz o guia, os manifests, os Makefiles e `automation/student-lab`
+da mesma árvore. Instale somente `git` e `make` e clone a branch desta edição:
 
 ~~~bash
-export LAB_DIR="${LAB_DIR:-/opt/poc-k8s-fabric}"
-export K01_KUBECONFIG="${K01_KUBECONFIG:-/root/.kube/k01-rebuild.config}"
-export STUDY_KUBECONFIG="${STUDY_KUBECONFIG:-/root/.kube/p003-gw.config}"
-export STUDY_CLUSTER_UID="${STUDY_CLUSTER_UID:-<uid-entregue-pelo-instrutor>}"
-k01() { sudo kubectl --kubeconfig "$K01_KUBECONFIG" --context kind-k01 "$@"; }
-ks()  { sudo kubectl --kubeconfig "$STUDY_KUBECONFIG" --context kind-p003-gw "$@"; }
-C1="sudo docker exec clab-poc-k8s-kind-client-ext"
-C2="sudo docker exec clab-p003-gw-fabric-client"
-UID_NOW="$(ks get namespace kube-system -o jsonpath='{.metadata.uid}')"
-test "$UID_NOW" = "$STUDY_CLUSTER_UID" && echo "sandbox OK"
+sudo apt-get update && sudo apt-get install -y git make
+git clone --branch docs/p010-s001-20261028 https://github.com/reinaldosaraiva/learn-cilium.git
+cd learn-cilium
+pwd
+test -f Makefile && test -f poc-k8s-fabric/Makefile
 ~~~
 
-Se o teste de UID falhar, pare. Um `kubectl` no cluster errado invalida o
-exercício e pode alterar a referência.
+A cópia precisa ser um clone Git: `lab-env` lê o `HEAD` com `git rev-parse` e
+falha em uma árvore sem `.git`, como a obtida de um arquivo TAR ou ZIP. O campo
+`LAB_GUIDE_REVISION` registra esse `HEAD`; se você alterar arquivos do clone,
+registre também os hashes efetivos dos arquivos alterados. Rode todos os
+comandos seguintes na raiz do clone, no Terminal A.
+
+Não é necessário usar SSH para entrar em outra VM nem receber kubeconfig, UID,
+porta ou senha de instrutor. lab-preflight inspeciona dependências, capacidade
+e colisões; os alvos públicos preparam os pacotes e ferramentas pinados do
+perfil, incluindo Ansible Core 2.19.3 em uma venv privada. Não instale outra
+versão de Ansible por fora. O sistema pode solicitar a senha do sudo no
+terminal; não a inclua em argumentos, variáveis ou recibos.
+
+Para M1–M5, escolha `fundamentos`. Para M6–M10, escolha um cenário `plataforma`
+por vez. Antes de escolher, confira os requisitos e o estado de validação de
+cada perfil no Quadro 4A. Primeiro confira a admissão e então suba, inspecione
+e verifique o perfil próprio. Exemplo M1–M5:
+
+~~~bash
+make --no-print-directory lab-preflight LAB=fundamentos
+make --no-print-directory lab-up LAB=fundamentos
+make --no-print-directory lab-status LAB=fundamentos
+make --no-print-directory lab-verify LAB=fundamentos
+lab_env="$(make --no-print-directory lab-env LAB=fundamentos)" \
+  && eval "$lab_env" \
+  || { echo "lab-env falhou; veja a mensagem acima"; false; }
+unset lab_env
+~~~
+
+Depois do status `up` e do verify, carregue `lab-env` antes de definir os
+atalhos ou usar `kubectl`, `cilium` e `hubble`. `fundamentos` não usa
+`lab-session`; o alvo gera os caminhos, contexto e UID próprios do perfil. Se
+`lab-env` falhar, o padrão `|| { ...; false; }` imprime o aviso e devolve erro
+sem fechar o seu terminal; leia a mensagem acima dele e não substitua o padrão
+por `exit`, que encerraria o Terminal A.
+
+Para uma prática de plataforma, escolha o valor antes de iniciar:
+
+- **M1–M5 — fundamentos:** `make --no-print-directory lab-up LAB=fundamentos`; BGP, IPv6 e baseline próprios. Resultados de falha e escala são históricos.
+- **M6 — baseline:** `EXERCISE=baseline`; Gateway API básico.
+- **M7 — auth:** `EXERCISE=auth`; ExternalAuth.
+- **M8 — WireGuard:** escolha `EXERCISE=wireguard-native` ou `wireguard-vxlan` e um único `WG=W0`, `WG=W1` ou `WG=W2` antes de iniciar.
+- **M9 — tenants:** `EXERCISE=tenants`.
+- **M10 — IPAM:** escolha `EXERCISE=ipam24` ou `ipam32`.
+
+Exemplo de M6. Para M7–M10, substitua o cenário nas duas primeiras chamadas;
+status, verify e env continuam recebendo somente o perfil:
+
+~~~bash
+make --no-print-directory lab-preflight LAB=plataforma EXERCISE=baseline
+make --no-print-directory lab-up LAB=plataforma EXERCISE=baseline
+make --no-print-directory lab-status LAB=plataforma
+make --no-print-directory lab-verify LAB=plataforma
+lab_env="$(make --no-print-directory lab-env LAB=plataforma)" \
+  && eval "$lab_env" \
+  || { echo "lab-env falhou; veja a mensagem acima"; false; }
+unset lab_env
+~~~
+
+Use `EXERCISE` e `WG` somente nas chamadas a `lab-preflight` e `lab-up`.
+Depois da subida, `lab-status`, `lab-verify`, `lab-env` e `lab-down` recebem
+somente `LAB=plataforma`; o cenário vem do estado persistido. Para trocar o
+cenário ou alternar entre perfis, encerre o perfil atual com
+`lab-down LAB=<perfil-atual>` e confirme `lab-status LAB=<perfil-atual>` antes
+de iniciar o próximo. Um perfil ativo não recebe novo preflight; consulte
+status/verify e carregue `lab-env` no shell atual. Se lab-preflight retornar
+rc=2 informando que o state já está up, pare e confira esse estado com status e
+verify; não repita preflight sobre a infraestrutura ativa. Só use lab-down
+quando a identidade persistida for sua, confirme down e então inicie uma nova
+admissão. Nunca limpe recursos por nome.
+
+O `lab-preflight` recusa a subida quando a memória disponível medida no
+momento (`MemAvailable`) fica abaixo do pico estimado do perfil mais uma
+reserva de 4096 MiB. O quadro a seguir reúne o gate real de cada perfil e o que
+já foi observado em VM Ubuntu 24.04 limpa. A RAM total é a única configuração
+em que o perfil passou, não um mínimo garantido; não diminua limites se a
+checagem recusar.
+
+**Quadro 4A – Requisitos de admissão e validação em VM limpa, por perfil**
+
+| Perfil | vCPU | RAM total que funcionou | `MemAvailable` exigida pelo gate | Disco livre em `/` | Validação em VM limpa |
+|---|---|---|---|---|---|
+| `iniciantes` | 4 | 8 GiB (4 vCPU, 40 GiB de disco) | 6656 MiB (pico 2560 MiB + 4096 MiB) | 25 GiB (25600 MiB) | validado em 10/11/2026: `lab-up` em 4 min 20 s, `status`, `verify`, `session` e `env` com `rc=0` |
+| `fundamentos` | 8 | 24 GiB (8 vCPU, 80 GiB de disco) | 10240 MiB (pico 6144 MiB + 4096 MiB) | 40 GiB (40960 MiB) | validado somente com 24 GiB; com 16 GiB o gate recusou |
+| `plataforma` | 8 | não determinada | 10240 MiB (pico 6144 MiB + 4096 MiB) | 40 GiB (40960 MiB) | ainda não validado em VM limpa |
+| `hibrido` | 12 | não aplicável | 19456 MiB, mais `/dev/kvm` | 80 GiB (81920 MiB) | incompleto: `lab-up` recusa por desenho; o preflight termina em `PRECHECK_OK_CAPACITY_ONLY`, que só atesta capacidade |
+
+Fonte: elaborado pelo autor (2026).
+
+Na rodada de `iniciantes` de 10/11/2026, o preflight imprimiu CPU 4/4 vCPU,
+RAM total 7940 MiB (recomendado 8192), `MemAvailable` 7228 MiB, disco livre
+36436 MiB para 25600 MiB exigidos e `PRECHECK_OK`. A observação F07, no Apêndice A,
+mediu uma única execução de `fundamentos` com 24 GiB e não mede o perfil
+`plataforma`.
+
+No perfil iniciante, `lab-session` cria a identidade da prática, mas não cria a
+namespace. Capture apenas depois do status `up`, da verificação bem-sucedida e
+da sessão registrada. Avalie somente o texto de atribuições gerado pelo alvo:
+
+~~~bash
+make --no-print-directory lab-status LAB=iniciantes
+make --no-print-directory lab-verify LAB=iniciantes
+make --no-print-directory lab-session LAB=iniciantes
+lab_env="$(make --no-print-directory lab-env LAB=iniciantes)" \
+  && eval "$lab_env" \
+  || { echo "lab-env falhou; veja a mensagem acima"; false; }
+unset lab_env
+~~~
+
+Esse alvo imprime `LAB_CONTEXT`, `LAB_API_SERVER`, `LAB_CLUSTER_UID`, os
+caminhos privados do kubeconfig e do livro, `LAB_RUN_ID` e `LAB_NS`. A sessão
+terminal é a mesma durante a prática. `LAB_RUN_ID` é diferente do identificador
+da infraestrutura. `lab-session` só deve ser repetido depois da limpeza própria
+E06; não o execute no Terminal B.
+
+Defina aliases explícitos depois de carregar o ambiente, para que os blocos
+históricos usem a identidade criada nesta rodada:
+
+~~~bash
+k01() { kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
+ks()  { kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
+C1="sudo docker exec clab-poc-k8s-kind-client-ext"
+C2="sudo docker exec clab-p003-gw-fabric-client"
+~~~
+
+`k01` serve ao perfil `fundamentos`; `ks` e `C2` aos exemplos de `plataforma`;
+`C1` pertence ao perfil `fundamentos`. Não exporte nem reconstrua esses valores
+por conta própria. A saída gerada fixa o kubeconfig e o contexto. Em uma
+divergência de UID, API, cenário ou owner, interrompa o exercício e preserve o
+estado para `lab-status`/`lab-down`; não tente outro contexto.
 
 ### Mapa dos laboratórios
 
-**Figura 1 – Laboratório em uma VM**
+As Figuras 1 e 2 desta seção são históricas: mostram a arquitetura do host do
+instrutor nos estudos P001–P003, com nomes como `vm-cilium` e acesso por túnel
+SSH. Esse host e esse túnel não fazem parte do seu ambiente; você trabalha na
+sua própria VM Ubuntu, sem SSH para outra máquina. Leia as figuras só como
+desenho da topologia dos resultados publicados.
+
+**Figura 1 – Arquitetura histórica do host do instrutor; não é o ambiente do aluno**
 
 ![Laboratório em uma VM](diagramas/05-laboratorio-vm-cilium-quadro-branco-v2.png)
 
 Fonte: elaborada pelo autor (2026).
 
-Os exercícios práticos dos módulos 1–11 usam os ambientes documentados nas
-linhas abaixo. O módulo 12 é leitura de um estudo com infraestrutura em nuvem
+Os exercícios práticos dos módulos 1–10 usam os perfis próprios descritos
+acima. Os nomes e endereços das linhas seguintes registram a topologia dos
+resultados publicados; compare-os com a saída observada em sua rodada. O módulo
+11 está bloqueado nesta edição. O módulo 12 é leitura de um estudo com infraestrutura em nuvem
 que não faz parte da aula; o módulo 13 lê resultados históricos completos da
 trilha P004 (DCI, OVN-Kubernetes + EVPN, casos cruzados e Braços Cilium A/B +
 KubeVirt). O Quadro 5 distingue esses estudos dos ambientes usados nos exercícios:
@@ -267,10 +421,9 @@ KubeVirt). O Quadro 5 distingue esses estudos dos ambientes usados nos exercíci
 
 | Ambiente | Componentes | Versões | Papel |
 |---|---|---|---|
-| **Lab de referência `k01`** | 2 spines + 3 leaves SR Linux, `border1` FRR, `client-ext`, kind com 3 nós | SR Linux 25.3.2, FRR 8.4.1, Kubernetes v1.35.0, Cilium 1.20.1 | Módulos 1 a 5; protegido, somente leitura |
-| **Sandbox `p003-gw`** | segundo fabric containerlab + kind com 3 nós + cliente `198.19.0.10` | Cilium 1.20.2, Gateway API 1.6.1 (CRDs standard + experimental) | Módulos 6 a 11; onde o instrutor muda configuração |
-| **Testbed OpenStack** | DevStack em container (Neutron OVS, qrouter, qdhcp, SG) | neutron 34.x, cirros 0.6.0 | Módulo 11; VMs do tenant |
-| **VM em KVM real** | `qemu` no host ligado ao `br-int` do testbed por um par veth | cirros 0.6.0 | Módulo 11, caso C5 |
+| **Perfil `fundamentos`** | kind de 3 nós, Cilium dual-stack, Containerlab SR Linux/FRR e `client-ext` | usa o kit e versões declarados no perfil; verificar `lab-env` | Módulos 1–5; criado na VM do aluno por `make` |
+| **Perfil `plataforma`** | kind de 3 nós, fabric Containerlab, `client` e um cenário selecionado | Cilium 1.20.2 e Gateway API conforme CRDs do perfil | Módulos 6–10; cenário escolhido antes de `lab-up` |
+| **M11 híbrido** | QEMU irmãos, DevStack/Neutron-OVS, CirrOS, border e Cilium | composição nova não executada | leitura do desenho, não uma prática disponível |
 | **Estudo histórico de nós reais na nuvem** | 3 VMs na nuvem, cluster `kubeadm` e FRR na mesma VPC | Kubernetes 1.35.2, Cilium 1.20.1 | Módulo 12; leitura, infraestrutura fora da aula |
 | **Réplica DCI (`P004-S002`)** | `labctl dci`: OVN 26.03.3, 1 central, 2 chassis, 2 gateways, FRR multi-VRF e cliente AS 200 | Linux VRFs nos gateways; EVPN Type 5 (`M01–M03`, `X05`) | Módulo 13.1; leitura de resultados históricos (`labctl dci down` após os ensaios) |
 | **Plano OVN-Kubernetes + Fabric EVPN (`P004-S003` e `S004`)** | `labctl evpn-fabric` + `labctl ovnk`: kind 3 nós + `ovnk-evpn-peer` + KubeVirt `/dev/kvm` | OVN-Kubernetes v1.4.0, KubeVirt v1.9.0, `frr-k8s` v0.0.21/v0.0.27 | Módulo 13.2; leitura de resultados históricos (`K01–K04`, `X01–X04`, `X06–X07`) |
@@ -278,10 +431,12 @@ KubeVirt). O Quadro 5 distingue esses estudos dos ambientes usados nos exercíci
 
 Fonte: elaborado pelo autor (2026).
 
-O Quadro 5 descreve os ambientes e estudos documentados, sem indicar
-disponibilidade simultânea em tempo real (os perfis pesados operam em regime
-*time-shared* via `labctl` para respeitar `R3: MemAvailable >= 4,00 GiB`). As
-Figuras 1 e 2 ilustram os ambientes P001–P003; as Figuras 16, 17 e 18, no
+O Quadro 5 descreve configurações de perfil e estudos documentados, sem indicar
+aceite da composição atual nem disponibilidade simultânea em tempo real. A
+admissão é feita pelo preflight no ambiente próprio; não use o valor de RAM do
+ensaio histórico para contornar a reserva de capacidade. As
+Figuras 1 e 2 ilustram a arquitetura histórica dos estudos P001–P003, no host do
+instrutor; as Figuras 16, 17 e 18, no
 Módulo 13, ilustram a arquitetura e os resultados de P004.
 
 Os dois fabrics usam eBGP puro em dois níveis, no desenho de roteamento para
@@ -290,7 +445,7 @@ leaf do rack (AS 6510x para 6500x) e os leaves com os spines (AS 65500). No
 sandbox, os nós usam AS 65301/65302, os leaves 65201/65202/65203, os spines
 65600 e o border 65400. Os enlaces spine–leaf são IPv4 numerados em `/31`.
 
-**Figura 2 – Rotas e entrega da VIP**
+**Figura 2 – Rotas e entrega da VIP, na arquitetura histórica do host do instrutor; não é o ambiente do aluno**
 
 ![Rotas e entrega da VIP](diagramas/06-laboratorio-explicado-iniciantes.png)
 
@@ -306,7 +461,7 @@ Endereços que aparecem nos exercícios:
 | Pool de VIPs | `10.201.255.0/24`, VIP `10.201.255.10` | `10.202.255.0/24`, VIP `10.202.255.10` |
 | Cliente externo ao cluster | `client-ext` `203.0.113.10` | `fabric-client` `198.19.0.10` |
 | Gateway | não há | `p003-main` no namespace `p003-gateway`, listeners 8080/HTTP, 15432/TCP, 15353/UDP |
-| Rede do tenant OpenStack | não há | `10.30.0.0/24` (subnet-a), externa `10.40.0.0/24` |
+| Rede do tenant OpenStack | não há | histórico, não criado por `make`: `10.30.0.0/24` (subnet-a), externa `10.40.0.0/24` |
 
 Fonte: elaborado pelo autor (2026).
 
@@ -334,7 +489,11 @@ quantidade de rotas e o momento em que um bloco é alocado e retirado.
 
 ## Módulo 1 — Baseline e o que o Cilium anuncia
 
-Ambiente: lab `k01`. Origem: P001 (REQ-001 a REQ-007). A Figura 3 situa a VIP no caminho BGP dos PodCIDRs.
+Ambiente de prática: perfil próprio `LAB=fundamentos`. Origem dos valores
+publicados: P001 (REQ-001 a REQ-007), execução histórica. A Figura 3 situa a VIP
+no caminho BGP dos PodCIDRs. Antes dos comandos, suba e verifique o perfil pelo
+Apêndice A; `lab-verify` não converte os resultados históricos em observações
+desta edição.
 
 **Figura 3 – BGP, PodCIDRs e VIP anycast**
 
@@ -344,17 +503,18 @@ Fonte: elaborada pelo autor (2026).
 
 ### 1.1 Conferir os containers
 
-Na **vm-cilium**:
+Na VM Ubuntu própria, Terminal A:
 
 ~~~bash
 sudo docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'clab-poc-k8s-kind|k01-'
 $C1 ip -4 addr show dev eth1
 ~~~
 
-Esperado: `spine1`, `spine2`, `leaf1`, `leaf2`, `leaf3`, `border1`,
+Esperado — configuração do perfil: `spine1`, `spine2`, `leaf1`, `leaf2`, `leaf3`, `border1`,
 `client-ext` e três `k01-*`; o `client-ext` mostra `203.0.113.10` uma vez. Esse
-endereço pode sumir após um redeploy (lição L1 do RUNBOOK); sem ele todos os
-probes do módulo falham sem falha real.
+endereço pode sumir após um redeploy do fabric; sem ele todos os probes do
+módulo falham sem falha real, e o caminho é repetir `lab-verify` e conferir o
+endereço antes de investigar o Cilium.
 
 ### 1.2 Conferir o cluster e os PodCIDRs
 
@@ -369,8 +529,8 @@ aponta para o bloco do nó, nunca para um `/32` do pod.
 ### 1.3 Sessões e anúncios BGP
 
 ~~~bash
-sudo KUBECONFIG="$K01_KUBECONFIG" cilium --context kind-k01 bgp peers
-sudo KUBECONFIG="$K01_KUBECONFIG" cilium --context kind-k01 bgp routes advertised ipv4 unicast
+cilium --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" bgp peers
+cilium --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" bgp routes advertised ipv4 unicast
 k01 get ciliumbgpclusterconfigs,ciliumbgppeerconfigs,ciliumbgpadvertisements
 ~~~
 
@@ -387,7 +547,7 @@ agente não anuncia nada de Service; este foi um achado repetido em nós reais.
 
 ~~~bash
 sudo docker exec clab-poc-k8s-kind-spine1 sr_cli \
-  "show network-instance default route-table ipv4-unicast prefix 10.244.0.0/16 longer"
+  "show network-instance default route-table ipv4-unicast prefix *"
 sudo docker exec clab-poc-k8s-kind-spine1 sr_cli \
   "show network-instance default route-table ipv4-unicast prefix 10.201.255.10/32 detail"
 ~~~
@@ -396,6 +556,63 @@ Esperado: os três `/24` e a VIP com dois próximos saltos. Em native routing (C
 o fabric vê o IP real do pod; a evidência histórica registra zero pacotes
 UDP/8472 no fio e um handshake `203.0.113.10 > 10.244.2.198:8080` direto ao
 pod.
+
+
+**Observação real F07 — 31/10/2026.** Estes probes de leitura foram executados
+no guest Ubuntu 24.04 amd64, com kubeconfig e contexto explícitos para Kubernetes
+e endpoint Docker local explícito para o spine. A saída abaixo é desta rodada,
+não uma garantia para todas as execuções.
+
+~~~bash
+kubectl --request-timeout=15s --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" get nodes -o custom-columns=NODE:.metadata.name,PODCIDR:.spec.podCIDR,PODCIDRS:.spec.podCIDRs
+sudo -n /usr/bin/docker --host unix:///var/run/docker.sock exec clab-poc-k8s-kind-spine1 sr_cli \
+  "show network-instance default route-table ipv4-unicast prefix *"
+sudo -n /usr/bin/docker --host unix:///var/run/docker.sock exec clab-poc-k8s-kind-spine1 sr_cli \
+  "show network-instance default route-table ipv4-unicast prefix 10.201.255.10/32 detail"
+~~~
+
+A consulta de nós (03) terminou `rc=0` às 08:28:46.993–08:28:47.087 UTC:
+
+~~~text
+NODE                PODCIDR         PODCIDRS
+k01-control-plane   10.244.0.0/24   [10.244.0.0/24 fd13::/64]
+k01-worker          10.244.2.0/24   [10.244.2.0/24 fd13:0:0:2::/64]
+k01-worker2         10.244.1.0/24   [10.244.1.0/24 fd13:0:0:1::/64]
+~~~
+
+O probe 08 terminou `rc=0` às 08:28:47.721–08:28:49.128 UTC. Sua saída
+original tinha 12.515 bytes e linhas de até 200 colunas; o resumo a seguir
+normaliza somente as três rotas de PodCIDR e não reproduz literalmente a tabela
+completa. Os prefixos coincidem com o conjunto observado em 03.
+
+- `10.244.0.0/24` → `10.255.1.0/31` (indirect/local), pela
+  `ethernet-1/1.0`.
+- `10.244.1.0/24` → `10.255.3.0/31` (indirect/local), pela
+  `ethernet-1/2.0`.
+- `10.244.2.0/24` → `10.255.1.0/31` (indirect/local), pela
+  `ethernet-1/1.0`.
+
+O probe 09 terminou `rc=0` às 08:28:49.128–08:28:50.263 UTC. Este trecho é
+literal; campos não exibidos foram omitidos:
+
+~~~text
+Destination            : 10.201.255.10/32
+Route Type             : bgp
+Route Owner            : bgp_mgr
+Preference             : 170
+Active                 : true
+Next hops: 2 entries
+10.255.1.1 (indirect) resolved by route to 10.255.1.0/31 (local)
+  via 10.255.1.1 (direct) via [ethernet-1/1.0]
+10.255.3.1 (indirect) resolved by route to 10.255.3.0/31 (local)
+  via 10.255.3.1 (direct) via [ethernet-1/2.0]
+Backup Next hops: 0 entries
+~~~
+
+A leitura conjunta mostra três anúncios IPv4 `/24` correspondentes aos
+PodCIDRs de 03 e uma rota BGP ativa para a VIP com dois próximos saltos no
+spine. Ela não associa cada próximo salto a um nó Kubernetes por nome; essa
+relação exigiria outra evidência.
 
 **Quadro 7 – Registro do Módulo 1: valores esperados e observados**
 
@@ -410,7 +627,9 @@ Fonte: elaborado pelo autor (2026).
 
 ## Módulo 2 — VIP anycast e caminho do tráfego
 
-Ambiente: lab `k01`. Origem: P001 (REQ-008 a REQ-010). A Figura 4 acompanha o caminho da requisição até a VIP.
+Ambiente de prática: perfil próprio `LAB=fundamentos`. Origem dos resultados:
+P001 (REQ-008 a REQ-010), execução histórica. A Figura 4 acompanha o caminho da
+requisição até a VIP.
 
 **Figura 4 – Caminho da VIP e balanceamento**
 
@@ -435,33 +654,28 @@ execução de referência registrou 20/20 HTTP 200 e seis pods distintos.
 ICMP para a VIP não é respondido: o balanceador BPF atende TCP; `ping` na VIP
 não é sinal de falha.
 
-### 2.2 O túnel para o Mac
+### 2.2 Cliente externo dentro do fabric próprio
 
-No **Mac**:
-
-~~~bash
-export VM_CILIUM_HOST="${VM_CILIUM_HOST:-IP_DA_VM}"
-curl --silent --fail --max-time 2 http://127.0.0.1:18081/hostname || \
-ssh -i ~/.ssh/id_rsa -o IdentityAgent=SSH_AUTH_SOCK -o ExitOnForwardFailure=yes -N \
-  -L 127.0.0.1:18081:10.201.255.10:80 ubuntu@"${VM_CILIUM_HOST}"
-~~~
-
-O túnel termina no host da VM e encaminha uma porta local para a VIP. Ele não
-publica a VIP na Internet. A rota do host que permite ao próprio host alcançar
-a VIP é criada pelo instrutor com `scripts/06-expor-vip-na-vpc.sh`.
+O cliente deste perfil já está ligado ao fabric privado da própria VM. Rode os
+pedidos no **Terminal A**, pelo alias `C1`; não abra SSH para uma VM de aula,
+não crie túnel no computador pessoal e não acrescente rota à tabela principal
+do host. O teste em `2.1` é o caminho atual disponível. A referência antiga a
+uma VIP encaminhada por túnel SSH para o Mac foi retirada do fluxo executável.
 
 ### 2.3 O caminho e o fix que o tornou possível
 
 ~~~text
-Mac → túnel SSH → vm-cilium → clab-ext → border1/FRR → leaf3
-    → spine → leaf do rack → nó Kubernetes → Cilium bpf-lb → Service → pod
+Terminal A na VM do aluno → cliente do fabric `client-ext` → border/FRR
+  → leaf → spine → leaf do rack → nó Kubernetes → Cilium BPF LB → Service → Pod
 ~~~
 
-O balanceador BPF precisa estar anexado à interface do fabric (`eth1` no nó
-kind). O controlador de devices do Cilium 1.20.1 pula veths sem rota default,
-então o kit fixa `devices=eth+` nos values. Sem isso a VIP era roteada de volta
-ao fabric em loop. Um `helm upgrade` que regenere o ConfigMap remove a chave;
-o apêndice do instrutor mostra a verificação condicional.
+O caminho e os endereços acima descrevem a topologia medida no registro P001.
+Compare a RIB, os serviços e as respostas da sua rodada; o diagrama não é
+recibo nem garante que cada probe atual repita aquela medição. O balanceador
+BPF precisa estar anexado à interface do fabric (`eth1` no nó kind). O
+controlador de devices do Cilium 1.20.1 pulava veths sem rota default, então o
+kit fixava `devices=eth+` nos values. Esse é o relato histórico, não uma
+instrução para editar ConfigMap ou executar `helm upgrade` nesta prática.
 
 Quando o cliente está fora da VM, na mesma VPC, o caminho é assimétrico: a
 requisição entra pelo fabric e a resposta volta pela bridge docker do host,
@@ -470,7 +684,9 @@ uma falha.
 
 ## Módulo 3 — Dual-stack IPv6 no plano de controle
 
-Ambiente: lab `k01` reconstruído com `values-dualstack.yaml`. Origem: P002-S001. A Figura 5 situa a VIP nas duas famílias do plano de controle BGP.
+Ambiente de prática: perfil próprio `LAB=fundamentos`, que configura os values
+dual-stack do kit. Origem dos números: P002-S001, execução histórica. A Figura
+5 situa a VIP nas duas famílias do plano de controle BGP.
 
 **Figura 5 – IPv6 no plano de controle BGP**
 
@@ -482,7 +698,7 @@ Fonte: elaborada pelo autor (2026).
 
 ~~~bash
 k01 get nodes -o custom-columns=NODE:.metadata.name,PODCIDRS:.spec.podCIDRs
-sudo KUBECONFIG="$K01_KUBECONFIG" cilium --context kind-k01 bgp routes advertised ipv6 unicast
+cilium --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" bgp routes advertised ipv6 unicast
 sudo docker exec clab-poc-k8s-kind-spine1 sr_cli \
   "show network-instance default route-table ipv6-unicast prefix fd14::a/128 detail"
 ~~~
@@ -507,8 +723,11 @@ spines.
 
 ## Módulo 4 — Falhas, Graceful Restart e convergência
 
-Ambiente: lab `k01`. Origem: P001 REQ-011, P002-S002 e P002-S004. Os gatilhos
-de falha são tarefa do instrutor; a pessoa estudante lê e interpreta. A Figura 6 relaciona as falhas BGP à convergência ECMP.
+Ambiente: perfil próprio `LAB=fundamentos`. Origem da tabela: P001 REQ-011,
+P002-S002 e P002-S004, ensaios históricos. A automação atual não expõe gatilhos
+de falha nem autorização para desabilitar nós; leia os dados como um estudo de
+convergência, sem repetir falha de leaf, spine, agent ou worker. A Figura 6
+relaciona os resultados históricos à convergência ECMP.
 
 **Figura 6 – Falhas BGP e convergência ECMP**
 
@@ -518,11 +737,13 @@ Fonte: elaborada pelo autor (2026).
 
 ### 4.1 Como se mede um blackhole
 
-Três loops de `curl` com timeout de 2 s rodam no `client-ext` contra a VIP
-anycast, um pod do rack 1 (caminho único) e um pod do rack 2. Blackhole real é
+Na execução histórica, três loops de `curl` com timeout de 2 s rodaram no
+`client-ext` contra a VIP anycast, um pod do rack 1 (caminho único) e um pod do
+rack 2. Blackhole real é
 o **maior intervalo sem nenhum OK**; timeouts encadeados não contam (lição L4).
-Falhas de SR Linux são provocadas com `admin-state disable` via `sr_cli`,
-nunca com `docker stop`, que destrói a wiring veth (lição L2).
+Nos registros históricos, falhas de SR Linux foram provocadas com
+`admin-state disable` via `sr_cli`. Isso descreve o método daquela execução;
+não execute mutações de link ou de container nesta edição.
 
 ### 4.2 Resultados medidos
 
@@ -556,7 +777,8 @@ validação do lab. Essa lacuna é o ponto de partida de um dos próximos estudo
 
 ## Módulo 5 — Escala e desempenho
 
-Ambiente: lab `k01`. Origem: P002-S003. A Figura 7 relaciona a escala de pods e VIPs à vazão.
+Ambiente: perfil próprio `LAB=fundamentos`. Origem da tabela: P002-S003,
+execução histórica. A Figura 7 relaciona a escala de pods e VIPs à vazão.
 
 **Figura 7 – Escala de pods, VIPs e throughput**
 
@@ -572,8 +794,9 @@ sudo docker exec clab-poc-k8s-kind-spine1 sr_cli \
 k01 get deploy echo
 ~~~
 
-Anote o total de rotas IPv4 no spine e o número de réplicas. O instrutor pode
-escalar o `echo` de 6 para 40 réplicas; repita o primeiro comando e compare.
+Anote o total de rotas IPv4 no spine e o número de réplicas. O perfil atual não
+oferece um alvo de escala deste exercício; não altere réplicas para tentar
+recriar a tabela histórica.
 
 ### 5.2 Resultados medidos
 
@@ -597,7 +820,12 @@ SR Linux em container e veths do kind; use apenas as relações.
 
 ## Módulo 6 — Gateway API HTTP, TCP e UDP por VIP BGP
 
-Ambiente: sandbox `p003-gw`. Origem: P003-S003 e P003-S004. A implementação
+> **Aviso.** Este cenário ainda não foi executado em uma VM Ubuntu limpa. As
+> saídas esperadas e os números deste módulo são históricos; compare-os com o que
+> a sua rodada mostrar, sem tratá-los como resultado garantido.
+
+Ambiente de prática: perfil próprio `LAB=plataforma EXERCISE=baseline`. Origem
+dos resultados: P003-S003 e P003-S004, execução histórica. A implementação
 da Gateway API pelo Cilium segue a documentação do projeto (Cilium Authors, 2026c). A Figura 8 destaca os listeners HTTP, TCP e UDP do Gateway.
 
 **Figura 8 – Gateway API sobre VIP BGP**
@@ -612,7 +840,7 @@ Fonte: elaborada pelo autor (2026).
 ks -n p003-gateway get gateway p003-main -o wide
 ks -n p003-gateway get httproutes,tcproutes,udproutes
 ks -n p003-gateway get svc -l bgp-advertise=true
-sudo KUBECONFIG="$STUDY_KUBECONFIG" cilium --context kind-p003-gw \
+cilium --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" \
   bgp routes advertised ipv4 unicast
 ~~~
 
@@ -646,12 +874,10 @@ $C2 sh -c "echo P003-gw04 | nc -w 3 $VIP 15433"
 
 Fonte: elaborado pelo autor (2026).
 
-A matriz de referência registrou 30/30 em cada listener, 503 com
+A matriz histórica registrou 30/30 em cada listener, 503 com
 EndpointSlice vazio quando o backend foi escalado a zero e recuperação
-completa ao restaurar. Quando o instrutor troca o `CiliumBGPAdvertisement`
-por um selector que não casa, a `/32` some do spine em cerca de 15 s, a VIP
-para de responder e o IP direto do pod continua funcionando: é o controle que
-separa "anúncio" de "serviço".
+completa ao restaurar. Um controle histórico trocou o selector do
+`CiliumBGPAdvertisement`; não repita essa mutação como exercício autônomo.
 
 ### 6.3 Achado: `hostNetwork` do Gateway não expõe listener no nó
 
@@ -664,11 +890,17 @@ ou a VIP por BGP.
 
 ## Módulo 7 — Autorização externa na borda
 
-Ambiente: sandbox `p003-gw`. Origem: P003-S005, P003-S006 e P003-S009 (T05). A Figura 9 mostra o fluxo de autorização externa na borda.
-O ExternalAuth do Gateway API é experimental na 1.20.2; o CRD `HTTPRoute`
-recebeu o schema experimental por um patch de spec, porque o
-`experimental-install.yaml` estoura o limite de annotations no Kubernetes
-1.35.0.
+> **Aviso.** Este cenário ainda não foi executado em uma VM Ubuntu limpa. As
+> saídas esperadas e os números deste módulo são históricos; compare-os com o que
+> a sua rodada mostrar, sem tratá-los como resultado garantido.
+
+Ambiente de prática: perfil próprio `LAB=plataforma EXERCISE=auth`. Origem
+dos números: P003-S005, P003-S006 e P003-S009 (T05), execução histórica. A
+Figura 9 mostra o fluxo de autorização externa na borda.
+O ExternalAuth do Gateway API é experimental na 1.20.2. Nesse cenário, a
+automação aplica os CRDs experimentais do Gateway API (`experimental-install.yaml`)
+por server-side apply, que evita o limite de tamanho das annotations do
+`kubectl apply` comum no Kubernetes 1.35.0; você não aplica esses CRDs à mão.
 
 **Figura 9 – Autorização externa na borda**
 
@@ -734,9 +966,15 @@ cliente.
 
 ## Módulo 8 — WireGuard em native routing e VXLAN
 
-Ambiente: sandbox `p003-gw`. Origem: P003-S007 e P003-S008. Os perfis são
-trocados pelo instrutor com `helm upgrade`; a pessoa estudante confere
-interfaces e capturas. O Cilium usa o WireGuard (Donenfeld, 2017) na interface
+> **Aviso.** Este cenário ainda não foi executado em uma VM Ubuntu limpa. As
+> saídas esperadas e os números deste módulo são históricos; compare-os com o que
+> a sua rodada mostrar, sem tratá-los como resultado garantido.
+
+Ambiente de prática: perfil próprio `LAB=plataforma EXERCISE=wireguard-native`
+ou `wireguard-vxlan`, com `WG=W0|W1|W2` selecionado antes de `lab-up`.
+Origem dos números: P003-S007 e P003-S008, execução histórica. Não altere
+values com `helm upgrade`; encerre a execução própria e selecione outro
+cenário pela interface Make. O Cilium usa o WireGuard (Donenfeld, 2017) na interface
 `cilium_wg0`, na porta UDP 51871 (Cilium Authors, 2026i). A Figura 10 compara os caminhos WireGuard em native routing e VXLAN.
 
 **Figura 10 – WireGuard em dois datapaths**
@@ -779,7 +1017,13 @@ Envoy do nó como tráfego de nó.
 
 ## Módulo 9 — Tenants: rede, borda e configuração
 
-Ambiente: sandbox `p003-gw`. Origem: P003-S009, matriz T01–T17. A Figura 11 situa os controles de isolamento de tenants nas três camadas.
+> **Aviso.** Este cenário ainda não foi executado em uma VM Ubuntu limpa. As
+> saídas esperadas e os números deste módulo são históricos; compare-os com o que
+> a sua rodada mostrar, sem tratá-los como resultado garantido.
+
+Ambiente de prática: perfil próprio `LAB=plataforma EXERCISE=tenants`. Origem
+dos resultados: P003-S009, matriz T01–T17, execução histórica. A Figura 11
+situa os controles de isolamento de tenants nas três camadas.
 
 **Figura 11 – Isolamento de tenants T01–T17 em três camadas**
 
@@ -801,14 +1045,33 @@ Fonte: elaborado pelo autor (2026).
 
 ### 9.2 Ler um drop de policy
 
+O `cilium-dbg monitor` só imprime algo enquanto há tráfego negado, e sem tráfego
+ele fica bloqueado. O bloco abaixo limita o monitor a 20 s, escolhe o agente do
+nó em que roda o backend do tenant B e gera uma requisição do cliente do tenant A
+ao backend do tenant B enquanto o monitor escuta:
+
 ~~~bash
 ks get ciliumnetworkpolicies -A
-ks -n kube-system exec ds/cilium -- \
-  cilium-dbg monitor -t drop --related-to 0 2>/dev/null | head -20
+NODE_B="$(ks -n p003-tenant-b get pod -l app=p003-b-backend \
+  -o jsonpath='{.items[0].spec.nodeName}')"
+AGENT_B="$(ks -n kube-system get pod -l k8s-app=cilium \
+  --field-selector "spec.nodeName=$NODE_B" -o name)"
+ks -n kube-system exec "$AGENT_B" -- \
+  timeout 20 cilium-dbg monitor -t drop --related-to 0 2>/dev/null | head -20 &
+sleep 2
+ks -n p003-tenant-a exec deploy/p003-a-client -- \
+  curl -sS --max-time 3 -o /dev/null -w 'A->B http=%{http_code}\n' \
+  http://p003-b-backend.p003-tenant-b.svc:8080/hostname
+wait
 ~~~
 
-Com o instrutor gerando tráfego A→B, você deve ver drops com `Policy denied` e
-o log da aplicação de destino vazio: o pacote não chega. Isso é diferente de
+Com a policy de isolamento ativa, o `curl` de A para B deve esgotar o tempo
+(`http=000`). Se o monitor não listar nenhum drop, repita com o agente do nó do
+cliente A: o drop pode ser registrado no nó de origem.
+
+Na execução histórica, com tráfego A→B, foram observados drops com
+`Policy denied` e o log da aplicação de destino vazio. Compare com a sua
+observação; um pacote que não chegou pode ter falhado em outra camada. Isso é diferente de
 um 403 na borda, que é gerado pelo Envoy antes da aplicação.
 
 ### 9.3 Resultados
@@ -826,8 +1089,14 @@ L4 ser aplicada (T07). Autorização L7 não é política L4.
 
 ## Módulo 10 — Multi-Pool IPAM: /24 versus /32
 
-Ambiente: sandbox `p003-gw`, com IPAM trocado para `multi-pool` pelo instrutor
-e restaurado ao final. Origem: P003-S010, matriz I01–I10. A Figura 12 compara os pools `/24` e `/32` do Multi-Pool IPAM.
+> **Aviso.** Este cenário ainda não foi executado em uma VM Ubuntu limpa. As
+> saídas esperadas e os números deste módulo são históricos; compare-os com o que
+> a sua rodada mostrar, sem tratá-los como resultado garantido.
+
+Ambiente de prática: perfil próprio `LAB=plataforma EXERCISE=ipam24` ou
+`ipam32`, selecionado antes de `lab-up`. Origem dos números: P003-S010,
+matriz I01–I10, execução histórica. A Figura 12 compara os pools `/24` e `/32`
+do Multi-Pool IPAM.
 
 **Figura 12 – Multi-Pool IPAM: pools /24 e /32**
 
@@ -873,82 +1142,87 @@ existem enquanto o IP existir, e só o Service respeita `Ready`. A retirada de
 um bloco depende de `preAllocate`, não da morte do pod; um `/32` não é
 "retirado quando o pod morre".
 
-## Módulo 11 — Tenant híbrido: pods e VMs OpenStack
+## Módulo 11 — Tenant híbrido: pods e VMs OpenStack (em validação)
 
-Ambiente: sandbox `p003-gw` + testbed OpenStack + VM em KVM real. Origem:
-P003-S011 a S016. As sínteses públicas completas estão em
-[E08](estudos/08-lifecycle-synthesis.md) e [C5](estudos/09-vm-outside-container.md). A Figura 13 mostra o tenant híbrido entre pods e VMs.
+**Estado desta edição:** a nova composição híbrida não foi executada. O guard
+público recusa `make lab-up LAB=hibrido` antes de efeitos até instalação,
+binding/SG, DHCP, retorno BGP e verificação bidirecional serem implementados e
+revisados. `lab-status` e `lab-down` só inspecionam ou limpam estado de
+identidade própria; `lab-shell` não prepara uma VM nem substitui o guard. Não
+use estes comandos como caminho de criação nesta edição.
 
-**Figura 13 – Tenant híbrido com pod e VM**
+Os resultados de P003-S011 a S016, a síntese [E08](estudos/08-lifecycle-synthesis.md)
+e o caso [C5](estudos/09-vm-outside-container.md) continuam como registro
+histórico separado. A antiga imagem
+`diagramas/m11-whiteboard-entregavel.png` mantém VLAN1, Floating IP e medições
+do testbed daquele estudo; foi preservada como história, mas não é a figura da
+composição nova. A Figura 13 abaixo apresenta somente o caminho previsto.
 
-![Tenant híbrido com pod e VM](diagramas/m11-whiteboard-entregavel.png)
+**Figura 13 – Componentes e caminhos previstos do M11; composição NOT_RUN**
 
-Fonte: elaborada pelo autor (2026).
+![Arquitetura prevista e NOT_RUN. A gestão usa SSH com hostkeys verificadas por loopback e SLIRP, separada do tenant. No caminho tenant, CirrOS recebe DHCP do Neutron e liga sua NIC a um stream Unix até tenant0 do Ubuntu. O Ubuntu conecta essa porta a br-int e ao Security Group Neutron; o tráfego segue pelo qrouter, br-ex/external0 e uma TAP no netns do border até FRR, fabric BGP, worker Cilium, CNP e Pod. O Neutron NDR anuncia o prefixo do tenant ao border FRR, com o endereço externo do qrouter como next-hop. A entrega, o retorno e as políticas seguem sem validação de runtime.](diagramas/m11-student-bootstrap.png)
 
-### 11.1 A pergunta
+Fonte: elaboração própria (2026), a partir do desenho técnico M11.
+Nota: arquitetura em revisão; a figura não é observação, teste de aceitação ou
+medição de tráfego.
 
-Um IP pode mudar de dono. Se a autorização for por endereço, o novo dono herda
-a concessão. A matriz C01–C09 responde: **a autorização segue a identidade ou
-o endereço?**
-
-### 11.2 O caminho VM → pod
-
-~~~text
-VM (tap) → OVS br-int (VLAN 1) → qrouter netns → br-ex → veth para o host
-  → FORWARD do host → fabric do sandbox → nó worker → CNP ingress → pod
+~~~{=latex}
+\FloatBarrier
 ~~~
 
-O testbed incluiu o serviço `neutron-dynamic-routing` (OpenStack, [2026]) para a
-ligação eBGP com o `border1`. Há dois pontos de decisão: o Security Group na porta da VM (plano de controle
-do Neutron) e a CNP no pod (drop antes do pod; os contadores do pod ficam
-flat). Para provar que o deny foi na policy e não na rede, use `cilium-dbg
-monitor` no worker do pod e os contadores `/proc/net/snmp` dentro do pod.
+### 11.1 A pergunta: quem decide a autorização?
 
-### 11.3 O contraste que importa
+Um IP pode mudar de dono. Se a autorização depender apenas do endereço, um
+novo dono pode herdar a permissão; uma policy Cilium selecionada por identidade
+de endpoint tem outra âncora. O quadro seguinte resume os ensaios antigos, não
+o novo ambiente:
 
-**Quadro 13 – Autorização por identidade versus por endereço (C03 e C05)**
+**Quadro 13 – Resultado histórico de identidade versus endereço (C03 e C05)**
 
-| Aspecto | C03: pods, `fromEndpoints` | C05: VM, `fromCIDR` |
+| Aspecto | C03 histórico: Pods, `fromEndpoints` | C05 histórico: VM, `fromCIDR` |
 |---|---|---|
-| Âncora da autorização | label do endpoint (identidade) | IP da origem (endereço) |
-| IP reaproveitado por outro dono | negado, 100% de perda | permitido, o novo dono herda |
-| Reautorizar após IP novo (C04) | n/a | efetivo em 4 a 9 s |
-| Revogar (C05) | n/a | efetivo em 1 a 7 s |
-| Conclusão | seguro | seguro só sob sequenciamento manual |
+| Âncora da autorização | label do endpoint | IP de origem |
+| Reuso do IP | deny medido naquela sequência | allow medido para o novo dono |
+| Limite | configuração e caso P003-S011–S016 | dependia de sequenciamento manual |
 
-Fonte: elaborado pelo autor com dados de P003-S011 a P003-S016 (2026).
+Fonte: dados históricos de P003-S011 a P003-S016 (2026); não é prova da nova
+composição.
 
-Sequenciamento manual testado: revogar o CIDR, confirmar o bloqueio por
-conexões novas, só então reutilizar o IP e reautorizar o novo dono. Nenhum
-controlador sincroniza identidade Kubernetes com Security Group Neutron nesta
-trilha.
+### 11.2 Caminho que a implementação deve comprovar
 
-Três armadilhas do Cilium 1.20.2 nesse desenho: `egress: []` não é default
-deny (use `egressDeny`), `ingress: []` é inválido (revogue apontando o
-`fromCIDR` para um IP que a VM não tem) e uma `HTTPRoute` ampla com `path: /`
-faz fallback quando a rota específica é removida, tornando a revogação por
-rota ineficaz.
+Na composição prevista, QEMU inicia os guests como irmãos dentro da VM Ubuntu.
+O Ubuntu executa DevStack e o cliente OpenStack; ele não é um nó Nova que cria o
+CirrOS. A rede de gestão usa loopback/SLIRP e SSH com hostkeys fixadas antes do
+boot. Os QEMU usam o namespace do border próprio para a interface externa, sem
+criar bridge, rota, regra de firewall ou sysctl no host.
 
-### 11.4 Caso C5: a VM precisa de KVM real
+O stream Unix liga as NICs tenant do CirrOS e do Ubuntu; ele não é uma TAP nem
+uma VLAN. A interface `tenant0` do Ubuntu recebe o binding da porta Neutron em
+`br-int`, e o agente OVS aplica o Security Group. A interface `external0` liga
+`br-ex` à TAP no netns do border. Não configure VLAN, fluxos OVS ou portas
+manualmente. O speaker NDR do Neutron anuncia o prefixo tenant ao border FRR
+(OpenStack, [2026]); no fabric, o next-hop desse prefixo é o endereço externo
+do qrouter. A origem
+que o tenant deve observar e o caminho de retorno são requisitos a medir, não
+resultados atuais.
 
-Com a VM dentro do container do testbed (KVM aninhado), a TX funciona e a RX
-morre: o sentido pod→VM dava timeout. Movendo a VM para `qemu -enable-kvm` no
-host e ligando sua NIC ao `br-int` do container por um par veth com
-`tag=1`, os dois sentidos deram 0% de perda, o IP veio do `qdhcp`, o egress
-passou pelo `qrouter` e o SG ficou ativo. A CNP no pod de teste permitiu com
-`fromCIDR` igual ao IP da VM e negou com 100% de perda ao retirá-la.
+### 11.3 Caso C5 e diagnóstico
 
-A pessoa estudante confere, com o instrutor:
+No caso histórico C5, o teste com QEMU em uma topologia modificada teve
+assimetria de envio e recepção; fora de um container, outro arranjo mediu
+tráfego nos dois sentidos. Esses registros não mostram que o container seja
+uma camada de virtualização: containers Linux compartilham o kernel. Um
+QEMU iniciado no Ubuntu do aluno ainda depende da virtualização aninhada
+permitida pelo host. A causa do RX histórico não se deduz apenas da presença de
+um endereço link-local.
 
-~~~bash
-ks -n p003-test get pods -o wide
-ks -n p003-test exec echo-0 -- ping -c 3 -W 2 10.30.0.50
-ks -n p003-test get cnp -o yaml | grep -A3 fromCIDR
-~~~
-
-Se a VM cair em `169.254.x.x`, a causa está em uma de duas coisas: falta a tag
-VLAN no veth do container, ou o dnsmasq do `qdhcp` não recarregou o
-`dhcp-hostsfile` (`kill -HUP`). Capture o DHCP nas duas pontas para isolar.
+Quando o M11 for liberado, a investigação começa por uma observação DORA
+correlacionada e pelos registros próprios de binding/SG, DHCP, bridge/porta e
+rotas. Um timeout ou um endereço link-local sozinho não prova qual componente
+falhou. A avaliação ainda precisa separar entrega DHCP, tráfego pod→VM e
+VM→pod, origem preservada, SG allow/deny/restore e CNP allow/deny/restore.
+Todos esses controles seguem NOT_RUN nesta edição; não existe saída de exemplo
+para preencher como se tivesse sido executada.
 
 ## Módulo 12 — Nós reais na nuvem: o que muda
 
@@ -1006,11 +1280,48 @@ Fonte: elaborada pelo autor (2026).
 
 ### 13.1 Réplica DCI: OVN e FRR por VRF
 
-**Figura 16 – Caminhos DCI: cliente legado e peer EVPN**
+**Figura 16 – Caminhos DCI da réplica histórica P004**
 
-![Caminhos DCI: cliente legado e peer EVPN](diagramas/07-dci-caminhos.png)
+![Derivação legível dos dois caminhos históricos da réplica DCI P004; as inscrições completas e os limites estão transcritos abaixo.](diagramas/07-dci-caminhos-legivel.png)
 
-Fonte: elaborada pelo autor (2026).
+Fonte: elaboração própria, derivada do registro histórico P004.
+
+**Inscrições preservadas da Figura 16 — réplica DCI (27–29/09/2026)**
+
+> Transcrição do registro histórico. As métricas e o limite `VNI literal: NOT_RUN` pertencem a essa réplica; não foram refeitos nem indicam disponibilidade atual.
+
+- Réplica DCI: dois caminhos medidos
+- Topologia lógica e resultados históricos de 27–29/09/2026; sem indicação de disponibilidade atual.
+- M01/M02 · cliente legado AS 200
+- Tenant OVN
+- VPC 192.168.100.0/24
+- VM fake 192.168.100.10
+- Logical router + 2 rotas ECMP
+- Não é uma VM KubeVirt
+- OVN: 1 central · 2 chassis
+- Gateway 1
+- Linux VRF ovnvrf100
+- VLAN 100 · FRR no gateway
+- Gateway 2
+- Linux VRF ovnvrf200
+- VLAN 200 · FRR no gateway
+- Cliente legado
+- FRR AS 200
+- Anuncia 10.0.0.0/16
+- Par dos gateways DCI
+- BGP · AS 100/200
+- Setas sólidas: dados; tracejadas: controle BGP/EVPN. Os gateways usam VRFs Linux distintas.
+- M03 · EVPN Type 5 + VXLAN entre tenant OVN e peer externo
+- Tenant OVN
+- 192.168.100.0/24
+- VNI 50100
+- Peer FRR externo
+- Recebe Type 5
+- Distinto do cliente legado
+- Controle: EVPN Type 5
+- Dados: VXLAN/UDP 4789
+- A7 filtrou connected na redistribuição; a origem da rota não virou static.
+- Ping: positivo 30/30 · causal 0/3 · restaurado 3/3; VNI literal: NOT\_RUN.
 
 Os caminhos distintos da réplica DCI aparecem na Figura 16.
 
@@ -1021,11 +1332,57 @@ A réplica tinha dois caminhos distintos:
 - **Cliente legado:** o tenant OVN usou `192.168.100.0/24` com uma VM simulada. Dois Connect Gateways tinham as VRFs Linux `ovnvrf100` e `ovnvrf200`, com FRR nos próprios gateways; cada um mantinha BGP com o cliente legado AS 200, que anunciava `10.0.0.0/16`.
 - **Peer EVPN:** o peer externo recebeu rotas EVPN Type 5 (Rabadan et al., 2021), no VNI 50100 para o tenant A e no VNI 50200 para o tenant B. Esse peer não era o cliente legado das VLANs 100 e 200.
 
-**Figura 17 – Histórico das sessões P004**
+**Figura 17 – Checkpoint histórico das sessões P004**
 
-![Histórico das sessões P004](diagramas/08-p004-estado.png)
+![Derivação legível do checkpoint histórico P004, com sessões S001–S008; as inscrições completas estão transcritas abaixo.](diagramas/08-p004-estado-legivel.png)
 
-Fonte: elaborada pelo autor (2026).
+Fonte: elaboração própria, derivada do checkpoint histórico P004.
+
+**Inscrições preservadas da Figura 17 — checkpoint das sessões P004**
+
+> Os rótulos `PASS` são os anotados nesse checkpoint, não uma validação desta edição. A Figura 16 registra `VNI literal: NOT_RUN` no escopo da réplica DCI; o rótulo M03/VNI 50100 abaixo permanece no quadro histórico de sessões. A distinção é preservada sem reavaliação ou harmonização.
+
+- P004: Trilha completa concluída (S001 a S008 · PASS · G01 a G08 fechados)
+- Checkpoint final P004 · DCI (S002), OVN-K (S003), Cruzados (S004), Cilium A/B + KubeVirt (S005–S007) e Síntese INV (S008)
+- 1. DCI + OVN + FRR
+- S001 + S002 COMPLETO · PASS
+- S001 · labctl comum PASS (27/09)
+- M01 · BGP/ECMP e falhas PASS
+- M02 · MTU 1500 vs 9000 PASS
+- M03 · EVPN Type 5 VNI 50100 PASS
+- X05 · CIDR sobreposto 50100/50200
+- Pegada: 0,54 GiB (dci + OVS host)
+- 2. OVN-K + UDN + Cruzados
+- S003 + S004 COMPLETO · PASS
+- K01 · UDN CIDR sobreposto 10.100/24
+- K02 · Live migration IP fixo (0 loss)
+- K03/K04 · EVPN Type 5 + IP fixo VM
+- X01–X04 · Tenant 3 planos + RT
+- X06/X07 · Hub overlap + Type 2 L2
+- Gates G03, G04 e G05 provados
+- 3. Cilium A & B + KubeVirt
+- S005 a S007 COMPLETO · PASS
+- V00–V04 · CEP, VIP BGP, Reuso (G01)
+- V05/V06 · Migração L3 + Multi-Pool /32
+- V07-A/C-neg · Overlap e fronteira (G02)
+- H6/V08 · FRR 10.7.1 no nó (G06, R6=0)
+- V09/V07-B · EVPN Type 5 VNI 10100/200
+- Rollback limpo a ipam=kubernetes
+- Destaques comparativos medidos em S001–S008 (OVN-K vs Cilium A/B vs INV)
+- EVIDÊNCIAS AO VIVO EM KVM NATIVO (/dev/kvm) · R6=0 VERIFICADO
+- Identidade vs IP (V04 / G01): reuso do mesmo IP 10.253.0.100/32 bloqueado por
+- fromEndpoints (0/30 ALLOW), enquanto ACL por IP vaza (30/30 ALLOW).
+- Cilium A vs Cilium B (S006–S007): FRR 10.7.1 no nó adiciona EVPN Type 5 (V09)
+- e VRFs auxiliares (V07-B) com R6=0, mas eth0 primária continua global no
+- cilium\_lxc — same-CIDR primário (K01) e migração L2 (K02) exigem OVN-K C/D.
+- 4. Síntese & Higiene (S008)
+- S008 COMPLETO · G07 & G08 PASS
+- G07: Matriz INV × Aberto e 6
+- critérios objetivos de PoC (INV-PoC
+- 01 a 06) + Blueprint Fase 2 C/D.
+- G08: dci/ovnk/evpn down (0 res.),
+- k01 10/10, p003-gw limpo, RAM 4,95G.
+- Leitura histórica consolidada de P004 (S001–S008); sem afirmação sobre disponibilidade em tempo real da VM.
 
 A Figura 17 registra a sequência histórica das sessões P004.
 
@@ -1038,11 +1395,56 @@ Nota: registro histórico do plano; não representa o estado operacional atual.
 
 ### 13.2 OVN-Kubernetes, EVPN e casos entre planos
 
-**Figura 18 – Planos de rede com KubeVirt**
+**Figura 18 – Planos de rede registrados nos ensaios P004 com KubeVirt**
 
-![Planos de rede com KubeVirt](diagramas/09-p004-tres-planos-kubevirt.png)
+![Derivação legível dos ensaios históricos P004 com OVN-K, DCI/fabric e Cilium A/B; as inscrições completas estão transcritas abaixo.](diagramas/09-p004-tres-planos-kubevirt-legivel.png)
 
-Fonte: elaborada pelo autor (2026).
+Fonte: elaboração própria, derivada dos registros experimentais históricos P004.
+
+**Inscrições preservadas da Figura 18 — planos e ensaios P004**
+
+> As métricas são vinculadas aos IDs e braços descritos. São registros históricos e não demonstram disponibilidade atual nem permitem transferir resultado de um braço para outro.
+
+- Arquitetura comparada em P004 (S002–S008): OVN-K (C/D) × Fabric EVPN × Cilium A & B + KubeVirt
+- Quatro braços testados ao vivo na vm-cilium com KVM nativo (/dev/kvm), FRR 10.7.1 e Containerlab SR Linux
+- Braço C: OVN-Kubernetes v1.4.0 + KubeVirt (S003)
+- Isolamento por UDN/CUDN L2 + Live Migration transparente
+- K01: tenant-a e tenant-b com mesmo CIDR primário
+- 10.100.0.0/24 (VM 10.100.0.14 em ambos · 0 vazamento)
+- K02: virtctl migrate ovnk-worker → ovnk-worker2
+- IP 10.100.0.14 fixo · 0% packet loss · TCP sobrevive
+- K03/K04: EVPN Type 5 via frr-k8s + Lift-and-Shift
+- 10.200.0.0/24 (VNI 10100) + VM 192.168.50.10/24
+- Braço DCI + Fabric EVPN Cruzado / D (S002 + S004)
+- Integração 3 planos e guardrails de sobreposição (X01–X07)
+- X01 (G04): Tenant unificado DCI ↔ Fabric ↔ OVN-K
+- 192.168.100.10 ↔ 10.0.0.10 ↔ VM 10.200.0.x (30/30)
+- X02 / X05 / X07 (G05): Subnets sobrepostas isoladas
+- Type 5 (VNI 10100/10200, 50100/50200) e Type 2 MAC-VRF
+- X03 / X04 / X06: Controles de borda e admissão
+- Communities BGP · RT errado (0/30) · Hub CIDR guard
+- Braços Cilium A & B: Cilium 1.20.2 + KubeVirt + FRR (S005–S008)
+- p003-gw: GoBGP nativo (A) vs FRR 10.7.1 no nó (B, R6=0) · V00 a V09
+- V00–V03 (C01–C03): CiliumEndpoint, VIP BGP /32 e CNP por label
+- cep\_id=242 sec\_id=172890 · VIP 10.202.255.20/32 (30/30, withdraw 8s)
+- CNP fromEndpoints(client-a)=30/30 · client-b=0/30 (18 drops)
+- V04 (G01) & V08-A/B (H8): Reuso de IP /32 e Cutover Legado
+- V04: 10.253.0.100/32 reutilizado → sec\_id 133690 != 163024 (0/30 ALLOW)
+- V08-A/B: cutover KVM 10.60.0.50/24 → VMI /32 BGP (39s/40s · 30/30 OK)
+- C-neg (G02): sem VRF/EVPN no Cilium OSS; sec\_id local ao eBPF
+- V05 (H3) & V06: Live Migration L3 e Multi-Pool /32 no Cilium OSS
+- masquerade troca podIP (.2.190 → .1.23; /32 .0.23 → .0.4); l2bridge bloqueado
+- TCP direto p/ podIP antigo cai · VIP BGP reconverge em ~2–3 s (20/20)
+- V07-A (C-neg) vs V07-B: Sub-redes Sobrepostas (Same-CIDR)
+- V07-A (Cilium OSS): flat routing + putEndpointIdInvalid "IP in use" em eth0
+- V07-B (Cilium B): isolado em VRFs FRR (VNI 10100/10200 30/30), não em eth0
+- H6 (G06) & V09 (H7): Braço Cilium B (FRR 10.7.1 no Nó · R6=0)
+- GoBGP (:1790) → frr-node (table-map RM-NO-KERNEL → 0 rotas BGP na main)
+- V09: EVPN Type-5 \[5\] em vrf-tenant-a/b (30/30 intra, 0/10 cross-VRF)
+- Síntese INV × Aberto (G07): Critérios INV-PoC-01 a INV-PoC-06
+- Fase 2: Cilium A (Cloud-Native L7) + OVN-K C/D (VMs L2/EVPN/Same-CIDR)
+- cobre 100% dos requisitos sem lock-in; PoC INV exige eth0 VRF + L2 migrate
+- Figura 09 — Síntese arquitetural dos resultados medidos de P004-S002 a P004-S008 (DCI, OVN-K C/D, Cilium A e Cilium B).
 
 A Figura 18 compara os planos experimentais nos casos KubeVirt.
 
@@ -1187,7 +1589,7 @@ Fonte: elaborado pelo autor (2026).
 
 ### 14.4 Onda 4 — VRF, retorno, enlace L2 e DRA
 
-`QinQ` (Institute of Electrical and Electronics Engineers, 2006) e `MACsec` (Institute of Electrical and Electronics Engineers, 2018) são contrastados com WireGuard; a API DRA estável é documentada por Kubernetes Authors (2026). Os resultados estão no Quadro 18.
+`QinQ` (Institute of Electrical and Electronics Engineers, 2006) e `MACsec` (Institute of Electrical and Electronics Engineers, 2018) são contrastados com WireGuard; a API DRA estável é documentada por Kubernetes Authors (2026c). Os resultados estão no Quadro 18.
 
 **VRF por tenant, retorno e enlace L2** ([dossiê de VRF, retorno e enlace](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md))
 
@@ -1285,7 +1687,7 @@ BBR e CUBIC são comparados por Cardwell et al. (2016) e Xu et al. (2023); Tetra
 **Bandwidth Manager e Tetragon** ([dossiê de EDT, BBR e Tetragon](estudos/28-bandwidth-edt-bbr-tetragon.md))
 
 - **Limite de banda por pod (E28):** o Bandwidth Manager aplica pacing no datapath; remover a anotação devolve vazão sem reiniciar o pod.
-- **Observação e bloqueio em runtime (E32):** a política namespaced relaciona processo, arquivo e conexão ao pod e pode encerrar a ação antes de ocorrer vazamento.
+- **Observação e bloqueio em runtime (E32):** a simulação local controlada do wrapper Python `e32-sensor-exec` representa eventos JSON no estilo Tetragon e encerra a ação por `os.kill`; os `rc=137` descrevem essa simulação, não a ação de um agente Tetragon/eBPF no kernel.
 
 **Quadro 21 – Resultados de pacing e runtime security**
 
@@ -1294,10 +1696,12 @@ BBR e CUBIC são comparados por Cardwell et al. (2016) e Xu et al. (2023); Tetra
 | Limite de banda por pod | Anotação `50M` e `100M` | Cilium 1.20.2 com `qdisc fq`: 49,70 e 49,62 Mbps (99,2%–99,4%); 97,34 e 97,70 Mbps (97,3%–97,7%) |
 | Limite de banda por pod | Sem limite e remoção dinâmica | Sem limite: 8,49 e 8,94 Gbps; remover anotação restaurou 8,40 e 9,00 Gbps sem reinício; anotação inválida não derrubou `cilium-agent` |
 | Limite de banda por pod | BBR versus CUBIC | Enlace WAN `delay 10ms loss 0.5% rate 500mbit`: 163,20 contra 118,71 Mbps (+37,5%) e 237,36 contra 165,01 Mbps (+43,8%) para BBR |
-| Observação e bloqueio em runtime | Tentativas bloqueadas | `TracingPolicyNamespaced` encerrou leitura de `/etc/shadow` e conexão à porta 4444 com `SIGKILL` (`rc=137`); 0 bytes vazados |
+| Observação e bloqueio em runtime | Tentativas bloqueadas | Simulação local controlada de eventos no estilo Tetragon encerrou a ação com `os.kill` (`rc=137`); a fixture registrou 0 bytes vazados; não comprova bloqueio por agente no kernel |
 | Observação e bloqueio em runtime | Tráfego legítimo | HTTP legítimo completou 10/10 (100%) `HTTP 200 OK` |
 
 Fonte: elaborado pelo autor (2026).
+
+A seção 3.1 do dossiê vinculado relata ausência do DaemonSet do agente; este estudo não comprova versão instalada do Tetragon, agente upstream ativo ou política eBPF aplicada no kernel. A medição histórica de HTTP legítimo 10/10 permanece registrada, sem comprovar agente ativo.
 
 ### 15.4 Onda 4 — BGP unnumbered, L2 Announcements e live migration
 
@@ -1471,7 +1875,7 @@ Fonte: elaborado pelo autor (2026).
 
 As propostas anteriores estão preservadas no [planejamento histórico de estudos](historico/proximos-estudos.md), junto à [revisão técnica histórica de 26/09/2026](historico/revisao-projeto-2026-09-26.md). Esses arquivos são registros históricos; o [índice atual dos estudos](../studies/README.md) reúne a navegação vigente. Os dossiês estão reunidos no Apêndice B.
 
-As lições operacionais e os gates de segurança estão no **Quadro 27**, no Apêndice A.
+A preparação, os gates e a limpeza do laboratório próprio estão no **Apêndice A**.
 
 ## Referências
 
@@ -1480,6 +1884,8 @@ BATES, T.; CHEN, E.; CHANDRA, R. **BGP Route Reflection: An Alternative to Full 
 CARDWELL, N. et al. BBR: Congestion-Based Congestion Control. **Queue**, New York, v. 14, n. 5, p. 20-53, set./out. 2016. DOI: 10.1145/3012426.3022184. Disponível em: https://queue.acm.org/detail.cfm?id=3022184. Acesso em: 27 out. 2026.
 
 CHANDRA, R.; TRAINA, P.; LI, T. **BGP Communities Attribute**. [S. l.]: IETF, ago. 1996. (Request for Comments, 1997). DOI: 10.17487/RFC1997. Disponível em: https://www.rfc-editor.org/rfc/rfc1997. Acesso em: 27 out. 2026.
+
+CILIUM. **Troubleshooting Kubernetes Networking**. [S. l.], 16 ago. 2026. Disponível em: https://cilium.io/blog/2026/08/16/troubleshooting-kubernetes-networking/. Acesso em: 3 nov. 2026.
 
 CILIUM AUTHORS. **BGP Control Plane Resources**. Versão 1.20. [S. l.]: Cilium Project, 2026a. Disponível em: https://docs.cilium.io/en/v1.20/network/bgp-control-plane/bgp-control-plane-configuration/. Acesso em: 27 out. 2026.
 
@@ -1494,6 +1900,8 @@ CILIUM AUTHORS. **Multi-Pool**. Versão 1.20. [S. l.]: Cilium Project, 2026e. Di
 CILIUM AUTHORS. **Routing**. Versão 1.20. [S. l.]: Cilium Project, 2026f. Disponível em: https://docs.cilium.io/en/v1.20/network/concepts/routing/. Acesso em: 27 out. 2026.
 
 CILIUM AUTHORS. **System Requirements**. Versão 1.20. [S. l.]: Cilium Project, 2026g. Disponível em: https://docs.cilium.io/en/v1.20/operations/system_requirements/. Acesso em: 27 out. 2026.
+
+CILIUM AUTHORS. **Troubleshooting**. Versão 1.20. [S. l.]: Cilium Project, 2026j. Disponível em: https://docs.cilium.io/en/stable/operations/troubleshooting/. Acesso em: 3 nov. 2026.
 
 CILIUM AUTHORS. **Using Kubernetes Constructs In Policy**. Versão 1.20. [S. l.]: Cilium Project, 2026h. Disponível em: https://docs.cilium.io/en/v1.20/security/policy/kubernetes/. Acesso em: 27 out. 2026.
 
@@ -1527,7 +1935,11 @@ ISOVALENT. **Isovalent Networking for Virtualization**: Enterprise-Grade Network
 
 KATZ, D.; WARD, D. **Bidirectional Forwarding Detection (BFD)**. [S. l.]: IETF, jun. 2010. (Request for Comments, 5880). DOI: 10.17487/RFC5880. Disponível em: https://www.rfc-editor.org/rfc/rfc5880. Acesso em: 27 out. 2026.
 
-KUBERNETES AUTHORS. **Dynamic Resource Allocation**. [S. l.]: The Linux Foundation, 2026. Disponível em: https://kubernetes.io/docs/concepts/resource-management/dynamic-resource-allocation/. Acesso em: 27 out. 2026.
+KUBERNETES AUTHORS. **Debugging DNS Resolution**. [S. l.]: The Linux Foundation, 2026a. Disponível em: https://kubernetes.io/docs/tasks/administer-cluster/dns-debugging-resolution/. Acesso em: 3 nov. 2026.
+
+KUBERNETES AUTHORS. **Debugging Services**. [S. l.]: The Linux Foundation, 2026b. Disponível em: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/. Acesso em: 3 nov. 2026.
+
+KUBERNETES AUTHORS. **Dynamic Resource Allocation**. [S. l.]: The Linux Foundation, 2026c. Disponível em: https://kubernetes.io/docs/concepts/resource-management/dynamic-resource-allocation/. Acesso em: 27 out. 2026.
 
 KUBERNETES SIG NETWORK. **Gateway API**. [S. l.]: The Linux Foundation, 2026. Disponível em: https://gateway-api.sigs.k8s.io/. Acesso em: 27 out. 2026.
 
@@ -1559,93 +1971,347 @@ TETRAGON AUTHORS. **Welcome to Tetragon documentation**. [S. l.], c2024. Dispon�
 
 XU, L. et al. **CUBIC for Fast and Long-Distance Networks**. [S. l.]: IETF, ago. 2023. (Request for Comments, 9438). DOI: 10.17487/RFC9438. Disponível em: https://www.rfc-editor.org/rfc/rfc9438. Acesso em: 27 out. 2026.
 
-## Apêndice A – Roteiro do instrutor
+## Apêndice A – Preparar, verificar e encerrar o laboratório próprio
 
-O laboratório já deve estar rodando. A reconstrução é referência, não
-exercício, e só acontece em ambiente vazio confirmado.
-
-### Rebuild do `k01` em dois terminais
-
-~~~bash
-sudo apt-get update && sudo apt-get install -y git ca-certificates
-sudo git clone https://github.com/reinaldosaraiva/learn-cilium.git /opt/learn-cilium
-sudo ln -s /opt/learn-cilium/poc-k8s-fabric /opt/poc-k8s-fabric
-export LAB_DIR=/opt/poc-k8s-fabric && cd "$LAB_DIR"
-sudo ./scripts/00-prep-vm.sh
-sudo sysctl -w net.ipv4.ip_forward=1
-sudo docker ps -a --format 'table {{.Names}}\t{{.Status}}'; sudo kind get clusters
-~~~
-
-Se houver containers `clab-poc-k8s-kind-*` ou o cluster `k01`, pare. No
-**Terminal 1**:
+Esta sequência usa os alvos Make do clone do repositório, que traz o livro, os
+Makefiles e `automation/student-lab` da mesma árvore. Ela não reconstrói os
+ambientes históricos `k01` ou `p003-gw`. Use Ubuntu 24.04 amd64, uma conta
+não-root com sudo, acesso à Internet e espaço para o perfil escolhido; o
+Quadro 4A, na seção "Preparar uma rodada própria", traz os requisitos de cada
+perfil. Abra o Terminal A, instale somente os pré-requisitos do sistema e clone
+o repositório público (passo 0):
 
 ~~~bash
-sudo TOPO=topo/poc-kind.clab.yml ./scripts/01-deploy-fabric.sh
+sudo apt-get update && sudo apt-get install -y git make
+git clone --branch docs/p010-s001-20261028 https://github.com/reinaldosaraiva/learn-cilium.git
+cd learn-cilium
+pwd
+test -f Makefile && test -f poc-k8s-fabric/Makefile
 ~~~
 
-No **Terminal 2**, assim que a API do kind existir:
+A cópia precisa ser um clone Git: `lab-env` lê o `HEAD` com `git rev-parse` e
+falha sem `.git`. Registre o `HEAD` do clone; se alterar arquivos, registre
+também os hashes dos arquivos alterados, pois o campo `LAB_GUIDE_REVISION`
+sozinho não identifica alterações locais. Não passe credenciais do kubeconfig
+para argumentos, variáveis adicionais ou recibos.
+
+### Fundamentos: iniciar e confirmar o perfil
+
+Para M1–M5, rode os comandos abaixo na ordem e preserve a saída de cada um. O
+preflight verifica capacidade, dependências e colisões antes da criação. Um
+erro, consulta inconclusiva ou recusa de capacidade encerra a sequência; não
+desabilite o gate nem remova recursos manualmente.
 
 ~~~bash
-sudo kind export kubeconfig --name k01 --kubeconfig /root/.kube/k01-rebuild.config
-sudo KUBECONFIG=/root/.kube/k01-rebuild.config \
-  VALUES=k8s/cilium/values-dualstack.yaml ./scripts/02-install-cilium.sh
-k01() { sudo kubectl --kubeconfig /root/.kube/k01-rebuild.config --context kind-k01 "$@"; }
-DEVICES=$(k01 -n kube-system get cm cilium-config -o jsonpath='{.data.devices}')
-if [ "$DEVICES" != "eth+" ]; then
-  k01 -n kube-system patch cm cilium-config --type merge \
-    -p '{"data":{"devices":"eth+"}}'
-  k01 -n kube-system rollout restart ds/cilium
-  k01 -n kube-system rollout status ds/cilium --timeout=5m
-fi
-sudo -E KUBECONFIG=/root/.kube/k01-rebuild.config \
-  RACK1_NODES="k01-control-plane k01-worker" RACK2_NODES="k01-worker2" \
-  ./scripts/03-apply-bgp.sh
-sudo docker exec clab-poc-k8s-kind-client-ext ip -4 addr show dev eth1 \
-  | grep -q 203.0.113.10 || echo "GATE L1: restaurar IPv4 do client-ext"
-sudo ./scripts/06-expor-vip-na-vpc.sh && curl -fsS --max-time 5 http://10.201.255.10/hostname
+make --no-print-directory lab-preflight LAB=fundamentos
+make --no-print-directory lab-up LAB=fundamentos
+make --no-print-directory lab-status LAB=fundamentos
+make --no-print-directory lab-verify LAB=fundamentos
+lab_env="$(make --no-print-directory lab-env LAB=fundamentos)" \
+  && eval "$lab_env" \
+  || { echo "lab-env falhou; veja a mensagem acima"; false; }
+unset lab_env
 ~~~
 
-Não execute o toggle de guard que o script imprime para usar o túnel SSH
-local.
+`lab-status` informa o estado persistido; `lab-verify` consulta as identidades
+e condições implementadas para o perfil. Uma execução histórica não substitui
+essas consultas. Capture `lab-env` antes de definir aliases ou usar as
+ferramentas do perfil. Não chame `lab-session` em `fundamentos`. O gate de
+`fundamentos` exige 8 vCPU, 40 GiB de disco livre e `MemAvailable` de pelo menos
+10240 MiB. A única execução em VM limpa usou 8 vCPU, 24 GiB de RAM e 80 GiB de
+disco; é uma observação, não uma garantia. O caso F06, com 16 GiB de RAM total,
+foi recusado pelo gate por memória disponível abaixo de 10240 MiB; veja o
+registro em "Fundamentos M1–M5: execução F07 observada" e o Quadro 4A.
 
-### Sandbox `p003-gw`
+### Plataforma: selecionar um cenário antes da subida
 
-Os artefatos ficam em `studies/p003/`: topologia (`topo/`), configs SR Linux
-(`configs/srl/`), values e chart fixado (`base/values-p003.yaml`,
-`base/cilium-1.20.2.tgz`), BGP (`base/bgp/`), Gateway e rotas
-(`base/gateway.yaml`), fixtures (`fixtures/`) e os casos por sessão (`cases/`).
-O diff em relação ao kit está em [`diff-vs-kit.md`](historico/diff-vs-kit.md). O deploy do
-containerlab deve rodar com `nohup` e log, nunca em foreground com timeout de
-canal SSH: uma interrupção deixa os SR Linux sem startup-config.
+M6–M10 usam um cenário por execução. `EXERCISE` e `WG` só se aplicam a
+`lab-preflight` e `lab-up`; `lab-status`, `lab-verify`, `lab-env` e `lab-down`
+recebem somente `LAB=plataforma`. Para trocar o cenário, primeiro use
+`lab-down LAB=plataforma` e confirme o estado final com `lab-status`.
 
-Antes de cada sessão, rode o canário do `k01`
-(`studies/p003/cases/k01-canary.sh`): 10/10 HTTP 200 na VIP e UID inalterado.
-Ao terminar, restaure o baseline (`helm upgrade` de volta ao perfil W0 native,
-IPAM `kubernetes`, sem pools) e remova objetos de teste por nome exato.
+- **M6:** `LAB=plataforma EXERCISE=baseline`.
+- **M7:** `LAB=plataforma EXERCISE=auth`.
+- **M8:** `LAB=plataforma EXERCISE=wireguard-native` ou `wireguard-vxlan`; selecione somente um valor `WG=W0`, `WG=W1` ou `WG=W2`.
+- **M9:** `LAB=plataforma EXERCISE=tenants`.
+- **M10:** `LAB=plataforma EXERCISE=ipam24` ou `ipam32`.
 
-### Lições operacionais
+~~~bash
+make --no-print-directory lab-preflight LAB=plataforma EXERCISE=baseline
+make --no-print-directory lab-up LAB=plataforma EXERCISE=baseline
+make --no-print-directory lab-status LAB=plataforma
+make --no-print-directory lab-verify LAB=plataforma
+lab_env="$(make --no-print-directory lab-env LAB=plataforma)" \
+  && eval "$lab_env" \
+  || { echo "lab-env falhou; veja a mensagem acima"; false; }
+unset lab_env
+~~~
 
-**Quadro 27 – Lições operacionais e gates correspondentes**
+Para `wireguard-native` e `wireguard-vxlan`, forneça também um único `WG=W0`,
+`WG=W1` ou `WG=W2` às chamadas de preflight e up. Depois de carregar o
+ambiente, os exemplos de plataforma usam as variáveis `LAB_KUBECONFIG`,
+`LAB_CONTEXT` e `STUDY_*` geradas para o cenário salvo. Não chame
+`lab-session` nesse perfil.
 
-| # | Lição | Gate |
-|---|---|---|
-| L1 | `client-ext` pode perder o IPv4 após deploy | validar `203.0.113.10` sempre |
-| L2 | `docker stop` de SR Linux destrói os veths | falhas só com `admin-state disable` via `sr_cli` |
-| L3 | `clab destroy` parcial apaga o kind | nunca destroy/redeploy com cluster no ar |
-| L4 | contagem de falhas superestima blackhole | medir por gap entre OKs |
-| L5 | bulk-delete por label leva colaterais | deletar por lista explícita de nomes |
-| L6 | `helm upgrade` regenera o ConfigMap | reconferir `devices=eth+` |
-| L7 | testbed OpenStack tem cap de 8 GiB | gate de memória antes de cada spawn de VM |
-| L8 | `journald` dentro dos nós kind acumula `Shmem` em `/run/log/journal` | rodar `journalctl --vacuum-size=10M` nos containers kind para preservar `MemAvailable >= 4,00 GiB` (`R3`) |
+O preflight apenas inspeciona dependências, capacidade e colisões. A instalação
+dos pacotes e ferramentas do perfil acontece em `lab-up`. Para trocar entre
+`fundamentos` e `plataforma`, encerre primeiro o perfil ativo, confirme
+`lab-status` e inicie o próximo com seu próprio preflight e up. Se o cluster
+continua ativo no mesmo perfil, consulte status/verify e capture `lab-env` no
+novo shell; não rode preflight sobre a infraestrutura ativa.
 
-Fonte: elaborado pelo autor (2026).
+O gate de `plataforma` exige 8 vCPU, 40 GiB de disco livre e `MemAvailable` de
+pelo menos 10240 MiB (pico estimado de 6144 MiB mais a reserva de 4096 MiB).
+F07 avaliou somente `fundamentos`; o perfil `plataforma` ainda não foi
+validado em VM limpa e não há RAM total comprovada para ele (Quadro 4A).
+
+### Iniciantes: preparar a rodada e carregar o ambiente
+
+O perfil `iniciantes` foi validado em 10/11/2026 em uma VM Ubuntu 24.04 limpa
+com 4 vCPU, 8 GiB de RAM e 40 GiB de disco. O gate exige 4 vCPU, 25 GiB de disco
+livre e `MemAvailable` de pelo menos 6656 MiB (pico estimado de 2560 MiB mais a
+reserva de 4096 MiB); a VM validada tinha 7228 MiB disponíveis. Isso não
+estabelece um piso de memória menor que 8 GiB. Depois de preflight/up/status/verify bem-sucedidos,
+crie a identidade de sessão e capture somente as atribuições do alvo. A sessão
+não cria a namespace de prática; E01 faz essa operação explícita.
+
+~~~bash
+make --no-print-directory lab-preflight LAB=iniciantes
+make --no-print-directory lab-up LAB=iniciantes
+make --no-print-directory lab-status LAB=iniciantes
+make --no-print-directory lab-verify LAB=iniciantes
+make --no-print-directory lab-session LAB=iniciantes
+lab_env="$(make --no-print-directory lab-env LAB=iniciantes)" \
+  && eval "$lab_env" \
+  || { echo "lab-env falhou; veja a mensagem acima"; false; }
+unset lab_env
+~~~
+
+Use essa invocação na raiz do projeto, sem `make -w`: o stdout de
+`lab-env` contém somente atribuições destinadas a `eval`. Mantenha o Terminal A
+aberto durante a rodada. `LAB_RUN_ID` identifica a prática; o identificador da
+infraestrutura e o UID do cluster são distintos. Não edite o estado privado nem
+crie uma namespace por nome sem seguir E01.
+
+No Terminal B, abra outro shell na mesma VM, entre na raiz do clone (`cd learn-cilium`,
+a partir de onde você clonou) e recapture as atribuições da mesma sessão; não
+execute `lab-session` outra vez:
+
+~~~bash
+pwd
+test -f Makefile && test -f poc-k8s-fabric/Makefile
+lab_env="$(make --no-print-directory lab-env LAB=iniciantes)" \
+  && eval "$lab_env" \
+  || { echo "lab-env falhou; veja a mensagem acima"; false; }
+unset lab_env
+kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" \
+  -n "$LAB_CILIUM_NS" port-forward svc/hubble-relay 4245:80 \
+  --address 127.0.0.1
+~~~
+
+Mantenha o encaminhamento somente em loopback durante E03–E05 e finalize com
+Ctrl-C ao terminar a janela. No Terminal A, `HUBBLE_MODE=loopback-plaintext`
+se aplica apenas a essa conexão local. Se o endereço de bind não for
+127.0.0.1, pare. O port-forward não habilita Hubble e não altera o cluster.
+
+### Observações das execuções de referência do perfil iniciante
+
+As observações abaixo pertencem a execuções distintas e não substituem os
+gates, comandos ou recibos da sua própria prática. Uma observação anterior,
+feita em um Ubuntu 24.04 já equipado com as ferramentas, foi descartada deste
+texto por não valer como validação de instalação em VM limpa.
+
+**10/11/2026 — Ubuntu 24.04.5 limpo, 4 vCPU, 8 GiB de RAM e 40 GiB de disco:**
+somente `git` e `make` foram instalados à mão (`sudo apt-get update && sudo
+apt-get install -y git make`) e o repositório foi obtido por `git clone` anônimo
+da branch indicada no passo 0. O preflight imprimiu `PRECHECK_OK`, e
+`lab-up LAB=iniciantes` terminou `rc=0` em 4 min 20 s, com cluster
+`kind-p010-student`, um nó `p010-student-control-plane`, kubectl v1.35.0 e
+Cilium/Hubble 1.20.2. `lab-status`, `lab-verify`, `lab-session` e `lab-env`
+terminaram `rc=0`. Os exercícios E01–E06 não são relatados nesta observação.
+
+**31/10/2026 — Ubuntu 24.04 amd64, 4 vCPU, 8 GiB de RAM e 48 GiB de disco:**
+o bootstrap agregado apt update + instalação de git/make + fluxo Make público
+terminou `rc=0` entre 04:25:17 e 04:32:10 UTC. A segunda chamada pública
+`make --no-print-directory lab-up LAB=iniciantes` terminou `rc=0` entre
+04:32:12 e 04:33:42 UTC, com recap
+`ok=109 changed=4 unreachable=0 failed=0 skipped=40 rescued=0 ignored=0`.
+As identidades de state, nó/volume Docker e release/revisão Helm permaneceram
+estáveis; `changed=4` não é `changed=0`. Essa única observação com 8 GiB não mede
+um piso de memória.
+
+A coleta inicial dos comandos do exercício terminou `rc=0` entre 04:33:43 e 04:37:35 UTC e reteve
+estes nove códigos de curl: E02 API/direto 0/0; E03 API/direto 0/0; E04
+API/direto 0/28; E05 selector defeituoso/API restaurada/direto 22/0/28.
+O export não reteve os status HTTP exatos dessa execução; não atribua ao curl 22
+um `HTTP 502`. A verificação posterior da evidência falhou ao
+localizar essas linhas de rc e ao interpretar a parada normal do port-forward
+(`rc=143`). O recibo original não ficou preservado separadamente; não o
+reconstrua. O fechamento da VM não demonstra execução do alvo público
+`lab-down`: a etapa seguinte e o down/repetição de down ficaram `NOT_RUN`, portanto essa
+coleta é evidência limitada, não aceite integral. Fundamentos, plataforma e
+híbrido não foram testados por essas execuções; o gate de memória de
+fundamentos/plataforma (10240 MiB disponíveis) não tem piso de RAM total medido
+além dos 24 GiB de F07. O alvo público para `LAB=hibrido`
+continua bloqueado enquanto os controles desse perfil não forem implementados
+e validados.
+
+**Mais tarde em 31/10/2026 — outra VM Ubuntu 24.04 fresca:** a rodada completa
+do perfil iniciante durou de 05:19:01 a 05:34:29 UTC e terminou `rc=0`.
+O bootstrap público agregado terminou `rc=0` entre 05:19:50 e 05:26:37;
+a segunda chamada `make --no-print-directory lab-up LAB=iniciantes`
+terminou `rc=0` entre 05:26:39 e 05:28:08, recap
+`ok=109 changed=4 failed=0 skipped=40`. O state e as identidades de
+nó/volume Docker e release/revisão Helm permaneceram estáveis; `changed=4`
+não é `changed=0`. A VM observada tinha 4 vCPU, 8 GiB de RAM e 48 GiB de
+disco, uma observação que não estabelece piso de memória nem capacidade para
+outros perfis.
+
+As duas sequências completas dos exercícios terminaram `rc=0`: a primeira
+entre 05:28:10 e 05:32:02 UTC e a segunda, que incluiu down, entre 05:32:04 e
+05:34:17. Em cada sequência, as nove linhas de saída selecionadas foram:
+
+~~~text
+E02 curl via API rc=0
+E02 curl direto rc=0
+E03 request via API rc=0
+E03 request direto rc=0
+E04 curl via API rc=0
+E04 curl direto rc=28
+E05 request com defeito rc=22
+E05 request API restaurado rc=0
+E05 request direto rc=28
+~~~
+
+O export não reteve status HTTP exatos nem uma amostra Hubble para essa VM:
+não chame curl 22 de HTTP 502 nem atribua a essa VM uma amostra de fluxo.
+Timeout sozinho não prova policy. Nas duas
+sequências, o encaminhamento de porta foi encerrado por TERM
+(`rc=143`), em estado `STOPPED` e sem processos próprios restantes;
+isso não é um resultado de Hubble. O segundo lab-down público terminou
+`rc=0` entre 05:34:19 e 05:34:28, com
+`ok=25 changed=0 failed=0 skipped=33`, e deixou o state byte-idêntico.
+Esta rodada concluiu o perfil iniciante; não valida fundamentos, plataforma,
+híbrido ou a edição documental executada.
+
+### Fundamentos M1–M5: execução F07 observada
+
+F07 foi uma execução limpa e única do perfil `fundamentos` em uma VM Ubuntu
+24.04 amd64. O harness começou às 08:19:19.138 UTC e terminou às 08:31:49.152
+UTC (`rc=0`, 750,013 s). A VM do teste tinha 8 vCPU, 24 GiB de RAM e disco
+virtual de 80 GiB. Isso descreve um caso observado, não o menor tamanho
+suportado nem um SLA. A configuração documentada de `fundamentos` e
+`plataforma` continua exigindo 8 vCPU, 40 GiB de disco e `MemAvailable` de
+10240 MiB; esses parâmetros não foram validados como mínimos. O perfil `plataforma`
+não foi medido nesta execução.
+
+Depois dos controles M1–M5 e antes da segunda subida, uma leitura do guest
+registrou às 08:28:54.979–08:28:55.713 UTC:
+
+```text
+MemAvailable=14.243.912 KiB
+root free=68.031.463.424 B
+```
+
+Esta foi a última leitura de capacidade do guest e ocorreu **antes da segunda
+subida**, não depois do encerramento. O monitor do
+host registrou mínimos de `7.491.324 KiB` disponíveis e `78.018.117.632 B`
+livres em 11.453 amostras; não confunda essas medidas do host com as do guest.
+
+O caso F06 de 16 GiB permanece como falha. Após os controles, a memória
+disponível medida ficou abaixo do gate:
+
+```text
+MemAvailable=6.326.628 KiB
+gate=10.485.760 KiB
+```
+
+A execução F07 com 24 GiB não apaga nem converte esse resultado em um mínimo
+validado.
+
+A sequência observada foi:
+
+- Primeira subida pública de `fundamentos`: 08:20:33.493–08:27:19.103 UTC,
+  `rc=0`; recap `ok=253 changed=29 unreachable=0 failed=0 skipped=81 rescued=0 ignored=0`.
+- Verificação após a primeira subida: 08:27:41.033–08:28:21.122 UTC, `rc=0`;
+  `ok=76 changed=0 unreachable=0 failed=0 skipped=28 rescued=0 ignored=0`.
+- Segunda subida pública, com os mesmos seletores: 08:28:56.941–08:29:40.825
+  UTC, `rc=0`; `ok=92 changed=0 unreachable=0 failed=0 skipped=22 rescued=0 ignored=0`.
+  As identidades de state, nós/volumes Docker e release/revisão Helm foram
+  preservadas.
+- Verificação após a segunda subida: 08:30:02.934–08:30:43.193 UTC, `rc=0`;
+  `ok=76 changed=0 unreachable=0 failed=0 skipped=28 rescued=0 ignored=0`.
+- Primeiro `make lab-down LAB=fundamentos`: 08:30:44.403–08:31:23.428 UTC,
+  `rc=0`; `ok=76 changed=6 unreachable=0 failed=0 skipped=19 rescued=0 ignored=0`.
+- `lab-status` após a primeira descida: 08:31:23.428–08:31:30.738 UTC, `rc=0`;
+  `ok=23 changed=0 unreachable=0 failed=0 skipped=20 rescued=0 ignored=0`.
+- Segundo `make lab-down LAB=fundamentos`: 08:31:31.478–08:31:40.882 UTC,
+  `rc=0`; `ok=25 changed=0 unreachable=0 failed=0 skipped=33 rescued=0 ignored=0`.
+- `lab-status` após a segunda descida: 08:31:40.882–08:31:47.773 UTC, `rc=0`;
+  `ok=23 changed=0 unreachable=0 failed=0 skipped=20 rescued=0 ignored=0`.
+
+As duas descidas públicas deixaram o mesmo estado final de 1.629 bytes,
+SHA-256 `813c3ab31da3`, e zero volumes Docker. A limpeza da VM foi registrada
+separadamente: QEMU encerrou por QMP, seed/key/base/overlay foram removidos e
+o lock foi removido pela identidade exata; `cleanup_complete=true`. O encerramento
+QMP não substitui os dois resultados públicos de `lab-down`.
+
+Os controles de M1–M5 foram somente leitura: 34 passos em 15 IDs passaram e
+20 pedidos curl foram repetidos, com 42.823 bytes retidos. A execução não
+reproduziu as mutações históricas de falha, failover ou escala dos módulos 4–5.
+O sucesso desses controles sustenta somente este caso de `fundamentos`.
+
+A fonte transferida foi verificada por manifesto de 342 membros
+(`8981e39652a9`). O arquivo TAR produzido durante a execução
+(`46e64aeb668f`) difere do TAR original (`16da757da9d7`); a verificação por
+membros não é uma alegação de identidade byte a byte entre os dois arquivos.
+O SHA-256 `99eafe638026` identifica o recibo original remoto de 28.586 bytes,
+registrado como metadado. `receipt-export01.json` é uma projeção allowlisted e
+não tem esse hash nem reconstrói os bytes do recibo original. O novo texto deste
+livro e seus arquivos TeX/PDF não foram os bytes usados na execução F07.
+
+A revisão independente aceitou o caso único de `fundamentos`; E05/G05 integral, plataforma, C1 real, C3 e híbrido continuam pendentes. Os recibos e manifestos dessa execução ficam no pacote interno de evidências do projeto e não fazem parte do que você recebe ao clonar o repositório.
+
+### Encerrar em ordem e preservar o estado
+
+No perfil iniciante, E06 confirma API/contexto, UID do cluster, UID da namespace
+e `LAB_RUN_ID`; remove somente a namespace de prática criada nesta rodada e
+aguarda sua ausência. Depois, escolha manter o cluster ativo para outra rodada
+ou encerrar a infraestrutura. Para encerrar, pare o port-forward e execute
+`lab-down LAB=iniciantes`. Em outros perfis, `lab-down` recebe somente `LAB` e não recebe
+`EXERCISE` nem `WG`; por exemplo, `make --no-print-directory lab-down LAB=plataforma`.
+A automação consulta o cenário salvo. Repita `make --no-print-directory lab-status LAB=plataforma`
+para conferir o estado final. A automação remove somente recursos
+de identidade persistida e recusa consulta ou ownership inconclusivos. Não use
+`docker stop`, `kind delete`, `clab destroy`, limpeza por nome ou alterações
+globais de host como atalho.
+
+~~~bash
+make --no-print-directory lab-status LAB=iniciantes
+make --no-print-directory lab-down LAB=iniciantes
+make --no-print-directory lab-status LAB=iniciantes
+~~~
+
+Depois de remover a namespace, uma nova rodada pode reutilizar o cluster apenas
+se `lab-status` e `lab-verify` confirmarem que ele continua ativo; então chame
+`lab-session` e capture `lab-env` novamente. Se a infraestrutura foi encerrada,
+execute preflight/up/status/verify antes de criar outra sessão. Se uma identidade
+divergir, uma consulta falhar ou a limpeza ficar parcial, pare e preserve o
+estado para diagnóstico; não tente reaproveitar contexto, namespace, token ou
+estado manualmente.
+
+**Lições das execuções históricas.** O apêndice operacional antigo foi retirado
+como procedimento executável porque alterava rede global do host ou limpava
+recursos por nome. As medições dos Módulos 1–10 e dos estudos P003/P004
+continuam como história; não repita falhas de links, upgrades de Helm,
+rebuilds, `sysctl`, `clab destroy` ou scripts antigos nesta edição.
 
 ## Apêndice B – Documentos complementares do repositório
 
 Os documentos abaixo detalham os estudos sintetizados neste guia e acompanham o repositório.
 
 
-> **Nota histórica.** As sessões de P004 foram registradas entre 27/09 e 25/10/2026 como concluídas com PASS. As edições internas associaram `v2.5.0` a P006, `v2.6.0` a P007 e `v2.7.0` a P008; P006 também reuniu o saneamento dos Blocos C1–C4, relacionado à revisão técnica de 26/09/2026. Esses marcos registram a evolução do projeto, não resultados experimentais; os dossiês abaixo detalham as medições e seus limites.
+> **Nota histórica.** As sessões de P004 foram registradas entre 27/09 e 25/10/2026 como concluídas com PASS. As edições internas associaram v2.5.0 a P006, v2.6.0 a P007 e v2.7.0 a P008; P006 também reuniu o saneamento dos Blocos C1–C4, relacionado à revisão técnica de 26/09/2026. Esses marcos registram a evolução do projeto, não resultados experimentais; os dossiês abaixo detalham as medições e seus limites.
 
 - Resultados resumidos do laboratório: [`poc-k8s-fabric/docs/lab-results.md`](lab-results.md)
 - DCI, OVN-K e Cilium + KubeVirt em P004: consolidação completa de S001–S008: [`poc-k8s-fabric/docs/estudos/20-dci-estado-parcial.md`](estudos/20-dci-estado-parcial.md)
@@ -1668,3 +2334,83 @@ Os documentos abaixo detalham os estudos sintetizados neste guia e acompanham o 
 - Índice dos estudos P003, P004, P005, P006, P007 e P008: [`poc-k8s-fabric/docs/estudos/README.md`](estudos/README.md)
 - Síntese E08: [`poc-k8s-fabric/docs/estudos/08-lifecycle-synthesis.md`](estudos/08-lifecycle-synthesis.md)
 - Caso C5: [`poc-k8s-fabric/docs/estudos/09-vm-outside-container.md`](estudos/09-vm-outside-container.md)
+
+## Apêndice C – Diagnóstico curto de conectividade no laboratório próprio
+
+**Estado.** Roteiro proposto, não executado, para perfil próprio ativo; não altera gates. Cilium recomenda diagnóstico por camadas (Cilium, 2026); sua documentação cobre estado do agente e mapas locais (Cilium Authors, 2026j).
+
+### Preparação
+
+Terminal A da VM Ubuntu 24.04 do perfil verificado, após `lab-status`, `lab-verify` e `lab-env`; preserve identidade/kubeconfig/contexto. Confirme GNU `timeout` e `kubectl --request-timeout`; se faltarem ou falharem nos checks, pare e anote “não medido”, sem instalar. `labread` limita cliente a 8 s (+2 s KILL) e request a 5 s. Use nomes desta rodada; não exponha credenciais/logs integrais.
+
+~~~bash
+timeout --version
+timeout --signal=TERM --kill-after=1s 4s kubectl --request-timeout=5s version --client
+: "${LAB_KUBECONFIG:?lab-env do perfil verificado}"
+: "${LAB_CONTEXT:?lab-env do perfil verificado}"
+: "${DEST_NS:?namespace observado}"
+: "${DEST_POD:?Pod de destino observado}"
+: "${SRC_NS:?namespace do cliente existente}"
+: "${SRC_POD:?Pod cliente existente}"
+: "${SVC:?Service observado}"
+: "${DNS_NAME:?nome DNS observado}"
+: "${DEST_PORT:?porta observada}"
+: "${DEST_URL:?URL HTTP observada}"
+labread() { timeout --signal=TERM --kill-after=2s 8s kubectl --request-timeout=5s --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
+labread get pod -n "$SRC_NS" "$SRC_POD" -o wide
+labread get pod -n "$DEST_NS" "$DEST_POD" -o jsonpath='{.metadata.labels}{"\n"}{range .status.conditions[*]}{.type}={.status}:{.reason}{" "}{end}{"\n"}{.spec.nodeName}{"\n"}'
+labread get svc -n "$DEST_NS" "$SVC" -o yaml
+labread get endpointslices -n "$DEST_NS" -l "kubernetes.io/service-name=$SVC" -o yaml
+~~~
+
+### Leituras por camada
+
+Quadro 27: `status.conditions` informa `PodReady`; `READY` conta containers e pode divergir com readiness gates. Compare labels/selector e `ready` nos EndpointSlices; diferença é hipótese, não causa (Kubernetes Authors, 2026b).
+
+No Pod de origem, leia `/etc/resolv.conf` e estado do CoreDNS; qualquer log deve ser curto e redigido. Consulte DNS só se `timeout` compatível e `nslookup` já estiverem instalados; senão, “não medido”. Configuração do Pod e resolvedor são distintas (Kubernetes Authors, 2026a). Não instale nem crie Pod.
+
+~~~bash
+labread exec -n "$SRC_NS" "$SRC_POD" -- cat /etc/resolv.conf
+# Requer timeout e nslookup compatíveis já instalados no Pod:
+labread exec -n "$SRC_NS" "$SRC_POD" -- timeout 4s nslookup "$DNS_NAME"
+labread exec -n "$SRC_NS" "$SRC_POD" -- nc -vz -w 3 "$DNS_NAME" "$DEST_PORT"  # se nc existir; senão, não medido
+~~~
+
+Timeout de `curl`/`nc` limita operação no Pod; `labread` limita cliente local, sem provar término remoto. Timeout é inconclusivo, não negação de rede. Registre código/destino/porta; `ping` não prova TCP/HTTP.
+
+**Quadro 27 – Sintoma, inspeção e limite da evidência**
+
+| Sintoma | Inspeção somente de leitura | Evidência e limite |
+|---|---|---|
+| Pod não pronto | labels/conditions/nó | `READY` não substitui `PodReady` |
+| Service sem destino | svc/EndpointSlices; selector/`ready` | Correspondência, não entrega |
+| Nome não resolve | cliente/CoreDNS | Configuração, não TCP |
+| Requisição falha | HTTP/TCP na origem | Tupla e instante |
+| Suspeita de política | Política e fluxo Hubble | Verdict observado; silêncio não é `allow` |
+| Suspeita no agente | Status/Hubble local | Não prova cobertura |
+
+Fonte: elaborado pelo autor (2026).
+
+### Agente e parada
+
+Selecione agente no nó do Pod de destino; não use `ds/cilium`. `--last 20` limita contagem, não tempo/Pod. Atribua verdict só com UTC da requisição, timestamp do flow em UTC verificável, tupla real coincidente (origem/destino/protocolo/porta) e relógios comparáveis. Sem match, não há evidência; não combine `--since`/`--last` sem validar semântica.
+
+~~~bash
+: "${NODE:?nó observado do Pod de destino}"
+labread get pods -n kube-system -l k8s-app=cilium --field-selector "spec.nodeName=$NODE" -o wide
+: "${AGENT_POD:?agente existente selecionado nesse nó}"
+labread exec -n kube-system "$AGENT_POD" -- cilium-dbg status --brief
+date -u +'%Y-%m-%dT%H:%M:%SZ'
+# Somente se curl já existir no Pod; senão, não medido.
+labread exec -n "$SRC_NS" "$SRC_POD" -- curl --connect-timeout 3 --max-time 5 -sS -o /dev/null -w '%{http_code}\n' "$DEST_URL"
+date -u +'%Y-%m-%dT%H:%M:%SZ'
+# Se Hubble e a CLI existirem; senão, não medido:
+labread exec -n kube-system "$AGENT_POD" -- hubble observe --last 20
+# Egress: selecione o agente do nó real do cliente, somente em perfil próprio:
+: "${SRC_NODE:?nó observado do Pod cliente}"
+labread get pods -n kube-system -l k8s-app=cilium --field-selector "spec.nodeName=$SRC_NODE" -o wide
+: "${SRC_AGENT_POD:?agente existente selecionado no nó de origem}"
+labread exec -n kube-system "$SRC_AGENT_POD" -- hubble observe --last 20
+~~~
+
+A amostra do agente de destino pode omitir egress no nó de origem. Consulte o agente de origem só se Pod/nó forem próprios e verificados, sob os mesmos limites; sem flow correlacionado, preserve a hipótese. Silêncio não é `allow`. Registre tupla, código, verdict, nó e contraevidência; remova identificadores. Se incerto, pare. `cilium connectivity test` cria recursos e exige outra rodada; não mude políticas, agentes, Helm ou `sysctl`, nem limpe por nome.

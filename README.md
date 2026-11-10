@@ -15,12 +15,15 @@ leitura histórica, com seus limites identificados.
 
 ## Roteiro
 
-O fluxo dos perfis próprios começa no livro correspondente: instale git e make
-em Ubuntu 24.04 amd64, execute os gates e use a identidade gerada pelo
-laboratório. A cópia desta edição de trabalho deve conter os livros, Makefiles,
-manifests e automação da mesma revisão. Não suponha que o branch público contém
-os mesmos bytes; o código da composição híbrida permanece bloqueado e sem
-validação de runtime nesta edição.
+O fluxo dos perfis próprios começa no livro correspondente. Em uma VM Ubuntu
+24.04 amd64 limpa, instale `git` e `make` (`sudo apt-get update && sudo apt-get
+install -y git make`), clone o repositório público com
+`git clone --branch docs/p010-s001-20261028 https://github.com/reinaldosaraiva/learn-cilium.git`,
+entre em `learn-cilium`, execute os gates e use a identidade gerada pelo
+laboratório. A cópia precisa ser um clone Git, porque `lab-env` lê o `HEAD`; o
+clone traz os livros, Makefiles, manifests e automação da mesma revisão. O
+código da composição híbrida permanece bloqueado e sem validação de runtime
+nesta edição.
 
 Os módulos 1–10 do guia e E01–E06 do livro iniciante descrevem práticas dos
 perfis suportados. M11 híbrido está em validação e não pode ser iniciado pelo
