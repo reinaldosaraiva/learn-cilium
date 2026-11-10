@@ -34,7 +34,7 @@ descreve uma composição híbrida ainda bloqueada; os M12–M17
 continuam leitura de resultados históricos.
 
 - **Módulos 1 a 5, fundamentos:** o perfil `LAB=fundamentos` cria um cluster e fabric próprios com os nomes de referência `k01` e `poc-k8s-kind`. M1–M3 observam baseline/BGP/IPv6; as falhas e medidas de escala em M4–M5 são resultados históricos, sem mutação habilitada neste perfil.
-- **Módulos 6 a 10, plataforma:** `LAB=plataforma` usa um cenário por vez: `baseline`, `auth`, `wireguard-native`, `wireguard-vxlan`, `tenants`, `ipam24` ou `ipam32`. Os sete cenários foram executados em uma VM Ubuntu 24.04 limpa em 10/11/2026 (Quadro 4A); os números e saídas históricos reproduzidos nos módulos continuam sendo registros dos estudos P003, e cada módulo diz o que foi observado nessa rodada.
+- **Módulos 6 a 10, plataforma:** `LAB=plataforma` usa um cenário por vez: `baseline`, `auth`, `wireguard-native`, `wireguard-vxlan`, `tenants`, `ipam24` ou `ipam32`. Os sete cenários foram executados em uma VM Ubuntu 24.04 limpa em 10/11/2026 (Quadro 5); os números e saídas históricos reproduzidos nos módulos continuam sendo registros dos estudos P003, e cada módulo diz o que foi observado nessa rodada.
 - **Módulo 11, preparação híbrida:** um novo desenho de QEMU, Neutron/OVS, CirrOS, BGP e Cilium está em revisão. `lab-up`, `lab-env`, `lab-verify` e `lab-session` para `LAB=hibrido` recusam a ação antes de criar recursos. Não é um laboratório executável nesta edição.
 - **Módulos 12 e 13, estudos históricos:** nós reais em nuvem e a trilha P004, que compara o Cilium com OVN-Kubernetes, FRR e EVPN para VMs KubeVirt.
 - **Módulos 14 a 17, estudos avançados P005 a P008:** 32 estudos sobre borda eBGP, datapath eBPF, multicluster, SRv6, segurança em tempo de execução e desempenho, com síntese das medições e limites.
@@ -279,7 +279,7 @@ terminal; não a inclua em argumentos, variáveis ou recibos.
 
 Para M1–M5, escolha `fundamentos`. Para M6–M10, escolha um cenário `plataforma`
 por vez. Antes de escolher, confira os requisitos e o estado de validação de
-cada perfil no Quadro 4A. Primeiro confira a admissão e então suba, inspecione
+cada perfil no Quadro 5. Primeiro confira a admissão e então suba, inspecione
 e verifique o perfil próprio. Exemplo M1–M5:
 
 ~~~bash
@@ -356,14 +356,14 @@ já foi observado em VM Ubuntu 24.04 limpa. A RAM total é a única configuraç�
 em que o perfil passou, não um mínimo garantido; não diminua limites se a
 checagem recusar.
 
-**Quadro 4A – Requisitos de admissão e validação em VM limpa, por perfil**
+**Quadro 5 – Requisitos de admissão e validação em VM limpa, por perfil**
 
-| Perfil | vCPU | RAM total que funcionou | `MemAvailable` exigida pelo gate | Disco livre em `/` | Validação em VM limpa |
-|---|---|---|---|---|---|
-| `iniciantes` | 4 | 8 GiB (4 vCPU, 40 GiB de disco) | 6656 MiB (pico 2560 MiB + 4096 MiB) | 25 GiB (25600 MiB) | validado em 10/11/2026: `lab-up` em 4 min 20 s, `status`, `verify`, `session` e `env` com `rc=0` |
-| `fundamentos` | 8 | 24 GiB (8 vCPU, 80 GiB de disco) | 10240 MiB (pico 6144 MiB + 4096 MiB) | 40 GiB (40960 MiB) | validado somente com 24 GiB; com 16 GiB o gate recusou |
-| `plataforma` | 8 | 24 GiB (8 vCPU, 80 GiB de disco, cerca de 70 GiB livres) | 10240 MiB (pico 6144 MiB + 4096 MiB) | 40 GiB (40960 MiB) | validado em 10/11/2026 com 8 vCPU, 24 GiB e 80 GiB de disco: os sete cenários e os perfis W0, W1 e W2; primeiro `lab-up` em 7 min 30 s, os demais em 284–326 s |
-| `hibrido` | 12 | não aplicável | 19456 MiB, mais `/dev/kvm` | 80 GiB (81920 MiB) | incompleto: `lab-up` recusa por desenho; o preflight termina em `PRECHECK_OK_CAPACITY_ONLY`, que só atesta capacidade |
+| Perfil | Recursos com que passou | Gate do `lab-preflight` | Validação em VM limpa (10/11/2026) |
+|---|---|---|---|
+| iniciantes | 4 vCPU, 8 GiB RAM, 40 GiB disco | MemAvailable 6656 MiB; 4 vCPU; 25 GiB livres | validado: `lab-up` em 4 min 20 s; `status`, `verify`, `session` e `env` com `rc=0`; E01–E06 |
+| fundamentos | 8 vCPU, 24 GiB RAM, 80 GiB disco | MemAvailable 10240 MiB; 8 vCPU; 40 GiB livres | validado só com 24 GiB (com 16 GiB o gate recusou); `lab-up` em 7 min 57 s; M1–M5 |
+| plataforma | 8 vCPU, 24 GiB RAM, 80 GiB disco | MemAvailable 10240 MiB; 8 vCPU; 40 GiB livres | validado: os 7 cenários e W0, W1, W2; `lab-up` de 284 a 326 s (o primeiro, 7 min 30 s); M6–M10 |
+| hibrido | não aplicável | MemAvailable 19456 MiB; 12 vCPU; 80 GiB livres; `/dev/kvm` | incompleto: `lab-up` recusa por desenho; o preflight termina em `PRECHECK_OK_CAPACITY_ONLY` |
 
 Fonte: elaborado pelo autor (2026).
 
@@ -434,9 +434,9 @@ resultados publicados; compare-os com a saída observada em sua rodada. O módul
 11 está bloqueado nesta edição. O módulo 12 é leitura de um estudo com infraestrutura em nuvem
 que não faz parte da aula; o módulo 13 lê resultados históricos completos da
 trilha P004 (DCI, OVN-Kubernetes + EVPN, casos cruzados e Braços Cilium A/B +
-KubeVirt). O Quadro 5 distingue esses estudos dos ambientes usados nos exercícios:
+KubeVirt). O Quadro 6 distingue esses estudos dos ambientes usados nos exercícios:
 
-**Quadro 5 – Ambientes e estudos documentados no guia**
+**Quadro 6 – Ambientes e estudos documentados no guia**
 
 | Ambiente | Componentes | Versões | Papel |
 |---|---|---|---|
@@ -450,7 +450,7 @@ KubeVirt). O Quadro 5 distingue esses estudos dos ambientes usados nos exercíci
 
 Fonte: elaborado pelo autor (2026).
 
-O Quadro 5 descreve configurações de perfil e estudos documentados, sem indicar
+O Quadro 6 descreve configurações de perfil e estudos documentados, sem indicar
 aceite da composição atual nem disponibilidade simultânea em tempo real. A
 admissão é feita pelo preflight no ambiente próprio; não use o valor de RAM do
 ensaio histórico para contornar a reserva de capacidade. As
@@ -472,7 +472,7 @@ Fonte: elaborada pelo autor (2026).
 
 Endereços que aparecem nos exercícios:
 
-**Quadro 6 – Endereços usados nos exercícios**
+**Quadro 7 – Endereços usados nos exercícios**
 
 | Recurso | Lab `k01` | Sandbox `p003-gw` |
 |---|---|---|
@@ -626,7 +626,7 @@ A associação entre PodCIDR, worker e interface do spine depende da ordem em qu
 os nós se registram e muda de uma rodada para outra. Na rodada de 10/11/2026 em
 VM limpa, por exemplo, `10.244.1.0/24` saiu pela `ethernet-1/1.0` e
 `10.244.2.0/24` pela `ethernet-1/2.0`. Leia a sua associação em `k01 get nodes`
-e confira as contagens do Quadro 7, não as interfaces deste registro.
+e confira as contagens do Quadro 8, não as interfaces deste registro.
 
 O probe 09 terminou `rc=0` às 08:28:49.128–08:28:50.263 UTC. Este trecho é
 literal; campos não exibidos foram omitidos:
@@ -650,7 +650,7 @@ PodCIDRs de 03 e uma rota BGP ativa para a VIP com dois próximos saltos no
 spine. Ela não associa cada próximo salto a um nó Kubernetes por nome; essa
 relação exigiria outra evidência.
 
-**Quadro 7 – Registro do Módulo 1: valores esperados e observados**
+**Quadro 8 – Registro do Módulo 1: valores esperados e observados**
 
 | Item | Esperado | Observado |
 |---|---|---|
@@ -904,7 +904,7 @@ $C2 dig @"$VIP" -p 15353 study.p003 TXT +short +notcp +tries=1 +time=2
 $C2 sh -c "echo P003-gw04 | nc -w 3 $VIP 15433"
 ~~~
 
-**Quadro 8 – Registro do Módulo 6: listeners e controle negativo**
+**Quadro 9 – Registro do Módulo 6: listeners e controle negativo**
 
 | Caso | Esperado | Observado |
 |---|---|---|
@@ -1037,7 +1037,7 @@ Fonte: elaborada pelo autor (2026).
 
 ### 8.1 Três perfis
 
-**Quadro 9 – Perfis de criptografia W0, W1 e W2**
+**Quadro 10 – Perfis de criptografia W0, W1 e W2**
 
 | Perfil | Configuração | Sinal na bridge do underlay |
 |---|---|---|
@@ -1117,7 +1117,7 @@ Fonte: elaborada pelo autor (2026).
 
 ### 9.1 Três controles diferentes
 
-**Quadro 10 – Controles de isolamento de tenant**
+**Quadro 11 – Controles de isolamento de tenant**
 
 | Controle | Mecanismo | O que impede |
 |---|---|---|
@@ -1191,7 +1191,7 @@ L4 ser aplicada (T07). Autorização L7 não é política L4.
 
 > **Aviso.** Os cenários `ipam24` e `ipam32` foram executados em uma VM Ubuntu
 > 24.04 limpa em 10/11/2026 e a seção 10.1 deu o resultado descrito abaixo. A
-> matriz I01–I10 e o Quadro 12 são resultados históricos, só de leitura, exceto
+> matriz I01–I10 e o Quadro 13 são resultados históricos, só de leitura, exceto
 > onde o texto indica o que foi observado em repouso.
 
 Ambiente de prática: perfil próprio `LAB=plataforma EXERCISE=ipam24` ou
@@ -1207,7 +1207,7 @@ Fonte: elaborada pelo autor (2026).
 
 ### 10.1 Dois braços com a mesma variável
 
-**Quadro 11 – Braços M24 e M32 do estudo Multi-Pool IPAM**
+**Quadro 12 – Braços M24 e M32 do estudo Multi-Pool IPAM**
 
 | Braço | Pool | `maskSize` | `preAllocate` | Anúncio |
 |---|---|---|---|---|
@@ -1245,7 +1245,7 @@ ignorado. Em `ipam24` o border listou 3 rotas `10.250.x.0/24`.
 
 ### 10.2 O que muda entre `/24` e `/32`
 
-**Quadro 12 – Comportamento dos blocos `/24` e `/32` no Multi-Pool IPAM**
+**Quadro 13 – Comportamento dos blocos `/24` e `/32` no Multi-Pool IPAM**
 
 | Pergunta | M24 | M32 |
 |---|---|---|
@@ -1310,7 +1310,7 @@ novo dono pode herdar a permissão; uma policy Cilium selecionada por identidade
 de endpoint tem outra âncora. O quadro seguinte resume os ensaios antigos, não
 o novo ambiente:
 
-**Quadro 13 – Resultado histórico de identidade versus endereço (C03 e C05)**
+**Quadro 14 – Resultado histórico de identidade versus endereço (C03 e C05)**
 
 | Aspecto | C03 histórico: Pods, `fromEndpoints` | C05 histórico: VM, `fromCIDR` |
 |---|---|---|
@@ -1392,7 +1392,7 @@ Cilium aplica políticas à identidade eBPF do endpoint, mas isso não cria uma 
 No Cilium B, FRR usou VRFs auxiliares, enquanto `eth0` permaneceu no mapa global do Cilium.
 OVN-Kubernetes isolou CIDRs sobrepostos em redes primárias com EVPN e preservou o IP e a sessão TCP das VMs na live migration testada.
 
-**Quadro 14 – Comparação dos planos de rede testados**
+**Quadro 15 – Comparação dos planos de rede testados**
 
 | Plano | VRF e CIDR sobreposto | EVPN | Mobilidade de VM |
 |---|---|---|---|
@@ -1635,7 +1635,7 @@ Fonte: elaborada pelo autor (2026).
 
 ### 14.1 Onda 1 — idempotência, TCP MD5, netkit e IPAM
 
-As medições desta onda estão no Quadro 15.
+As medições desta onda estão no Quadro 16.
 
 **Borda eBGP** ([dossiê de idempotência e TCP MD5](estudos/19-bgp-idempotency-md5-asn32.md))
 
@@ -1647,7 +1647,7 @@ As medições desta onda estão no Quadro 15.
 - **netkit contra veth (E23):** trocar o tipo de interface exige recriar pods; a política Cilium continua valendo depois da troca.
 - **Pool de IP pré-aquecido (E21):** reservar blocos antes da rajada evita falhas enquanto o operador cria novos blocos.
 
-**Quadro 15 – Resultados de idempotência, netkit e IPAM**
+**Quadro 16 – Resultados de idempotência, netkit e IPAM**
 
 | Estudo | Medida | Resultado |
 |---|---|---|
@@ -1664,7 +1664,7 @@ Fonte: elaborado pelo autor (2026).
 
 ### 14.2 Onda 2 — prefixos, communities, BFD e XLB
 
-Communities (Chandra; Traina; Li, 1996) selecionam rotas; BFD (Katz; Ward, 2010) acelera a detecção de falhas. Os demais resultados estão no Quadro 16.
+Communities (Chandra; Traina; Li, 1996) selecionam rotas; BFD (Katz; Ward, 2010) acelera a detecção de falhas. Os demais resultados estão no Quadro 17.
 
 **Limite de prefixos, communities e BFD** ([dossiê da borda PE/CE](estudos/11-bgp-maxprefix-communities-bfd.md))
 
@@ -1676,7 +1676,7 @@ Communities (Chandra; Traina; Li, 1996) selecionam rotas; BFD (Katz; Ward, 2010)
 
 - **XLB, SocketLB e Envoy (E22):** decidir no kernel reduz latência em relação ao proxy L7 e ainda permite bloquear uma chamada antes da aplicação.
 
-**Quadro 16 – Resultados de prefixos, BFD e XLB**
+**Quadro 17 – Resultados de prefixos, BFD e XLB**
 
 | Estudo | Medida | Resultado |
 |---|---|---|
@@ -1693,7 +1693,7 @@ Fonte: elaborado pelo autor (2026).
 
 ### 14.3 Onda 3 — redundância, IPv6 e observabilidade
 
-A comparação de Graceful Restart segue Sangli et al. (2007). As medições de failover e visibilidade estão no Quadro 17.
+A comparação de Graceful Restart segue Sangli et al. (2007). As medições de failover e visibilidade estão no Quadro 18.
 
 **Dual-border, Graceful Restart e eBGP IPv6** ([dossiê de redundância e IPv6](estudos/13-bgp-dual-border-gr-ipv6.md))
 
@@ -1705,7 +1705,7 @@ A comparação de Graceful Restart segue Sangli et al. (2007). As medições de 
 - **Estado BGP por leituras consecutivas (E17):** exigir leituras estáveis evita alarmes por flaps curtos, e falhas de coleta permanecem explicitamente desconhecidas.
 - **Fluxos e política no Hubble (E25):** observar L3/L4 e L7 relaciona tráfego, identidade e drops sem revelar conteúdo de TLS.
 
-**Quadro 17 – Resultados de failover e observabilidade**
+**Quadro 18 – Resultados de failover e observabilidade**
 
 | Estudo | Medida | Resultado |
 |---|---|---|
@@ -1722,7 +1722,7 @@ Fonte: elaborado pelo autor (2026).
 
 ### 14.4 Onda 4 — VRF, retorno, enlace L2 e DRA
 
-`QinQ` (Institute of Electrical and Electronics Engineers, 2006) e `MACsec` (Institute of Electrical and Electronics Engineers, 2018) são contrastados com WireGuard; a API DRA estável é documentada por Kubernetes Authors (2026c). Os resultados estão no Quadro 18.
+`QinQ` (Institute of Electrical and Electronics Engineers, 2006) e `MACsec` (Institute of Electrical and Electronics Engineers, 2018) são contrastados com WireGuard; a API DRA estável é documentada por Kubernetes Authors (2026c). Os resultados estão no Quadro 19.
 
 **VRF por tenant, retorno e enlace L2** ([dossiê de VRF, retorno e enlace](estudos/15-bgp-vrf-return-paths-l2-mtu-qinq-macsec.md))
 
@@ -1734,7 +1734,7 @@ Fonte: elaborado pelo autor (2026).
 
 - **Interfaces secundárias por DRA (E24):** DRA anexa dispositivos adicionais ao workload sem substituir a política e o BGP da interface primária.
 
-**Quadro 18 – Resultados de VRF, enlace e DRA**
+**Quadro 19 – Resultados de VRF, enlace e DRA**
 
 | Estudo | Medida | Resultado |
 |---|---|---|
@@ -1770,14 +1770,14 @@ Fonte: elaborada pelo autor (2026).
 
 ### 15.1 Onda 1 — LoadBalancer TCX/XDP, Maglev e Cluster Mesh
 
-Maglev usa hashing consistente (Eisenbud et al., 2016). As medições dos dois estudos estão no Quadro 19.
+Maglev usa hashing consistente (Eisenbud et al., 2016). As medições dos dois estudos estão no Quadro 20.
 
 **LoadBalancer e Maglev** ([dossiê de LB e Cluster Mesh](estudos/26-lb-xdp-dsr-maglev-clustermesh.md))
 
 - **Anúncio seletivo e Maglev (E26):** `externalTrafficPolicy: Local` anuncia a VIP no nó com backend local e preserva o IP do cliente; `Cluster` distribui os anúncios em ECMP.
 - **Serviço global entre clusters (E30):** Cluster Mesh combina backends locais e remotos; BGP mantém o serviço alcançável quando o deployment local some.
 
-**Quadro 19 – Resultados de LoadBalancer e Cluster Mesh**
+**Quadro 20 – Resultados de LoadBalancer e Cluster Mesh**
 
 | Estudo | Medida | Resultado |
 |---|---|---|
@@ -1792,14 +1792,14 @@ Fonte: elaborado pelo autor (2026).
 
 ### 15.2 Onda 2 — BIG TCP, netkit e SRv6 L3VPN
 
-A descoberta de PMTU segue a RFC 4821 (Mathis; Heffner, 2007); `End.DT4` segue o SRv6 Network Programming (Filsfils et al., 2021). Os resultados estão no Quadro 20.
+A descoberta de PMTU segue a RFC 4821 (Mathis; Heffner, 2007); `End.DT4` segue o SRv6 Network Programming (Filsfils et al., 2021). Os resultados estão no Quadro 21.
 
 **BIG TCP e netkit** ([dossiê de BIG TCP e netkit](estudos/27-big-tcp-netkit-srv6-l3vpn.md))
 
 - **Três regimes de datapath (E27):** BIG TCP aumenta os pacotes agregados; a descoberta de PMTU recupera conexões quando um enlace menor filtra ICMP.
 - **Isolamento SRv6 com `End.DT4` (E31):** VRFs mantêm sub-redes iguais separadas sem interfaces VXLAN, desde que a rota local use a tabela correta.
 
-**Quadro 20 – Resultados de BIG TCP e SRv6**
+**Quadro 21 – Resultados de BIG TCP e SRv6**
 
 | Estudo | Medida | Resultado |
 |---|---|---|
@@ -1815,14 +1815,14 @@ Fonte: elaborado pelo autor (2026).
 
 ### 15.3 Onda 3 — Bandwidth Manager, BBR e Tetragon
 
-BBR e CUBIC são comparados por Cardwell et al. (2016) e Xu et al. (2023); Tetragon é documentado por Tetragon Authors (c2024). Os resultados estão no Quadro 21.
+BBR e CUBIC são comparados por Cardwell et al. (2016) e Xu et al. (2023); Tetragon é documentado por Tetragon Authors (c2024). Os resultados estão no Quadro 22.
 
 **Bandwidth Manager e Tetragon** ([dossiê de EDT, BBR e Tetragon](estudos/28-bandwidth-edt-bbr-tetragon.md))
 
 - **Limite de banda por pod (E28):** o Bandwidth Manager aplica pacing no datapath; remover a anotação devolve vazão sem reiniciar o pod.
 - **Observação e bloqueio em runtime (E32):** a simulação local controlada do wrapper Python `e32-sensor-exec` representa eventos JSON no estilo Tetragon e encerra a ação por `os.kill`; os `rc=137` descrevem essa simulação, não a ação de um agente Tetragon/eBPF no kernel.
 
-**Quadro 21 – Resultados de pacing e runtime security**
+**Quadro 22 – Resultados de pacing e runtime security**
 
 | Estudo | Medida | Resultado |
 |---|---|---|
@@ -1838,14 +1838,14 @@ A seção 3.1 do dossiê vinculado relata ausência do DaemonSet do agente; este
 
 ### 15.4 Onda 4 — BGP unnumbered, L2 Announcements e live migration
 
-O next hop IPv6 para NLRI IPv4 segue as RFCs 5549 e 8950 (Le Faucheur; Rosen, 2009; Litkowski et al., 2020). Os resultados estão no Quadro 22.
+O next hop IPv6 para NLRI IPv4 segue as RFCs 5549 e 8950 (Le Faucheur; Rosen, 2009; Litkowski et al., 2020). Os resultados estão no Quadro 23.
 
 **BGP unnumbered e live migration** ([dossiê de unnumbered e live migration](estudos/29-bgp-unnumbered-l2-live-migration.md))
 
 - **eBGP unnumbered e L2 Announcements (E29):** vizinhança IPv6 link-local pode carregar rotas IPv4; eleição por `Lease` controla qual nó anuncia no segmento L2.
 - **Live migration sob tráfego contínuo (E33):** EVPN Type 2 atualiza o caminho L2 da VM; o anúncio BGP `/32` exige convergência de rota durante o corte.
 
-**Quadro 22 – Resultados de unnumbered, L2 e migração**
+**Quadro 23 – Resultados de unnumbered, L2 e migração**
 
 | Estudo | Medida | Resultado |
 |---|---|---|
@@ -1878,14 +1878,14 @@ Fonte: elaborada pelo autor (2026).
 
 ### 16.1 Onda 1 — Graceful Shutdown e identidade SPIFFE
 
-Graceful Shutdown segue a RFC 8326 (Francois et al., 2018). SPIFFE (SPIFFE, [2026]) e WireGuard (Donenfeld, 2017) atuam em camadas diferentes. As medições estão no Quadro 23.
+Graceful Shutdown segue a RFC 8326 (Francois et al., 2018). SPIFFE (SPIFFE, [2026]) e WireGuard (Donenfeld, 2017) atuam em camadas diferentes. As medições estão no Quadro 24.
 
 **Dreno de nó com BGP** ([dossiê de Graceful Shutdown e SPIFFE](estudos/30-bgp-gshut-spiffe-mtls-wireguard.md))
 
 - **Dreno com Graceful Shutdown (E34):** anunciar a community `graceful-shutdown` permite ao ToR desviar tráfego antes de encerrar o pod.
 - **Autenticação mútua SPIFFE com WireGuard (E35):** WireGuard protege o underlay; mTLS identifica o cliente autorizado na política do Cilium.
 
-**Quadro 23 – Resultados de dreno e autenticação**
+**Quadro 24 – Resultados de dreno e autenticação**
 
 | Estudo | Medida | Resultado |
 |---|---|---|
@@ -1902,14 +1902,14 @@ Fonte: elaborado pelo autor (2026).
 
 ### 16.2 Onda 2 — Local Redirect e workloads dual-homed
 
-As medições de encaminhamento local e interfaces Multus estão no Quadro 24.
+As medições de encaminhamento local e interfaces Multus estão no Quadro 25.
 
 **Local Redirect e Multus** ([dossiê de Local Redirect e workloads dual-homed](estudos/31-local-redirect-multus-ipvlan-dualhomed.md))
 
 - **Redirecionamento local de Service (E36):** `serviceMatcher` mantém chamadas no nó com cache local; `addressMatcher` permite interceptar um endereço sem criar um Service.
 - **Interfaces secundárias com Multus (E37):** `ipvlan` compartilha o MAC do host, enquanto `macvlan` usa MAC próprio e pode ser bloqueado por anti-spoofing.
 
-**Quadro 24 – Resultados de encaminhamento e Multus**
+**Quadro 25 – Resultados de encaminhamento e Multus**
 
 | Estudo | Medida | Resultado |
 |---|---|---|
@@ -1942,14 +1942,14 @@ Fonte: elaborada pelo autor (2026).
 
 ### 17.1 Onda 1 — Host Firewall, XDP e resiliência L7
 
-As medições de proteção do nó e gestão de tráfego estão no Quadro 25.
+As medições de proteção do nó e gestão de tráfego estão no Quadro 26.
 
 **Host Firewall e XDP** ([dossiê de Host Firewall e XDP](estudos/32-host-firewall-xdp-envoy-l7-resilience.md))
 
 - **Host Firewall e prefiltro XDP (E38):** a política protege portas do host e XDP descarta pacotes antes da alocação de `sk_buff`.
 - **Gestão L7 com Envoy (E39):** `CiliumEnvoyConfig` oferece canário, limite de taxa e retry sem sidecar na aplicação.
 
-**Quadro 25 – Resultados de segurança do nó e tráfego L7**
+**Quadro 26 – Resultados de segurança do nó e tráfego L7**
 
 | Estudo | Medida | Resultado |
 |---|---|---|
@@ -1963,14 +1963,14 @@ Fonte: elaborado pelo autor (2026).
 
 ### 17.2 Onda 2 — Route Reflector, SRv6 e matriz netkit
 
-A reflexão de rotas segue a RFC 4456 (Bates; Chen; Chandra, 2006); `End.DT4` e `End.DT6` seguem Filsfils et al. (2021). As medições estão no Quadro 26.
+A reflexão de rotas segue a RFC 4456 (Bates; Chen; Chandra, 2006); `End.DT4` e `End.DT6` seguem Filsfils et al. (2021). As medições estão no Quadro 27.
 
 **Route Reflector e SRv6 dual-stack** ([dossiê de Route Reflector e SRv6](estudos/33-bgp-rr-srv6-dualstack-netkit-wg-matrix.md))
 
 - **Route Reflector e VPN L3 SRv6 (E40):** um refletor evita sessões full-mesh; SRv6 transporta IPv4 e IPv6 sem VXLAN e separa VRFs com CIDRs sobrepostos.
 - **Matriz netkit, BIG TCP e WireGuard (E41):** pacotes maiores reduzem chamadas de criptografia, mas o driver WireGuard mantém limite próprio de segmentação.
 
-**Quadro 26 – Resultados de Route Reflector, SRv6 e WireGuard**
+**Quadro 27 – Resultados de Route Reflector, SRv6 e WireGuard**
 
 | Estudo | Medida | Resultado |
 |---|---|---|
@@ -2002,7 +2002,7 @@ Fonte: elaborado pelo autor (2026).
 - A migração no Cilium A mudou o IP do `virt-launcher`; o ensaio do Cilium B mediu um corte de rota `/32`. São caminhos distintos da mobilidade L2 testada no OVN-Kubernetes.
 - A sincronização entre identidade Kubernetes e Security Group Neutron não foi implementada; a trilha híbrida depende de sequenciamento manual.
 - Nós reais na nuvem provaram overlay e BGP; native routing e VIP anycast dependem da postura de antispoofing da porta.
-- Os estudos dos Módulos 14 a 17 herdam as mesmas ressalvas: laboratório em contêineres, kernel Linux `6.8` e fabric simulado. Os Quadros 15 a 26 resumem medidas e controles, com links para os dossiês no Apêndice B.
+- Os estudos dos Módulos 14 a 17 herdam as mesmas ressalvas: laboratório em contêineres, kernel Linux `6.8` e fabric simulado. Os Quadros 16 a 27 resumem medidas e controles, com links para os dossiês no Apêndice B.
 
 ### Próximos estudos
 
@@ -2110,7 +2110,7 @@ Esta sequência usa os alvos Make do clone do repositório, que traz o livro, os
 Makefiles e `automation/student-lab` da mesma árvore. Ela não reconstrói os
 ambientes históricos `k01` ou `p003-gw`. Use Ubuntu 24.04 amd64, uma conta
 não-root com sudo, acesso à Internet e espaço para o perfil escolhido; o
-Quadro 4A, na seção "Preparar uma rodada própria", traz os requisitos de cada
+Quadro 5, na seção "Preparar uma rodada própria", traz os requisitos de cada
 perfil. Abra o Terminal A, instale somente os pré-requisitos do sistema e clone
 o repositório público (passo 0):
 
@@ -2161,7 +2161,7 @@ ferramentas do perfil. Não chame `lab-session` em `fundamentos`. O gate de
 10240 MiB. A única execução em VM limpa usou 8 vCPU, 24 GiB de RAM e 80 GiB de
 disco; é uma observação, não uma garantia. O caso F06, com 16 GiB de RAM total,
 foi recusado pelo gate por memória disponível abaixo de 10240 MiB; veja o
-registro em "Fundamentos M1–M5: execução F07 observada" e o Quadro 4A.
+registro em "Fundamentos M1–M5: execução F07 observada" e o Quadro 5.
 
 ### Plataforma: selecionar um cenário antes da subida
 
@@ -2205,7 +2205,7 @@ novo shell; não rode preflight sobre a infraestrutura ativa.
 O gate de `plataforma` exige 8 vCPU, 40 GiB de disco livre e `MemAvailable` de
 pelo menos 10240 MiB (pico estimado de 6144 MiB mais a reserva de 4096 MiB).
 F07 avaliou somente `fundamentos`; o perfil `plataforma` foi validado em outra
-rodada de VM limpa, em 10/11/2026, com 24 GiB de RAM (Quadro 4A). Esse é um
+rodada de VM limpa, em 10/11/2026, com 24 GiB de RAM (Quadro 5). Esse é um
 caso observado, não um mínimo comprovado de RAM.
 
 ### Iniciantes: preparar a rodada e carregar o ambiente
@@ -2508,7 +2508,7 @@ labread get endpointslices -n "$DEST_NS" -l "kubernetes.io/service-name=$SVC" -o
 
 ### Leituras por camada
 
-Quadro 27: `status.conditions` informa `PodReady`; `READY` conta containers e pode divergir com readiness gates. Compare labels/selector e `ready` nos EndpointSlices; diferença é hipótese, não causa (Kubernetes Authors, 2026b).
+Quadro 28: `status.conditions` informa `PodReady`; `READY` conta containers e pode divergir com readiness gates. Compare labels/selector e `ready` nos EndpointSlices; diferença é hipótese, não causa (Kubernetes Authors, 2026b).
 
 No Pod de origem, leia `/etc/resolv.conf` e estado do CoreDNS; qualquer log deve ser curto e redigido. Consulte DNS só se `timeout` compatível e `nslookup` já estiverem instalados; senão, “não medido”. Configuração do Pod e resolvedor são distintas (Kubernetes Authors, 2026a). Não instale nem crie Pod.
 
@@ -2521,7 +2521,7 @@ labread exec -n "$SRC_NS" "$SRC_POD" -- nc -vz -w 3 "$DNS_NAME" "$DEST_PORT"  # 
 
 Timeout de `curl`/`nc` limita operação no Pod; `labread` limita cliente local, sem provar término remoto. Timeout é inconclusivo, não negação de rede. Registre código/destino/porta; `ping` não prova TCP/HTTP.
 
-**Quadro 27 – Sintoma, inspeção e limite da evidência**
+**Quadro 28 – Sintoma, inspeção e limite da evidência**
 
 | Sintoma | Inspeção somente de leitura | Evidência e limite |
 |---|---|---|
