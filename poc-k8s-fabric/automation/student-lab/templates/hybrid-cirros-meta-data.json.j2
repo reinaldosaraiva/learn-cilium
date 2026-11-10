@@ -1,0 +1,5 @@
+{
+  "instance-id": {{ student_hybrid_guest.uuid | to_json }},
+  "local-hostname": "p010-hibrido-cirros",
+  "public-keys": [{{ student_hybrid_public_key | trim | to_json }}]
+}

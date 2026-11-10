@@ -1,0 +1,29 @@
+cluster:
+  name: {{ student_profile.kind_name }}
+  id: 1
+ipam:
+  mode: kubernetes
+kubeProxyReplacement: true
+k8sServiceHost: {{ student_cp_ip }}
+k8sServicePort: 6443
+routingMode: tunnel
+tunnelProtocol: vxlan
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: false
+  metrics:
+    enabled: []
+  tls:
+    enabled: true
+    auto:
+      enabled: true
+      method: helm
+prometheus:
+  enabled: false
+operator:
+  replicas: 1
+  prometheus:
+    enabled: false

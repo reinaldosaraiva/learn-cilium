@@ -1,0 +1,181 @@
+---
+- name: Exercise real M11 Kubernetes UID checkpoint helpers with a local kubectl fake
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    student_uid: "{{ ansible_user_uid | int }}"
+    student_tool_dir: "{{ lookup('env', 'P010_HYBRID_API_TEST_SCRATCH') }}/k8s-bin"
+    student_state_file: "{{ lookup('env', 'P010_HYBRID_API_TEST_SCRATCH') }}/k8s-state.json"
+    student_run_dir: "{{ lookup('env', 'P010_HYBRID_API_TEST_SCRATCH') }}/k8s-run"
+    student_state:
+      status: partial
+      phase: cilium-configuring
+      owner_token: '11111111111141118111111111111111'
+      run_id: 20261029-0123456789abcdef0123456789abcdef
+      kubeconfig: /unused/kubeconfig
+      context: p010-hibrido
+      hybrid:
+        schema: 4
+        phase: partial
+        m11:
+          schema: 2
+          phase: cilium-configuring
+          verification:
+            phase: cilium-configuring
+            gates:
+              k8s_pending: {}
+              k8s_resources: {}
+              k8s_delete_pending: {}
+    student_hybrid_m11_k8s_key: namespace
+    student_hybrid_m11_k8s_kind: Namespace
+    student_hybrid_m11_k8s_name: p010-hyb-0123456789ab
+    student_hybrid_m11_k8s_namespace: ''
+    student_hybrid_m11_k8s_manifest: "{{ student_run_dir }}/m11-k8s/namespace.yaml"
+    student_hybrid_m11_delete_k8s_key: namespace
+    student_hybrid_m11_delete_k8s_spec:
+      key: namespace
+      resource: namespaces
+      plural: namespaces
+      kind: Namespace
+      api_group: ''
+      api_version: v1
+      api_version_full: v1
+      namespace: ''
+      namespaced: false
+      name: p010-hyb-0123456789ab
+    ansible_become_exe: "{{ lookup('env', 'P010_HYBRID_TEST_BECOME_EXE') }}"
+  tasks:
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-build-delete-k8s-specs.yml
+
+    - name: Create fake tool, run, and manifest directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0700'
+      loop:
+        - "{{ student_tool_dir }}"
+        - "{{ student_run_dir }}"
+        - "{{ student_run_dir }}/m11-k8s"
+
+    - name: Install the local kubectl fake at the production command path
+      ansible.builtin.copy:
+        src: fake-kubectl-m11.sh
+        dest: "{{ student_tool_dir }}/kubectl"
+        mode: '0700'
+
+    - name: Render a minimal object carrying this run's ownership labels
+      ansible.builtin.copy:
+        dest: "{{ student_hybrid_m11_k8s_manifest }}"
+        mode: '0600'
+        content: |
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: p010-hyb-0123456789ab
+            labels:
+              p010-student-owner: "11111111111141118111111111111111"
+              p010-student-run: "20261029-0123456789abcdef0123456789abcdef"
+
+    - name: Seed an empty durable state file
+      ansible.builtin.copy:
+        dest: "{{ student_state_file }}"
+        mode: '0600'
+        content: "{{ student_state | to_nice_json }}\n"
+
+    - name: Create the namespace with its production create-only checkpoint helper
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-create-k8s-object.yml
+
+    - name: Require the create result UID to be durably saved before deletion
+      ansible.builtin.assert:
+        that:
+          - student_state.hybrid.m11.verification.gates.k8s_pending == {}
+          - student_state.hybrid.m11.verification.gates.k8s_resources.namespace.uid == '33333333-3333-4333-8333-333333333333'
+          - (student_hybrid_m11_delete_k8s_specs | selectattr('key', 'equalto', 'client_deployment') | first).api_version_full == 'apps/v1'
+          - (student_hybrid_m11_delete_k8s_specs | selectattr('key', 'equalto', 'client_deployment') | first).namespace == student_hybrid_m11_namespace
+          - (student_hybrid_m11_delete_k8s_specs | selectattr('key', 'equalto', 'cluster_rack1') | first).api_version_full == 'cilium.io/v2'
+
+    - name: Delete the namespace through its saved UID precondition
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-delete-k8s-object.yml
+
+    - name: Reload the saved state after object deletion
+      ansible.builtin.set_fact:
+        student_state: "{{ lookup('file', student_state_file) | from_json }}"
+
+    - name: Require the raw DELETE fixture and durable identity to be cleared
+      ansible.builtin.assert:
+        that:
+          - student_state.hybrid.m11.verification.gates.k8s_resources == {}
+          - student_state.hybrid.m11.verification.gates.k8s_delete_pending == {}
+          - lookup('file', lookup('env', 'P010_HYBRID_FAKE_KUBECTL_DELETES')) | int == 1
+
+    - name: Seed an object whose live UID differs from this run's recorded UID
+      ansible.builtin.copy:
+        dest: "{{ lookup('env', 'P010_HYBRID_FAKE_KUBECTL_OBJECT') }}"
+        mode: '0600'
+        content: present
+
+    - name: Change the fake API response to another object's UID
+      ansible.builtin.copy:
+        dest: "{{ lookup('env', 'P010_HYBRID_FAKE_KUBECTL_UID_FILE') }}"
+        mode: '0600'
+        content: 44444444-4444-4444-8444-444444444444
+
+    - name: Restore only the saved identity for the wrong-UID control
+      ansible.builtin.set_fact:
+        student_state: >-
+          {{ student_state | combine({'hybrid': {'m11': {'verification': {'gates': {
+            'k8s_resources': {'namespace': {
+              'api_version': 'v1', 'kind': 'Namespace', 'name': 'p010-hyb-0123456789ab',
+              'namespace': '', 'uid': '33333333-3333-4333-8333-333333333333'
+            }}, 'k8s_pending': {}, 'k8s_delete_pending': {}
+          }}}}}, recursive=true) }}
+
+    - name: Reject an object replaced under the same Kubernetes name
+      block:
+        - ansible.builtin.include_tasks: ../tasks/hybrid-m11-delete-k8s-object.yml
+      rescue:
+        - ansible.builtin.set_fact:
+            student_hybrid_k8s_replacement_rejected: true
+
+    - name: Require that the wrong-UID object and delete count remain unchanged
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_k8s_replacement_rejected | default(false)
+          - lookup('file', lookup('env', 'P010_HYBRID_FAKE_KUBECTL_OBJECT')) == 'present'
+          - lookup('file', lookup('env', 'P010_HYBRID_FAKE_KUBECTL_DELETES')) | int == 1
+
+    - name: Restore the exact saved UID and a pending delete after an uncertain response
+      ansible.builtin.copy:
+        dest: "{{ lookup('env', 'P010_HYBRID_FAKE_KUBECTL_UID_FILE') }}"
+        mode: '0600'
+        content: 33333333-3333-4333-8333-333333333333
+
+    - name: Represent an object that disappeared after the prior DELETE response was lost
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'P010_HYBRID_FAKE_KUBECTL_OBJECT') }}"
+        state: absent
+
+    - name: Restore the matching pending delete identity
+      ansible.builtin.set_fact:
+        student_state: >-
+          {{ student_state | combine({'hybrid': {'m11': {'verification': {'gates': {
+            'k8s_delete_pending': {
+              'key': 'namespace', 'uid': '33333333-3333-4333-8333-333333333333',
+              'name': 'p010-hyb-0123456789ab', 'namespace': ''
+            }
+          }}}}}, recursive=true) }}
+
+    - name: Resume cleanup using GET plus proven absence without duplicating DELETE
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-delete-k8s-object.yml
+
+    - name: Reload the saved state after absent-object reconciliation
+      ansible.builtin.set_fact:
+        student_state: "{{ lookup('file', student_state_file) | from_json }}"
+
+    - name: Require safe absence reconciliation to clear the pending identity
+      ansible.builtin.assert:
+        that:
+          - student_state.hybrid.m11.verification.gates.k8s_resources == {}
+          - student_state.hybrid.m11.verification.gates.k8s_delete_pending == {}
+          - lookup('file', lookup('env', 'P010_HYBRID_FAKE_KUBECTL_DELETES')) | int == 1

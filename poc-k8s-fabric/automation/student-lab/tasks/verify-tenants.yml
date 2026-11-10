@@ -1,0 +1,311 @@
+---
+- name: Verify both required workload service accounts exist
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - serviceaccount
+      - "{{ item.name }}"
+      - --namespace
+      - "{{ item.namespace }}"
+      - -o
+      - name
+  become: true
+  register: student_tenant_serviceaccounts
+  changed_when: false
+  loop:
+    - { name: p003-tenant-a-app, namespace: p003-tenant-a }
+    - { name: p003-tenant-b-app, namespace: p003-tenant-b }
+
+- name: Wait for the four selected tenant workloads
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - rollout
+      - status
+      - "deployment/{{ item.name }}"
+      - --namespace
+      - "{{ item.namespace }}"
+      - --timeout=240s
+  become: true
+  changed_when: false
+  loop:
+    - { name: p003-a-client, namespace: p003-tenant-a }
+    - { name: p003-a-backend, namespace: p003-tenant-a }
+    - { name: p003-b-client, namespace: p003-tenant-b }
+    - { name: p003-b-backend, namespace: p003-tenant-b }
+
+- name: Confirm the tenant policies used as the network decision evidence
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - ciliumnetworkpolicy
+      - --namespace
+      - "{{ item.namespace }}"
+      - -o
+      - name
+  become: true
+  register: student_tenant_policies
+  changed_when: false
+  loop:
+    - { namespace: p003-tenant-a }
+    - { namespace: p003-tenant-b }
+
+- name: Require both tenant-specific client and backend policies
+  ansible.builtin.assert:
+    that:
+      - student_tenant_policies.results[0].stdout is search('p003-a-client-policy')
+      - student_tenant_policies.results[0].stdout is search('p003-a-backend-policy')
+      - student_tenant_policies.results[1].stdout is search('p003-b-client-policy')
+      - student_tenant_policies.results[1].stdout is search('p003-b-backend-policy')
+    fail_msg: "As políticas CNP por tenant não correspondem aos manifests S009 selecionados."
+
+- name: Resolve each tenant workload's pod identity, IP, and node
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - pods
+      - --namespace
+      - "{{ item.namespace }}"
+      - --selector
+      - "app={{ item.app }}"
+      - -o
+      - 'jsonpath={range .items[*]}{.metadata.name}{"\t"}{.status.podIP}{"\t"}{.spec.nodeName}{"\t"}{.status.phase}{"\t"}{.spec.serviceAccountName}{"\n"}{end}'
+  become: true
+  register: student_tenant_pod_records
+  changed_when: false
+  loop:
+    - { namespace: p003-tenant-a, app: p003-a-client }
+    - { namespace: p003-tenant-a, app: p003-a-backend }
+    - { namespace: p003-tenant-b, app: p003-b-client }
+    - { namespace: p003-tenant-b, app: p003-b-backend }
+
+- name: Require exactly one ready pod for each tenant workload
+  ansible.builtin.assert:
+    that:
+      - student_tenant_pod_records.results | length == 4
+      - student_tenant_pod_records.results | selectattr('rc', 'equalto', 0) | list | length == 4
+      - student_tenant_pod_records.results | map(attribute='stdout_lines') | map('length') | select('equalto', 1) | list | length == 4
+      - student_tenant_serviceaccounts.results | length == 2
+      - student_tenant_serviceaccounts.results | selectattr('rc', 'equalto', 0) | list | length == 2
+    fail_msg: "Os workloads S009 não retornaram exatamente um pod pronto por seletor."
+
+- name: Require the selected workload identity, IP, node, phase, and service account
+  ansible.builtin.assert:
+    that:
+      - item.stdout_lines[0].split('\t')[0] is match('^' ~ item.item.app ~ '-[a-z0-9]+-[a-z0-9]+$')
+      - item.stdout_lines[0].split('\t')[1] is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+      - >-
+        item.stdout_lines[0].split('\t')[2] ==
+        (student_profile.kind_nodes[1] if item.item.app == 'p003-a-client' else
+         student_profile.kind_nodes[2] if item.item.app in ['p003-a-backend', 'p003-b-client', 'p003-b-backend'] else '')
+      - item.stdout_lines[0].split('\t')[3] == 'Running'
+      - item.stdout_lines[0].split('\t')[4] == ('p003-tenant-a-app' if item.item.namespace == 'p003-tenant-a' else 'p003-tenant-b-app')
+    fail_msg: "Pod {{ item.item.app }} não está no endereço/nó selecionado pelos assets S009."
+  loop: "{{ student_tenant_pod_records.results }}"
+
+- name: Build the allowed and denied tenant flow identities
+  ansible.builtin.set_fact:
+    student_tenant_probes:
+      - namespace: p003-tenant-a
+        client: "{{ student_tenant_pod_records.results[0].stdout_lines[0].split('\t')[0] }}"
+        source_ip: "{{ student_tenant_pod_records.results[0].stdout_lines[0].split('\t')[1] }}"
+        node: "{{ student_tenant_pod_records.results[0].stdout_lines[0].split('\t')[2] }}"
+        target_ip: "{{ student_tenant_pod_records.results[1].stdout_lines[0].split('\t')[1] }}"
+        expected: allow
+      - namespace: p003-tenant-b
+        client: "{{ student_tenant_pod_records.results[2].stdout_lines[0].split('\t')[0] }}"
+        source_ip: "{{ student_tenant_pod_records.results[2].stdout_lines[0].split('\t')[1] }}"
+        node: "{{ student_tenant_pod_records.results[2].stdout_lines[0].split('\t')[2] }}"
+        target_ip: "{{ student_tenant_pod_records.results[3].stdout_lines[0].split('\t')[1] }}"
+        expected: allow
+      - namespace: p003-tenant-a
+        client: "{{ student_tenant_pod_records.results[0].stdout_lines[0].split('\t')[0] }}"
+        source_ip: "{{ student_tenant_pod_records.results[0].stdout_lines[0].split('\t')[1] }}"
+        node: "{{ student_tenant_pod_records.results[0].stdout_lines[0].split('\t')[2] }}"
+        target_ip: "{{ student_tenant_pod_records.results[3].stdout_lines[0].split('\t')[1] }}"
+        expected: deny
+      - namespace: p003-tenant-b
+        client: "{{ student_tenant_pod_records.results[2].stdout_lines[0].split('\t')[0] }}"
+        source_ip: "{{ student_tenant_pod_records.results[2].stdout_lines[0].split('\t')[1] }}"
+        node: "{{ student_tenant_pod_records.results[2].stdout_lines[0].split('\t')[2] }}"
+        target_ip: "{{ student_tenant_pod_records.results[1].stdout_lines[0].split('\t')[1] }}"
+        expected: deny
+
+- name: Require the two cross-tenant flows to originate on different nodes
+  ansible.builtin.assert:
+    that:
+      - student_tenant_probes[2].node != student_tenant_probes[3].node
+    fail_msg: "Os clientes S009 não estão em nós distintos para correlacionar os drops de policy."
+
+- name: Resolve the Cilium agent on each tenant client node
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - pods
+      - --namespace
+      - kube-system
+      - --selector
+      - k8s-app=cilium
+      - --field-selector
+      - "spec.nodeName={{ item.node }}"
+      - -o
+      - 'jsonpath={.items[0].metadata.name}'
+  become: true
+  register: student_tenant_monitor_agents
+  changed_when: false
+  loop:
+    - { node: "{{ student_tenant_probes[2].node }}" }
+    - { node: "{{ student_tenant_probes[3].node }}" }
+
+- name: Require one Cilium agent for each source of a cross-tenant probe
+  ansible.builtin.assert:
+    that:
+      - student_tenant_monitor_agents.results | length == 2
+      - student_tenant_monitor_agents.results | selectattr('rc', 'equalto', 0) | list | length == 2
+      - student_tenant_monitor_agents.results | map(attribute='stdout') | reject('equalto', '') | list | length == 2
+      - student_tenant_monitor_agents.results[0].stdout != student_tenant_monitor_agents.results[1].stdout
+    fail_msg: "Não encontrei um agente Cilium distinto em cada nó cliente."
+
+- name: Build source-node Cilium policy-drop monitors
+  ansible.builtin.set_fact:
+    student_tenant_monitors:
+      - node: "{{ student_tenant_probes[2].node }}"
+        agent: "{{ student_tenant_monitor_agents.results[0].stdout }}"
+      - node: "{{ student_tenant_probes[3].node }}"
+        agent: "{{ student_tenant_monitor_agents.results[1].stdout }}"
+
+- name: Start bounded Cilium drop monitors on the two source nodes
+  ansible.builtin.command:
+    argv:
+      - "{{ student_timeout_bin }}"
+      - --signal=INT
+      - 15s
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - exec
+      - --namespace
+      - kube-system
+      - "{{ item.agent }}"
+      - --container=cilium-agent
+      - --
+      - cilium-dbg
+      - monitor
+      - --type
+      - drop
+  become: true
+  register: student_tenant_monitor_jobs
+  changed_when: false
+  async: 20
+  poll: 0
+  loop: "{{ student_tenant_monitors }}"
+
+- name: Probe allowed and cross-tenant traffic directly to selected Pod IPs
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - exec
+      - --namespace
+      - "{{ item.namespace }}"
+      - "{{ item.client }}"
+      - --
+      - curl
+      - --noproxy
+      - '*'
+      - --connect-timeout
+      - '2'
+      - --max-time
+      - '3'
+      - -sS
+      - -o
+      - /dev/null
+      - -w
+      - '%{http_code}'
+      - "http://{{ item.target_ip }}:8080/hostname"
+  become: true
+  register: student_tenant_probe_results
+  changed_when: false
+  failed_when: false
+  loop: "{{ student_tenant_probes }}"
+
+- name: Require same-tenant access to return HTTP 200
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - item.stdout == '200'
+    fail_msg: >-
+      {{ item.item.namespace }} -> {{ item.item.target_ip }} returned
+      rc={{ item.rc }}, HTTP={{ item.stdout | default('') }}; expected same-tenant HTTP 200.
+  loop: "{{ student_tenant_probe_results.results | selectattr('item.expected', 'equalto', 'allow') | list }}"
+
+- name: Collect the Cilium monitor outputs after the cross-tenant probes
+  ansible.builtin.async_status:
+    jid: "{{ item.ansible_job_id }}"
+  register: student_tenant_monitor_results
+  failed_when: false
+  until: student_tenant_monitor_results.finished | default(false)
+  retries: 20
+  delay: 1
+  loop: "{{ student_tenant_monitor_jobs.results }}"
+
+- name: Require each cross-tenant denial to be a correlated Cilium policy drop
+  ansible.builtin.assert:
+    that:
+      - student_tenant_probe.rc == 28
+      - student_tenant_probe.stdout == '000'
+      - student_tenant_monitor.rc == 124
+      - >-
+        student_tenant_monitor.stdout is search(
+          '(?im)^.*\\bdrop\\s+\\(Policy denied\\).*'
+          ~ '(?<![0-9A-Za-z_.:])'
+          ~ (student_tenant_flow.source_ip | regex_escape)
+          ~ ':[0-9]{1,5}\\s*->\\s*'
+          ~ (student_tenant_flow.target_ip | regex_escape)
+          ~ ':8080\\s+tcp(?:\\s|$).*$'
+        )
+    fail_msg: >-
+      {{ student_tenant_flow.source_ip }} -> {{ student_tenant_flow.target_ip }} returned
+      rc={{ student_tenant_probe.rc }}, HTTP={{ student_tenant_probe.stdout | default('') }};
+      it must time out with one Cilium Policy denied TCP event for the same flow to port 8080,
+      not unrelated events or DNS/route/refusal failure.
+  loop: "{{ student_tenant_probes | selectattr('expected', 'equalto', 'deny') | list }}"
+  loop_control:
+    loop_var: student_tenant_flow
+  vars:
+    student_tenant_probe: >-
+      {{ student_tenant_probe_results.results
+         | selectattr('item.source_ip', 'equalto', student_tenant_flow.source_ip)
+         | selectattr('item.target_ip', 'equalto', student_tenant_flow.target_ip) | first }}
+    student_tenant_monitor: >-
+      {{ student_tenant_monitor_results.results
+         | selectattr('item.item.node', 'equalto', student_tenant_flow.node) | first }}

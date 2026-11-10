@@ -1,0 +1,66 @@
+---
+- name: Detect whether the original startup failure was protected
+  ansible.builtin.set_fact:
+    student_up_original_failure_private: >-
+      {{ (ansible_failed_task.no_log | default(false) | bool) or
+         (ansible_failed_result._ansible_no_log | default(false) | bool) }}
+
+- name: Describe a protected startup failure without copying its contents
+  ansible.builtin.set_fact:
+    student_up_original_failure_summary: "falha original protegida por no_log; detalhes suprimidos"
+  when: student_up_original_failure_private
+
+- name: Preserve details from a public startup failure
+  ansible.builtin.set_fact:
+    student_up_original_failure_summary: >-
+      {{ ansible_failed_task.name | default('tarefa não identificada') }}:
+      {{ ansible_failed_result.stderr | default(ansible_failed_result.msg | default('falha sem mensagem'), true) | trim }}
+  when: not student_up_original_failure_private
+
+- name: Refuse to overwrite a child checkpoint that could not be trusted
+  ansible.builtin.fail:
+    msg: >-
+      lab-up falhou: {{ student_up_original_failure_summary }}.
+      O checkpoint escrito pelo processo filho não pôde ser validado e não foi sobrescrito;
+      lab-down não deve inferir recursos por nome.
+  when: student_hybrid_api_checkpoint_reload_failed | default(false) | bool
+
+- name: Refresh partial state after a failed startup
+  block:
+    - name: Capture resource IDs and mark the failed startup partial
+      ansible.builtin.include_tasks: save-state.yml
+      vars:
+        student_save_status: partial
+        student_save_phase: failed
+  rescue:
+    - name: Detect whether partial-state capture failed privately
+      ansible.builtin.set_fact:
+        student_up_capture_failure_private: >-
+          {{ (ansible_failed_task.no_log | default(false) | bool) or
+             (ansible_failed_result._ansible_no_log | default(false) | bool) }}
+
+    - name: Describe a protected partial-state capture failure without its contents
+      ansible.builtin.set_fact:
+        student_up_capture_failure_summary: "falha de captura protegida por no_log; detalhes suprimidos"
+      when: student_up_capture_failure_private
+
+    - name: Preserve details from a public partial-state capture failure
+      ansible.builtin.set_fact:
+        student_up_capture_failure_summary: >-
+          {{ ansible_failed_task.name | default('tarefa não identificada') }}:
+          {{ ansible_failed_result.stderr | default(ansible_failed_result.msg | default('falha sem mensagem'), true) | trim }}
+      when: not student_up_capture_failure_private
+
+    - name: Report that partial-state capture failed without hiding the startup cause
+      ansible.builtin.fail:
+        msg: >-
+          lab-up falhou: {{ student_up_original_failure_summary }}.
+          A captura de state parcial também falhou: {{ student_up_capture_failure_summary }}.
+          state não foi sobrescrito e lab-down não deve inferir recursos por nome.
+
+- name: Preserve the original startup failure after saving partial state
+  ansible.builtin.fail:
+    msg: >-
+      lab-up não concluiu. IDs observados foram salvos com status parcial para lab-status/lab-down;
+      confira logs privados em {{ student_run_dir }}. Falha original: {{ student_up_original_failure_summary }}.
+      Nenhum sucesso foi declarado.

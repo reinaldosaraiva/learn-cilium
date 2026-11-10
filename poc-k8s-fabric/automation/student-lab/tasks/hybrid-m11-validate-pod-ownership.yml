@@ -1,0 +1,109 @@
+---
+- name: Require one ready run-owned Pod for each selected workload
+  ansible.builtin.assert:
+    that:
+      - item.stdout | from_json is mapping
+      - (item.stdout | from_json)['apiVersion'] == 'v1'
+      - (item.stdout | from_json)['kind'] == 'List'
+      - (item.stdout | from_json)['items'] | length == 1
+      - (item.stdout | from_json)['items'][0].metadata.uid is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - (item.stdout | from_json)['items'][0].metadata.namespace == student_hybrid_m11_namespace
+      - (item.stdout | from_json)['items'][0].metadata.labels['p010-student-owner'] == student_state.owner_token
+      - (item.stdout | from_json)['items'][0].metadata.labels['p010-student-run'] == student_state.run_id
+      - (item.stdout | from_json)['items'][0].metadata.labels.app == item.item.app
+      - (item.stdout | from_json)['items'][0].metadata.ownerReferences | selectattr('controller', 'defined') | selectattr('controller', 'equalto', true) | list | length == 1
+      - (item.stdout | from_json)['items'][0].status.phase == 'Running'
+      - (item.stdout | from_json)['items'][0].status.podIP is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+      - (item.stdout | from_json)['items'][0].status.conditions | selectattr('type', 'equalto', 'Ready') | selectattr('status', 'equalto', 'True') | list | length == 1
+      - (item.stdout | from_json)['items'][0].spec.nodeName in student_profile.labels['rack1' if item.item.key == 'client' else 'rack2']
+    fail_msg: "O fixture não possui exatamente um pod pronto, próprio e posicionado no rack esperado."
+  loop: "{{ student_hybrid_m11_workload_pods.results }}"
+  no_log: true
+
+- name: Retain the exact selected workload Pod records by key
+  ansible.builtin.set_fact:
+    student_hybrid_m11_client_pod: "{{ ((student_hybrid_m11_workload_pods.results | selectattr('item.key', 'equalto', 'client') | first).stdout | from_json)['items'][0] }}"
+    student_hybrid_m11_server_pod: "{{ ((student_hybrid_m11_workload_pods.results | selectattr('item.key', 'equalto', 'server') | first).stdout | from_json)['items'][0] }}"
+  no_log: true
+
+- name: Describe the two Pod-to-ReplicaSet ownership links to verify
+  ansible.builtin.set_fact:
+    student_hybrid_m11_pod_controller_queries:
+      - key: client
+        app: p010-hyb-client
+        deployment_key: client_deployment
+        pod: "{{ student_hybrid_m11_client_pod }}"
+      - key: server
+        app: p010-hyb-server
+        deployment_key: server_deployment
+        pod: "{{ student_hybrid_m11_server_pod }}"
+  no_log: true
+
+- name: Require each Pod controller reference to identify its ReplicaSet
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_pod_controller_ref.apiVersion == 'apps/v1'
+      - student_hybrid_m11_pod_controller_ref.kind == 'ReplicaSet'
+      - student_hybrid_m11_pod_controller_ref.controller | bool
+      - student_hybrid_m11_pod_controller_ref.uid is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_hybrid_m11_pod_controller_ref.name is match('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
+      - student_hybrid_m11_pod_controller_ref.name.startswith(student_state.hybrid.m11.verification.gates.k8s_resources[item.deployment_key].name ~ '-')
+    fail_msg: "Pod não aponta para um ReplicaSet controlador da Deployment desta execução."
+  loop: "{{ student_hybrid_m11_pod_controller_queries }}"
+  vars:
+    student_hybrid_m11_pod_controller_ref: "{{ item.pod.metadata.ownerReferences | selectattr('controller', 'equalto', true) | first }}"
+  no_log: true
+
+- name: Read each ReplicaSet by the Pod's exact controller name
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - replicaset
+      - "{{ student_hybrid_m11_pod_controller_ref.name }}"
+      - --namespace
+      - "{{ student_hybrid_m11_namespace }}"
+      - -o
+      - json
+  become: true
+  register: student_hybrid_m11_workload_replicasets
+  changed_when: false
+  loop: "{{ student_hybrid_m11_pod_controller_queries }}"
+  vars:
+    student_hybrid_m11_pod_controller_ref: "{{ item.pod.metadata.ownerReferences | selectattr('controller', 'equalto', true) | first }}"
+  no_log: true
+
+- name: Require each ReplicaSet UID to join its Pod to the saved Deployment UID
+  ansible.builtin.assert:
+    that:
+      - item.stdout | from_json is mapping
+      - (item.stdout | from_json)['apiVersion'] == 'apps/v1'
+      - (item.stdout | from_json)['kind'] == 'ReplicaSet'
+      - (item.stdout | from_json).metadata.name == student_hybrid_m11_pod_controller_ref.name
+      - (item.stdout | from_json).metadata.uid == student_hybrid_m11_pod_controller_ref.uid
+      - (item.stdout | from_json).metadata.namespace == student_hybrid_m11_namespace
+      - (item.stdout | from_json).metadata.labels['p010-student-owner'] == student_state.owner_token
+      - (item.stdout | from_json).metadata.labels['p010-student-run'] == student_state.run_id
+      - (item.stdout | from_json).metadata.labels.app == item.item.app
+      - (item.stdout | from_json).metadata.ownerReferences | selectattr('controller', 'defined') | selectattr('controller', 'equalto', true) | list | length == 1
+      - student_hybrid_m11_replicaset_deployment_ref.apiVersion == 'apps/v1'
+      - student_hybrid_m11_replicaset_deployment_ref.kind == 'Deployment'
+      - student_hybrid_m11_replicaset_deployment_ref.controller | bool
+      - student_hybrid_m11_replicaset_deployment_ref.name == student_state.hybrid.m11.verification.gates.k8s_resources[item.item.deployment_key].name
+      - student_hybrid_m11_replicaset_deployment_ref.uid == student_state.hybrid.m11.verification.gates.k8s_resources[item.item.deployment_key].uid
+    fail_msg: "A cadeia Pod → ReplicaSet → Deployment não pertence aos UIDs e rótulos salvos desta execução."
+  loop: "{{ student_hybrid_m11_workload_replicasets.results }}"
+  vars:
+    student_hybrid_m11_pod_controller_ref: "{{ item.item.pod.metadata.ownerReferences | selectattr('controller', 'equalto', true) | first }}"
+    student_hybrid_m11_replicaset_deployment_ref: "{{ (item.stdout | from_json).metadata.ownerReferences | selectattr('controller', 'equalto', true) | first }}"
+  no_log: true
+
+- name: Keep the validated Pods for the subsequent CiliumNode checks
+  ansible.builtin.set_fact:
+    student_hybrid_m11_client_pod: "{{ (student_hybrid_m11_pod_controller_queries | selectattr('key', 'equalto', 'client') | first).pod }}"
+    student_hybrid_m11_server_pod: "{{ (student_hybrid_m11_pod_controller_queries | selectattr('key', 'equalto', 'server') | first).pod }}"
+  no_log: true

@@ -1,0 +1,24 @@
+---
+- name: Read active DNS servers from systemd-resolved without using a loopback stub
+  ansible.builtin.command:
+    argv: ["{{ student_hybrid_resolvectl_bin | default('/usr/bin/resolvectl') }}", dns, --no-pager]
+  register: student_hybrid_resolver_dns
+  changed_when: false
+  failed_when: false
+
+- name: Select only IPv4 upstreams outside loopback, link-local, and SLIRP space
+  ansible.builtin.set_fact:
+    student_hybrid_dns_upstreams: >-
+      {{ student_hybrid_resolver_dns.stdout
+         | regex_findall('(?<![0-9.])(?:[0-9]{1,3}[.]){3}[0-9]{1,3}(?![0-9.])')
+         | unique
+         | reject('match', '^(0[.]|127[.]|169[.]254[.]|22[4-9][.]|23[0-9][.]|255[.]|10[.]0[.]2[.])')
+         | list }}
+  when: student_hybrid_resolver_dns.rc == 0
+
+- name: Require a usable resolver answer before preparing guest boot assets
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_resolver_dns.rc == 0
+      - student_hybrid_dns_upstreams | default([]) | length > 0
+    fail_msg: "Não há DNS IPv4 upstream descoberto; sem endereço inventado, o boot híbrido continua bloqueado."

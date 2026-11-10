@@ -1,0 +1,31 @@
+---
+- name: Read owner-tagged Kubernetes nodes through the saved context
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - nodes
+      - --selector
+      - "p010-student-owner={{ student_state.owner_token }}"
+      - -o
+      - 'jsonpath={range .items[*]}{.metadata.name}{"\n"}{end}'
+  become: true
+  register: student_live_owner_nodes
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Distinguish a stopped Kubernetes API from owner-label drift
+  ansible.builtin.set_fact:
+    student_kube_owner_api_unavailable: "{{ student_live_owner_nodes.rc != 0 and ((student_live_owner_nodes.stderr | default('')) is search('Unable to connect to the server|connection.*refused|i/o timeout|context deadline exceeded|no route to host')) }}"
+
+- name: Refuse empty or mismatched owner-label results even during cleanup
+  ansible.builtin.assert:
+    that:
+      - student_live_owner_nodes.rc == 0 or (student_action == 'down' and student_kube_owner_api_unavailable)
+      - student_live_owner_nodes.rc != 0 or student_live_owner_nodes.stdout_lines | sort == student_profile.kind_nodes | sort
+    fail_msg: "API disponível mas os nós não carregam exatamente o token salvo; cleanup interrompido. Erro de API não é tratado como divergência."

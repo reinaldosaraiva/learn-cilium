@@ -1,0 +1,34 @@
+---
+- name: Inspect the reserved private tenant stream socket without following links
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.network.tenant_socket.path }}"
+    follow: false
+  register: student_hybrid_tenant_socket_stat
+  no_log: true
+
+- name: Require an absent reservation or the exact stream socket identity
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.network.tenant_socket.path == student_state.hybrid.qmp_dir.path ~ '/t.sock'
+      - student_state.hybrid.network.tenant_socket.path | length <= 107
+      - >-
+        (student_state.hybrid.network.tenant_socket.inode | int == 0 and
+         student_state.hybrid.network.tenant_socket.device | int == 0 and
+         not (student_hybrid_tenant_socket_stat.stat.exists | default(false)))
+        or
+        (student_hybrid_tenant_socket_stat.stat.exists | default(false) and
+         student_hybrid_tenant_socket_stat.stat.issock | default(false) and
+         not (student_hybrid_tenant_socket_stat.stat.islnk | default(false)) and
+         student_hybrid_tenant_socket_stat.stat.uid | int == student_uid and
+         student_state.hybrid.network.tenant_socket.device | int >= 0 and
+         student_state.hybrid.network.tenant_socket.inode | int > 0 and
+         student_hybrid_tenant_socket_stat.stat.dev | int == student_state.hybrid.network.tenant_socket.device | int and
+         student_hybrid_tenant_socket_stat.stat.inode | int == student_state.hybrid.network.tenant_socket.inode | int and
+         student_hybrid_tenant_socket_stat.stat.mode | length == 4 and
+         student_hybrid_tenant_socket_stat.stat.mode[2] in ['0', '1', '4', '5'] and
+         student_hybrid_tenant_socket_stat.stat.mode[3] == '0')
+        or
+        (student_hybrid_tenant_socket_allow_absent | default(false) and
+         not (student_hybrid_tenant_socket_stat.stat.exists | default(false)))
+    fail_msg: "Socket tenant substituído, inseguro ou sem identidade gravada; nenhuma conexão/remoção será inferida."
+  no_log: true

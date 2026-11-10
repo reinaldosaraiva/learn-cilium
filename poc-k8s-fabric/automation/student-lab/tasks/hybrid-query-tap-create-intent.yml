@@ -1,0 +1,33 @@
+---
+- name: Query the original border namespace for an unresolved TAP create
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - -j
+      - -d
+      - link
+      - show
+  register: student_hybrid_unresolved_tap_query
+  changed_when: false
+  become: "{{ student_hybrid_become | default(true) }}"
+  no_log: true
+
+- name: Require a successful query proving both reserved TAP identities absent
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_unresolved_tap_query.rc == 0
+      - (student_hybrid_unresolved_tap_query.stdout | from_json) is sequence
+      - >-
+        (student_hybrid_unresolved_tap_query.stdout | from_json
+         | selectattr('ifname', 'equalto', student_state.hybrid.network.tap.name)
+         | list | length) == 0
+      - >-
+        (student_hybrid_unresolved_tap_query.stdout | from_json
+         | selectattr('ifalias', 'defined')
+         | selectattr('ifalias', 'equalto', student_state.hybrid.network.tap.reserved_alias)
+         | list | length) == 0
+    fail_msg: "O efeito de criação da TAP continua desconhecido; estado parcial e token de ownership serão preservados."
+  no_log: true

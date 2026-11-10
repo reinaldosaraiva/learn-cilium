@@ -1,0 +1,5 @@
+{% for document in student_selected_documents %}
+{% if not loop.first %}---
+{% endif %}
+{{ document | to_nice_yaml(indent=2) }}
+{% endfor %}

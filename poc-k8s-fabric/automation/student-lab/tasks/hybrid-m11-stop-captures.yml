@@ -1,0 +1,135 @@
+---
+- name: Require a recorded origin-capture identity before stopping its process
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.traffic_capture.path is match('^/tmp/p010-' ~ (student_state.run_id | regex_escape) ~ '-m11-origin\.[A-Za-z0-9]{8}$')
+      - student_state.hybrid.m11.verification.gates.traffic_capture.pid | int > 1
+      - student_state.hybrid.m11.verification.gates.traffic_capture.starttime | int > 0
+      - student_state.hybrid.m11.verification.gates.traffic_capture.process_uid | int >= 0
+      - student_state.hybrid.m11.verification.gates.traffic_capture.file_uid | int >= 0
+      - student_state.hybrid.m11.verification.gates.traffic_capture.device | int > 0
+      - student_state.hybrid.m11.verification.gates.traffic_capture.inode | int > 0
+      - student_state.hybrid.m11.verification.gates.traffic_capture.mode == '600'
+    fail_msg: "A captura de origem está parcial sem a identidade completa do processo e do arquivo."
+  when: student_state.hybrid.m11.verification.gates.traffic_capture.phase | default('absent') != 'absent'
+  no_log: true
+
+- name: Stop only the recorded origin tcpdump and remove its saved capture inode
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  when: student_state.hybrid.m11.verification.gates.traffic_capture.phase | default('absent') != 'absent'
+
+- name: Stop only the recorded origin tcpdump and remove its saved capture inode
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: ubuntu
+    student_hybrid_ssh_remote_command: bash -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_stop_origin_script }}"
+  when: student_state.hybrid.m11.verification.gates.traffic_capture.phase | default('absent') != 'absent'
+  no_log: true
+
+- name: Require the complete C1 active map before any observer stop or cleanup
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.keys() | list | sort == ['check_id', 'observers', 'phase', 'schema']
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.schema | int == 1
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.phase in ['starting', 'capturing', 'stopping']
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.check_id is match('^c1-[A-Za-z0-9_-]{8,64}$')
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers is sequence
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers is not string
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | map(attribute='key') | unique | list | length == student_state.hybrid.m11.verification.gates.c1_capture_active.observers | length
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | selectattr('phase', 'in', ['starting', 'capturing', 'stopped', 'removed']) | list | length == student_state.hybrid.m11.verification.gates.c1_capture_active.observers | length
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | selectattr('check_id', 'equalto', student_state.hybrid.m11.verification.gates.c1_capture_active.check_id) | list | length == student_state.hybrid.m11.verification.gates.c1_capture_active.observers | length
+    fail_msg: "O mapa ativo C1 está incompleto; não vou adotar nomes ou inferir ausências."
+  when:
+    - student_state.hybrid.m11.verification.gates.c1_capture_active is defined
+    - student_state.hybrid.m11.verification.gates.c1_capture_active.phase != 'absent'
+  no_log: true
+
+- name: Stop each currently capturing C1 observer by its recorded identities
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  loop: "{{ student_state.hybrid.m11.verification.gates.c1_capture_active.observers | default([]) }}"
+  loop_control:
+    loop_var: student_hybrid_m11_c1_observer
+    label: "{{ student_hybrid_m11_c1_observer.key }}"
+  vars:
+    student_hybrid_m11_c1_capture_action: stop
+  when:
+    - student_state.hybrid.m11.verification.gates.c1_capture_active is defined
+    - student_state.hybrid.m11.verification.gates.c1_capture_active.phase != 'absent'
+    - student_hybrid_m11_c1_observer.phase == 'capturing'
+  no_log: true
+
+- name: Require stopped C1 observers before removing their temporary capture files
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | selectattr('phase', 'equalto', 'starting') | list | length == 0
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | selectattr('phase', 'equalto', 'capturing') | list | length == 0
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | selectattr('phase', 'equalto', 'stopped') | list | length + student_state.hybrid.m11.verification.gates.c1_capture_active.observers | selectattr('phase', 'equalto', 'removed') | list | length == student_state.hybrid.m11.verification.gates.c1_capture_active.observers | length
+    fail_msg: "Um observador C1 sem stop comprovado permanece parcial; nenhum arquivo será removido."
+  when:
+    - student_state.hybrid.m11.verification.gates.c1_capture_active is defined
+    - student_state.hybrid.m11.verification.gates.c1_capture_active.phase != 'absent'
+  no_log: true
+
+- name: Remove each stopped C1 observer by its exact saved file IDs
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  loop: "{{ student_state.hybrid.m11.verification.gates.c1_capture_active.observers | default([]) }}"
+  loop_control:
+    loop_var: student_hybrid_m11_c1_observer
+    label: "{{ student_hybrid_m11_c1_observer.key }}"
+  vars:
+    student_hybrid_m11_c1_capture_action: cleanup
+  when:
+    - student_state.hybrid.m11.verification.gates.c1_capture_active is defined
+    - student_state.hybrid.m11.verification.gates.c1_capture_active.phase != 'absent'
+    - student_hybrid_m11_c1_observer.phase == 'stopped'
+  no_log: true
+
+- name: Require every active C1 file identity to be removed before clearing the map
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | selectattr('phase', 'equalto', 'removed') | list | length == student_state.hybrid.m11.verification.gates.c1_capture_active.observers | length
+    fail_msg: "O mapa C1 ativo permanece parcial porque algum arquivo não foi removido por identidade."
+  when:
+    - student_state.hybrid.m11.verification.gates.c1_capture_active is defined
+    - student_state.hybrid.m11.verification.gates.c1_capture_active.phase != 'absent'
+  no_log: true
+
+- name: Require a safe DHCP capture state before cleanup
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.phase in ['starting', 'capturing', 'captured', 'verified', 'absent']
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.phase == 'absent' or student_state.hybrid.m11.verification.gates.dhcp_capture.path == '/tmp/p010-' ~ student_state.run_id ~ '-dhcp.log'
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.phase in ['starting', 'absent'] or (student_state.hybrid.m11.verification.gates.dhcp_capture.pid | int > 1 and student_state.hybrid.m11.verification.gates.dhcp_capture.starttime | int > 0 and student_state.hybrid.m11.verification.gates.dhcp_capture.process_uid | int >= 0 and student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_pid | int > 1 and student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_starttime | int > 0 and student_state.hybrid.m11.verification.gates.dhcp_capture.supervisor_pid | int > 1 and student_state.hybrid.m11.verification.gates.dhcp_capture.supervisor_starttime | int > 0 and student_state.hybrid.m11.verification.gates.dhcp_capture.device | int > 0 and student_state.hybrid.m11.verification.gates.dhcp_capture.inode | int > 0 and student_state.hybrid.m11.verification.gates.dhcp_capture.owner_uid | int >= 0 and student_state.hybrid.m11.verification.gates.dhcp_capture.result_device | int > 0 and student_state.hybrid.m11.verification.gates.dhcp_capture.result_inode | int > 0 and student_state.hybrid.m11.verification.gates.dhcp_capture.result_owner_uid | int == student_uid | int)
+    fail_msg: "A captura DHCP tem estado ou identidade incompletos; cleanup mantém a execução parcial."
+  when: student_state.hybrid.m11.verification.gates.dhcp_capture is defined
+  no_log: true
+
+- name: Stop the bounded DHCP capture only by saved PID and file identities
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-dhcp-script.yml
+  when:
+    - student_state.hybrid.m11.verification.gates.dhcp_capture is defined
+    - student_state.hybrid.m11.verification.gates.dhcp_capture.phase != 'absent'
+
+- name: Stop the bounded DHCP capture only by saved PID and file identities
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: ubuntu
+    student_hybrid_ssh_remote_command: bash -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_stop_dhcp_script }}"
+  when:
+    - student_state.hybrid.m11.verification.gates.dhcp_capture is defined
+    - student_state.hybrid.m11.verification.gates.dhcp_capture.phase != 'absent'
+  no_log: true
+
+- name: Record whether the run contains a capture identity to clear
+  ansible.builtin.set_fact:
+    student_hybrid_m11_capture_cleanup_needed: "{{ student_state.hybrid.m11.verification.gates.traffic_capture.phase | default('absent') != 'absent' or student_state.hybrid.m11.verification.gates.dhcp_capture.phase | default('absent') != 'absent' or (student_state.hybrid.m11.verification.gates.c1_capture_active.phase | default('absent') != 'absent') }}"
+  no_log: true
+
+- name: Mark both recorded capture effects complete before clearing their identities
+  ansible.builtin.set_fact:
+    student_hybrid_m11_capture_cleanup_complete: true
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-m11-clear-captures.yml

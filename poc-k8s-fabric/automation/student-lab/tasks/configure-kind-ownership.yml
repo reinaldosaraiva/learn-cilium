@@ -1,0 +1,91 @@
+---
+- name: Read the private Kind configuration as YAML data
+  ansible.builtin.slurp:
+    src: "{{ student_kind_config_file }}"
+  register: student_kind_config_source
+
+- name: Parse the private Kind configuration
+  ansible.builtin.set_fact:
+    student_kind_config_document: "{{ student_kind_config_source.content | b64decode | from_yaml }}"
+
+- name: Require the expected Kind node roles before adding ownership
+  ansible.builtin.assert:
+    that:
+      - student_kind_config_document is mapping
+      - student_kind_config_document.kind == 'Cluster'
+      - student_kind_config_document.nodes is sequence
+      - student_kind_config_document.nodes | length == student_profile.kind_nodes | length
+      - student_kind_config_document.nodes | map(attribute='role') | list == student_kind_expected_roles
+      - >-
+        student_profile_name == 'iniciantes' or
+        ((student_kind_config_document.nodes | selectattr('extraMounts', 'defined') | map(attribute='extraMounts') | flatten
+        | selectattr('containerPath', 'defined') | selectattr('containerPath', 'equalto', student_owner_mount_path) | list | length) == 0)
+      - >-
+        student_profile_name == 'iniciantes' or
+        ((student_kind_config_document.nodes | selectattr('kubeadmConfigPatches', 'defined')
+        | map(attribute='kubeadmConfigPatches') | flatten | list | length) == 0)
+    fail_msg: "Config Kind do perfil não tem os nós/roles esperados ou já contém identidade conflitante."
+  vars:
+    student_kind_expected_roles: "{{ ['control-plane'] + (['worker'] * ((student_profile.kind_nodes | length) - 1)) }}"
+    student_owner_mount_path: /etc/p010-student/owner-token
+
+- name: Build a per-role kubeadm owner patch for book Kind nodes
+  ansible.builtin.set_fact:
+    student_kind_owner_patches: "{{ student_kind_owner_patches | default({}) | combine({item: ('kind: ' ~ ('InitConfiguration' if item == 'control-plane' else 'JoinConfiguration') ~ '\nnodeRegistration:\n  kubeletExtraArgs:\n    node-labels: p010-student-owner=' ~ student_state.owner_token)}) }}"
+  loop: "{{ student_kind_config_document.nodes | map(attribute='role') | unique | list }}"
+  when: student_profile_name != 'iniciantes'
+
+- name: Assemble owned node mappings without editing YAML text
+  ansible.builtin.set_fact:
+    student_kind_owned_nodes: >-
+      {{ student_kind_owned_nodes | default([]) + [
+        item | combine({
+          'extraMounts': (item.extraMounts | default([])) + [{
+            'hostPath': student_owner_token_file,
+            'containerPath': student_owner_mount_path,
+            'readOnly': true
+          }],
+          'kubeadmConfigPatches': (item.kubeadmConfigPatches | default([])) + [
+            student_kind_owner_patches[item.role]
+          ]
+        })
+      ] }}
+  loop: "{{ student_kind_config_document.nodes }}"
+  when: student_profile_name != 'iniciantes'
+  vars:
+    student_owner_mount_path: /etc/p010-student/owner-token
+
+- name: Serialize the structurally updated Kind configuration
+  ansible.builtin.copy:
+    dest: "{{ student_kind_config_file }}"
+    content: "{{ student_kind_config_document | combine({'nodes': (student_kind_owned_nodes if student_profile_name != 'iniciantes' else student_kind_config_document.nodes)}) | to_nice_yaml }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+
+- name: Parse the serialized Kind configuration for ownership checks
+  ansible.builtin.slurp:
+    src: "{{ student_kind_config_file }}"
+  register: student_kind_config_serialized
+
+- name: Parse serialized config and each kubeadm patch as YAML
+  ansible.builtin.set_fact:
+    student_kind_config_document: "{{ student_kind_config_serialized.content | b64decode | from_yaml }}"
+    student_kind_patch_documents: >-
+      {{ (student_kind_config_serialized.content | b64decode | from_yaml).nodes
+         | map(attribute='kubeadmConfigPatches') | flatten | map('from_yaml') | list }}
+
+- name: Pair each serialized Kind node with its parsed kubeadm patch
+  ansible.builtin.set_fact:
+    student_kind_nodes_and_patches: "{{ student_kind_config_document.nodes | zip(student_kind_patch_documents) | list }}"
+
+- name: Require a read-only token mount and exact owner label on every Kind node
+  ansible.builtin.assert:
+    that:
+      - item.0.extraMounts | selectattr('hostPath', 'equalto', student_owner_token_file) | selectattr('containerPath', 'equalto', student_owner_mount_path) | selectattr('readOnly', 'equalto', true) | list | length == 1
+      - item.1.kind == ('InitConfiguration' if item.0.role == 'control-plane' else 'JoinConfiguration')
+      - item.1.nodeRegistration.kubeletExtraArgs['node-labels'] == student_expected_owner_label
+    fail_msg: "Config Kind serializada perdeu mount readonly ou label por nó."
+  loop: "{{ student_kind_nodes_and_patches }}"
+  vars:
+    student_owner_mount_path: /etc/p010-student/owner-token
+    student_expected_owner_label: "p010-student-owner={{ student_state.owner_token }}"

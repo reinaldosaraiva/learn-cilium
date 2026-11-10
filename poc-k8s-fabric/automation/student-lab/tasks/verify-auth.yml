@@ -1,0 +1,184 @@
+---
+- name: Discover the generated Gateway NodePort for HTTP listener 8080
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - service
+      - cilium-gateway-p003-main
+      - --namespace
+      - p003-gateway
+      - -o
+      - 'jsonpath={.spec.ports[?(@.port==8080)].nodePort}'
+  become: true
+  register: student_auth_nodeport_result
+  changed_when: false
+
+- name: Discover the actual fabric address on the ingress worker
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - exec
+      - "{{ student_profile.kind_nodes[1] }}"
+      - ip
+      - -4
+      - -o
+      - addr
+      - show
+      - dev
+      - eth1
+  become: true
+  register: student_auth_worker_address
+  changed_when: false
+
+- name: Set the selected route endpoint from discovered runtime values
+  ansible.builtin.set_fact:
+    student_auth_nodeport: "{{ student_auth_nodeport_result.stdout | int }}"
+    student_auth_worker_ip: "{{ student_auth_worker_address.stdout.split()[3].split('/')[0] }}"
+
+- name: Require a valid ephemeral Gateway NodePort and worker fabric address
+  ansible.builtin.assert:
+    that:
+      - student_auth_nodeport | int >= 30000
+      - student_auth_nodeport | int <= 32767
+      - student_auth_worker_ip is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+    fail_msg: "NodePort ou IP fabric do worker não foi descoberto de recursos reais do run."
+
+- name: Verify the Auth fixture is scheduled on the worker used for ingress
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - pods
+      - --namespace
+      - p003-gateway
+      - --selector
+      - app=p003-authz
+      - -o
+      - 'jsonpath={.items[0].spec.nodeName}'
+  become: true
+  register: student_auth_pod_node
+  changed_when: false
+
+- name: Require the Auth pod in its contract-selected worker
+  ansible.builtin.assert:
+    that:
+      - >-
+        (student_effective_exercise in ['wireguard-native', 'wireguard-vxlan'] and
+         student_auth_pod_node.stdout == student_profile.kind_nodes[2] and
+         student_auth_pod_node.stdout != student_profile.kind_nodes[1]) or
+        (student_effective_exercise not in ['wireguard-native', 'wireguard-vxlan'] and
+         student_auth_pod_node.stdout == student_profile.kind_nodes[1])
+    fail_msg: "A fixture Auth não está no worker esperado; WireGuard exige Auth remota do worker de ingresso."
+
+- name: Wait for each Auth route to be accepted with resolved references
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - httproute
+      - "{{ item }}"
+      - --namespace
+      - p003-gateway
+      - -o
+      - 'jsonpath={range .status.parents[0].conditions[*]}{.type}={.status} {end}'
+  become: true
+  register: student_auth_route_status
+  changed_when: false
+  retries: 36
+  delay: 5
+  until: >-
+    student_auth_route_status.rc == 0 and
+    'Accepted=True' in student_auth_route_status.stdout and
+    'ResolvedRefs=True' in student_auth_route_status.stdout
+  loop:
+    - p003-protected-http
+    - p003-protected-grpc
+    - p003-public
+
+- name: Define protected and public HTTP outcomes for both client implementations
+  ansible.builtin.set_fact:
+    student_auth_probes:
+      - { path: /protected-http, decision: allow, expected: '200' }
+      - { path: /protected-http, decision: deny, expected: '403' }
+      - { path: /protected-http, decision: '', expected: '401' }
+      - { path: /protected-grpc, decision: allow, expected: '200' }
+      - { path: /protected-grpc, decision: deny, expected: '403' }
+      - { path: /protected-grpc, decision: '', expected: '401' }
+      - { path: /public, decision: '', expected: '200' }
+
+- name: Probe Auth routes with curl from the isolated fabric client
+  ansible.builtin.command:
+    argv: >-
+      {{ ['/usr/bin/docker', '--host', 'unix:///var/run/docker.sock', 'exec',
+          student_profile.http_probe_container, 'curl', '--noproxy', '*',
+          '--max-time', '8', '-sS', '-o', '/dev/null', '-w', '%{http_code}',
+          '-H', 'Host: echo.p003.study']
+         + (['-H', 'X-Lab-Decision: ' ~ item.decision] if item.decision else [])
+         + ['http://' ~ student_auth_worker_ip ~ ':' ~ (student_auth_nodeport | string) ~ item.path] }}
+  become: true
+  register: student_auth_curl_results
+  changed_when: false
+  failed_when: false
+  retries: 3
+  delay: 3
+  until: student_auth_curl_results.rc == 0 and student_auth_curl_results.stdout == item.expected
+  loop: "{{ student_auth_probes }}"
+
+- name: Require curl to observe the exact Auth and public status codes
+  ansible.builtin.assert:
+    that:
+      - item.stdout == item.item.expected
+    fail_msg: "curl {{ item.item.path }}/{{ item.item.decision }} respondeu {{ item.stdout | default('sem código') }}; esperado {{ item.item.expected }}."
+  loop: "{{ student_auth_curl_results.results }}"
+
+- name: Probe all Auth routes with wget from the isolated fabric client
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - exec
+      - "{{ student_profile.http_probe_container }}"
+      - sh
+      - -c
+      - >-
+        if [ -n "$2" ]; then
+          output=$(wget -S -O /dev/null --timeout=8 --header="Host: $3"
+          --header="X-Lab-Decision: $2" "$1" 2>&1);
+        else
+          output=$(wget -S -O /dev/null --timeout=8 --header="Host: $3" "$1" 2>&1);
+        fi;
+        printf '%s\n' "$output" | awk '$1 ~ /^HTTP\// { code = $2 } END { print code }'
+      - wget
+      - "http://{{ student_auth_worker_ip }}:{{ student_auth_nodeport }}{{ item.path }}"
+      - "{{ item.decision }}"
+      - echo.p003.study
+  become: true
+  register: student_auth_wget_results
+  changed_when: false
+  retries: 3
+  delay: 3
+  until: student_auth_wget_results.rc == 0 and student_auth_wget_results.stdout == item.expected
+  loop: "{{ student_auth_probes }}"
+
+- name: Require wget to observe the exact Auth and public status codes
+  ansible.builtin.assert:
+    that:
+      - item.stdout == item.item.expected
+    fail_msg: "wget {{ item.item.path }}/{{ item.item.decision }} respondeu {{ item.stdout | default('sem código') }}; esperado {{ item.item.expected }}."
+  loop: "{{ student_auth_wget_results.results }}"

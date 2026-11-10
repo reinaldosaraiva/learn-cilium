@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+guest_home={{ student_hybrid_shell_home | quote }}
+run_id={{ student_hybrid_shell_run_id | quote }}
+console_id={{ student_hybrid_shell_console_id | quote }}
+[[ "$(id -un)" == stack && -d "${guest_home}" && ! -L "${guest_home}" ]] || exit 70
+owner_uid="$(id -u)"
+[[ "${run_id}" =~ ^[0-9]{8}-[0-9a-f]{32}$ && "${console_id}" =~ ^[0-9a-f]{32}$ ]] || exit 70
+
+private_root="${guest_home}/.p010-student-lab"
+run_root="${private_root}/runs/${run_id}"
+shell_root="${run_root}/shell"
+console_dir="${shell_root}/${console_id}"
+
+for path in "${private_root}" "${private_root}/runs" "${run_root}" "${shell_root}"; do
+  [[ ! -L "${path}" ]] || exit 71
+  if [[ ! -e "${path}" ]]; then
+    exit 0
+  fi
+  [[ -d "${path}" && "$(stat -c '%u:%a' -- "${path}")" == "${owner_uid}:700" ]] || exit 71
+done
+
+[[ ! -L "${console_dir}" ]] || exit 72
+if [[ ! -e "${console_dir}" ]]; then
+  exit 0
+fi
+[[ -d "${console_dir}" && "$(stat -c '%u:%a' -- "${console_dir}")" == "${owner_uid}:700" ]] || exit 72
+
+owner_file="${console_dir}/.owner"
+[[ -f "${owner_file}" && ! -L "${owner_file}" ]] || exit 73
+[[ "$(stat -c '%u:%a' -- "${owner_file}")" == "${owner_uid}:600" ]] || exit 73
+read -r marker_run marker_console marker_guest clouds_device clouds_inode secure_device secure_inode <"${owner_file}"
+[[ "${marker_run}" == "${run_id}" && "${marker_console}" == "${console_id}" && "${marker_guest}" == ubuntu ]] || exit 73
+[[ "${clouds_device}" =~ ^[0-9]+$ && "${clouds_inode}" =~ ^[0-9]+$ ]] || exit 73
+[[ "${secure_device}" =~ ^[0-9]+$ && "${secure_inode}" =~ ^[0-9]+$ ]] || exit 73
+
+check_profile_file() {
+  local path="$1" expected_device="$2" expected_inode="$3"
+  [[ -f "${path}" && ! -L "${path}" && -r "${path}" ]] || return 1
+  [[ "$(stat -c '%u:%a:%d:%i' -- "${path}")" == "${owner_uid}:600:${expected_device}:${expected_inode}" ]]
+}
+
+check_profile_file "${console_dir}/clouds.yaml" "${clouds_device}" "${clouds_inode}" || exit 74
+check_profile_file "${console_dir}/secure.yaml" "${secure_device}" "${secure_inode}" || exit 74
+printf 'clouds: {}\n' | cmp -s - "${console_dir}/secure.yaml" || exit 74
+
+rm -- "${console_dir}/clouds.yaml" "${console_dir}/secure.yaml" "${owner_file}"
+rmdir -- "${console_dir}"

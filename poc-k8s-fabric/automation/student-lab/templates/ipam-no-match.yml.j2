@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: p003-ipam-no-match
+  labels:
+    study: P003
+    ipam-pool: no-match
+    p010-student-owner-token: {{ student_state.owner_token }}
+  annotations:
+    ipam.cilium.io/require-pool-match: "true"

@@ -1,0 +1,6 @@
+---
+- ansible.builtin.include_tasks: hybrid-validate-border.yml
+  vars:
+    student_hybrid_ports_to_check: []
+
+- ansible.builtin.include_tasks: hybrid-delete-tap-in-border.yml

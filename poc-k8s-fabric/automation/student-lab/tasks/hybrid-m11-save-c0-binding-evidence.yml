@@ -1,0 +1,118 @@
+---
+- name: Reserve this run's private C0 evidence directory
+  ansible.builtin.stat:
+    path: "{{ student_run_dir }}/m11-evidence"
+    follow: false
+  register: student_hybrid_m11_c0_evidence_dir_before
+  no_log: true
+
+- name: Refuse any pre-existing C0 evidence directory without a checkpoint
+  ansible.builtin.assert:
+    that:
+      - not (student_hybrid_m11_c0_evidence_dir_before.stat.exists | default(false))
+      - not (student_hybrid_m11_c0_evidence_dir_before.stat.islnk | default(false))
+    fail_msg: "O diretório de evidência C0 já existe sem identidade registrada nesta execução."
+  no_log: true
+
+- name: Create the owner-only C0 evidence directory
+  ansible.builtin.file:
+    path: "{{ student_run_dir }}/m11-evidence"
+    state: directory
+    owner: "{{ student_uid }}"
+    mode: '0700'
+  no_log: true
+
+- name: Refuse a pre-existing first binding evidence file
+  ansible.builtin.stat:
+    path: "{{ student_run_dir }}/m11-evidence/c0-binding.json"
+    follow: false
+  register: student_hybrid_m11_c0_binding_before
+  no_log: true
+
+- name: Require this is the first immutable binding observation for the run
+  ansible.builtin.assert:
+    that:
+      - not (student_hybrid_m11_c0_binding_before.stat.exists | default(false))
+      - not (student_hybrid_m11_c0_binding_before.stat.islnk | default(false))
+      - student_state.hybrid.m11.verification.gates.c0_binding_observation.run_id == student_state.run_id
+      - student_state.hybrid.m11.verification.gates.c0_binding_observation.port.id == student_state.hybrid.m11.api.resources.cirros_port.primary.id
+      - student_state.hybrid.m11.verification.gates.c0_binding_observation.port.binding_vif_type == 'ovs'
+      - student_state.hybrid.m11.verification.gates.c0_binding_observation.port.binding_vif_details.port_filter | bool
+      - student_state.hybrid.m11.verification.gates.c0_binding_observation.port.port_security_enabled | bool
+      - student_state.hybrid.m11.verification.gates.c0_binding_observation.port.allowed_address_pairs | length == 0
+      - student_state.hybrid.m11.verification.gates.c0_binding_observation.ovs.attachment.ifindex | int > 0
+      - student_state.hybrid.m11.verification.gates.c0_binding_observation.ovs.attachment.ofport | int > 0
+    fail_msg: "A observação Neutron/OVS não satisfaz a identidade e as proteções exigidas para C0."
+  no_log: true
+
+- name: Persist the observed Neutron port, security group, DHCP port, and OVS attachment
+  ansible.builtin.copy:
+    dest: "{{ student_run_dir }}/m11-evidence/c0-binding.json"
+    content: >-
+      {{ {
+        'schema': 1,
+        'scope': 'C0 Neutron port binding, security-group rules, and OVS attachment',
+        'run_id': student_state.run_id,
+        'observation': student_state.hybrid.m11.verification.gates.c0_binding_observation
+      } | to_nice_json }}
+      
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Inspect and hash the immutable binding evidence file
+  ansible.builtin.stat:
+    path: "{{ student_run_dir }}/m11-evidence/c0-binding.json"
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  register: student_hybrid_m11_c0_binding_stat
+  no_log: true
+
+- name: Require a private regular binding record with a SHA-256 identity
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c0_binding_stat.stat.isreg | default(false)
+      - not (student_hybrid_m11_c0_binding_stat.stat.islnk | default(false))
+      - student_hybrid_m11_c0_binding_stat.stat.uid | int == student_uid | int
+      - student_hybrid_m11_c0_binding_stat.stat.mode == '0600'
+      - student_hybrid_m11_c0_binding_stat.stat.checksum is match('^[0-9a-f]{64}$')
+    fail_msg: "O registro Neutron/OVS não ficou owner-only com hash íntegro."
+  no_log: true
+
+- name: Checkpoint the immutable binding evidence file identity and hash
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'m11': {'verification': {'gates': {
+        'c0_binding_evidence': {
+          'path': student_run_dir ~ '/m11-evidence/c0-binding.json',
+          'sha256': student_hybrid_m11_c0_binding_stat.stat.checksum,
+          'device': student_hybrid_m11_c0_binding_stat.stat.dev | int,
+          'inode': student_hybrid_m11_c0_binding_stat.stat.inode | int,
+          'owner_uid': student_hybrid_m11_c0_binding_stat.stat.uid | int,
+          'mode': student_hybrid_m11_c0_binding_stat.stat.mode,
+          'scope': 'C0 Neutron port binding, security-group rules, and OVS attachment'
+        }
+      }}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Persist the private binding evidence reference
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Reload the binding evidence checkpoint from disk
+  ansible.builtin.slurp:
+    src: "{{ student_state_file }}"
+  register: student_hybrid_m11_c0_binding_state_reload
+  no_log: true
+
+- name: Require the binding evidence hash and path to survive state reload
+  ansible.builtin.assert:
+    that:
+      - (student_hybrid_m11_c0_binding_state_reload.content | b64decode | from_json).hybrid.m11.verification.gates.c0_binding_evidence.sha256 == student_hybrid_m11_c0_binding_stat.stat.checksum
+      - (student_hybrid_m11_c0_binding_state_reload.content | b64decode | from_json).hybrid.m11.verification.gates.c0_binding_evidence.path == student_run_dir ~ '/m11-evidence/c0-binding.json'
+  no_log: true

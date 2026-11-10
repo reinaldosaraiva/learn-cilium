@@ -1,0 +1,35 @@
+---
+- name: Keep historical state validation separate from a newly requested run
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../vars.yml"
+  vars:
+    student_state_dir: "{{ lookup('env', 'P010_HYBRID_TEST_DIR') }}"
+    student_state_file: "{{ student_state_dir }}/state.json"
+    student_uid: "{{ lookup('env', 'P010_HYBRID_TEST_UID') | int }}"
+    student_action: "{{ lookup('env', 'P010_HYBRID_RUN_PATH_ACTION') }}"
+    student_profile_name: "{{ lookup('env', 'P010_HYBRID_RUN_PATH_PROFILE') }}"
+    student_profile: "{{ student_profiles[student_profile_name] }}"
+    student_new_run_id: 20261101-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    student_has_state: true
+    student_state: "{{ lookup('file', student_state_file) | from_json }}"
+  tasks:
+    - ansible.builtin.include_tasks: ../tasks/select-run-paths.yml
+
+    - name: Require stored and requested paths to follow the requested action
+      ansible.builtin.assert:
+        that:
+          - student_state_run_id == student_state.run_id
+          - student_state_run_dir == student_state_dir ~ '/runs/' ~ student_state.run_id
+          - >-
+            (student_action == 'up' and student_state.status == 'down' and student_profile_name == 'iniciantes'
+             and student_run_id == student_new_run_id
+             and student_run_dir == student_state_dir ~ '/runs/' ~ student_new_run_id)
+            or
+            (student_action == 'status' and student_run_id == student_state.run_id
+             and student_run_dir == student_state_run_dir)
+        fail_msg: "Path da execução solicitada substituiu o diretório usado para validar o estado existente."
+
+    - ansible.builtin.include_tasks: ../tasks/validate-hybrid-state.yml

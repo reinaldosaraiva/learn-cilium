@@ -1,0 +1,151 @@
+---
+- name: Build the versioned Auth fixture for this private kind cluster
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - build
+      - --tag
+      - "p010-student-authz:{{ student_state.run_id }}"
+      - --file
+      - "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/fixtures/auth/Dockerfile"
+      - "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/fixtures/auth"
+  become: true
+  environment:
+    DOCKER_HOST: unix:///var/run/docker.sock
+  register: student_auth_image_build
+  changed_when: true
+  async: 1800
+  poll: 10
+
+- name: Load the Auth image into the exact kind cluster for this run
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kind"
+      - load
+      - docker-image
+      - "p010-student-authz:{{ student_state.run_id }}"
+      - --name
+      - "{{ student_profile.kind_name }}"
+  become: true
+  environment:
+    DOCKER_HOST: unix:///var/run/docker.sock
+  changed_when: true
+
+- name: Copy the reviewed Auth Deployment and Service into private run state
+  ansible.builtin.copy:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/fixtures/auth/auth-deploy.yaml"
+    dest: "{{ student_run_dir }}/auth-deploy.yaml"
+    remote_src: true
+    owner: "{{ student_uid }}"
+    mode: '0600'
+
+- name: Bind the private Deployment to its run-specific image tag
+  ansible.builtin.replace:
+    path: "{{ student_run_dir }}/auth-deploy.yaml"
+    regexp: 'p003-authz:1\.0\.0'
+    replace: "p010-student-authz:{{ student_state.run_id }}"
+
+- name: Place WireGuard Auth on the known worker remote from ingress
+  ansible.builtin.replace:
+    path: "{{ student_run_dir }}/auth-deploy.yaml"
+    regexp: 'kubernetes.io/hostname: p003-gw-worker$'
+    replace: "kubernetes.io/hostname: {{ student_profile.kind_nodes[2] }}"
+  when: student_effective_exercise in ['wireguard-native', 'wireguard-vxlan']
+
+- name: Apply the Auth Deployment and Service from the private copy
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - apply
+      - -f
+      - "{{ student_run_dir }}/auth-deploy.yaml"
+  become: true
+  register: student_auth_deploy_apply
+  changed_when: "'configured' in student_auth_deploy_apply.stdout or 'created' in student_auth_deploy_apply.stdout"
+
+- name: Pin the WireGuard HTTP application to its known ingress worker
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - patch
+      - deployment/http-echo
+      - --namespace
+      - p003-gateway
+      - --type=merge
+      - --patch
+      - >-
+        {"spec":{"replicas":1,"template":{"spec":{"nodeSelector":{"kubernetes.io/hostname":"{{ student_profile.kind_nodes[1] }}"}}}}}
+  become: true
+  register: student_auth_app_placement
+  changed_when: student_auth_app_placement.rc == 0
+  when: student_effective_exercise in ['wireguard-native', 'wireguard-vxlan']
+
+- name: Wait for the single WireGuard HTTP application on the ingress worker
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - rollout
+      - status
+      - deployment/http-echo
+      - --namespace
+      - p003-gateway
+      - --timeout=240s
+  become: true
+  changed_when: false
+  when: student_effective_exercise in ['wireguard-native', 'wireguard-vxlan']
+
+- name: Wait for the Auth fixture pinned to the ingress worker
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - rollout
+      - status
+      - deployment/p003-authz
+      - --namespace
+      - p003-gateway
+      - --timeout=240s
+  become: true
+  changed_when: false
+
+- name: Copy the reviewed Auth routes into private run state
+  ansible.builtin.copy:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/fixtures/auth/auth-routes.yaml"
+    dest: "{{ student_run_dir }}/auth-routes.yaml"
+    remote_src: true
+    owner: "{{ student_uid }}"
+    mode: '0600'
+
+- name: Apply Auth HTTPRoutes with server-side field ownership
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - apply
+      - --server-side
+      - --field-manager=p010-student-lab
+      - -f
+      - "{{ student_run_dir }}/auth-routes.yaml"
+  become: true
+  register: student_auth_routes_apply
+  changed_when: "'configured' in student_auth_routes_apply.stdout or 'created' in student_auth_routes_apply.stdout"

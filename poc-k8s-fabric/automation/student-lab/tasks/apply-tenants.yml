@@ -1,0 +1,102 @@
+---
+- name: Select tenant namespaces and service accounts from the versioned S009 assets
+  ansible.builtin.set_fact:
+    student_tenant_namespace_documents: >-
+      {{ lookup('file', student_repo_root ~ '/poc-k8s-fabric/studies/p003/cases/s009/01-namespaces.yaml')
+         | from_yaml_all | list
+         | selectattr('metadata.name', 'defined')
+         | selectattr('metadata.name', 'in', ['p003-tenant-a', 'p003-tenant-b']) | list }}
+    student_tenant_serviceaccount_documents: >-
+      {{ lookup('file', student_repo_root ~ '/poc-k8s-fabric/studies/p003/cases/s009/03-rbac.yaml')
+         | from_yaml_all | list
+         | selectattr('kind', 'defined') | selectattr('kind', 'equalto', 'ServiceAccount')
+         | selectattr('metadata.name', 'in', ['p003-tenant-a-app', 'p003-tenant-b-app']) | list }}
+
+- name: Render selected tenant namespaces privately
+  ansible.builtin.template:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/selected-documents.yml.j2"
+    dest: "{{ student_run_dir }}/tenant-namespaces.yaml"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  vars:
+    student_selected_documents: "{{ student_tenant_namespace_documents }}"
+
+- name: Render only tenant A and B service accounts privately
+  ansible.builtin.template:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/selected-documents.yml.j2"
+    dest: "{{ student_run_dir }}/tenant-serviceaccounts.yaml"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  vars:
+    student_selected_documents: "{{ student_tenant_serviceaccount_documents }}"
+
+- name: Copy the reviewed tenant workloads and policies into private run state
+  ansible.builtin.copy:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/cases/s009/{{ item.source }}"
+    dest: "{{ student_run_dir }}/{{ item.dest }}"
+    remote_src: true
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  loop:
+    - { source: 04-tenants.yaml, dest: tenant-workloads.yaml }
+    - { source: 07-policies.yaml, dest: tenant-policies.yaml }
+
+- name: Apply tenant namespaces before tenant-specific resources
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - apply
+      - -f
+      - "{{ student_run_dir }}/tenant-namespaces.yaml"
+  become: true
+  register: student_tenant_namespace_apply
+  changed_when: "'configured' in student_tenant_namespace_apply.stdout or 'created' in student_tenant_namespace_apply.stdout"
+
+- name: Create both required tenant service accounts
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - apply
+      - -f
+      - "{{ student_run_dir }}/tenant-serviceaccounts.yaml"
+  become: true
+  register: student_tenant_serviceaccount_apply
+  changed_when: "'configured' in student_tenant_serviceaccount_apply.stdout or 'created' in student_tenant_serviceaccount_apply.stdout"
+
+- name: Apply tenant policies before tenant workloads
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - apply
+      - -f
+      - "{{ student_run_dir }}/tenant-policies.yaml"
+  become: true
+  register: student_tenant_policy_apply
+  changed_when: "'configured' in student_tenant_policy_apply.stdout or 'created' in student_tenant_policy_apply.stdout"
+
+- name: Apply the reviewed tenant A and B workloads
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - apply
+      - -f
+      - "{{ student_run_dir }}/tenant-workloads.yaml"
+  become: true
+  register: student_tenant_workload_apply
+  changed_when: "'configured' in student_tenant_workload_apply.stdout or 'created' in student_tenant_workload_apply.stdout"

@@ -1,0 +1,135 @@
+---
+- name: Read the exact saved router before removing its external gateway
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}/routers/{{ student_state.hybrid.m11.api.resources.router.primary.id }}"
+    method: GET
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+    return_content: true
+    status_code: [200, 404]
+    timeout: 15
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_router_gateway_read
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+
+- name: Require exact router ownership before clearing its external gateway
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_router_gateway_read.status == 200
+      - student_hybrid_api_router_gateway_read.json.router.id == student_state.hybrid.m11.api.resources.router.primary.id
+      - student_hybrid_api_router_gateway_read.json.router.tenant_id == student_hybrid_api_project_id
+      - student_hybrid_api_router_gateway_read.json.router.name == student_state.hybrid.m11.api.resources.router.primary.name
+      - student_hybrid_api_router_gateway_read.json.router.external_gateway_info.network_id == student_state.hybrid.m11.api.resources.external_network.primary.id
+      - student_hybrid_api_router_gateway_read.json.router.external_gateway_info.enable_snat == false
+      - student_hybrid_api_router_gateway_read.json.router.external_gateway_info.external_fixed_ips | selectattr('subnet_id', 'equalto', student_state.hybrid.m11.api.resources.external_subnet.primary.id) | selectattr('ip_address', 'equalto', student_state.hybrid.m11.network.provider_router_ip) | list | length == 1
+      - student_state.hybrid.m11.api.pending | length == 0
+    fail_msg: "O router/gateway não corresponde ao projeto, ID, subnet e next-hop salvos."
+  no_log: true
+
+- name: Persist the gateway-clear intent before updating the router
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      status: partial
+      phase: hybrid-api-router-gateway-pending
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending:
+              method: PUT
+              resource: router:gateway
+              path: "/routers/{{ student_state.hybrid.m11.api.resources.router.primary.id }}"
+              run_id: "{{ student_state.run_id }}"
+              action: clear-gateway
+  no_log: true
+
+- name: Remove only the recorded external gateway from the owned router
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}/routers/{{ student_state.hybrid.m11.api.resources.router.primary.id }}"
+    method: PUT
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+      Content-Type: application/json
+    body_format: json
+    body:
+      router:
+        external_gateway_info: null
+    return_content: true
+    status_code: [200]
+    timeout: 20
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_router_gateway_clear
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+
+- name: Read the router back and verify the gateway reference is gone
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}/routers/{{ student_state.hybrid.m11.api.resources.router.primary.id }}"
+    method: GET
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+    return_content: true
+    status_code: [200]
+    timeout: 15
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_router_after_gateway_clear
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+
+- name: Confirm the qrouter no longer exposes an external gateway
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_router_after_gateway_clear.json.router.id == student_state.hybrid.m11.api.resources.router.primary.id
+      - student_hybrid_api_router_after_gateway_clear.json.router.external_gateway_info in [none, {}]
+    fail_msg: "Neutron não confirmou a retirada do gateway externo."
+  no_log: true
+
+- name: Confirm the exact saved router gateway port is absent
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}/ports/{{ student_state.hybrid.m11.api.resources.router_gateway_port.primary.id }}"
+    method: GET
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+    return_content: true
+    status_code: [200, 404]
+    timeout: 15
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_gateway_port_after_clear
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+
+- name: Require Neutron to remove the qrouter gateway port created by the gateway
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_gateway_port_after_clear.status == 404
+    fail_msg: "A porta de gateway ainda existe ou sua ausência não foi confirmada."
+  no_log: true
+
+- name: Clear the gateway port identity and pending operation after exact absence
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-router-gateway-removed
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending: {}
+            links:
+              router_gateway: false
+            resources:
+              router_gateway_port:
+                primary: "{{ student_state.hybrid.m11.api.resources.router_gateway_port.primary | combine({'id': ''}) }}"
+  no_log: true

@@ -1,0 +1,697 @@
+student_exercises:
+  baseline:
+    cilium_values: poc-k8s-fabric/studies/p003/base/values-p003.yaml
+    gateway_crds: standard
+  auth:
+    auth_fixture: true
+    gateway_crds: experimental
+  wireguard-native:
+    auth_fixture: true
+    gateway_crds: experimental
+    routing_mode: native
+  wireguard-vxlan:
+    auth_fixture: true
+    gateway_crds: experimental
+    routing_mode: tunnel
+    tunnel_protocol: vxlan
+  tenants:
+    tenants: true
+  ipam24:
+    ipam: m24
+  ipam32:
+    ipam: m32
+
+student_timeout_bin: /usr/bin/timeout
+student_hybrid_ubuntu_overlay_size_bytes: 42949672960
+student_hybrid_devstack_root_free_bytes_min: 32212254720
+
+student_profiles:
+  iniciantes:
+    kind_name: p010-student
+    context: kind-p010-student
+    kind_nodes:
+      - p010-student-control-plane
+    kind_config: null
+    topology_source: null
+    topology_name: null
+    topology_network: null
+    topology_subnet: null
+    topology_nodes: []
+    topology_label_nodes: []
+    fabric_nodes: []
+    cilium_values: null
+    chart: poc-k8s-fabric/studies/p003/base/cilium-1.20.2.tgz
+    min_cpus: 4
+    recommended_total_mib: 8192
+    estimated_peak_mib: 2560
+    min_disk_mib: 25600
+    min_established_peers: 0
+    manifests: []
+    hubble_mode: loopback-plaintext
+    limitations: []
+    fingerprint_paths:
+      - Makefile
+      - poc-k8s-fabric/Makefile
+      - poc-k8s-fabric/automation/student-lab/site.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/select-scenario.yml
+      - poc-k8s-fabric/automation/student-lab/vars.yml
+      - poc-k8s-fabric/automation/student-lab/requirements.txt
+      - poc-k8s-fabric/automation/student-lab/lab
+      - poc-k8s-fabric/automation/student-lab/preflight.sh
+      - poc-k8s-fabric/automation/student-lab/sudo-auth.sh
+      - poc-k8s-fabric/automation/student-lab/ansible.cfg
+      - poc-k8s-fabric/automation/student-lab/tasks/preflight.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/check-collisions.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/up.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/prepare-run.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify-state.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify-beginner.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/validate-identities.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/validate-kube-owner.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/validate-owner-token.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/configure-kind-ownership.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/session.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/save-state.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/rescue-up.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/env.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/status.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/down.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/down-finalize-state.yml
+      - poc-k8s-fabric/automation/student-lab/templates/kind-iniciantes.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hubble-values.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/env.sh.j2
+      - poc-k8s-fabric/automation/student-lab/templates/beginner-canary.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/beginner-probe.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/beginner-namespace.yml.j2
+      - poc-k8s-fabric/studies/p003/base/cilium-1.20.2.tgz
+      - poc-k8s-fabric/k8s/p010-iniciantes/00-config.yaml
+      - poc-k8s-fabric/k8s/p010-iniciantes/10-backend-service.yaml
+      - poc-k8s-fabric/k8s/p010-iniciantes/11-backend-deployment.yaml
+      - poc-k8s-fabric/k8s/p010-iniciantes/20-api-service.yaml
+      - poc-k8s-fabric/k8s/p010-iniciantes/21-api-deployment.yaml
+      - poc-k8s-fabric/k8s/p010-iniciantes/30-frontend-deployment.yaml
+      - poc-k8s-fabric/k8s/p010-iniciantes/40-policies-ingress.yaml
+      - poc-k8s-fabric/k8s/p010-iniciantes/41-backend-service-defeito.yaml
+
+  fundamentos:
+    kind_name: k01
+    context: kind-k01
+    kind_nodes:
+      - k01-control-plane
+      - k01-worker
+      - k01-worker2
+    kind_config: poc-k8s-fabric/topo/kind-cluster.yaml
+    topology_source: poc-k8s-fabric/topo/poc-kind.clab.yml
+    topology_name: poc-k8s-kind
+    topology_network: clab-poc-kind
+    topology_subnet: 10.223.31.0/24
+    topology_nodes:
+      - k01
+    topology_label_nodes:
+      - spine1
+      - spine2
+      - leaf1
+      - leaf2
+      - leaf3
+      - border1
+      - client-ext
+    fabric_nodes:
+      - clab-poc-k8s-kind-spine1
+      - clab-poc-k8s-kind-spine2
+      - clab-poc-k8s-kind-leaf1
+      - clab-poc-k8s-kind-leaf2
+      - clab-poc-k8s-kind-leaf3
+      - clab-poc-k8s-kind-border1
+      - clab-poc-k8s-kind-client-ext
+    cilium_values: poc-k8s-fabric/k8s/cilium/values-dualstack.yaml
+    chart: poc-k8s-fabric/studies/p003/base/cilium-1.20.2.tgz
+    min_cpus: 8
+    recommended_total_mib: 16384
+    estimated_peak_mib: 6144
+    min_disk_mib: 40960
+    min_established_peers: 3
+    manifests:
+      - poc-k8s-fabric/k8s/bgp/01-peer-config.yaml
+      - poc-k8s-fabric/k8s/bgp/02-advertisements.yaml
+      - poc-k8s-fabric/k8s/bgp/03-cluster-config-rack1.yaml
+      - poc-k8s-fabric/k8s/bgp/04-cluster-config-rack2.yaml
+      - poc-k8s-fabric/k8s/bgp/05-lb-ippool.yaml
+      - poc-k8s-fabric/k8s/apps/10-echo-deployment.yaml
+      - poc-k8s-fabric/k8s/apps/11-echo-svc-anycast.yaml
+      - poc-k8s-fabric/k8s/apps/12-echo-svc-local.yaml
+    labels:
+      rack1:
+        - k01-control-plane
+        - k01-worker
+      rack2:
+        - k01-worker2
+    route_prefix: 10.201.255.10/32
+    route_probe_container: clab-poc-k8s-kind-spine1
+    route_probe_command: show network-instance default route-table ipv4-unicast prefix 10.201.255.10/32
+    http_probe_container: clab-poc-k8s-kind-client-ext
+    http_probe_url: http://10.201.255.10/hostname
+    http_probe_host: null
+    hubble_mode: loopback-plaintext
+    limitations: []
+    fingerprint_paths:
+      - Makefile
+      - poc-k8s-fabric/Makefile
+      - poc-k8s-fabric/automation/student-lab/site.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/select-scenario.yml
+      - poc-k8s-fabric/automation/student-lab/vars.yml
+      - poc-k8s-fabric/automation/student-lab/requirements.txt
+      - poc-k8s-fabric/automation/student-lab/lab
+      - poc-k8s-fabric/automation/student-lab/preflight.sh
+      - poc-k8s-fabric/automation/student-lab/sudo-auth.sh
+      - poc-k8s-fabric/automation/student-lab/ansible.cfg
+      - poc-k8s-fabric/automation/student-lab/tasks/preflight.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/check-collisions.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/up.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/prepare-run.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify-state.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify-beginner.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/validate-identities.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/validate-kube-owner.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/validate-owner-token.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/configure-kind-ownership.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/session.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/save-state.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/rescue-up.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/env.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/status.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/down.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/down-finalize-state.yml
+      - poc-k8s-fabric/automation/student-lab/templates/env.sh.j2
+      - poc-k8s-fabric/automation/student-lab/templates/beginner-canary.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/beginner-namespace.yml.j2
+      - poc-k8s-fabric/topo/kind-cluster.yaml
+      - poc-k8s-fabric/topo/poc-kind.clab.yml
+      - poc-k8s-fabric/configs/srl/spine1.cfg
+      - poc-k8s-fabric/configs/srl/spine2.cfg
+      - poc-k8s-fabric/configs/srl/leaf1.cfg
+      - poc-k8s-fabric/configs/srl/leaf2.cfg
+      - poc-k8s-fabric/configs/srl/leaf3-border.cfg
+      - poc-k8s-fabric/configs/frr/daemons
+      - poc-k8s-fabric/configs/frr/frr.conf
+      - poc-k8s-fabric/k8s/cilium/values-dualstack.yaml
+      - poc-k8s-fabric/studies/p003/base/cilium-1.20.2.tgz
+      - poc-k8s-fabric/k8s/bgp/01-peer-config.yaml
+      - poc-k8s-fabric/k8s/bgp/02-advertisements.yaml
+      - poc-k8s-fabric/k8s/bgp/03-cluster-config-rack1.yaml
+      - poc-k8s-fabric/k8s/bgp/04-cluster-config-rack2.yaml
+      - poc-k8s-fabric/k8s/bgp/05-lb-ippool.yaml
+      - poc-k8s-fabric/k8s/apps/10-echo-deployment.yaml
+      - poc-k8s-fabric/k8s/apps/11-echo-svc-anycast.yaml
+      - poc-k8s-fabric/k8s/apps/12-echo-svc-local.yaml
+
+  plataforma:
+    kind_name: p003-gw
+    context: kind-p003-gw
+    kind_nodes:
+      - p003-gw-control-plane
+      - p003-gw-worker
+      - p003-gw-worker2
+    kind_config: poc-k8s-fabric/studies/p003/topo/kind-cluster-p003.yaml
+    topology_source: poc-k8s-fabric/studies/p003/topo/p003-gw.clab.yml
+    topology_name: p003-gw-fabric
+    topology_network: p003-gw-mgmt
+    topology_subnet: 10.223.32.0/24
+    topology_nodes:
+      - p003-gw
+    topology_label_nodes:
+      - spine1
+      - spine2
+      - leaf1
+      - leaf2
+      - leaf3
+      - border1
+      - client
+    fabric_nodes:
+      - clab-p003-gw-fabric-spine1
+      - clab-p003-gw-fabric-spine2
+      - clab-p003-gw-fabric-leaf1
+      - clab-p003-gw-fabric-leaf2
+      - clab-p003-gw-fabric-leaf3
+      - clab-p003-gw-fabric-border1
+      - clab-p003-gw-fabric-client
+    cilium_values: poc-k8s-fabric/studies/p003/base/values-p003.yaml
+    chart: poc-k8s-fabric/studies/p003/base/cilium-1.20.2.tgz
+    min_cpus: 8
+    recommended_total_mib: 16384
+    estimated_peak_mib: 6144
+    min_disk_mib: 40960
+    min_established_peers: 3
+    manifests:
+      - poc-k8s-fabric/studies/p003/base/bgp/01-peer-config.yaml
+      - poc-k8s-fabric/studies/p003/base/bgp/02-advertisements.yaml
+      - poc-k8s-fabric/studies/p003/base/bgp/03-cluster-config-rack1.yaml
+      - poc-k8s-fabric/studies/p003/base/bgp/04-cluster-config-rack2.yaml
+      - poc-k8s-fabric/studies/p003/base/bgp/05-lb-ippool.yaml
+      - poc-k8s-fabric/studies/p003/base/gateway.yaml
+      - poc-k8s-fabric/studies/p003/fixtures/http-echo.yaml
+      - poc-k8s-fabric/studies/p003/fixtures/dns.yaml
+      - poc-k8s-fabric/studies/p003/fixtures/tcp-echo.yaml
+    labels:
+      rack1:
+        - p003-gw-control-plane
+        - p003-gw-worker
+      rack2:
+        - p003-gw-worker2
+    route_prefix: 10.202.255.10/32
+    route_probe_container: clab-p003-gw-fabric-spine1
+    route_probe_command: show network-instance default route-table ipv4-unicast prefix 10.202.255.10/32
+    http_probe_container: clab-p003-gw-fabric-client
+    http_probe_url: http://10.202.255.10:8080/hostname
+    http_probe_host: echo.p003.study
+    hubble_mode: disabled
+    limitations:
+      - M11/híbrido não implementado; não há provisionamento de OpenStack neste laboratório.
+    fingerprint_paths:
+      - Makefile
+      - poc-k8s-fabric/Makefile
+      - poc-k8s-fabric/automation/student-lab/site.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/select-scenario.yml
+      - poc-k8s-fabric/automation/student-lab/vars.yml
+      - poc-k8s-fabric/automation/student-lab/requirements.txt
+      - poc-k8s-fabric/automation/student-lab/lab
+      - poc-k8s-fabric/automation/student-lab/preflight.sh
+      - poc-k8s-fabric/automation/student-lab/sudo-auth.sh
+      - poc-k8s-fabric/automation/student-lab/ansible.cfg
+      - poc-k8s-fabric/automation/student-lab/tasks/preflight.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/check-collisions.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/up.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/prepare-run.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify-state.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify-beginner.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/validate-identities.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/validate-kube-owner.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/validate-owner-token.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/configure-kind-ownership.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/session.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/save-state.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/rescue-up.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/env.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/status.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/down.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/down-finalize-state.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/apply-scenario.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/apply-auth.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/apply-tenants.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/apply-ipam.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/prepare-ipam-frr.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify-auth.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify-wireguard.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify-tenants.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify-ipam.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify-ipam-no-match.yml
+      - poc-k8s-fabric/automation/student-lab/templates/env.sh.j2
+      - poc-k8s-fabric/automation/student-lab/templates/beginner-canary.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/beginner-namespace.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/scenario-values.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/selected-documents.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/ipam-no-match.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/ipam-no-match-pod.yml.j2
+      - poc-k8s-fabric/studies/p003/topo/kind-cluster-p003.yaml
+      - poc-k8s-fabric/studies/p003/topo/p003-gw.clab.yml
+      - poc-k8s-fabric/studies/p003/configs/srl/p003-spine1.cfg
+      - poc-k8s-fabric/studies/p003/configs/srl/p003-spine2.cfg
+      - poc-k8s-fabric/studies/p003/configs/srl/p003-leaf1.cfg
+      - poc-k8s-fabric/studies/p003/configs/srl/p003-leaf2.cfg
+      - poc-k8s-fabric/studies/p003/configs/srl/p003-leaf3-border.cfg
+      - poc-k8s-fabric/studies/p003/configs/frr/p003-daemons
+      - poc-k8s-fabric/studies/p003/configs/frr/p003-frr.conf
+      - poc-k8s-fabric/studies/p003/base/values-p003.yaml
+      - poc-k8s-fabric/studies/p003/base/cilium-1.20.2.tgz
+      - poc-k8s-fabric/studies/p003/base/crds/standard-install.yaml
+      - poc-k8s-fabric/studies/p003/base/crds/experimental-install.yaml
+      - poc-k8s-fabric/studies/p003/base/bgp/01-peer-config.yaml
+      - poc-k8s-fabric/studies/p003/base/bgp/02-advertisements.yaml
+      - poc-k8s-fabric/studies/p003/base/bgp/03-cluster-config-rack1.yaml
+      - poc-k8s-fabric/studies/p003/base/bgp/04-cluster-config-rack2.yaml
+      - poc-k8s-fabric/studies/p003/base/bgp/05-lb-ippool.yaml
+      - poc-k8s-fabric/studies/p003/base/gateway.yaml
+      - poc-k8s-fabric/studies/p003/fixtures/http-echo.yaml
+      - poc-k8s-fabric/studies/p003/fixtures/dns.yaml
+      - poc-k8s-fabric/studies/p003/fixtures/tcp-echo.yaml
+      - poc-k8s-fabric/studies/p003/fixtures/auth/Dockerfile
+      - poc-k8s-fabric/studies/p003/fixtures/auth/main.go
+      - poc-k8s-fabric/studies/p003/fixtures/auth/go.mod
+      - poc-k8s-fabric/studies/p003/fixtures/auth/go.sum
+      - poc-k8s-fabric/studies/p003/fixtures/auth/auth-deploy.yaml
+      - poc-k8s-fabric/studies/p003/fixtures/auth/auth-routes.yaml
+      - poc-k8s-fabric/studies/p003/cases/s009/01-namespaces.yaml
+      - poc-k8s-fabric/studies/p003/cases/s009/03-rbac.yaml
+      - poc-k8s-fabric/studies/p003/cases/s009/04-tenants.yaml
+      - poc-k8s-fabric/studies/p003/cases/s009/07-policies.yaml
+      - poc-k8s-fabric/studies/p003/cases/s010/01-m24-setup.yaml
+      - poc-k8s-fabric/studies/p003/cases/s010/02-bgp-advertisement.yaml
+      - poc-k8s-fabric/studies/p003/cases/s010/03-m24-workload.yaml
+      - poc-k8s-fabric/studies/p003/cases/s010/06-m32-setup.yaml
+      - poc-k8s-fabric/studies/p003/cases/s010/07-m32-workload.yaml
+
+  hibrido:
+    kind_name: p010-hibrido
+    context: kind-p010-hibrido
+    kind_nodes:
+      - p010-hibrido-control-plane
+      - p010-hibrido-worker
+      - p010-hibrido-worker2
+    kind_config: poc-k8s-fabric/studies/p003/topo/kind-cluster-p003.yaml
+    chart: poc-k8s-fabric/studies/p003/base/cilium-1.20.2.tgz
+    topology_source: poc-k8s-fabric/studies/p003/topo/p003-gw.clab.yml
+    topology_name: p010-hibrido-fabric
+    topology_network: p010-hibrido-mgmt
+    topology_subnet: 10.223.48.0/24
+    topology_nodes:
+      - p003-gw
+    topology_label_nodes:
+      - spine1
+      - spine2
+      - leaf1
+      - leaf2
+      - leaf3
+      - border1
+      - client
+    fabric_nodes:
+      - clab-p010-hibrido-fabric-spine1
+      - clab-p010-hibrido-fabric-spine2
+      - clab-p010-hibrido-fabric-leaf1
+      - clab-p010-hibrido-fabric-leaf2
+      - clab-p010-hibrido-fabric-leaf3
+      - clab-p010-hibrido-fabric-border1
+      - clab-p010-hibrido-fabric-client
+    min_cpus: 12
+    recommended_total_mib: 24576
+    estimated_peak_mib: 15360
+    min_disk_mib: 81920
+    min_established_peers: 0
+    cilium_values: poc-k8s-fabric/studies/p003/base/values-p003.yaml
+    manifests: []
+    labels:
+      rack1:
+        - p010-hibrido-control-plane
+        - p010-hibrido-worker
+      rack2:
+        - p010-hibrido-worker2
+    hubble_mode: disabled
+    hybrid_network:
+      management_cidr: 10.223.48.0/24
+      pod_cidr: 10.246.0.0/16
+      service_cidr: 10.113.0.0/16
+      loopback_prefix: 10.2.1.0/24
+      node_link_prefixes:
+        - 10.40.1.0/24
+        - 10.40.2.0/24
+      p2p_prefix: 10.244.0.0/16
+      vip_prefix: 10.203.255.0/24
+      client_prefix: 192.0.2.0/24
+      border_host_link: 198.18.255.0/31
+    hybrid_m11:
+      provider_cidr: 198.18.48.0/29
+      provider_border_ip: 198.18.48.1
+      provider_speaker_ip: 198.18.48.2
+      provider_router_ip: 198.18.48.3
+      provider_allocation_pool: [198.18.48.3, 198.18.48.6]
+      tenant_cidr: 198.18.49.0/24
+      tenant_gateway: 198.18.49.1
+      speaker_asn: 64590
+      provider_interface: external0
+      cirros_probe_tcp_port: 22
+      devstack_revision: bb692997c2df7fc9a7071b8c28653fe47d757fe8
+      neutron_revision: 0f4ea4b52deba0fc638e376c77be23368377acb9
+      keystone_revision: a9de8c4c4d88b3f698de4a7170a0475bb5a02a41
+      requirements_revision: 0e4a61c4886b90103879ee7e36565a73b666cf2c
+      neutron_dynamic_routing_revision: c53a910ecfe3f626e18ccbac0651735a3413e2d1
+      identity_auth_url: http://10.0.2.15/identity/v3/auth/tokens
+      network_address_scope: p010-hyb-scope
+      external_subnetpool: p010-hyb-external-pool
+      tenant_subnetpool: p010-hyb-tenant-pool
+      external_network: p010-hyb-external
+      tenant_network: p010-hyb-tenant
+      external_subnet: p010-hyb-external-subnet
+      tenant_subnet: p010-hyb-tenant-subnet
+      router: p010-hyb-router
+      security_group: p010-hyb-security
+      cirros_port: p010-hyb-cirros-port
+      speaker: p010-hyb-speaker
+      peer: p010-hyb-peer
+    hybrid_public_up_incomplete: true
+    limitations:
+      - M11 permanece em preparação. O pico de 15360 MiB é um orçamento de admissão ainda não medido; lab-up fica bloqueado até Neutron, DHCP, BGP, security groups e verificação bidirecional serem implementados e revisados.
+    fingerprint_paths:
+      - Makefile
+      - poc-k8s-fabric/Makefile
+      - poc-k8s-fabric/automation/student-lab/site.yml
+      - poc-k8s-fabric/automation/student-lab/vars.yml
+      - poc-k8s-fabric/automation/student-lab/lab
+      - poc-k8s-fabric/automation/student-lab/preflight.sh
+      - poc-k8s-fabric/automation/student-lab/sudo-auth.sh
+      - poc-k8s-fabric/automation/student-lab/ansible.cfg
+      - poc-k8s-fabric/automation/student-lab/tasks/preflight.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-preflight.yml
+      - poc-k8s-fabric/automation/student-lab/hybrid_qmp.py
+      - poc-k8s-fabric/automation/student-lab/tasks/prepare-run.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/select-run-paths.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-reserve.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-boot.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-download-image.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-create-overlay.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-create-seed-iso.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-prepare-qmp-dir.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-discover-dns.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-probe-dns.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-read-dns.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-prepare-frr.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-prepare-hostkeys.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-render-cilium-values.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-prepare-tap.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-create-tap-in-border.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-validate-tap.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-validate-tap-create-intent.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-query-tap-create-intent.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-delete-tap-in-border.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-validate-tenant-socket.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-checkpoint-tenant-socket.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-boot-one.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-qemu-network-args.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-qmp-command.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-ssh.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-devstack.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-run-api.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-up.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-verify.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/rescue-up.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-shell.yml
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-shell-prepare.sh.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-shell-cleanup.sh.j2
+      - poc-k8s-fabric/automation/student-lab/hybrid-m11-api-playbook.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-parse-markers.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-validate-pod-ownership.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-validate-dora.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-build-dora-script.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-prepare-dhcp-capture.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-finish-dhcp-capture.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-save-c0-binding-evidence.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-save-c0-dora-evidence.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-verify-c0.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-verify-c0-ovs.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-verify-c0-evidence.yml
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-ovs-verify-c0.sh.j2
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-begin-verify-existing.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-provision.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-remove.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-save.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-post.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-get.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-auth.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-retain-auth.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-store-agents.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-validate-catalog.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-validate-neutron-version.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-put.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-delete.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-reconcile-post.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-reconcile-delete.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-unlink.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-remove-router-interface.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-clear-router-gateway.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-verify-resource.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-verify-rules.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-validate-scheduled.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-schedule.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-api-unschedule.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-create-k8s-object.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/verify-state.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-positive-verify.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-resolve-ciliumnodes.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-save-positive-result.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-verify-k8s-objects.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-verify-k8s-object.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-delete-k8s-object.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-build-delete-k8s-specs.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-detach-ovs.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-save-ovs-attachment.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-down.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-stop-captures.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-build-stop-origin-script.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-build-stop-dhcp-script.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-clear-captures.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-m11-remove-private.yml
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-ovs-attach.sh.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-ovs-detach.sh.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-namespace.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-peer-config.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-advertisement.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-cluster-rack1.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-cluster-rack2.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-client.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-server.yml.j2
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-validate-border.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-validate-boot-paths.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-identities.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/validate-hybrid-state.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/validate-owner-token.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-down.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/down.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/down-finalize-state.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-remove-tap.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/hybrid-remove-path.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/status.yml
+      - poc-k8s-fabric/automation/student-lab/tasks/save-state.yml
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-ubuntu-meta-data.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-ubuntu-user-data.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-ubuntu-network-config.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-cirros-meta-data.json.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-cirros-dropbear
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-cirros-dhcpcd.conf
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-cilium-values.yml.j2
+      - poc-k8s-fabric/automation/student-lab/templates/hybrid-devstack-local.conf.j2
+      - poc-k8s-fabric/automation/student-lab/tests/test-hybrid-lifecycle.sh
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-lifecycle.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-run-paths.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-boot-guard.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-overlay-checkpoint.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-download-checkpoint.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-seed-checkpoint.yml
+      - poc-k8s-fabric/automation/student-lab/tests/test-hybrid-foundation.sh
+      - poc-k8s-fabric/automation/student-lab/tests/test-hybrid-tap-lifecycle.sh
+      - poc-k8s-fabric/automation/student-lab/tests/test_hybrid_qmp.py
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-syntax.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-api-catalog.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-api-catalog-reject.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-api-version-reject.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-api-verify-rules.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-api-scheduler.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-api-scheduler-reject.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-frr-rebind.yml
+      - poc-k8s-fabric/automation/student-lab/tests/test-hybrid-api-placement.py
+      - poc-k8s-fabric/automation/student-lab/tests/test-hybrid-api.sh
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-k8s-lifecycle.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-state-map-cleanup.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-pod-ownerrefs.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-dora-xid.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-render-dora-script.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-marker-parse.yml
+      - poc-k8s-fabric/automation/student-lab/tests/test-hybrid-m11-dora-producer.sh
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-c0-evidence-roundtrip.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-m11-c0-status-down.yml
+      - poc-k8s-fabric/automation/student-lab/tests/test-hybrid-m11-dhcp-starttime.py
+      - poc-k8s-fabric/automation/student-lab/tests/test-hybrid-m11-positive-fixes.sh
+      - poc-k8s-fabric/automation/student-lab/tests/fake-kubectl-m11.sh
+      - poc-k8s-fabric/automation/student-lab/tests/fake-sudo.sh
+      - poc-k8s-fabric/automation/student-lab/tests/test-hybrid-ovs-attach.py
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-qemu-network-args.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-tap-identity.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-dns-selection.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-tap-lifecycle.yml
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-tap-create-intent.yml
+      - poc-k8s-fabric/automation/student-lab/tests/test-hybrid-tap-intent.sh
+      - poc-k8s-fabric/automation/student-lab/tests/hybrid-dns-probe.yml
+      - poc-k8s-fabric/automation/student-lab/tests/test-hybrid-dns-probe.sh
+      - poc-k8s-fabric/automation/student-lab/tests/test-hybrid-review15-wiring.py
+      - poc-k8s-fabric/automation/student-lab/requirements.txt
+      - poc-k8s-fabric/studies/p003/topo/kind-cluster-p003.yaml
+      - poc-k8s-fabric/studies/p003/topo/p003-gw.clab.yml
+      - poc-k8s-fabric/studies/p003/configs/srl/p003-spine1.cfg
+      - poc-k8s-fabric/studies/p003/configs/srl/p003-spine2.cfg
+      - poc-k8s-fabric/studies/p003/configs/srl/p003-leaf1.cfg
+      - poc-k8s-fabric/studies/p003/configs/srl/p003-leaf2.cfg
+      - poc-k8s-fabric/studies/p003/configs/srl/p003-leaf3-border.cfg
+      - poc-k8s-fabric/studies/p003/configs/frr/p003-daemons
+      - poc-k8s-fabric/studies/p003/configs/frr/p003-frr.conf
+      - poc-k8s-fabric/studies/p003/base/values-p003.yaml
+      - poc-k8s-fabric/studies/p003/base/cilium-1.20.2.tgz
+
+student_hybrid_sources:
+  ubuntu:
+    url: https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-amd64.img
+    checksum: 04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94
+  cirros:
+    url: https://download.cirros-cloud.net/0.6.3/cirros-0.6.3-x86_64-disk.img
+    checksum: 7d6355852aeb6dbcd191bcda7cd74f1536cfe5cbf8a10495a7283a8396e4b75b
+
+student_hybrid_source_revisions:
+  devstack: bb692997c2df7fc9a7071b8c28653fe47d757fe8
+  neutron: 0f4ea4b52deba0fc638e376c77be23368377acb9
+  keystone: a9de8c4c4d88b3f698de4a7170a0475bb5a02a41
+  neutron_dynamic_routing: c53a910ecfe3f626e18ccbac0651735a3413e2d1
+  requirements: 0e4a61c4886b90103879ee7e36565a73b666cf2c
+
+student_hybrid_system_packages:
+  - genisoimage
+  - dnsutils
+  - iproute2
+  - openssh-client
+  - qemu-system-x86
+  - qemu-utils
+  - tcpdump
+
+student_tool_versions:
+  ansible_core: 2.19.3
+  kind: v0.30.0
+  kubernetes: v1.35.0
+  helm: v3.17.1
+  cilium_cli: v0.18.8
+  hubble_cli: v1.20.2
+  containerlab: 0.68.0
+  cilium_chart: 1.20.2
+  kind_node_image: kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f
+
+student_tool_downloads:
+  kind:
+    url: https://github.com/kubernetes-sigs/kind/releases/download/v0.30.0/kind-linux-amd64
+    checksum: 517ab7fc89ddeed5fa65abf71530d90648d9638ef0c4cde22c2c11f8097b8889
+    archive: false
+  kubectl:
+    url: https://dl.k8s.io/v1.35.0/bin/linux/amd64/kubectl
+    checksum: a2e984a18a0c063279d692533031c1eff93a262afcc0afdc517375432d060989
+    archive: false
+  helm:
+    url: https://get.helm.sh/helm-v3.17.1-linux-amd64.tar.gz
+    checksum: 3b66f3cd28409f29832b1b35b43d9922959a32d795003149707fea84cbcd4469
+    archive: linux-amd64/helm
+  cilium:
+    url: https://github.com/cilium/cilium-cli/releases/download/v0.18.8/cilium-linux-amd64.tar.gz
+    checksum: 422940f0b7eb6eabc1e126945d1772e3f824c3f4f9fbb0df0dbbf00a271311ba
+    archive: cilium
+  hubble:
+    url: https://github.com/cilium/hubble/releases/download/v1.20.2/hubble-linux-amd64.tar.gz
+    checksum: 03f248a50cad11e728bf9383382392c57148fd6a19853ad359fb7598dae29312
+    archive: hubble
+  containerlab:
+    url: https://github.com/srl-labs/containerlab/releases/download/v0.68.0/containerlab_0.68.0_linux_amd64.tar.gz
+    checksum: a9c226cba46aeb58e8f0b8d2e46e5c38b042239d24e7f388cfc69ab21c03c780
+    archive: containerlab
+
+student_system_packages:
+  - ca-certificates
+  - curl
+  - iproute2
+  - jq
+  - python3-venv
+  - tar
+  - xz-utils

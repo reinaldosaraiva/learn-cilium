@@ -1,0 +1,21 @@
+---
+- name: Remove M11 private credentials and generated config only by saved inode
+  ansible.builtin.include_tasks: hybrid-remove-path.yml
+  vars:
+    student_hybrid_remove_path: "{{ item.path }}"
+    student_hybrid_remove_device: "{{ item.device }}"
+    student_hybrid_remove_inode: "{{ item.inode }}"
+    student_hybrid_remove_kind: file
+  loop:
+    - {path: "{{ student_state.hybrid.m11.credentials.path }}", device: "{{ student_state.hybrid.m11.credentials.device }}", inode: "{{ student_state.hybrid.m11.credentials.inode }}"}
+    - {path: "{{ student_state.hybrid.m11.devstack.config_path }}", device: "{{ student_state.hybrid.m11.devstack.config_device }}", inode: "{{ student_state.hybrid.m11.devstack.config_inode }}"}
+    - {path: "{{ student_state.hybrid.m11.ssh.known_hosts_path }}", device: "{{ student_state.hybrid.m11.ssh.known_hosts_device }}", inode: "{{ student_state.hybrid.m11.ssh.known_hosts_inode }}"}
+    - {path: "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.private_path }}", device: "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.private_device }}", inode: "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.private_inode }}"}
+    - {path: "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.public_path }}", device: "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.public_device }}", inode: "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.public_inode }}"}
+    - {path: "{{ student_state.hybrid.m11.ssh.host_keys.cirros.private_path }}", device: "{{ student_state.hybrid.m11.ssh.host_keys.cirros.private_device }}", inode: "{{ student_state.hybrid.m11.ssh.host_keys.cirros.private_inode }}"}
+    - {path: "{{ student_state.hybrid.m11.ssh.host_keys.cirros.public_path }}", device: "{{ student_state.hybrid.m11.ssh.host_keys.cirros.public_device }}", inode: "{{ student_state.hybrid.m11.ssh.host_keys.cirros.public_inode }}"}
+    - {path: "{{ student_state.hybrid.m11.frr.private_config_path }}", device: "{{ student_state.hybrid.m11.frr.config_device }}", inode: "{{ student_state.hybrid.m11.frr.config_inode }}"}
+    - {path: "{{ student_state.hybrid.m11.cilium.values_path }}", device: "{{ student_state.hybrid.m11.cilium.values_device }}", inode: "{{ student_state.hybrid.m11.cilium.values_inode }}"}
+  loop_control:
+    label: "{{ item.path | basename }}"
+  no_log: true

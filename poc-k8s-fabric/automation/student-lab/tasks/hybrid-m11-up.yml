@@ -1,0 +1,592 @@
+---
+- name: Require the started Ubuntu guest and the reserved M11 phase before provisioning
+  ansible.builtin.assert:
+    that:
+      - student_state.profile == 'hibrido'
+      - student_state.status == 'partial'
+      - student_state.hybrid.m11.phase in ['ubuntu-started', 'devstack-running']
+      - student_state.hybrid.guests.ubuntu.pid | int > 1
+      - student_state.hybrid.guests.cirros.pid | int == 0
+      - student_state.hybrid.m11.api.pending | length == 0
+    fail_msg: "M11 exige Ubuntu identificado, CirrOS ainda parado e nenhum resultado API incerto."
+  no_log: true
+
+- name: Install the pinned OpenStack services inside the reserved Ubuntu appliance
+  ansible.builtin.include_tasks: hybrid-m11-devstack.yml
+
+- name: Create and checkpoint only this run's Neutron, router, policy, and NDR objects
+  ansible.builtin.include_tasks: hybrid-m11-run-api.yml
+  vars:
+    student_hybrid_api_mode: provision
+
+- name: Require the recorded CirrOS port and provider speaker after API provisioning
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.api.pending | length == 0
+      - student_state.hybrid.m11.api.resources.cirros_port.primary.id is match('^[0-9a-f-]{36}$')
+      - student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips | length == 1
+      - student_state.hybrid.m11.api.resources.bgp_speaker.primary.id is match('^[0-9a-f-]{36}$')
+      - student_state.hybrid.m11.api.resources.tenant_network.primary.id is match('^[0-9a-f-]{36}$')
+      - student_state.hybrid.m11.api.links.drinstance.agent_id == student_state.hybrid.m11.api.agent_ids.bgp
+      - student_state.hybrid.m11.api.links.drinstance.speaker_id == student_state.hybrid.m11.api.resources.bgp_speaker.primary.id
+    fail_msg: "A topologia API não tem todos os IDs e vínculos gravados antes do attach OVS."
+  no_log: true
+
+- name: Checkpoint the exact OVS attachment intent before adding tenant0
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'status': 'partial', 'phase': 'hybrid-ovs-attach-pending',
+        'hybrid': {'m11': {'phase': 'network-attaching'}},
+        'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Save the exact OVS intent before attaching the run's Neutron port identity
+  ansible.builtin.include_tasks: hybrid-m11-save-ovs-attachment.yml
+  vars:
+    student_hybrid_m11_ovs_attachment_record:
+      phase: attaching
+      bridge_name: br-int
+      interface_name: tenant0
+      guest_uuid: "{{ student_state.hybrid.guests.ubuntu.uuid }}"
+      neutron_port_id: "{{ student_state.hybrid.m11.api.resources.cirros_port.primary.id }}"
+      attached_mac: "{{ student_state.hybrid.m11.api.resources.cirros_port.primary.mac_address }}"
+      guest_interface_mac: "{{ student_state.hybrid.guests.ubuntu.tenant_mac }}"
+      bridge_uuid: ''
+      port_uuid: ''
+      interface_uuid: ''
+      ifindex: 0
+      ofport: 0
+
+- name: Verify the guest NIC and effective Neutron OVS firewall before attachment
+  ansible.builtin.set_fact:
+    student_hybrid_m11_ovs_attach_script: >-
+      {{ lookup('template', student_repo_root ~ '/poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-ovs-attach.sh.j2') }}
+  no_log: true
+
+- name: Attach only the checked Ubuntu tenant interface to the local Neutron port
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: ubuntu
+    student_hybrid_ssh_remote_command: bash -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_ovs_attach_script }}"
+
+- name: Parse the OVS attachment markers without rewriting their values
+  ansible.builtin.include_tasks: hybrid-m11-parse-markers.yml
+  vars:
+    student_hybrid_m11_marker_prefix: P010_OVS_
+    student_hybrid_m11_marker_lines: "{{ student_hybrid_ssh_result.stdout_lines }}"
+
+- name: Retain the parsed OVS attachment markers
+  ansible.builtin.set_fact:
+    student_hybrid_m11_ovs_attach_fields: "{{ student_hybrid_m11_parsed_markers }}"
+  no_log: true
+
+- name: Require a live bridge port, saved Neutron ID, and distinct interface and Neutron MACs
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_ovs_attach_fields.BRIDGE == 'br-int'
+      - student_hybrid_m11_ovs_attach_fields.BRIDGE_UUID is match('^[0-9a-f-]{36}$')
+      - student_hybrid_m11_ovs_attach_fields.PORT_UUID is match('^[0-9a-f-]{36}$')
+      - student_hybrid_m11_ovs_attach_fields.INTERFACE_UUID is match('^[0-9a-f-]{36}$')
+      - student_hybrid_m11_ovs_attach_fields.IFINDEX | int > 0
+      - student_hybrid_m11_ovs_attach_fields.OFPORT | int > 0
+      - student_hybrid_m11_ovs_attach_fields.IFACE_ID == student_state.hybrid.m11.api.resources.cirros_port.primary.id
+      - student_hybrid_m11_ovs_attach_fields.ATTACHED_MAC | lower == student_state.hybrid.m11.api.resources.cirros_port.primary.mac_address | lower
+      - student_hybrid_m11_ovs_attach_fields.GUEST_MAC | lower == student_state.hybrid.guests.ubuntu.tenant_mac | lower
+      - student_hybrid_m11_ovs_attach_fields.ATTACHED_MAC | lower != student_hybrid_m11_ovs_attach_fields.GUEST_MAC | lower
+    fail_msg: "O OVS não confirmou a porta tenant0 com as identidades reservadas desta execução."
+  no_log: true
+
+- name: Persist the verified OVS identities before Neutron or guest DHCP checks
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'phase': 'hybrid-ovs-attached',
+        'hybrid': {'m11': {'phase': 'network-attaching'}},
+        'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Save the exact OVS identities before asking Neutron to verify port_filter
+  ansible.builtin.include_tasks: hybrid-m11-save-ovs-attachment.yml
+  vars:
+    student_hybrid_m11_ovs_attachment_record:
+      phase: attached
+      bridge_name: "{{ student_hybrid_m11_ovs_attach_fields.BRIDGE }}"
+      interface_name: tenant0
+      guest_uuid: "{{ student_state.hybrid.guests.ubuntu.uuid }}"
+      neutron_port_id: "{{ student_hybrid_m11_ovs_attach_fields.IFACE_ID }}"
+      attached_mac: "{{ student_hybrid_m11_ovs_attach_fields.ATTACHED_MAC }}"
+      guest_interface_mac: "{{ student_hybrid_m11_ovs_attach_fields.GUEST_MAC }}"
+      bridge_uuid: "{{ student_hybrid_m11_ovs_attach_fields.BRIDGE_UUID }}"
+      port_uuid: "{{ student_hybrid_m11_ovs_attach_fields.PORT_UUID }}"
+      interface_uuid: "{{ student_hybrid_m11_ovs_attach_fields.INTERFACE_UUID }}"
+      ifindex: "{{ student_hybrid_m11_ovs_attach_fields.IFINDEX | int }}"
+      ofport: "{{ student_hybrid_m11_ovs_attach_fields.OFPORT | int }}"
+
+- name: Record the actual OVS attach markers and source for the C0 binding record
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'m11': {'verification': {'gates': {
+        'ovs_observation': {
+          'observed_utc': ansible_date_time.iso8601,
+          'source': 'pinned Ubuntu SSH execution of hybrid-m11-ovs-attach.sh.j2',
+          'command_sha256': student_hybrid_m11_ovs_attach_script | hash('sha256'),
+          'rc': student_hybrid_ssh_result.rc | int,
+          'markers': student_hybrid_m11_ovs_attach_fields
+        }
+      }}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Persist the OVS observation before the isolated Neutron verification
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Verify the live binding, native port filtering, router, agents, and NDR route
+  ansible.builtin.include_tasks: hybrid-m11-run-api.yml
+  vars:
+    student_hybrid_api_mode: verify
+
+- name: Require the saved Neutron port_filter gate and unique DHCP service port
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.port_binding | bool
+      - student_state.hybrid.m11.verification.gates.dhcp_server.id is match('^[0-9a-f-]{36}$')
+      - student_state.hybrid.m11.verification.gates.dhcp_server.ip_address is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+      - student_state.hybrid.m11.verification.gates.dhcp_server.mac_address is match('^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$')
+      - student_state.hybrid.m11.verification.gates.c0_binding_observation.port.id == student_state.hybrid.m11.api.resources.cirros_port.primary.id
+      - student_state.hybrid.m11.verification.gates.c0_binding_observation.port.binding_vif_type == 'ovs'
+      - student_state.hybrid.m11.verification.gates.c0_binding_observation.port.binding_vif_details.port_filter | bool
+    fail_msg: "A porta não tem binding OVS/port_filter confirmado ou falta o servidor DHCP ativo da sub-rede."
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-m11-save-c0-binding-evidence.yml
+
+- name: Reserve the private DHCP exchange capture before CirrOS starts
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'phase': 'hybrid-dhcp-capture-pending',
+        'hybrid': {'m11': {'phase': 'dhcp-capturing', 'verification': {'gates': {
+          'dhcp_capture': {
+            'phase': 'starting',
+            'path': '/tmp/p010-' ~ student_state.run_id ~ '-dhcp.log',
+            'client_mac': student_state.hybrid.guests.cirros.tenant_mac,
+            'address': student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address,
+            'gateway': student_state.hybrid.m11.network.tenant_gateway,
+            'server_ip': student_state.hybrid.m11.verification.gates.dhcp_server.ip_address,
+            'server_mac': student_state.hybrid.m11.verification.gates.dhcp_server.mac_address,
+            'result_path': '/tmp/p010-' ~ student_state.run_id ~ '-dhcp.result',
+            'pid': 0, 'starttime': 0, 'process_uid': 0, 'netns': '', 'ifindex': 0,
+            'tcpdump_pid': 0, 'tcpdump_starttime': 0, 'tcpdump_uid': 0, 'tcpdump_netns': '',
+            'launcher_pid': 0, 'launcher_starttime': 0, 'launcher_uid': 0,
+            'supervisor_pid': 0, 'supervisor_starttime': 0, 'supervisor_uid': 0,
+            'device': 0, 'inode': 0, 'owner_uid': 0,
+            'result_device': 0, 'result_inode': 0, 'result_owner_uid': 0,
+            'started_utc': '', 'completed_utc': '', 'capture_rc': -1, 'captured_count': 0,
+            'stop_requested': false, 'xid': ''
+          }
+        }}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Persist the fresh DORA capture intent before starting tcpdump
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-m11-prepare-dhcp-capture.yml
+
+- name: Start a bounded DHCP capture on the Neutron-attached guest interface
+  ansible.builtin.set_fact:
+    student_hybrid_m11_dhcp_start_script: |-
+      set -eu
+      umask 077
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      capture={{ student_state.hybrid.m11.verification.gates.dhcp_capture.path | quote }}
+      result={{ student_state.hybrid.m11.verification.gates.dhcp_capture.result_path | quote }}
+      expected_capture={{ ((student_state.hybrid.m11.verification.gates.dhcp_capture.device | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.inode | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.owner_uid | string) ~ '|600') | quote }}
+      expected_result={{ ((student_state.hybrid.m11.verification.gates.dhcp_capture.result_device | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.result_inode | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.result_owner_uid | string) ~ '|600') | quote }}
+      [ -f "$capture" ] && [ ! -L "$capture" ]
+      [ -f "$result" ] && [ ! -L "$result" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$capture")" = "$expected_capture" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$result")" = "$expected_result" ]
+      [ "$(stat -c '%u|%a' "$capture")" = "$(id -u)|600" ]
+      [ "$(stat -c '%u|%a' "$result")" = "$(id -u)|600" ]
+      printf 'P010_DHCP_FILE=%s\n' "$(stat -c '%d|%i|%u|%a' "$capture")" >&3
+      printf 'P010_DHCP_RESULT_FILE=%s\n' "$(stat -c '%d|%i|%u|%a' "$result")" >&3
+      (
+        set +e
+        started_utc="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        sudo -n /usr/bin/timeout 120 /usr/sbin/tcpdump -n -e -vv -l -c 32 -i tenant0 "udp and (port 67 or port 68)" >"$capture" 2>&1 </dev/null 3>&- 4>&- &
+        pid=$!
+        starttime=''
+        process_uid=''
+        netns=''
+        command=''
+        for attempt in $(seq 1 40); do
+          if [ -r "/proc/$pid/stat" ]; then
+            starttime="$(sudo -n /usr/bin/awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/$pid/stat" 2>/dev/null)"
+            process_uid="$(sudo -n /usr/bin/stat -c '%u' "/proc/$pid" 2>/dev/null)"
+            command="$(sudo -n /usr/bin/cat "/proc/$pid/cmdline" 2>/dev/null | tr '\000' ' ')"
+            netns="$(sudo -n /usr/bin/readlink "/proc/$pid/ns/net" 2>/dev/null)"
+            if printf '%s' "$command" | grep -Fq '/usr/sbin/tcpdump -n -e -vv -l -c 32 -i tenant0 udp and (port 67 or port 68)'; then break; fi
+          fi
+          sleep 0.1
+        done
+        tcpdump_pid=''
+        tcpdump_starttime=''
+        tcpdump_uid=''
+        tcpdump_netns=''
+        queue="$pid"
+        for depth in 1 2 3 4; do
+          next_queue=''
+          for parent_pid in $queue; do
+            children="$(sudo -n /usr/bin/cat "/proc/$parent_pid/task/$parent_pid/children" 2>/dev/null || true)"
+            for candidate_pid in $children; do
+              candidate_command="$(sudo -n /usr/bin/cat "/proc/$candidate_pid/cmdline" 2>/dev/null | tr '\000' ' ' || true)"
+              case "$candidate_command" in
+                "/usr/sbin/tcpdump -n -e -vv -l -c 32 -i tenant0 udp and (port 67 or port 68)"*)
+                  [ -z "$tcpdump_pid" ] || { tcpdump_pid='duplicate'; break; }
+                  tcpdump_pid="$candidate_pid"
+                  ;;
+                *) next_queue="$next_queue $candidate_pid" ;;
+              esac
+            done
+          done
+          [ -z "$tcpdump_pid" ] || [ "$tcpdump_pid" = duplicate ] || break
+          queue="$next_queue"
+        done
+        if [ -n "$tcpdump_pid" ] && [ "$tcpdump_pid" != duplicate ]; then
+          tcpdump_starttime="$(sudo -n /usr/bin/awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/$tcpdump_pid/stat" 2>/dev/null)"
+          tcpdump_uid="$(sudo -n /usr/bin/stat -c '%u' "/proc/$tcpdump_pid" 2>/dev/null)"
+          tcpdump_netns="$(sudo -n /usr/bin/readlink "/proc/$tcpdump_pid/ns/net" 2>/dev/null)"
+        fi
+        supervisor_pid="$BASHPID"
+        supervisor_starttime="$(awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/$supervisor_pid/stat")"
+        supervisor_uid="$(id -u)"
+        ifindex="$(cat /sys/class/net/tenant0/ifindex 2>/dev/null)"
+        {
+          printf 'P010_DHCP_PID=%s\n' "$pid"
+          printf 'P010_DHCP_STARTTIME=%s\n' "$starttime"
+          printf 'P010_DHCP_UID=%s\n' "$process_uid"
+          printf 'P010_DHCP_NETNS=%s\n' "$netns"
+          printf 'P010_DHCP_IFINDEX=%s\n' "$ifindex"
+          printf 'P010_DHCP_TCPDUMP_PID=%s\n' "$tcpdump_pid"
+          printf 'P010_DHCP_TCPDUMP_STARTTIME=%s\n' "$tcpdump_starttime"
+          printf 'P010_DHCP_TCPDUMP_UID=%s\n' "$tcpdump_uid"
+          printf 'P010_DHCP_TCPDUMP_NETNS=%s\n' "$tcpdump_netns"
+          printf 'P010_DHCP_SUPERVISOR_PID=%s\n' "$supervisor_pid"
+          printf 'P010_DHCP_SUPERVISOR_STARTTIME=%s\n' "$supervisor_starttime"
+          printf 'P010_DHCP_SUPERVISOR_UID=%s\n' "$supervisor_uid"
+          printf 'P010_DHCP_STARTED_UTC=%s\n' "$started_utc"
+        } >>"$result"
+        ready=0
+        for attempt in $(seq 1 40); do
+          if grep -Fq 'listening on tenant0' "$capture" && [ -n "$tcpdump_starttime" ] && [ -n "$tcpdump_netns" ] && [ "$ifindex" -gt 0 ]; then
+            current_start="$(sudo -n /usr/bin/awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/$tcpdump_pid/stat" 2>/dev/null || true)"
+            current_command="$(sudo -n /usr/bin/cat "/proc/$tcpdump_pid/cmdline" 2>/dev/null | tr '\000' ' ' || true)"
+            if [ "$current_start" = "$tcpdump_starttime" ] && case "$current_command" in "/usr/sbin/tcpdump -n -e -vv -l -c 32 -i tenant0 udp and (port 67 or port 68)"*) true ;; *) false ;; esac; then
+              ready=1
+              break
+            fi
+          fi
+          grep -q '^P010_DHCP_EXIT_RC=' "$result" && break
+          sleep 0.25
+        done
+        printf 'P010_DHCP_READY=%s\n' "$ready" >>"$result"
+        wait "$pid"
+        rc=$?
+        completed_utc="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        printf 'P010_DHCP_EXIT_RC=%s\nP010_DHCP_COMPLETED_UTC=%s\n' "$rc" "$completed_utc" >>"$result"
+        exit 0
+      ) </dev/null >/dev/null 2>&1 3>&- 4>&- &
+      supervisor_pid=$!
+      supervisor_starttime="$(awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/$supervisor_pid/stat")"
+      supervisor_uid="$(stat -c '%u' "/proc/$supervisor_pid")"
+      for attempt in $(seq 1 80); do
+        grep -q '^P010_DHCP_PID=' "$result" && break
+        sleep 0.1
+      done
+      for attempt in $(seq 1 80); do
+        grep -q '^P010_DHCP_READY=' "$result" && break
+        grep -q '^P010_DHCP_EXIT_RC=' "$result" && break
+        sleep 0.1
+      done
+      pid="$(sed -n 's/^P010_DHCP_PID=//p' "$result" | head -n 1)"
+      starttime="$(sed -n 's/^P010_DHCP_STARTTIME=//p' "$result" | head -n 1)"
+      process_uid="$(sed -n 's/^P010_DHCP_UID=//p' "$result" | head -n 1)"
+      netns="$(sed -n 's/^P010_DHCP_NETNS=//p' "$result" | head -n 1)"
+      ifindex="$(sed -n 's/^P010_DHCP_IFINDEX=//p' "$result" | head -n 1)"
+      started_utc="$(sed -n 's/^P010_DHCP_STARTED_UTC=//p' "$result" | head -n 1)"
+      ready="$(sed -n 's/^P010_DHCP_READY=//p' "$result" | head -n 1)"
+      tcpdump_pid="$(sed -n 's/^P010_DHCP_TCPDUMP_PID=//p' "$result" | head -n 1)"
+      tcpdump_starttime="$(sed -n 's/^P010_DHCP_TCPDUMP_STARTTIME=//p' "$result" | head -n 1)"
+      tcpdump_uid="$(sed -n 's/^P010_DHCP_TCPDUMP_UID=//p' "$result" | head -n 1)"
+      tcpdump_netns="$(sed -n 's/^P010_DHCP_TCPDUMP_NETNS=//p' "$result" | head -n 1)"
+      [ -n "$pid" ]
+      printf 'P010_DHCP_PID=%s\n' "$pid" >&3
+      printf 'P010_DHCP_STARTTIME=%s\n' "$starttime" >&3
+      printf 'P010_DHCP_UID=%s\n' "$process_uid" >&3
+      printf 'P010_DHCP_NETNS=%s\n' "$netns" >&3
+      printf 'P010_DHCP_IFINDEX=%s\n' "$ifindex" >&3
+      printf 'P010_DHCP_TCPDUMP_PID=%s\n' "$tcpdump_pid" >&3
+      printf 'P010_DHCP_TCPDUMP_STARTTIME=%s\n' "$tcpdump_starttime" >&3
+      printf 'P010_DHCP_TCPDUMP_UID=%s\n' "$tcpdump_uid" >&3
+      printf 'P010_DHCP_TCPDUMP_NETNS=%s\n' "$tcpdump_netns" >&3
+      printf 'P010_DHCP_SUPERVISOR_PID=%s\n' "$supervisor_pid" >&3
+      printf 'P010_DHCP_SUPERVISOR_STARTTIME=%s\n' "$supervisor_starttime" >&3
+      printf 'P010_DHCP_SUPERVISOR_UID=%s\n' "$supervisor_uid" >&3
+      printf 'P010_DHCP_STARTED_UTC=%s\n' "$started_utc" >&3
+      printf 'P010_DHCP_READY=%s\n' "${ready:-0}" >&3
+  no_log: true
+
+- name: Start the DHCP capture only through the saved Ubuntu SSH identity
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: ubuntu
+    student_hybrid_ssh_remote_command: bash -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_dhcp_start_script }}"
+    student_hybrid_ssh_allow_failure: true
+
+- name: Parse the DHCP capture markers without rewriting their values
+  ansible.builtin.include_tasks: hybrid-m11-parse-markers.yml
+  vars:
+    student_hybrid_m11_marker_prefix: P010_DHCP_
+    student_hybrid_m11_marker_lines: "{{ student_hybrid_ssh_result.stdout_lines }}"
+
+- name: Retain the parsed DHCP capture markers
+  ansible.builtin.set_fact:
+    student_hybrid_m11_dhcp_fields: "{{ student_hybrid_m11_parsed_markers }}"
+  no_log: true
+
+- name: Checkpoint any capture file identity before relying on process startup
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_dhcp_fields.FILE is defined
+      - student_hybrid_m11_dhcp_fields.FILE.split('|') | length == 4
+      - student_hybrid_m11_dhcp_fields.FILE.split('|')[0] | int > 0
+      - student_hybrid_m11_dhcp_fields.FILE.split('|')[1] | int > 0
+      - student_hybrid_m11_dhcp_fields.FILE.split('|')[2] | int == student_uid | int
+      - student_hybrid_m11_dhcp_fields.FILE.split('|')[3] == '600'
+      - student_hybrid_m11_dhcp_fields.RESULT_FILE is not defined or (student_hybrid_m11_dhcp_fields.RESULT_FILE.split('|') | length == 4 and student_hybrid_m11_dhcp_fields.RESULT_FILE.split('|')[0] | int > 0 and student_hybrid_m11_dhcp_fields.RESULT_FILE.split('|')[1] | int > 0 and student_hybrid_m11_dhcp_fields.RESULT_FILE.split('|')[2] | int == student_uid | int and student_hybrid_m11_dhcp_fields.RESULT_FILE.split('|')[3] == '600')
+    fail_msg: "A captura DHCP tem arquivo sem identidade privada; estado parcial preserva apenas a intenção." 
+  no_log: true
+
+- name: Persist capture file identities before validating the observer process
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'m11': {'verification': {'gates': {
+        'dhcp_capture': {
+          'phase': 'starting',
+          'path': student_state.hybrid.m11.verification.gates.dhcp_capture.path,
+          'result_path': student_state.hybrid.m11.verification.gates.dhcp_capture.result_path,
+          'client_mac': student_state.hybrid.m11.verification.gates.dhcp_capture.client_mac,
+          'address': student_state.hybrid.m11.verification.gates.dhcp_capture.address,
+          'gateway': student_state.hybrid.m11.verification.gates.dhcp_capture.gateway,
+          'server_ip': student_state.hybrid.m11.verification.gates.dhcp_capture.server_ip,
+          'server_mac': student_state.hybrid.m11.verification.gates.dhcp_capture.server_mac,
+          'pid': 0, 'starttime': 0, 'process_uid': 0, 'netns': '', 'ifindex': 0,
+          'tcpdump_pid': 0, 'tcpdump_starttime': 0, 'tcpdump_uid': 0, 'tcpdump_netns': '',
+          'supervisor_pid': 0, 'supervisor_starttime': 0, 'supervisor_uid': 0,
+          'device': student_hybrid_m11_dhcp_fields.FILE.split('|')[0] | int,
+          'inode': student_hybrid_m11_dhcp_fields.FILE.split('|')[1] | int,
+          'owner_uid': student_hybrid_m11_dhcp_fields.FILE.split('|')[2] | int,
+          'result_device': (student_hybrid_m11_dhcp_fields.RESULT_FILE | default('0|0|0|0')).split('|')[0] | int,
+          'result_inode': (student_hybrid_m11_dhcp_fields.RESULT_FILE | default('0|0|0|0')).split('|')[1] | int,
+          'result_owner_uid': (student_hybrid_m11_dhcp_fields.RESULT_FILE | default('0|0|0|0')).split('|')[2] | int,
+          'started_utc': '', 'xid': ''
+        }
+      }}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Persist the capture file identities before process startup validation
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Require a private capture file and a running command bound to tenant0
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_dhcp_fields.PID | int > 1
+      - student_hybrid_m11_dhcp_fields.STARTTIME is match('^[0-9]+$')
+      - student_hybrid_m11_dhcp_fields.UID is match('^[0-9]+$')
+      - student_hybrid_m11_dhcp_fields.NETNS is match('^net:\[[0-9]+\]$')
+      - student_hybrid_m11_dhcp_fields.IFINDEX | int > 0
+      - student_hybrid_m11_dhcp_fields.TCPDUMP_PID | int > 1
+      - student_hybrid_m11_dhcp_fields.TCPDUMP_STARTTIME is match('^[0-9]+$')
+      - student_hybrid_m11_dhcp_fields.TCPDUMP_UID is match('^[0-9]+$')
+      - student_hybrid_m11_dhcp_fields.TCPDUMP_NETNS == student_hybrid_m11_dhcp_fields.NETNS
+      - student_hybrid_m11_dhcp_fields.SUPERVISOR_PID | int > 1
+      - student_hybrid_m11_dhcp_fields.SUPERVISOR_STARTTIME is match('^[0-9]+$')
+      - student_hybrid_m11_dhcp_fields.SUPERVISOR_UID is match('^[0-9]+$')
+      - student_hybrid_m11_dhcp_fields.STARTED_UTC is match('^20[0-9]{2}-[0-9]{2}-[0-9]{2}T')
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.inode | int > 0
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.owner_uid | int == student_uid | int
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.result_inode | int > 0
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.result_owner_uid | int == student_uid | int
+    fail_msg: "Captura DHCP sem identidade privada e processo correspondente; execução permanece parcial."
+  no_log: true
+
+- name: Checkpoint the bounded DHCP capture process before booting CirrOS
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'m11': {'verification': {'gates': {
+        'dhcp_capture': {
+          'phase': 'capturing',
+          'path': student_state.hybrid.m11.verification.gates.dhcp_capture.path,
+          'client_mac': student_state.hybrid.m11.verification.gates.dhcp_capture.client_mac,
+          'address': student_state.hybrid.m11.verification.gates.dhcp_capture.address,
+          'gateway': student_state.hybrid.m11.verification.gates.dhcp_capture.gateway,
+          'server_ip': student_state.hybrid.m11.verification.gates.dhcp_capture.server_ip,
+            'server_mac': student_state.hybrid.m11.verification.gates.dhcp_capture.server_mac,
+            'result_path': student_state.hybrid.m11.verification.gates.dhcp_capture.result_path,
+          'pid': student_hybrid_m11_dhcp_fields.PID | int,
+          'starttime': student_hybrid_m11_dhcp_fields.STARTTIME | int,
+          'process_uid': student_hybrid_m11_dhcp_fields.UID | int,
+            'netns': student_hybrid_m11_dhcp_fields.NETNS,
+            'ifindex': student_hybrid_m11_dhcp_fields.IFINDEX | int,
+            'tcpdump_pid': student_hybrid_m11_dhcp_fields.TCPDUMP_PID | int,
+            'tcpdump_starttime': student_hybrid_m11_dhcp_fields.TCPDUMP_STARTTIME | int,
+            'tcpdump_uid': student_hybrid_m11_dhcp_fields.TCPDUMP_UID | int,
+            'tcpdump_netns': student_hybrid_m11_dhcp_fields.TCPDUMP_NETNS,
+            'supervisor_pid': student_hybrid_m11_dhcp_fields.SUPERVISOR_PID | int,
+            'supervisor_starttime': student_hybrid_m11_dhcp_fields.SUPERVISOR_STARTTIME | int,
+            'supervisor_uid': student_hybrid_m11_dhcp_fields.SUPERVISOR_UID | int,
+            'started_utc': student_hybrid_m11_dhcp_fields.STARTED_UTC,
+          'owner_uid': student_state.hybrid.m11.verification.gates.dhcp_capture.owner_uid | int,
+          'device': student_state.hybrid.m11.verification.gates.dhcp_capture.device | int,
+          'inode': student_state.hybrid.m11.verification.gates.dhcp_capture.inode | int,
+          'result_owner_uid': student_state.hybrid.m11.verification.gates.dhcp_capture.result_owner_uid | int,
+          'result_device': student_state.hybrid.m11.verification.gates.dhcp_capture.result_device | int,
+          'result_inode': student_state.hybrid.m11.verification.gates.dhcp_capture.result_inode | int,
+          'capture_rc': -1, 'captured_count': 0, 'completed_utc': '', 'stop_requested': false,
+          'xid': ''
+        }
+      }}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Persist the capture process identity before starting CirrOS
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Require tcpdump to have reported its live tenant0 listener before booting CirrOS
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_dhcp_fields.READY == '1'
+      - student_hybrid_ssh_result.rc | int == 0
+    fail_msg: "A captura DHCP não confirmou um listener ativo em tenant0; o estado parcial mantém as identidades para cleanup."
+  no_log: true
+
+- name: Boot only the CirrOS guest after Neutron binding and DHCP capture are ready
+  ansible.builtin.include_tasks: hybrid-boot-one.yml
+  vars:
+    student_hybrid_guest_name: cirros
+
+- name: Wait for CirrOS's pinned host key and private public-key SSH transport
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: cirros
+    student_hybrid_ssh_remote_command: "true"
+    student_hybrid_ssh_allow_retry: true
+
+- name: Require the CirrOS tenant NIC to have Neutron's fixed address and default gateway
+  ansible.builtin.set_fact:
+    student_hybrid_m11_cirros_lease_script: |-
+      set -eu
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      expected_ip={{ student_state.hybrid.m11.verification.gates.dhcp_capture.address | quote }}
+      expected_mac={{ student_state.hybrid.m11.verification.gates.dhcp_capture.client_mac | quote }}
+      expected_gateway={{ student_state.hybrid.m11.verification.gates.dhcp_capture.gateway | quote }}
+      actual_mac="$(cat /sys/class/net/eth1/address | tr '[:upper:]' '[:lower:]')"
+      [ "$actual_mac" = "$(printf '%s' "$expected_mac" | tr '[:upper:]' '[:lower:]')" ]
+      ip -4 -o address show dev eth1 | awk -v expected="$expected_ip/24" '$4 == expected { found=1 } END { exit !found }'
+      ip -4 route show default | grep -E "^default via $expected_gateway dev eth1( |$)" >/dev/null
+      printf 'P010_CIRROS_IP=%s\n' "$expected_ip" >&3
+      printf 'P010_CIRROS_MAC=%s\n' "$actual_mac" >&3
+      printf 'P010_CIRROS_GATEWAY=%s\n' "$expected_gateway" >&3
+  no_log: true
+
+- name: Verify the Neutron DHCP lease using the guest's pinned host key
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: cirros
+    student_hybrid_ssh_remote_command: sh -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_cirros_lease_script }}"
+
+- name: Parse the pinned CirrOS lease markers before stopping the first-boot observer
+  ansible.builtin.include_tasks: hybrid-m11-parse-markers.yml
+  vars:
+    student_hybrid_m11_marker_prefix: P010_CIRROS_
+    student_hybrid_m11_marker_lines: "{{ student_hybrid_ssh_result.stdout_lines }}"
+
+- name: Require the reported CirrOS interface, fixed address, and router
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_parsed_markers.IP == student_state.hybrid.m11.verification.gates.dhcp_capture.address
+      - student_hybrid_m11_parsed_markers.MAC | lower == student_state.hybrid.m11.verification.gates.dhcp_capture.client_mac | lower
+      - student_hybrid_m11_parsed_markers.GATEWAY == student_state.hybrid.m11.verification.gates.dhcp_capture.gateway
+    fail_msg: "A interface tenant CirrOS não apresenta o lease e gateway registrados para esta execução."
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-m11-finish-dhcp-capture.yml
+
+- ansible.builtin.include_tasks: hybrid-m11-build-dora-script.yml
+
+- name: Require fresh DHCP Discover Offer Request Ack with one xid and pinned endpoints
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: ubuntu
+    student_hybrid_ssh_remote_command: bash -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_dora_script }}"
+
+- name: Parse the bounded DHCP exchange markers without retaining packet output
+  ansible.builtin.include_tasks: hybrid-m11-parse-markers.yml
+  vars:
+    student_hybrid_m11_marker_prefix: P010_DORA_
+    student_hybrid_m11_marker_lines: "{{ student_hybrid_ssh_result.stdout_lines }}"
+
+- name: Retain the parsed DHCP exchange markers
+  ansible.builtin.set_fact:
+    student_hybrid_m11_dora_fields: "{{ student_hybrid_m11_parsed_markers }}"
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-m11-validate-dora.yml
+
+- ansible.builtin.include_tasks: hybrid-m11-save-c0-dora-evidence.yml
+
+- ansible.builtin.include_tasks: hybrid-m11-verify-c0.yml
+
+- name: Save the completed DHCP lease and transaction identities
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-dhcp-verified
+      hybrid:
+        phase: partial
+        m11:
+          phase: guest-ready
+          verification:
+            phase: guest-ready
+            gates:
+              dhcp_capture:
+                phase: verified
+                xid: "{{ student_hybrid_m11_dora_fields.XID }}"
+              dhcp_lease:
+                phase: verified
+                address: "{{ student_hybrid_m11_dora_fields.ADDRESS }}"
+                gateway: "{{ student_hybrid_m11_dora_fields.GATEWAY }}"
+                client_mac: "{{ student_hybrid_m11_dora_fields.CLIENT_MAC }}"
+  no_log: true

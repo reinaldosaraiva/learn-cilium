@@ -1,0 +1,419 @@
+---
+- name: Local student lab
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  become: false
+  vars_files:
+    - vars.yml
+  vars:
+    student_action: "{{ lookup('env', 'P010_LAB_ACTION') }}"
+    student_profile_name: "{{ lookup('env', 'P010_LAB_PROFILE') }}"
+    student_repo_root: "{{ lookup('env', 'P010_LAB_REPO_ROOT') }}"
+    student_state_dir: "{{ lookup('env', 'P010_LAB_STATE_DIR') }}"
+    student_tool_dir: "{{ lookup('env', 'P010_LAB_TOOL_DIR') }}"
+    student_uid: "{{ lookup('env', 'P010_LAB_UID') | int }}"
+    student_new_run_id: "{{ lookup('env', 'P010_LAB_NEW_RUN_ID') }}"
+    student_new_owner_token: "{{ lookup('env', 'P010_LAB_NEW_OWNER_TOKEN') }}"
+    student_exercise_input: "{{ lookup('env', 'P010_LAB_EXERCISE') }}"
+    student_wireguard_input: "{{ lookup('env', 'P010_LAB_WG') }}"
+    student_new_session_id: "{{ lookup('env', 'P010_LAB_NEW_SESSION_ID') }}"
+    student_shell_guest_input: "{{ lookup('env', 'P010_LAB_GUEST') }}"
+    student_shell_console_id: "{{ lookup('env', 'P010_LAB_SHELL_CONSOLE_ID') }}"
+    student_shell_phase: "{{ lookup('env', 'P010_LAB_SHELL_PHASE') }}"
+    student_docker_bin: /usr/bin/docker
+    student_state_file: "{{ student_state_dir }}/state.json"
+    student_state_keys:
+      - schema
+      - owner_uid
+      - owner_token
+      - profile
+      - run_id
+      - status
+      - phase
+      - kind_name
+      - context
+      - kubeconfig
+      - kubeconfig_sha256
+      - api_server
+      - cluster_uid
+      - kind_node_ids
+      - fabric_node_ids
+      - network_ids
+      - profile_fingerprint
+      - chart_sha256
+      - values_sha256
+      - topology_sha256
+      - topology_file
+      - helm_revision
+      - clab_up_log
+      - clab_down_log
+      - started_utc
+      - updated_utc
+      - exercise
+      - wireguard_mode
+      - exercise_session
+  tasks:
+    - name: Validate operation and profile
+      ansible.builtin.assert:
+        that:
+          - student_action in ['up', 'preflight', 'status', 'env', 'verify', 'down', 'session', 'shell']
+          - student_profile_name in student_profiles
+          - student_action != 'shell' or student_profile_name == 'hibrido'
+          - student_action != 'shell' or student_shell_guest_input in ['ubuntu', 'cirros']
+          - student_action != 'shell' or student_shell_console_id is match('^[0-9a-f]{32}$')
+          - student_action != 'shell' or student_shell_phase in ['prepare', 'cleanup']
+          - student_action == 'shell' or (student_shell_guest_input == '' and student_shell_console_id == '' and student_shell_phase == '')
+        fail_msg: "Ação ou perfil fora da interface pública do student-lab."
+
+    - name: Select the requested profile
+      ansible.builtin.set_fact:
+        student_profile: "{{ student_profiles[student_profile_name] }}"
+
+    - name: Keep the incomplete hybrid public path closed before effects
+      ansible.builtin.fail:
+        msg: "M11/hibrido ainda não tem Neutron, DHCP, BGP, security groups e verificação bidirecional completos; lab-up/env/verify/session permanecem bloqueados antes de qualquer alteração."
+      when:
+        - student_profile_name == 'hibrido'
+        - student_action in ['up', 'env', 'verify', 'session']
+
+    - name: Validate scenario input before any host or cluster operation
+      ansible.builtin.assert:
+        that:
+          - student_profile_name == 'plataforma' or (student_exercise_input | length == 0 and student_wireguard_input | length == 0)
+          - student_action in ['up', 'preflight'] or (student_exercise_input | length == 0 and student_wireguard_input | length == 0)
+          - student_action not in ['up', 'preflight'] or student_profile_name != 'plataforma' or (student_exercise_input | default('baseline', true)) in student_exercises
+          - student_action not in ['up', 'preflight'] or student_profile_name != 'plataforma' or (student_exercise_input in ['wireguard-native', 'wireguard-vxlan'] and (student_wireguard_input | default('W1', true)) in ['W0', 'W1', 'W2']) or (student_exercise_input not in ['wireguard-native', 'wireguard-vxlan'] and student_wireguard_input | length == 0)
+          - student_action != 'session' or student_profile_name == 'iniciantes'
+          - student_action != 'shell' or (student_exercise_input | length == 0 and student_wireguard_input | length == 0)
+        fail_msg: "EXERCISE/WG inválido para o perfil ou ação; nenhum recurso será reconciliado."
+
+    - name: Check the private state directory
+      ansible.builtin.stat:
+        path: "{{ student_state_dir }}"
+        follow: false
+      register: student_state_dir_stat
+
+    - name: Require a private state directory owned by the invoking user
+      ansible.builtin.assert:
+        that:
+          - student_state_dir_stat.stat.isdir | default(false)
+          - not (student_state_dir_stat.stat.islnk | default(false))
+          - student_state_dir_stat.stat.uid | int == student_uid
+          - student_state_dir_stat.stat.mode == '0700'
+        fail_msg: "Diretório de estado deve ser um diretório real do usuário, modo 0700."
+
+    - name: Inspect the state file without following symlinks
+      ansible.builtin.stat:
+        path: "{{ student_state_file }}"
+        follow: false
+      register: student_state_stat
+
+    - name: Reject insecure state files
+      ansible.builtin.assert:
+        that:
+          - student_state_stat.stat.isreg | default(false)
+          - not (student_state_stat.stat.islnk | default(false))
+          - student_state_stat.stat.uid | int == student_uid
+          - student_state_stat.stat.mode == '0600'
+        fail_msg: "Arquivo de estado deve ser regular, do usuário atual e modo 0600."
+      when: student_state_stat.stat.exists | default(false)
+
+    - name: Read the private JSON state without sourcing it
+      ansible.builtin.slurp:
+        src: "{{ student_state_file }}"
+      register: student_state_slurp
+      when: student_state_stat.stat.exists | default(false)
+
+    - name: Parse state as JSON data
+      ansible.builtin.set_fact:
+        student_state: "{{ student_state_slurp.content | b64decode | from_json }}"
+        student_has_state: true
+      when: student_state_stat.stat.exists | default(false)
+
+    - name: Set empty state when no run exists
+      ansible.builtin.set_fact:
+        student_state: {}
+        student_has_state: false
+      when: not (student_state_stat.stat.exists | default(false))
+
+    - name: Normalize the exact empty hybrid field from a completed schema-2 state
+      ansible.builtin.set_fact:
+        student_state: "{{ student_state | dict2items | rejectattr('key', 'equalto', 'hybrid') | list | items2dict }}"
+      when: >-
+        student_has_state
+        and student_state is mapping
+        and 'hybrid' in student_state
+        and student_state.keys() | difference(student_state_keys + ['hybrid']) | length == 0
+        and student_state_keys | difference(student_state.keys() | list) | length == 0
+        and (student_state.schema | default(none) | type_debug) == 'int'
+        and student_state.schema == 2
+        and (student_state.owner_uid | default(none) | type_debug) == 'int'
+        and student_state.owner_uid == student_uid
+        and student_state.profile in student_profiles
+        and student_state.profile != 'hibrido'
+        and student_state.status == 'down'
+        and student_state.phase == 'removed'
+        and (student_state.helm_revision | default(none) | type_debug) == 'int'
+        and student_state.helm_revision == 0
+        and student_state.kind_node_ids is mapping
+        and student_state.kind_node_ids == {}
+        and student_state.fabric_node_ids is mapping
+        and student_state.fabric_node_ids == {}
+        and student_state.network_ids is mapping
+        and student_state.network_ids == {}
+        and student_state.hybrid is mapping
+        and student_state.hybrid == {}
+
+    - name: Validate the stored state version and exact key set
+      ansible.builtin.assert:
+        that:
+          - student_state is mapping
+          - (student_state.schema | int == 1 and student_state.keys() | difference(student_legacy_state_keys) | length == 0 and student_legacy_state_keys | difference(student_state.keys() | list) | length == 0) or (student_state.schema | int == 2 and student_state.keys() | difference(student_state_keys) | length == 0 and student_state_keys | difference(student_state.keys() | list) | length == 0) or (student_state.schema | int == 3 and student_state.keys() | difference(student_state_keys_v3) | length == 0 and student_state_keys_v3 | difference(student_state.keys() | list) | length == 0)
+        fail_msg: "Versão ou campos do estado privado não são reconhecidos."
+      vars:
+        student_legacy_state_keys:
+          - schema
+          - owner_uid
+          - owner_token
+          - profile
+          - run_id
+          - status
+          - phase
+          - kind_name
+          - context
+          - kubeconfig
+          - kubeconfig_sha256
+          - api_server
+          - cluster_uid
+          - kind_node_ids
+          - fabric_node_ids
+          - network_ids
+          - profile_fingerprint
+          - chart_sha256
+          - values_sha256
+          - topology_sha256
+          - topology_file
+          - helm_revision
+          - clab_up_log
+          - clab_down_log
+          - started_utc
+          - updated_utc
+        student_state_keys_v3:
+          - schema
+          - owner_uid
+          - owner_token
+          - profile
+          - run_id
+          - status
+          - phase
+          - kind_name
+          - context
+          - kubeconfig
+          - kubeconfig_sha256
+          - api_server
+          - cluster_uid
+          - kind_node_ids
+          - fabric_node_ids
+          - network_ids
+          - profile_fingerprint
+          - chart_sha256
+          - values_sha256
+          - topology_sha256
+          - topology_file
+          - helm_revision
+          - clab_up_log
+          - clab_down_log
+          - started_utc
+          - updated_utc
+          - exercise
+          - wireguard_mode
+          - exercise_session
+          - hybrid
+      when: student_has_state
+
+    - name: Add empty scenario fields when reading a phase one state
+      ansible.builtin.set_fact:
+        student_state: "{{ student_state | combine({'schema': 2, 'exercise': ('baseline' if student_state.profile == 'plataforma' else ''), 'wireguard_mode': '', 'exercise_session': {}}, recursive=true) }}"
+      when:
+        - student_has_state
+        - student_state.schema | int == 1
+
+    - name: Validate state schema and ownership fields
+      ansible.builtin.assert:
+        that:
+          - student_state.schema | int in [2, 3]
+          - (student_state.schema | int == 3 and student_state.profile == 'hibrido') or (student_state.schema | int == 2 and student_state.profile != 'hibrido')
+          - student_state.owner_uid | int == student_uid
+          - student_state.profile in student_profiles
+          - student_state.kind_name == student_profiles[student_state.profile].kind_name
+          - student_state.context == student_profiles[student_state.profile].context
+          - student_state.run_id is match('^[0-9]{8}-[0-9a-f]{32}$')
+          - student_state.owner_token is match('^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+          - student_state.status in ['preparing', 'partial', 'up', 'down']
+          - student_state.phase is match('^[a-z][a-z0-9-]{0,31}$')
+          - student_state.kubeconfig == student_state_dir ~ '/runs/' ~ student_state.run_id ~ '/kubeconfig'
+          - student_state.kind_node_ids is mapping
+          - student_state.fabric_node_ids is mapping
+          - student_state.network_ids is mapping
+          - student_state.kind_node_ids.keys() | list | difference(student_profiles[student_state.profile].kind_nodes) | length == 0
+          - student_state.fabric_node_ids.keys() | list | difference(student_profiles[student_state.profile].fabric_nodes) | length == 0
+          - student_state.network_ids.keys() | list | difference([student_profiles[student_state.profile].topology_network] if student_profiles[student_state.profile].topology_network is not none else []) | length == 0
+          - student_state.kind_node_ids.values() | map('string') | reject('match', '^[0-9a-f]{64}$') | list | length == 0
+          - student_state.fabric_node_ids.values() | map('string') | reject('match', '^[0-9a-f]{64}$') | list | length == 0
+          - student_state.network_ids.values() | map('string') | reject('match', '^[0-9a-f]{64}$') | list | length == 0
+          - student_state.exercise in student_exercises or (student_state.profile != 'plataforma' and student_state.exercise == '')
+          - student_state.wireguard_mode in ['', 'W0', 'W1', 'W2']
+          - student_state.profile == 'plataforma' or student_state.wireguard_mode == ''
+          - (student_state.exercise in ['wireguard-native', 'wireguard-vxlan'] and student_state.wireguard_mode in ['W0', 'W1', 'W2']) or (student_state.exercise not in ['wireguard-native', 'wireguard-vxlan'] and student_state.wireguard_mode == '')
+          - student_state.exercise_session is mapping
+          - student_state.exercise_session == {} or student_state.exercise_session.keys() | list | sort == ['cluster_uid', 'id', 'namespace', 'owner_token', 'owner_uid']
+          - student_state.exercise_session == {} or student_state.exercise_session.id is match('^[0-9]{8}-[0-9a-f]{32}$')
+          - student_state.exercise_session == {} or student_state.exercise_session.namespace == 'p010-aluno-' ~ student_state.exercise_session.id
+          - student_state.exercise_session == {} or student_state.exercise_session.owner_uid | int == student_uid
+          - student_state.exercise_session == {} or student_state.exercise_session.owner_token == student_state.owner_token
+          - student_state.exercise_session == {} or student_state.exercise_session.cluster_uid == student_state.cluster_uid
+          - student_state.profile == 'iniciantes' or student_state.exercise_session == {}
+          - student_state.helm_revision | int >= 0
+          - student_state.profile_fingerprint is match('^[0-9a-f]{64}$')
+          - student_state.cluster_uid == '' or student_state.cluster_uid is match('^[0-9a-fA-F-]{36}$')
+          - student_state.api_server == '' or student_state.api_server is match('^https://127\\.0\\.0\\.1:[0-9]{1,5}$')
+          - student_state.kubeconfig_sha256 == '' or student_state.kubeconfig_sha256 is match('^[0-9a-f]{64}$')
+          - student_state.chart_sha256 == '' or student_state.chart_sha256 is match('^[0-9a-f]{64}$')
+          - student_state.values_sha256 == '' or student_state.values_sha256 is match('^[0-9a-f]{64}$')
+          - student_state.topology_sha256 == '' or student_state.topology_sha256 is match('^[0-9a-f]{64}$')
+          - student_state.topology_file == '' or student_state.topology_file == student_state_dir ~ '/runs/' ~ student_state.run_id ~ '/topology.clab.yml'
+          - student_state.clab_up_log == student_state_dir ~ '/runs/' ~ student_state.run_id ~ '/containerlab-up.log'
+          - student_state.clab_down_log == student_state_dir ~ '/runs/' ~ student_state.run_id ~ '/containerlab-down.log'
+        fail_msg: "Estado inválido ou divergente; não vou adotar recursos nem avaliar dados como shell."
+      when: student_has_state
+
+    - name: Refuse a different active profile
+      ansible.builtin.assert:
+        that:
+          - student_state.status == 'down' or student_state.profile == student_profile_name
+        fail_msg: "{{ student_state.profile }} ainda possui estado {{ student_state.status }}; verifique/desça esse perfil antes de usar outro."
+      when: student_has_state
+
+    - name: Select the requested scenario and its immutable definition
+      ansible.builtin.include_tasks: tasks/select-scenario.yml
+
+    - name: Refuse scenario changes on an existing infrastructure run
+      ansible.builtin.assert:
+        that:
+          - student_state.exercise == student_effective_exercise
+          - student_state.wireguard_mode == student_effective_wireguard_mode
+        fail_msg: "EXERCISE/WG diferem do cenário salvo. Use lab-down e lab-up para trocar configuração."
+      when:
+        - student_action == 'up'
+        - student_has_state
+        - student_state.status in ['preparing', 'partial', 'up']
+
+    - ansible.builtin.include_tasks: tasks/select-run-paths.yml
+
+    - name: Set paths for the selected run
+      ansible.builtin.set_fact:
+        student_kubeconfig: "{{ student_run_dir }}/kubeconfig"
+        student_env_file: "{{ student_state_dir }}/lab-env.sh"
+        student_topology_file: "{{ student_run_dir }}/topology.clab.yml"
+        student_owner_token_file: "{{ student_run_dir }}/owner-token"
+
+    - name: Validate hybrid lifecycle records and exact private paths
+      ansible.builtin.include_tasks: tasks/validate-hybrid-state.yml
+      when:
+        - student_has_state
+        - student_state.schema | int == 3
+
+    - name: Validate hybrid resource identity before using or removing a recorded lab
+      ansible.builtin.include_tasks: tasks/hybrid-identities.yml
+      when:
+        - student_has_state
+        - student_state.status != 'down'
+        - student_state.profile == 'hibrido'
+        - student_action in ['status', 'down', 'verify', 'up', 'shell']
+        - student_action != 'status' or student_state.status == 'up' or (student_profile_name == 'hibrido' and student_state.status == 'partial')
+
+    - name: Validate live container resources before using or removing a recorded lab
+      ansible.builtin.include_tasks: tasks/validate-identities.yml
+      when:
+        - student_has_state
+        - student_state.profile != 'hibrido'
+        - student_state.status != 'down'
+        - student_action in ['up', 'status', 'env', 'verify', 'down', 'session', 'shell']
+        - student_action != 'status' or student_state.status == 'up' or (student_profile_name == 'hibrido' and student_state.status == 'partial')
+
+    - name: Calculate the immutable source fingerprint
+      ansible.builtin.command:
+        argv: "{{ ['sha256sum'] + (student_profile.fingerprint_paths | map('regex_replace', '^', student_repo_root ~ '/') | list) }}"
+      register: student_asset_hashes
+      changed_when: false
+      when: student_profile.fingerprint_paths is defined
+
+    - name: Hash the source fingerprint
+      ansible.builtin.set_fact:
+        student_profile_fingerprint: "{{ (student_asset_hashes.stdout ~ '\nexercise=' ~ student_effective_exercise ~ '\nwireguard=' ~ student_effective_wireguard_mode) | hash('sha256') }}"
+      when: student_asset_hashes is defined and student_asset_hashes.stdout is defined
+
+    - name: Require an unchanged source fingerprint for an existing run
+      ansible.builtin.assert:
+        that:
+          - student_state.profile_fingerprint == student_profile_fingerprint
+        fail_msg: "Fontes ou automação mudaram desde esta subida; down/up explícitos são necessários. Exercícios não serão reconciliados automaticamente."
+      when:
+        - student_action in ['up', 'shell']
+        - student_has_state
+        - student_state.status in ['preparing', 'partial', 'up']
+
+    - name: Check platform capacity and prerequisites
+      ansible.builtin.include_tasks: tasks/preflight.yml
+      when: student_action in ['preflight', 'up']
+
+    - name: Report the existing status
+      ansible.builtin.include_tasks: tasks/status.yml
+      when: student_action == 'status'
+
+    - name: Start a new or partial lab
+      ansible.builtin.include_tasks: tasks/up.yml
+      when: student_action == 'up'
+
+    - name: Verify the lab
+      ansible.builtin.include_tasks: tasks/verify.yml
+      vars:
+        student_hybrid_m11_verify_existing: "{{ student_profile_name == 'hibrido' }}"
+      when: student_action == 'verify'
+
+    - name: Open a pinned interactive shell in one active owned hybrid guest
+      ansible.builtin.include_tasks: tasks/hybrid-m11-shell.yml
+      when:
+        - student_action == 'shell'
+        - student_profile_name == 'hibrido'
+
+    - name: Generate the helper environment
+      ansible.builtin.include_tasks: tasks/env.yml
+      when: student_action == 'env'
+
+    - name: Remove only a recorded lab
+      ansible.builtin.include_tasks: tasks/down.yml
+      when:
+        - student_action == 'down'
+        - student_profile_name != 'hibrido'
+
+    - name: Report an empty hybrid cleanup without inspecting host resources
+      ansible.builtin.debug:
+        msg: "Nenhuma execução híbrida ativa está registrada; nenhum recurso foi removido."
+      when:
+        - student_action == 'down'
+        - student_profile_name == 'hibrido'
+        - not student_has_state or student_state.status == 'down'
+
+    - name: Remove only recorded hybrid resources
+      ansible.builtin.include_tasks: tasks/hybrid-down.yml
+      when:
+        - student_action == 'down'
+        - student_profile_name == 'hibrido'
+        - student_has_state
+        - student_state.status != 'down'
+
+    - name: Create a new E01-E06 student session without creating its namespace
+      ansible.builtin.include_tasks: tasks/session.yml
+      when: student_action == 'session'

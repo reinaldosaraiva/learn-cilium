@@ -1,0 +1,252 @@
+---
+- name: Create fresh per-run DevStack and API credentials in memory
+  ansible.builtin.set_fact:
+    student_hybrid_credentials:
+      admin_password: "{{ lookup('password', '/dev/null length=48 chars=ascii_letters,digits') }}"
+      database_password: "{{ lookup('password', '/dev/null length=48 chars=ascii_letters,digits') }}"
+      rabbit_password: "{{ lookup('password', '/dev/null length=48 chars=ascii_letters,digits') }}"
+      service_password: "{{ lookup('password', '/dev/null length=48 chars=ascii_letters,digits') }}"
+    student_hybrid_api_credentials:
+      username: admin
+      project_name: admin
+      user_domain_name: Default
+      project_domain_name: Default
+  no_log: true
+
+- name: Reuse the same protected admin password for DevStack and its API client
+  ansible.builtin.set_fact:
+    student_hybrid_api_credentials: >-
+      {{ student_hybrid_api_credentials | combine({'password': student_hybrid_credentials.admin_password}) }}
+  no_log: true
+
+- name: Refuse pre-existing credential and DevStack config files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  register: student_hybrid_m11_private_inputs_before
+  loop:
+    - "{{ student_state.hybrid.m11.credentials.path }}"
+    - "{{ student_state.hybrid.m11.devstack.config_path }}"
+  no_log: true
+
+- name: Require fresh private inputs owned only by this run
+  ansible.builtin.assert:
+    that:
+      - not (item.stat.exists | default(false))
+      - not (item.stat.islnk | default(false))
+    fail_msg: "Arquivo privado de credenciais/config já existe sem identidade desta execução."
+  loop: "{{ student_hybrid_m11_private_inputs_before.results }}"
+  no_log: true
+
+- name: Write only the private API credentials file, never state or output
+  ansible.builtin.copy:
+    dest: "{{ student_state.hybrid.m11.credentials.path }}"
+    content: "{{ {'student_hybrid_api_credentials': student_hybrid_api_credentials} | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Render the pinned DevStack config into a private host file
+  ansible.builtin.template:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hybrid-devstack-local.conf.j2"
+    dest: "{{ student_state.hybrid.m11.devstack.config_path }}"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Read private config only for an SSH stdin transfer
+  ansible.builtin.slurp:
+    src: "{{ student_state.hybrid.m11.devstack.config_path }}"
+  register: student_hybrid_m11_local_conf_slurp
+  no_log: true
+
+- name: Capture private input file identities before guest installation
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  register: student_hybrid_m11_private_inputs
+  loop:
+    - "{{ student_state.hybrid.m11.credentials.path }}"
+    - "{{ student_state.hybrid.m11.devstack.config_path }}"
+  no_log: true
+
+- name: Require private regular inputs before guest installation
+  ansible.builtin.assert:
+    that:
+      - item.stat.isreg | default(false)
+      - not (item.stat.islnk | default(false))
+      - item.stat.uid | int == student_uid
+      - item.stat.mode == '0600'
+      - item.stat.inode | int > 0
+    fail_msg: "Credenciais/config DevStack não estão em arquivos privados do usuário."
+  loop: "{{ student_hybrid_m11_private_inputs.results }}"
+  no_log: true
+
+- name: Checkpoint the two private input identities before guest package effects
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'status': 'partial', 'phase': 'hybrid-credentials-ready',
+        'hybrid': {'m11': {'phase': 'credentials-ready',
+          'credentials': {'device': student_hybrid_m11_private_inputs.results[0].stat.dev,
+                          'inode': student_hybrid_m11_private_inputs.results[0].stat.inode},
+          'devstack': {'config_device': student_hybrid_m11_private_inputs.results[1].stat.dev,
+                       'config_inode': student_hybrid_m11_private_inputs.results[1].stat.inode,
+                       'phase': 'credentials-ready'}}},
+        'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Persist credential and config identities before connecting to Ubuntu
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Build the guarded DevStack guest script
+  ansible.builtin.set_fact:
+    student_hybrid_m11_devstack_script: |-
+      set -eu
+      umask 077
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      provider='{{ student_state.hybrid.m11.network.provider_interface }}'
+      expected_provider_mac='{{ student_state.hybrid.guests.ubuntu.external_mac }}'
+      tenant='tenant0'
+      ip -j link show dev "$provider" | jq -e --arg mac "$expected_provider_mac" 'length == 1 and (.[0].address | ascii_downcase) == ($mac | ascii_downcase)' >/dev/null
+      ip -j -4 address show dev "$provider" | jq -e 'length == 1 and (.[0].addr_info | length) == 0' >/dev/null
+      ip -j -4 address show dev "$tenant" | jq -e 'length == 1 and (.[0].addr_info | length) == 0' >/dev/null
+      ip -j route show default | jq -e 'length == 1 and .[0].dev == "management0" and .[0].gateway == "10.0.2.2"' >/dev/null
+      if ! root_df_output="$(LC_ALL=C df -B1 --output=avail / 2>/dev/null)"; then
+        exit 73
+      fi
+      case "$root_df_output" in
+        *$'\n'*) ;;
+        *) exit 74 ;;
+      esac
+      root_df_header="${root_df_output%%$'\n'*}"
+      root_free_bytes="${root_df_output#*$'\n'}"
+      case "$root_free_bytes" in
+        *$'\n'*) exit 74 ;;
+      esac
+      IFS=$' \t' read -r root_df_header root_df_header_extra <<<"$root_df_header"
+      [ "$root_df_header" = 'Avail' ] && [ -z "$root_df_header_extra" ] || exit 74
+      IFS=$' \t' read -r root_free_bytes root_free_extra <<<"$root_free_bytes"
+      [ -z "$root_free_extra" ] || exit 74
+      case "$root_free_bytes" in
+        ''|*[!0-9]*) exit 74 ;;
+      esac
+      root_free_length_probe="$root_free_bytes"
+      root_free_digits=0
+      while [ -n "$root_free_length_probe" ]; do
+        root_free_length_probe="${root_free_length_probe#?}"
+        root_free_digits=$((root_free_digits + 1))
+        [ "$root_free_digits" -le 15 ] || exit 74
+      done
+      [ "$root_free_bytes" -ge '{{ student_hybrid_devstack_root_free_bytes_min }}' ] || exit 75
+      printf 'P010_ROOT_FREE_BYTES=%s\n' "$root_free_bytes" >&3
+      sudo -n apt-get update >/dev/null 2>&1
+      sudo -n apt-get install -y git jq crudini tcpdump >/dev/null 2>&1
+      checkout='{{ student_state.hybrid.m11.devstack.checkout_path }}'
+      [ ! -e "$checkout" ] && [ ! -L "$checkout" ]
+      git init -q "$checkout"
+      git -C "$checkout" remote add origin https://github.com/openstack/devstack.git
+      git -C "$checkout" fetch -q --depth=1 origin '{{ student_state.hybrid.m11.devstack.revision }}'
+      git -C "$checkout" checkout -q --detach FETCH_HEAD
+      [ "$(git -C "$checkout" rev-parse HEAD)" = '{{ student_state.hybrid.m11.devstack.revision }}' ]
+      printf '%s' '{{ student_hybrid_m11_local_conf_slurp.content }}' | base64 -d >"$checkout/local.conf"
+      chmod 0600 "$checkout/local.conf"
+      [ "$(stat -c '%u:%a' "$checkout/local.conf")" = "$(id -u):600" ]
+      cd "$checkout"
+      if ./stack.sh >/dev/null 2>&1; then
+        stack_rc=0
+      else
+        stack_rc=$?
+      fi
+      printf 'P010_STACK_RC=%s\n' "$stack_rc" >&3
+      [ "$stack_rc" -eq 0 ] || exit "$stack_rc"
+      sudo -n ovs-vsctl --timeout=10 br-exists br-ex
+      sudo -n ovs-vsctl --timeout=10 br-exists br-int
+      sudo -n ip link show dev "$provider" >/dev/null
+      sudo -n ip link show dev "$tenant" >/dev/null
+      sudo -n ip -j -4 address show dev br-ex | jq -e 'length == 1 and (.[0].addr_info | length) == 0' >/dev/null
+      if sudo -n ovs-vsctl --timeout=10 list-ports br-ex | grep -Fxq "$provider"; then
+        :
+      else
+        other_bridge="$(sudo -n ovs-vsctl --timeout=10 port-to-br "$provider" 2>/dev/null || true)"
+        [ -z "$other_bridge" ] || exit 72
+        sudo -n ovs-vsctl --timeout=10 --may-exist add-port br-ex "$provider"
+      fi
+      sudo -n ovs-vsctl --timeout=10 list-ports br-ex | grep -Fxq "$provider"
+      sudo -n ip link set dev br-ex up
+      sudo -n ip -j -4 address show dev br-ex | jq -e 'length == 1 and (.[0].addr_info | length) == 0' >/dev/null
+      sudo -n ip address add '{{ student_state.hybrid.m11.network.provider_speaker_ip }}/29' dev br-ex
+      sudo -n ip -j -4 address show dev br-ex | jq -e --arg ip '{{ student_state.hybrid.m11.network.provider_speaker_ip }}' 'length == 1 and (.[0].addr_info | length) == 1 and .[0].addr_info[0].local == $ip and .[0].addr_info[0].prefixlen == 29' >/dev/null
+      ip -j route show default | jq -e 'length == 1 and .[0].dev == "management0" and .[0].gateway == "10.0.2.2"' >/dev/null
+      printf 'P010_DEVSTACK_HEAD=%s\n' "$(git -C "$checkout" rev-parse HEAD)" >&3
+      printf 'P010_NEUTRON_HEAD=%s\n' "$(git -C /opt/stack/neutron rev-parse HEAD)" >&3
+      printf 'P010_KEYSTONE_HEAD=%s\n' "$(git -C /opt/stack/keystone rev-parse HEAD)" >&3
+      printf 'P010_REQUIREMENTS_HEAD=%s\n' "$(git -C /opt/stack/requirements rev-parse HEAD)" >&3
+      printf 'P010_NDR_HEAD=%s\n' "$(git -C /opt/stack/neutron-dynamic-routing rev-parse HEAD)" >&3
+      check_ini() { [ "$(sudo -n crudini --get "$1" "$2" "$3" 2>/dev/null)" = "$4" ]; }
+      check_ini /etc/neutron/plugins/ml2/ml2_conf.ini ml2 type_drivers local,flat
+      check_ini /etc/neutron/plugins/ml2/ml2_conf.ini ml2 tenant_network_types local
+      check_ini /etc/neutron/plugins/ml2/ml2_conf.ini ml2 mechanism_drivers openvswitch
+      check_ini /etc/neutron/plugins/ml2/ml2_conf.ini ml2 extension_drivers port_security
+      check_ini /etc/neutron/plugins/ml2/ml2_conf.ini ml2_type_flat flat_networks m11public
+      check_ini /etc/neutron/plugins/ml2/ml2_conf.ini ovs bridge_mappings m11public:br-ex
+      check_ini /etc/neutron/plugins/ml2/ml2_conf.ini securitygroup enable_security_group True
+      check_ini /etc/neutron/plugins/ml2/ml2_conf.ini securitygroup firewall_driver openvswitch
+      check_ini /etc/neutron/bgp_dragent.ini bgp bgp_router_id '{{ student_state.hybrid.m11.network.provider_speaker_ip }}'
+      check_ini /etc/neutron/bgp_dragent.ini bgp bgp_speaker_driver neutron_dynamic_routing.services.bgp.agent.driver.os_ken.driver.OsKenBgpDriver
+      printf 'P010_NEUTRON_CONFIG=verified\n' >&3
+  no_log: true
+
+- name: Run the fresh pinned DevStack installation in the validated Ubuntu guest
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: ubuntu
+    student_hybrid_ssh_remote_command: bash -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_devstack_script }}"
+    student_hybrid_ssh_allow_failure: true
+
+- name: Parse the pinned DevStack revision markers from protected SSH output
+  ansible.builtin.include_tasks: hybrid-m11-parse-markers.yml
+  vars:
+    student_hybrid_m11_marker_prefix: P010_
+    student_hybrid_m11_marker_lines: "{{ student_hybrid_ssh_result.stdout_lines | select('match', '^P010_(DEVSTACK|NEUTRON|KEYSTONE|REQUIREMENTS|NDR)_HEAD=') | list }}"
+
+- name: Store only the DevStack exit code and phase after the protected SSH task
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'status': 'partial', 'phase': 'hybrid-devstack-result',
+        'hybrid': {'m11': {'phase': ('devstack-running' if student_hybrid_ssh_result.rc == 0 else 'partial'),
+          'devstack': {'phase': ('ready' if student_hybrid_ssh_result.rc == 0 else 'failed'),
+                       'stack_rc': student_hybrid_ssh_result.rc | int,
+                       'versions': (student_hybrid_devstack_versions if student_hybrid_ssh_result.rc == 0 else {})}}},
+        'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  vars:
+    student_hybrid_devstack_versions: >-
+      {{ student_hybrid_m11_parsed_markers }}
+  no_log: true
+
+- name: Persist DevStack result without retaining guest console output
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Require successful pinned revisions and allowlisted effective config
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_ssh_result.rc == 0
+      - student_hybrid_ssh_result.stdout_lines | select('equalto', 'P010_NEUTRON_CONFIG=verified') | list | length == 1
+      - student_state.hybrid.m11.devstack.versions['DEVSTACK_HEAD'] == student_state.hybrid.m11.devstack.revision
+      - student_state.hybrid.m11.devstack.versions['NEUTRON_HEAD'] == student_profile.hybrid_m11.neutron_revision
+      - student_state.hybrid.m11.devstack.versions['KEYSTONE_HEAD'] == student_profile.hybrid_m11.keystone_revision
+      - student_state.hybrid.m11.devstack.versions['REQUIREMENTS_HEAD'] == student_profile.hybrid_m11.requirements_revision
+      - student_state.hybrid.m11.devstack.versions['NDR_HEAD'] == student_profile.hybrid_m11.neutron_dynamic_routing_revision
+    fail_msg: "DevStack não concluiu ou os pins/configurações allowlisted divergiram; estado segue parcial."
+  no_log: true

@@ -1,0 +1,30 @@
+---
+- name: Recheck a private hybrid path immediately before cleanup
+  ansible.builtin.stat:
+    path: "{{ student_hybrid_remove_path }}"
+    follow: false
+  register: student_hybrid_remove_stat
+  no_log: true
+
+- name: Require the path to be absent or retain its saved identity
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (student_hybrid_remove_stat.stat.exists | default(false))
+        or
+        (student_hybrid_remove_stat.stat.uid | int == student_uid and
+         student_hybrid_remove_stat.stat.dev | int == student_hybrid_remove_device | int and
+         student_hybrid_remove_stat.stat.inode | int == student_hybrid_remove_inode | int and
+         not (student_hybrid_remove_stat.stat.islnk | default(false)) and
+         ((student_hybrid_remove_kind == 'file' and student_hybrid_remove_stat.stat.isreg | default(false)) or
+          (student_hybrid_remove_kind == 'dir' and student_hybrid_remove_stat.stat.isdir | default(false)) or
+          (student_hybrid_remove_kind == 'socket' and student_hybrid_remove_stat.stat.issock | default(false))))
+    fail_msg: "Cleanup recusou {{ student_hybrid_remove_kind }} sem identidade gravada ou com substituição detectada."
+  no_log: true
+
+- name: Remove only the exact recorded hybrid path
+  ansible.builtin.file:
+    path: "{{ student_hybrid_remove_path }}"
+    state: absent
+  when: student_hybrid_remove_stat.stat.exists | default(false)
+  no_log: true

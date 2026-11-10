@@ -1,0 +1,3 @@
+---
+- ansible.builtin.include_tasks: hybrid-m11-verify-c0-ovs.yml
+- ansible.builtin.include_tasks: hybrid-m11-verify-c0-evidence.yml

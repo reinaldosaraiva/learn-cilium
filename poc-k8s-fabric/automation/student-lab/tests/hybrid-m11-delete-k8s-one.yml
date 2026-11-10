@@ -1,0 +1,34 @@
+---
+- name: Set the current API object fixture
+  ansible.builtin.set_fact:
+    student_hybrid_m11_delete_test_record: "{{ student_state.hybrid.m11.verification.gates.k8s_resources[student_hybrid_m11_delete_k8s_key] }}"
+    student_hybrid_m11_delete_k8s_path: >-
+      {{ (('/apis/' ~ student_hybrid_m11_delete_k8s_spec.api_group ~ '/' ~ student_hybrid_m11_delete_k8s_spec.api_version)
+          if student_hybrid_m11_delete_k8s_spec.api_group | length > 0 else '/api/' ~ student_hybrid_m11_delete_k8s_spec.api_version)
+         ~ (('/namespaces/' ~ student_hybrid_m11_delete_k8s_spec.namespace) if student_hybrid_m11_delete_k8s_spec.namespaced else '')
+         ~ '/' ~ student_hybrid_m11_delete_k8s_spec.plural ~ '/' ~ student_hybrid_m11_delete_k8s_spec.name | default(student_state.hybrid.m11.verification.gates.k8s_resources[student_hybrid_m11_delete_k8s_key].name) }}
+  no_log: true
+
+- name: Prepare the normal Kubernetes API object and expected raw path
+  ansible.builtin.copy:
+    dest: "{{ item.path }}"
+    mode: '0600'
+    content: "{{ item.content }}"
+  loop:
+    - path: "{{ lookup('env', 'P010_HYBRID_FAKE_KUBECTL_OBJECT_JSON') }}"
+      content: "{{ {'apiVersion': student_hybrid_m11_delete_test_record.api_version, 'kind': student_hybrid_m11_delete_test_record.kind, 'metadata': {'name': student_hybrid_m11_delete_test_record.name, 'namespace': student_hybrid_m11_delete_test_record.namespace, 'uid': student_hybrid_m11_delete_test_record.uid, 'labels': {'p010-student-owner': student_state.owner_token, 'p010-student-run': student_state.run_id}}} | to_json }}"
+    - path: "{{ lookup('env', 'P010_HYBRID_FAKE_KUBECTL_EXPECTED_PATH_FILE') }}"
+      content: "{{ student_hybrid_m11_delete_k8s_path }}"
+  no_log: true
+
+- ansible.builtin.include_tasks: ../tasks/hybrid-m11-delete-k8s-object.yml
+
+- name: Reload the durable inventory after exact UID deletion
+  ansible.builtin.set_fact:
+    student_state: "{{ lookup('file', student_state_file) | from_json }}"
+
+- name: Require only the selected Kubernetes identity to have been removed
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_delete_k8s_key not in student_state.hybrid.m11.verification.gates.k8s_resources
+  no_log: true

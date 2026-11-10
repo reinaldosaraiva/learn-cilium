@@ -1,0 +1,8 @@
+---
+- name: Require an active private state before verification
+  ansible.builtin.assert:
+    that:
+      - student_has_state
+      - student_state.status in ['preparing', 'partial', 'up']
+      - student_state.profile == student_profile_name
+    fail_msg: "Não há execução ativa registrada para verificar."

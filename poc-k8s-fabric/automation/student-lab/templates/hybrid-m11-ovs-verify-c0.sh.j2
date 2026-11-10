@@ -1,0 +1,44 @@
+set -eu
+umask 077
+exec 3>&1 4>&2
+exec >/dev/null 2>&1
+bridge={{ student_state.hybrid.m11.verification.gates.ovs_attach.bridge_name | quote }}
+iface={{ student_state.hybrid.m11.verification.gates.ovs_attach.interface_name | quote }}
+expected_guest_mac={{ student_state.hybrid.m11.verification.gates.ovs_attach.guest_interface_mac | quote }}
+expected_port_id={{ student_state.hybrid.m11.verification.gates.ovs_attach.neutron_port_id | quote }}
+expected_attached_mac={{ student_state.hybrid.m11.verification.gates.ovs_attach.attached_mac | quote }}
+expected_bridge_uuid={{ student_state.hybrid.m11.verification.gates.ovs_attach.bridge_uuid | quote }}
+expected_port_uuid={{ student_state.hybrid.m11.verification.gates.ovs_attach.port_uuid | quote }}
+expected_interface_uuid={{ student_state.hybrid.m11.verification.gates.ovs_attach.interface_uuid | quote }}
+expected_ifindex={{ student_state.hybrid.m11.verification.gates.ovs_attach.ifindex | string | quote }}
+expected_ofport={{ student_state.hybrid.m11.verification.gates.ovs_attach.ofport | string | quote }}
+sudo -n ovs-vsctl --timeout=10 br-exists "$bridge"
+bridge_uuid="$(sudo -n ovs-vsctl --timeout=10 get Bridge "$bridge" _uuid | tr -d '"')"
+port_uuid="$(sudo -n ovs-vsctl --timeout=10 get Port "$iface" _uuid | tr -d '"')"
+interface_uuid="$(sudo -n ovs-vsctl --timeout=10 get Interface "$iface" _uuid | tr -d '"')"
+ofport="$(sudo -n ovs-vsctl --timeout=10 get Interface "$iface" ofport | tr -d '"')"
+actual_bridge="$(sudo -n ovs-vsctl --timeout=10 port-to-br "$iface")"
+actual_port_id="$(sudo -n ovs-vsctl --timeout=10 get Interface "$iface" external_ids:iface-id | tr -d '"')"
+actual_attached_mac="$(sudo -n ovs-vsctl --timeout=10 get Interface "$iface" external_ids:attached-mac | tr -d '"')"
+guest_mac="$(cat "/sys/class/net/$iface/address" | tr '[:upper:]' '[:lower:]')"
+ifindex="$(cat "/sys/class/net/$iface/ifindex")"
+[ "$bridge_uuid" = "$expected_bridge_uuid" ]
+[ "$port_uuid" = "$expected_port_uuid" ]
+[ "$interface_uuid" = "$expected_interface_uuid" ]
+[ "$ofport" = "$expected_ofport" ]
+[ "$actual_bridge" = "$bridge" ]
+[ "$actual_port_id" = "$expected_port_id" ]
+[ "$(printf '%s' "$actual_attached_mac" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$expected_attached_mac" | tr '[:upper:]' '[:lower:]')" ]
+[ "$guest_mac" = "$(printf '%s' "$expected_guest_mac" | tr '[:upper:]' '[:lower:]')" ]
+[ "$ifindex" = "$expected_ifindex" ]
+[ -z "$(ip -o -4 address show dev "$iface")" ]
+case "$ofport" in ''|*[!0-9]*|0) exit 1 ;; esac
+printf 'P010_C0_OVS_BRIDGE=%s\n' "$bridge" >&3
+printf 'P010_C0_OVS_BRIDGE_UUID=%s\n' "$bridge_uuid" >&3
+printf 'P010_C0_OVS_PORT_UUID=%s\n' "$port_uuid" >&3
+printf 'P010_C0_OVS_INTERFACE_UUID=%s\n' "$interface_uuid" >&3
+printf 'P010_C0_OVS_IFINDEX=%s\n' "$ifindex" >&3
+printf 'P010_C0_OVS_OFPORT=%s\n' "$ofport" >&3
+printf 'P010_C0_OVS_IFACE_ID=%s\n' "$actual_port_id" >&3
+printf 'P010_C0_OVS_ATTACHED_MAC=%s\n' "$actual_attached_mac" >&3
+printf 'P010_C0_OVS_GUEST_MAC=%s\n' "$guest_mac" >&3

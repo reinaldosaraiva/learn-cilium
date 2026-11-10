@@ -1,0 +1,168 @@
+---
+- name: Require the complete, verified hybrid run before opening a guest shell
+  ansible.builtin.assert:
+    that:
+      - student_shell_guest_input in ['ubuntu', 'cirros']
+      - student_shell_phase in ['prepare', 'cleanup']
+      - student_state.profile == 'hibrido'
+      - student_state.owner_uid | int == student_uid | int
+      - student_state.status == 'up'
+      - student_state.hybrid.schema | int == 4
+      - student_state.hybrid.phase == 'verified'
+      - student_state.hybrid.m11.schema | int == 2
+      - student_state.hybrid.m11.phase == 'verified'
+      - student_state.hybrid.m11.api.pending == {}
+      - student_state.hybrid.m11.verification.phase == 'verified'
+      - student_state.hybrid.m11.verification.gates.k8s_pending == {}
+      - student_state.hybrid.m11.verification.gates.k8s_delete_pending == {}
+      - student_state.hybrid.m11.verification.gates.positive.phase == 'verified'
+      - student_state.hybrid.m11.verification.gates.positive.bgp_established | int == 3
+      - student_state.hybrid.m11.verification.gates.positive.tenant_route | bool
+      - student_state.hybrid.m11.verification.gates.positive.podcidr_route | bool
+      - student_state.hybrid.m11.verification.gates.positive.pod_to_vm_icmp | bool
+      - student_state.hybrid.m11.verification.gates.positive.pod_to_vm_tcp22 | bool
+      - student_state.hybrid.m11.verification.gates.positive.vm_to_pod_icmp | bool
+      - student_state.hybrid.m11.verification.gates.positive.vm_to_pod_http | bool
+      - student_state.hybrid.m11.verification.gates.positive.vm_source_observed_on_tenant_link | bool
+      - student_state.hybrid.m11.ssh.host_keys[student_shell_guest_input].fingerprint is match('^SHA256:[A-Za-z0-9+/]{43}$')
+      - student_state.hybrid.guests[student_shell_guest_input].pid | int > 1
+      - student_state.hybrid.guests[student_shell_guest_input].starttime | int > 0
+      - student_state.hybrid.guests[student_shell_guest_input].host_port | int == (42422 if student_shell_guest_input == 'ubuntu' else 42423)
+    fail_msg: "A console exige estado híbrido completo e identidade própria verificada; nenhum guest será adotado."
+  no_log: true
+
+- name: Require the saved Keystone endpoint and project identities for the Ubuntu profile
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.api.identity_endpoint | urlsplit('scheme') == 'http'
+      - student_state.hybrid.m11.api.identity_endpoint | urlsplit('hostname') == '10.0.2.15'
+      - student_state.hybrid.m11.api.identity_endpoint | urlsplit('username') in [none, '']
+      - student_state.hybrid.m11.api.identity_endpoint | urlsplit('password') in [none, '']
+      - student_state.hybrid.m11.api.identity_endpoint | urlsplit('query') == ''
+      - student_state.hybrid.m11.api.identity_endpoint | urlsplit('fragment') == ''
+      - student_state.hybrid.m11.api.identity_endpoint | regex_replace('/+$', '') == student_state.hybrid.m11.api.auth_url | regex_replace('/auth/tokens$', '')
+      - student_state.hybrid.m11.api.project_id is match('^[0-9a-f]{32}$')
+      - student_state.hybrid.m11.api.user_id is match('^[0-9a-f]{32}$')
+    fail_msg: "O perfil OpenStack exige endpoint interno e identidades persistidas desta appliance."
+  when:
+    - student_shell_guest_input == 'ubuntu'
+    - student_shell_phase == 'prepare'
+  no_log: true
+
+- name: Inspect the exact private DevStack credentials before preparing the Ubuntu profile
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.m11.credentials.path }}"
+    follow: false
+  register: student_hybrid_shell_credentials_stat
+  when:
+    - student_shell_guest_input == 'ubuntu'
+    - student_shell_phase == 'prepare'
+  no_log: true
+
+- name: Require the registered private credential file identity
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.credentials.path == student_state_run_dir ~ '/keys/devstack-credentials.json'
+      - student_state.hybrid.m11.credentials.device | int > 0
+      - student_state.hybrid.m11.credentials.inode | int > 0
+      - student_hybrid_shell_credentials_stat.stat.isreg | default(false)
+      - not (student_hybrid_shell_credentials_stat.stat.islnk | default(false))
+      - student_hybrid_shell_credentials_stat.stat.uid | int == student_uid | int
+      - student_hybrid_shell_credentials_stat.stat.mode == '0600'
+      - student_hybrid_shell_credentials_stat.stat.dev | int == student_state.hybrid.m11.credentials.device | int
+      - student_hybrid_shell_credentials_stat.stat.inode | int == student_state.hybrid.m11.credentials.inode | int
+    fail_msg: "O arquivo privado de credenciais mudou; nenhum perfil de console será criado."
+  when:
+    - student_shell_guest_input == 'ubuntu'
+    - student_shell_phase == 'prepare'
+  no_log: true
+
+- name: Read the private DevStack credentials only into the protected Ansible process
+  ansible.builtin.slurp:
+    src: "{{ student_state.hybrid.m11.credentials.path }}"
+  register: student_hybrid_shell_credentials_content
+  when:
+    - student_shell_guest_input == 'ubuntu'
+    - student_shell_phase == 'prepare'
+  no_log: true
+
+- name: Build the OpenStack CLI profile from the saved internal endpoint and IDs
+  ansible.builtin.set_fact:
+    student_hybrid_shell_credentials: "{{ (student_hybrid_shell_credentials_content.content | b64decode | from_json).student_hybrid_api_credentials }}"
+    student_hybrid_shell_cloud_config: >-
+      {{ {'clouds': {'p010': {
+        'auth_type': 'v3password',
+        'auth': {
+          'auth_url': student_state.hybrid.m11.api.identity_endpoint,
+          'user_id': student_state.hybrid.m11.api.user_id,
+          'project_id': student_state.hybrid.m11.api.project_id,
+          'user_domain_name': 'Default',
+          'project_domain_name': 'Default',
+          'password': (student_hybrid_shell_credentials_content.content | b64decode | from_json).student_hybrid_api_credentials.password
+        },
+        'interface': 'internal',
+        'identity_api_version': '3'
+      }}} | to_nice_yaml | b64encode }}
+  when:
+    - student_shell_guest_input == 'ubuntu'
+    - student_shell_phase == 'prepare'
+  no_log: true
+
+- name: Validate the expected protected DevStack credential fields
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_shell_credentials.keys() | list | sort == ['password', 'project_domain_name', 'project_name', 'user_domain_name', 'username']
+      - student_hybrid_shell_credentials.password | length >= 32
+      - student_hybrid_shell_credentials.username == 'admin'
+      - student_hybrid_shell_credentials.project_name == 'admin'
+      - student_hybrid_shell_credentials.project_domain_name == 'Default'
+      - student_hybrid_shell_credentials.user_domain_name == 'Default'
+    fail_msg: "O arquivo privado não contém a identidade admin esperada para este perfil."
+  when:
+    - student_shell_guest_input == 'ubuntu'
+    - student_shell_phase == 'prepare'
+  no_log: true
+
+- name: Render the private per-console profile preparation script
+  ansible.builtin.set_fact:
+    student_hybrid_shell_script: >-
+      {{ lookup('template', student_repo_root ~ '/poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-shell-prepare.sh.j2') }}
+  vars:
+    student_hybrid_shell_home: /home/stack
+    student_hybrid_shell_run_id: "{{ student_state.run_id }}"
+    student_hybrid_shell_console_id: "{{ student_shell_console_id }}"
+    student_hybrid_shell_cloud_config: "{{ student_hybrid_shell_cloud_config }}"
+  when:
+    - student_shell_guest_input == 'ubuntu'
+    - student_shell_phase == 'prepare'
+  no_log: true
+
+- name: Render the exact per-console profile cleanup script
+  ansible.builtin.set_fact:
+    student_hybrid_shell_script: >-
+      {{ lookup('template', student_repo_root ~ '/poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-shell-cleanup.sh.j2') }}
+  vars:
+    student_hybrid_shell_home: /home/stack
+    student_hybrid_shell_run_id: "{{ student_state.run_id }}"
+    student_hybrid_shell_console_id: "{{ student_shell_console_id }}"
+  when:
+    - student_shell_guest_input == 'ubuntu'
+    - student_shell_phase == 'cleanup'
+  no_log: true
+
+- name: Validate the requested guest pins and prepare or clean only this Ubuntu console
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: ubuntu
+    student_hybrid_ssh_remote_command: bash -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_shell_script }}"
+  when: student_shell_guest_input == 'ubuntu'
+  no_log: true
+
+- name: Validate the requested CirrOS pins without creating host shell configuration
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: cirros
+    student_hybrid_ssh_remote_command: "true"
+  when: student_shell_guest_input == 'cirros'
+  no_log: true

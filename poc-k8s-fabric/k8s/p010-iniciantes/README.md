@@ -1,13 +1,13 @@
 # Manifests do laboratório iniciante P010
 
-Este diretório acompanha a edição de trabalho S003 do guia `docs/ebpf-cilium-iniciantes.md`. Use guia e YAML da mesma revisão indicada pelo instrutor. Não combine arquivos de cópias diferentes. Os comandos Kubernetes são executados na VM Linux autorizada, usando o kubeconfig, contexto e namespace próprios fornecidos pelo instrutor. O pedido HTTP é executado no contêiner frontend por `kubectl exec`.
+Este diretório acompanha a edição de trabalho do livro `docs/ebpf-cilium-iniciantes.md`. Use livro, Makefiles, manifests e automação da mesma cópia de revisão; a disponibilidade pública dos mesmos bytes não está garantida. Os comandos Kubernetes rodam na VM Ubuntu própria, usando kubeconfig, contexto e namespace da sessão criada pelo perfil.
 
 ## Pré-requisitos e limites
 
-- O instrutor reservou o cluster para a turma e confirmou Cilium já configurado, Hubble Relay disponível quando E03 for feito, parâmetros TLS conhecidos, baseline protegida e políticas globais avaliadas.
-- Confirme antes de criar recursos o contexto explícito, API server, UID de identidade, capacidade solicitada, namespace nova e revisão dos arquivos. O fluxo detalhado está em E01.
+- VM Ubuntu 24.04 amd64, conta não-root com sudo, Internet e cópia completa do projeto. Instale os pré-requisitos: `sudo apt update && sudo apt install -y git make`.
+- Antes de criar objetos de prática, execute `make --no-print-directory lab-preflight LAB=iniciantes`, `make --no-print-directory lab-up LAB=iniciantes`, `make --no-print-directory lab-status LAB=iniciantes` e `make --no-print-directory lab-verify LAB=iniciantes`; depois crie uma identidade com `make --no-print-directory lab-session LAB=iniciantes` e capture `make --no-print-directory lab-env LAB=iniciantes`. O fluxo detalhado está em [E01](../../docs/ebpf-cilium-iniciantes.md#e01--reconhecer-o-ambiente-e-preparar-a-rodada).
 - Os manifests omitem `metadata.namespace` intencionalmente. Todo comando de aplicação do guia passa `-n "$LAB_NS"` e usa kubeconfig/contexto explícitos.
-- Não instale nem habilite Cilium, Hubble, charts ou políticas globais. Pare se um gate estiver desconhecido.
+- Não altere o estado privado, Cilium, Hubble, charts ou políticas globais. Pare se um gate recusar ou uma consulta estiver inconclusiva. O alvo público de M11 híbrido continua bloqueado antes de efeitos.
 - Os digests são referências de índice de imagem conferidas em um recibo de origem. Nenhuma imagem foi puxada ou executada por esta edição. O `imageID` e a arquitetura reais só podem ser registrados depois de uma execução admitida.
 - As respostas esperadas no guia são ilustrativas. O manifesto não declara que o cluster aceita essas imagens ou que os comandos foram reproduzidos.
 
@@ -36,7 +36,7 @@ NetworkPolicies selecionam somente o ingresso dos Pods api e backend. Policies a
 
 Os Pods usam usuário não root, `seccompProfile: RuntimeDefault`, sem escalada de privilégio, capabilities descartadas, filesystem raiz somente leitura quando aplicável e requests/limits. A ServiceAccount não recebe RBAC e não monta token automaticamente. NGINX recebe um `emptyDir` pequeno em `/tmp` para PID e arquivos temporários e a configuração é somente leitura.
 
-Não passe credenciais para Pods ou recibos. Não registre conteúdo de kubeconfig, tokens, certificados ou chaves. Ao terminar, confirme novamente API server, UID da namespace e label de run-id. E06 apaga apenas a namespace nova desta rodada e espera a remoção normal. Não use `--force`, remova finalizers, apague objetos globais ou faça limpeza por selector amplo. Se a identidade divergir ou a remoção expirar, pare e chame o instrutor.
+Não passe credenciais para Pods ou recibos. Não registre conteúdo de kubeconfig, tokens, certificados ou chaves. Ao terminar, confirme novamente API server, UID da namespace e label de run-id. E06 apaga apenas a namespace nova desta rodada e espera a remoção normal. Se mantiver o cluster para outra rodada, confirme `lab-status` e `lab-verify` antes de criar nova sessão. Se encerrar a infraestrutura, execute `lab-down LAB=iniciantes` e confira `lab-status`; uma rodada posterior exige `lab-up` e verificação antes de `lab-session`. Não use `--force`, remova finalizers, apague objetos globais ou faça limpeza por selector amplo. Se a identidade divergir ou a remoção expirar, pare e preserve o estado.
 
 ## Verificação offline desta revisão
 

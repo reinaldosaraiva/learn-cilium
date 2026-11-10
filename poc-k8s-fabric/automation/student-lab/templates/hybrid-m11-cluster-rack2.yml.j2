@@ -1,0 +1,20 @@
+apiVersion: cilium.io/v2
+kind: CiliumBGPClusterConfig
+metadata:
+  name: p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-rack2
+  labels:
+    p010-student-owner: {{ student_state.owner_token }}
+    p010-student-run: {{ student_state.run_id }}
+spec:
+  nodeSelector:
+    matchLabels:
+      topology.kubernetes.io/rack: rack2
+  bgpInstances:
+    - name: rack2
+      localASN: 65302
+      peers:
+        - name: neutron-speaker
+          peerASN: 65202
+          peerAddress: 10.30.2.1
+          peerConfigRef:
+            name: p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-peer

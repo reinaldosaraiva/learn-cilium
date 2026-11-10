@@ -1,0 +1,112 @@
+---
+- ansible.builtin.include_tasks: hybrid-validate-border.yml
+  vars:
+    student_hybrid_ports_to_check: []
+
+- ansible.builtin.include_tasks: hybrid-validate-tap.yml
+
+- name: Read existing addresses only from the saved border TAP
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - -j
+      - address
+      - show
+      - dev
+      - "{{ student_state.hybrid.network.tap.name }}"
+  register: student_hybrid_tap_addresses_before
+  changed_when: false
+  become: true
+  no_log: true
+
+- name: Require the provider address to be unconfigured before its one-time install
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_tap_addresses_before.rc == 0
+      - student_hybrid_tap_address_v4 | length == 0
+      - not student_state.hybrid.m11.frr.tap_address_installed
+      - student_state.hybrid.m11.frr.tap_address_phase == 'reserved'
+    fail_msg: "O endereço provider ou estado da TAP divergiu; nenhum endereço será adotado."
+  vars:
+    student_hybrid_tap_address_v4: >-
+      {{ (student_hybrid_tap_addresses_before.stdout | from_json | first).addr_info
+         | selectattr('family', 'equalto', 'inet') | list }}
+  no_log: true
+
+- name: Checkpoint provider-address intent before touching the original TAP
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'status': 'partial', 'phase': 'hybrid-provider-address-pending', 'hybrid': {'m11': {'frr': {'tap_address_phase': 'adding'}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+  no_log: true
+
+- name: Persist provider-address intent before ip address add
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Add only the reserved border provider address to its TAP
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - address
+      - add
+      - "{{ student_state.hybrid.m11.network.provider_border_ip }}/29"
+      - dev
+      - "{{ student_state.hybrid.network.tap.name }}"
+  register: student_hybrid_tap_address_add
+  changed_when: true
+  become: true
+  no_log: true
+
+- name: Read the provider address after the one-time install
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - -j
+      - address
+      - show
+      - dev
+      - "{{ student_state.hybrid.network.tap.name }}"
+  register: student_hybrid_tap_addresses_after
+  changed_when: false
+  become: true
+  no_log: true
+
+- name: Require one exact IPv4 address and prefix on the saved TAP
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_tap_addresses_after.rc == 0
+      - student_hybrid_tap_address_v4 | length == 1
+      - student_hybrid_tap_address_v4[0].local == student_state.hybrid.m11.network.provider_border_ip
+      - student_hybrid_tap_address_v4[0].prefixlen | int == 29
+      - student_hybrid_tap_address_v4[0].scope == 'global'
+    fail_msg: "Não foi possível provar o endereço provider exato na TAP original."
+  vars:
+    student_hybrid_tap_address_v4: >-
+      {{ (student_hybrid_tap_addresses_after.stdout | from_json | first).addr_info
+         | selectattr('family', 'equalto', 'inet') | list }}
+  no_log: true
+
+- name: Save the TAP provider address identity result
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'hybrid': {'m11': {'frr': {'tap_address_installed': true, 'tap_address_phase': 'installed'}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+  no_log: true
+
+- name: Persist the address checkpoint before guest setup continues
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true

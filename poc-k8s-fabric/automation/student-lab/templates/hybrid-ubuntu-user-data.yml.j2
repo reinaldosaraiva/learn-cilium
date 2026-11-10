@@ -1,0 +1,22 @@
+#cloud-config
+disable_root: true
+ssh_pwauth: false
+ssh_deletekeys: true
+ssh_keys:
+  ed25519_private: |
+{% for line in student_hybrid_ubuntu_host_private.splitlines() %}
+    {{ line }}
+{% endfor %}
+  ed25519_public: {{ student_hybrid_ubuntu_host_public.split()[:2] | join(' ') | to_json }}
+ssh:
+  emit_keys_to_console: false
+  publish_hostkeys:
+    enabled: false
+users:
+  - default
+  - name: stack
+    lock_passwd: true
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - {{ student_hybrid_public_key | trim | to_json }}

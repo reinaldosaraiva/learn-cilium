@@ -1,0 +1,5 @@
+---
+- name: Keep the authenticated Neutron agent response before reusing the response variable
+  ansible.builtin.set_fact:
+    student_hybrid_api_verify_agents: "{{ student_hybrid_api_response.json.agents }}"
+  no_log: true

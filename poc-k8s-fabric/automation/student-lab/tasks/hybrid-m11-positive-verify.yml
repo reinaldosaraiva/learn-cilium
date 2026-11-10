@@ -1,0 +1,2665 @@
+---
+- name: Preserve whether this is a create-only up pass or a health recheck of saved resources
+  ansible.builtin.set_fact:
+    student_hybrid_m11_positive_existing: "{{ student_hybrid_m11_positive_existing | default(false) | bool }}"
+    student_hybrid_m11_positive_complete_status: "{{ 'up' if student_hybrid_m11_positive_existing | default(false) | bool else 'partial' }}"
+  no_log: true
+
+- name: Require guest DHCP, Neutron binding and the installed Cilium chart before M11 probes
+  ansible.builtin.assert:
+    that:
+      - student_profile_name == 'hibrido'
+      - student_state.status in ['partial', 'up']
+      - (student_hybrid_m11_positive_existing and student_state.status == 'partial' and student_state.hybrid.m11.phase in ['verified', 'cilium-ready', 'api-ready'] and student_state.hybrid.m11.verification.gates.positive.c1.phase == 'collecting' and student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'starting' and student_state.hybrid.m11.verification.gates.positive.c1.check_id == student_state.hybrid.m11.verification.gates.c1_capture_active.check_id) or (not student_hybrid_m11_positive_existing and student_state.status == 'partial' and student_state.hybrid.m11.phase == 'guest-ready')
+      - student_state.hybrid.guests.ubuntu.pid | int > 1
+      - student_state.hybrid.guests.cirros.pid | int > 1
+      - student_state.hybrid.m11.api.pending | length == 0
+      - student_state.hybrid.m11.verification.gates.port_binding | bool
+      - student_state.hybrid.m11.verification.gates.dhcp_lease.phase == 'verified'
+      - student_state.hybrid.m11.cilium.values_sha256 is match('^[0-9a-f]{64}$')
+    fail_msg: "A prova M11 exige guests, binding, DORA e valores Cilium já identificados."
+  no_log: true
+
+- name: Refresh the protected Neutron identity map when an initial up has no C1 map
+  ansible.builtin.include_tasks: hybrid-m11-run-api.yml
+  vars:
+    student_hybrid_api_mode: verify
+  when: >-
+    student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or
+    student_state.hybrid.m11.verification.gates.c1_api_paths.run_id != student_state.run_id
+
+- name: Require the live API identity map before resolving C1 observers
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.c1_api_paths.schema | int == 1
+      - student_state.hybrid.m11.verification.gates.c1_api_paths.run_id == student_state.run_id
+      - student_state.hybrid.m11.verification.gates.c1_api_paths.router.id == student_state.hybrid.m11.api.resources.router.primary.id
+      - student_state.hybrid.m11.verification.gates.c1_api_paths.tenant_port.id == student_state.hybrid.m11.api.resources.router_interface.primary.id
+      - student_state.hybrid.m11.verification.gates.c1_api_paths.provider_port.id == student_state.hybrid.m11.api.resources.router_gateway_port.primary.id
+      - student_state.hybrid.m11.verification.gates.c1_api_paths.tenant_port.fixed_ips[0].ip_address == student_state.hybrid.m11.network.tenant_gateway
+      - student_state.hybrid.m11.verification.gates.c1_api_paths.provider_port.fixed_ips[0].ip_address == student_state.hybrid.m11.network.provider_router_ip
+    fail_msg: "Os IDs de porta da API não permitem resolver os observadores C1 desta execução."
+  no_log: true
+
+- name: Reserve the private evidence parent for the first C1 observation
+  ansible.builtin.file:
+    path: "{{ student_run_dir }}/m11-evidence"
+    state: directory
+    owner: "{{ student_uid }}"
+    mode: '0700'
+  when: not student_hybrid_m11_positive_existing
+  no_log: true
+
+- name: Allocate a fresh private C1 check directory for the first observation
+  ansible.builtin.tempfile:
+    path: "{{ student_run_dir }}/m11-evidence"
+    state: directory
+    prefix: c1-
+  register: student_hybrid_m11_c1_new_dir
+  when: not student_hybrid_m11_positive_existing
+  no_log: true
+
+- name: Apply the student's private ownership to the new C1 directory
+  ansible.builtin.file:
+    path: "{{ student_hybrid_m11_c1_new_dir.path }}"
+    state: directory
+    owner: "{{ student_uid }}"
+    mode: '0700'
+  when: not student_hybrid_m11_positive_existing
+  no_log: true
+
+- name: Inspect the new C1 directory before recording its identity
+  ansible.builtin.stat:
+    path: "{{ student_hybrid_m11_c1_new_dir.path }}"
+    follow: false
+  register: student_hybrid_m11_c1_new_dir_stat
+  when: not student_hybrid_m11_positive_existing
+  no_log: true
+
+- name: Require a distinct check ID and private evidence directory
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_new_dir.path | dirname == student_run_dir ~ '/m11-evidence'
+      - student_hybrid_m11_c1_new_dir.path | basename is match('^c1-[A-Za-z0-9_-]{8,64}$')
+      - student_hybrid_m11_c1_new_dir_stat.stat.isdir | default(false)
+      - not (student_hybrid_m11_c1_new_dir_stat.stat.islnk | default(false))
+      - student_hybrid_m11_c1_new_dir_stat.stat.uid | int == student_uid | int
+      - student_hybrid_m11_c1_new_dir_stat.stat.mode == '0700'
+      - student_hybrid_m11_c1_new_dir_stat.stat.dev | int > 0
+      - student_hybrid_m11_c1_new_dir_stat.stat.inode | int > 0
+    fail_msg: "A tentativa C1 inicial não tem diretório privado e identidade nova."
+  when: not student_hybrid_m11_positive_existing
+  no_log: true
+
+- name: Set the first C1 result and active maps before creating new workload effects
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'status': 'partial', 'phase': 'hybrid-c1-collecting',
+        'hybrid': student_state.hybrid | combine({'phase': 'partial', 'm11': student_state.hybrid.m11 | combine({
+          'verification': student_state.hybrid.m11.verification | combine({
+            'phase': 'collecting',
+            'gates': student_state.hybrid.m11.verification.gates | combine({
+              'positive': student_state.hybrid.m11.verification.gates.positive | combine({
+                'c1': {
+                  'schema': 1,
+                  'check_id': student_hybrid_m11_c1_new_dir.path | basename,
+                  'phase': 'collecting',
+                  'previous_receipt': {},
+                  'receipt': {'path': '', 'sha256': '', 'device': 0, 'inode': 0, 'owner_uid': 0, 'mode': ''}
+                }
+              }, recursive=false),
+              'c1_capture_active': {
+                'schema': 1,
+                'check_id': student_hybrid_m11_c1_new_dir.path | basename,
+                'phase': 'starting',
+                'observers': []
+              }
+            }, recursive=false)
+          }, recursive=false)
+        }, recursive=false)}, recursive=false), 'updated_utc': ansible_date_time.iso8601}, recursive=false) }}
+  when: not student_hybrid_m11_positive_existing
+  no_log: true
+
+- name: Persist and reload the first C1 collecting checkpoint
+  block:
+    - ansible.builtin.copy:
+        dest: "{{ student_state_file }}"
+        content: "{{ student_state | to_nice_json }}\n"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      no_log: true
+    - ansible.builtin.set_fact:
+        student_state: "{{ lookup('file', student_state_file) | from_json }}"
+      no_log: true
+    - ansible.builtin.assert:
+        that:
+          - student_state.status == 'partial'
+          - student_state.hybrid.m11.verification.gates.positive.c1.check_id == student_hybrid_m11_c1_new_dir.path | basename
+          - student_state.hybrid.m11.verification.gates.positive.c1.phase == 'collecting'
+          - student_state.hybrid.m11.verification.gates.c1_capture_active.check_id == student_hybrid_m11_c1_new_dir.path | basename
+          - student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'starting'
+          - student_state.hybrid.m11.verification.gates.c1_capture_active.observers == []
+        fail_msg: "O primeiro check C1 não sobreviveu ao save/reload antes dos efeitos."
+      no_log: true
+  when: not student_hybrid_m11_positive_existing
+
+- name: Require a fresh collecting C1 check before reusing live resources
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.positive.c1.phase == 'collecting'
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'starting'
+      - student_state.hybrid.m11.verification.gates.positive.c1.check_id == student_state.hybrid.m11.verification.gates.c1_capture_active.check_id
+      - student_state.hybrid.m11.verification.gates.positive.c1.receipt.path == ''
+  when: student_hybrid_m11_positive_existing
+  no_log: true
+
+- name: Revalidate the exact Ubuntu OVS attachment before resolving packet observers
+  ansible.builtin.include_tasks: hybrid-m11-verify-c0-ovs.yml
+
+- name: Discover Ubuntu tenant and qrouter interfaces from the saved Neutron port identities
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_guest_link_probe: |-
+      set -eu
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      tenant_mac={{ student_state.hybrid.m11.verification.gates.c1_api_paths.tenant_port.mac_address | lower | quote }}
+      tenant_ip={{ student_state.hybrid.m11.verification.gates.c1_api_paths.tenant_port.fixed_ips[0].ip_address | quote }}
+      provider_mac={{ student_state.hybrid.m11.verification.gates.c1_api_paths.provider_port.mac_address | lower | quote }}
+      provider_ip={{ student_state.hybrid.m11.verification.gates.c1_api_paths.provider_port.fixed_ips[0].ip_address | quote }}
+      guest_iface={{ student_state.hybrid.m11.verification.gates.ovs_attach.interface_name | quote }}
+      guest_mac={{ student_state.hybrid.m11.verification.gates.ovs_attach.guest_interface_mac | lower | quote }}
+      guest_index={{ student_state.hybrid.m11.verification.gates.ovs_attach.ifindex | string | quote }}
+      link_row="$(ip -o link show dev "$guest_iface")"
+      link_index="$(printf '%s\n' "$link_row" | /usr/bin/awk -F: '{print $1}')"
+      link_mac="$(printf '%s\n' "$link_row" | /usr/bin/sed -n 's/.*link\/ether \([^ ]*\).*/\1/p' | tr '[:upper:]' '[:lower:]')"
+      [ "$link_index" = "$guest_index" ] && [ "$link_mac" = "$guest_mac" ]
+      guest_netns="$(stat -Lc '%d:%i' /proc/self/ns/net)"
+      qrouter_matches=''
+      for ns in $(sudo -n /usr/sbin/ip netns list | /usr/bin/awk 'NF {print $1}'); do
+        ns_path="/run/netns/$ns"
+        [ -e "$ns_path" ]
+        ns_identity="$(sudo -n /usr/bin/stat -Lc '%d:%i' "$ns_path")"
+        tenant_found=''
+        provider_found=''
+        while IFS=' ' read -r index iface; do
+          index="$(printf '%s' "$index" | /usr/bin/tr -d ':')"
+          iface="$(printf '%s' "$iface" | /usr/bin/cut -d@ -f1)"
+          mac="$(sudo -n /usr/sbin/ip netns exec "$ns" /usr/sbin/ip -o link show dev "$iface" | /usr/bin/sed -n 's/.*link\/ether \([^ ]*\).*/\1/p' | tr '[:upper:]' '[:lower:]')"
+          addresses="$(sudo -n /usr/sbin/ip netns exec "$ns" /usr/sbin/ip -o -4 address show dev "$iface" | /usr/bin/awk '{print $4}' | /usr/bin/cut -d/ -f1)"
+          if [ "$mac" = "$tenant_mac" ] && printf '%s\n' "$addresses" | /usr/bin/grep -Fxq "$tenant_ip"; then
+            tenant_found="$iface|$index|$mac"
+          fi
+          if [ "$mac" = "$provider_mac" ] && printf '%s\n' "$addresses" | /usr/bin/grep -Fxq "$provider_ip"; then
+            provider_found="$iface|$index|$mac"
+          fi
+        done < <(sudo -n /usr/sbin/ip netns exec "$ns" /usr/sbin/ip -o link show | /usr/bin/awk -F': ' '{print $1, $2}')
+        if [ -n "$tenant_found" ] && [ -n "$provider_found" ]; then
+          qrouter_matches="$(printf '%s\n%s|%s|%s|%s' "$qrouter_matches" "$ns" "$ns_identity" "$tenant_found" "$provider_found")"
+        fi
+      done
+      [ "$(printf '%s\n' "$qrouter_matches" | /usr/bin/awk 'NF {n++} END {print n+0}')" = 1 ]
+      qrouter_record="$(printf '%s\n' "$qrouter_matches" | /usr/bin/awk 'NF {print; exit}')"
+      printf 'P010_C1_GUEST_LINKS=%s|%s|%s\n' "$guest_netns" "$guest_iface" "$guest_index" >&3
+      printf 'P010_C1_QROUTER=%s\n' "$qrouter_record" >&3
+  no_log: true
+
+- name: Resolve Ubuntu and qrouter observer identities through the pinned SSH transport
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: ubuntu
+    student_hybrid_ssh_remote_command: bash -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_c1_guest_link_probe }}"
+
+- name: Parse the actual Ubuntu attachment and same-namespace qrouter ports
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_guest_link_markers: "{{ student_hybrid_ssh_result.stdout_lines | select('match', '^P010_C1_(GUEST_LINKS|QROUTER)=') | list }}"
+    student_hybrid_m11_c1_guest_link_record: "{{ (student_hybrid_ssh_result.stdout_lines | select('match', '^P010_C1_GUEST_LINKS=') | first | regex_replace('^P010_C1_GUEST_LINKS=', '')).split('|') }}"
+    student_hybrid_m11_c1_qrouter_record: "{{ (student_hybrid_ssh_result.stdout_lines | select('match', '^P010_C1_QROUTER=') | first | regex_replace('^P010_C1_QROUTER=', '')).split('|') }}"
+  no_log: true
+
+- name: Require one exact tenant0 and one qrouter with both API-bound ports
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_ssh_result.rc | int == 0
+      - student_hybrid_m11_c1_guest_link_markers | select('match', '^P010_C1_GUEST_LINKS=') | list | length == 1
+      - student_hybrid_m11_c1_guest_link_markers | select('match', '^P010_C1_QROUTER=') | list | length == 1
+      - student_hybrid_m11_c1_guest_link_record | length == 3
+      - student_hybrid_m11_c1_guest_link_record[0] is match('^[1-9][0-9]*:[1-9][0-9]*$')
+      - student_hybrid_m11_c1_guest_link_record[1] == student_state.hybrid.m11.verification.gates.ovs_attach.interface_name
+      - student_hybrid_m11_c1_guest_link_record[2] | int == student_state.hybrid.m11.verification.gates.ovs_attach.ifindex | int
+      - student_hybrid_m11_c1_qrouter_record | length == 8
+      - student_hybrid_m11_c1_qrouter_record[0] is match('^[A-Za-z0-9_.-]{1,64}$')
+      - student_hybrid_m11_c1_qrouter_record[1] is match('^[1-9][0-9]*:[1-9][0-9]*$')
+      - student_hybrid_m11_c1_qrouter_record[2] is match('^[A-Za-z0-9_.:-]{1,15}$')
+      - student_hybrid_m11_c1_qrouter_record[3] is match('^[1-9][0-9]*$')
+      - student_hybrid_m11_c1_qrouter_record[4] | lower == student_state.hybrid.m11.verification.gates.c1_api_paths.tenant_port.mac_address | lower
+      - student_hybrid_m11_c1_qrouter_record[5] is match('^[A-Za-z0-9_.:-]{1,15}$')
+      - student_hybrid_m11_c1_qrouter_record[6] is match('^[1-9][0-9]*$')
+      - student_hybrid_m11_c1_qrouter_record[7] | lower == student_state.hybrid.m11.verification.gates.c1_api_paths.provider_port.mac_address | lower
+    fail_msg: "A ligação Ubuntu/qrouter é ambígua ou não corresponde às portas Neutron atuais."
+  no_log: true
+
+- name: Keep only the measured Ubuntu and qrouter link identities
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_ubuntu_links:
+      netns: "{{ student_hybrid_m11_c1_guest_link_record[0] }}"
+      interface: "{{ student_hybrid_m11_c1_guest_link_record[1] }}"
+      ifindex: "{{ student_hybrid_m11_c1_guest_link_record[2] | int }}"
+      mac: "{{ student_state.hybrid.m11.verification.gates.ovs_attach.guest_interface_mac | lower }}"
+    student_hybrid_m11_c1_qrouter_links:
+      name: "{{ student_hybrid_m11_c1_qrouter_record[0] }}"
+      netns: "{{ student_hybrid_m11_c1_qrouter_record[1] }}"
+      tenant: {interface: "{{ student_hybrid_m11_c1_qrouter_record[2] }}", ifindex: "{{ student_hybrid_m11_c1_qrouter_record[3] | int }}", mac: "{{ student_hybrid_m11_c1_qrouter_record[4] | lower }}"}
+      provider: {interface: "{{ student_hybrid_m11_c1_qrouter_record[5] }}", ifindex: "{{ student_hybrid_m11_c1_qrouter_record[6] | int }}", mac: "{{ student_hybrid_m11_c1_qrouter_record[7] | lower }}"}
+  no_log: true
+
+- name: Use the deterministic namespace only for a new create-only pass
+  ansible.builtin.set_fact:
+    student_hybrid_m11_namespace: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}"
+  when: not student_hybrid_m11_positive_existing
+  no_log: true
+
+- name: Reuse only the namespace recorded by this run for a health recheck
+  ansible.builtin.set_fact:
+    student_hybrid_m11_namespace: "{{ student_state.hybrid.m11.verification.gates.namespace }}"
+  when: student_hybrid_m11_positive_existing
+  no_log: true
+
+- name: Checkpoint the Cilium configuration phase before creating run-owned objects
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      status: partial
+      phase: hybrid-cilium-configuring
+      hybrid:
+        phase: partial
+        m11:
+          phase: cilium-configuring
+          verification:
+            phase: cilium-configuring
+  when: not student_hybrid_m11_positive_existing
+
+- name: Reserve a new private directory for this run's Cilium objects
+  ansible.builtin.stat:
+    path: "{{ student_run_dir }}/m11-k8s"
+    follow: false
+  register: student_hybrid_m11_k8s_dir_before
+  no_log: true
+  when: not student_hybrid_m11_positive_existing
+
+- name: Refuse a pre-existing run-owned Kubernetes manifest directory
+  ansible.builtin.assert:
+    that:
+      - not (student_hybrid_m11_k8s_dir_before.stat.exists | default(false))
+      - not (student_hybrid_m11_k8s_dir_before.stat.islnk | default(false))
+    fail_msg: "Diretório de manifests M11 já existe sem checkpoint desta execução."
+  no_log: true
+  when: not student_hybrid_m11_positive_existing
+
+- name: Create the private directory for exact M11 object manifests
+  ansible.builtin.file:
+    path: "{{ student_run_dir }}/m11-k8s"
+    state: directory
+    owner: "{{ student_uid }}"
+    mode: '0700'
+  when: not student_hybrid_m11_positive_existing
+
+- name: Record the deterministic namespace for this run's probes
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_namespace == 'p010-hyb-' ~ student_state.run_id.split('-')[-1][:12]
+    fail_msg: "Namespace M11 não corresponde ao identificador registrado desta execução."
+  when: not student_hybrid_m11_positive_existing
+
+- name: Render create-only BGP and workload objects with owner and run labels
+  ansible.builtin.template:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/{{ item.template }}"
+    dest: "{{ student_run_dir }}/m11-k8s/{{ item.key }}.yaml"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  loop:
+    - {key: namespace, template: hybrid-m11-namespace.yml.j2}
+    - {key: peer_config, template: hybrid-m11-peer-config.yml.j2}
+    - {key: advertisement, template: hybrid-m11-advertisement.yml.j2}
+    - {key: cluster_rack1, template: hybrid-m11-cluster-rack1.yml.j2}
+    - {key: cluster_rack2, template: hybrid-m11-cluster-rack2.yml.j2}
+    - {key: client_deployment, template: hybrid-m11-client.yml.j2}
+    - {key: server_deployment, template: hybrid-m11-server.yml.j2}
+  no_log: true
+  when: not student_hybrid_m11_positive_existing
+
+- name: Create each M11 object only after persisting its individual intent
+  ansible.builtin.include_tasks: hybrid-m11-create-k8s-object.yml
+  loop:
+    - {key: namespace, kind: Namespace, name: "{{ student_hybrid_m11_namespace }}", namespace: '', manifest: "{{ student_run_dir }}/m11-k8s/namespace.yaml"}
+    - {key: peer_config, kind: CiliumBGPPeerConfig, name: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-peer", namespace: '', manifest: "{{ student_run_dir }}/m11-k8s/peer_config.yaml"}
+    - {key: advertisement, kind: CiliumBGPAdvertisement, name: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-pods", namespace: '', manifest: "{{ student_run_dir }}/m11-k8s/advertisement.yaml"}
+    - {key: cluster_rack1, kind: CiliumBGPClusterConfig, name: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-rack1", namespace: '', manifest: "{{ student_run_dir }}/m11-k8s/cluster_rack1.yaml"}
+    - {key: cluster_rack2, kind: CiliumBGPClusterConfig, name: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-rack2", namespace: '', manifest: "{{ student_run_dir }}/m11-k8s/cluster_rack2.yaml"}
+    - {key: client_deployment, kind: Deployment, name: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-client", namespace: "{{ student_hybrid_m11_namespace }}", manifest: "{{ student_run_dir }}/m11-k8s/client_deployment.yaml"}
+    - {key: server_deployment, kind: Deployment, name: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-server", namespace: "{{ student_hybrid_m11_namespace }}", manifest: "{{ student_run_dir }}/m11-k8s/server_deployment.yaml"}
+  loop_control:
+    loop_var: student_hybrid_m11_k8s_object
+    label: "{{ student_hybrid_m11_k8s_object.key }}"
+  vars:
+    student_hybrid_m11_k8s_key: "{{ student_hybrid_m11_k8s_object.key }}"
+    student_hybrid_m11_k8s_kind: "{{ student_hybrid_m11_k8s_object.kind }}"
+    student_hybrid_m11_k8s_name: "{{ student_hybrid_m11_k8s_object.name }}"
+    student_hybrid_m11_k8s_namespace: "{{ student_hybrid_m11_k8s_object.namespace }}"
+    student_hybrid_m11_k8s_manifest: "{{ student_hybrid_m11_k8s_object.manifest }}"
+  when: not student_hybrid_m11_positive_existing
+
+- name: Validate the saved private Kubernetes manifest directory before a health recheck
+  ansible.builtin.stat:
+    path: "{{ student_run_dir }}/m11-k8s"
+    follow: false
+  register: student_hybrid_m11_existing_k8s_dir
+  when: student_hybrid_m11_positive_existing
+  no_log: true
+
+- name: Require the existing Kubernetes manifest directory to remain private and owned
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_existing_k8s_dir.stat.isdir | default(false)
+      - not (student_hybrid_m11_existing_k8s_dir.stat.islnk | default(false))
+      - student_hybrid_m11_existing_k8s_dir.stat.uid | int == student_uid
+      - student_hybrid_m11_existing_k8s_dir.stat.mode == '0700'
+      - student_hybrid_m11_namespace == student_state.hybrid.m11.verification.gates.namespace
+    fail_msg: "O diretório privado ou namespace gravado da execução M11 divergiu."
+  when: student_hybrid_m11_positive_existing
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-m11-verify-k8s-objects.yml
+
+- name: Wait for the run-owned client and HTTP server deployments
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - rollout
+      - status
+      - "deployment/{{ item }}"
+      - --namespace
+      - "{{ student_hybrid_m11_namespace }}"
+      - --timeout=240s
+  become: true
+  changed_when: false
+  loop:
+    - "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-client"
+    - "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-server"
+  no_log: true
+
+- name: Read the only run-owned client and server pod records
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - pods
+      - --namespace
+      - "{{ student_hybrid_m11_namespace }}"
+      - --selector
+      - "p010-student-owner={{ student_state.owner_token }},p010-student-run={{ student_state.run_id }},app={{ item.app }}"
+      - -o
+      - json
+  become: true
+  register: student_hybrid_m11_workload_pods
+  changed_when: false
+  loop:
+    - {key: client, app: p010-hyb-client, deployment_key: client_deployment}
+    - {key: server, app: p010-hyb-server, deployment_key: server_deployment}
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-m11-validate-pod-ownership.yml
+
+- name: Read only the CiliumNode records for the two fixture pod nodes
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - ciliumnodes
+      - -o
+      - json
+  become: true
+  register: student_hybrid_m11_ciliumnodes
+  changed_when: false
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-m11-resolve-ciliumnodes.yml
+
+- name: Require both racks to have distinct allocated PodCIDRs from the private cluster pool
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_client_pod.spec.nodeName != student_hybrid_m11_server_pod.spec.nodeName
+      - student_hybrid_m11_client_node.spec.ipam.podCIDRs | length == 1
+      - student_hybrid_m11_server_node.spec.ipam.podCIDRs | length == 1
+      - student_hybrid_m11_client_node.spec.ipam.podCIDRs[0] is match('^10\.246\.[0-9]{1,3}\.0/24$')
+      - student_hybrid_m11_server_node.spec.ipam.podCIDRs[0] is match('^10\.246\.[0-9]{1,3}\.0/24$')
+      - student_hybrid_m11_client_node.spec.ipam.podCIDRs[0] != student_hybrid_m11_server_node.spec.ipam.podCIDRs[0]
+    fail_msg: "As duas réplicas precisam ocupar racks distintos com alocações Cilium próprias."
+  no_log: true
+
+- name: Checkpoint the exact workload UIDs, pod IPs, nodes, and PodCIDRs
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-m11-workloads-ready
+      hybrid:
+        phase: partial
+        m11:
+          phase: cilium-configuring
+          verification:
+            phase: cilium-configuring
+            gates:
+              namespace: "{{ student_hybrid_m11_namespace }}"
+              client_pod:
+                name: "{{ student_hybrid_m11_client_pod.metadata.name }}"
+                uid: "{{ student_hybrid_m11_client_pod.metadata.uid }}"
+                ip: "{{ student_hybrid_m11_client_pod.status.podIP }}"
+                node: "{{ student_hybrid_m11_client_pod.spec.nodeName }}"
+                pod_cidr: "{{ student_hybrid_m11_client_node.spec.ipam.podCIDRs[0] }}"
+              server_pod:
+                name: "{{ student_hybrid_m11_server_pod.metadata.name }}"
+                uid: "{{ student_hybrid_m11_server_pod.metadata.uid }}"
+                ip: "{{ student_hybrid_m11_server_pod.status.podIP }}"
+                node: "{{ student_hybrid_m11_server_pod.spec.nodeName }}"
+                pod_cidr: "{{ student_hybrid_m11_server_node.spec.ipam.podCIDRs[0] }}"
+
+- name: Wait for the three expected Cilium BGP sessions to reach Established
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/cilium"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - bgp
+      - peers
+  become: true
+  register: student_hybrid_m11_bgp_peers
+  changed_when: false
+  retries: 60
+  delay: 5
+  until: >-
+    student_hybrid_m11_bgp_peers.rc == 0 and
+    (student_hybrid_m11_bgp_peers.stdout | default('') | regex_findall('(?i)established') | length) == 3 and
+    student_hybrid_m11_bgp_peers.stdout is search('10\.30\.1\.1') and
+    student_hybrid_m11_bgp_peers.stdout is search('10\.30\.2\.1')
+  no_log: true
+
+- name: Require exactly three sessions with both selected leaf peers
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_bgp_peers.stdout | regex_findall('(?i)established') | length == 3
+      - student_hybrid_m11_bgp_peers.stdout is search('10\.30\.1\.1')
+      - student_hybrid_m11_bgp_peers.stdout is search('10\.30\.2\.1')
+    fail_msg: "Cilium não confirmou os três peers BGP esperados para rack1/rack2."
+  no_log: true
+
+- name: Read the border's FRR RIB by the saved container identity
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - exec
+      - "{{ student_state.fabric_node_ids[student_profile.fabric_nodes | select('search', 'border1$') | first] }}"
+      - vtysh
+      - -c
+      - show ip bgp
+  become: true
+  register: student_hybrid_m11_border_bgp_rib
+  changed_when: false
+  retries: 60
+  delay: 5
+  until: >-
+    student_hybrid_m11_border_bgp_rib.rc == 0 and
+    student_hybrid_m11_border_bgp_rib.stdout is search('(?m)^\*>?\s*' ~ (student_state.hybrid.m11.network.tenant_cidr | regex_escape) ~ '\s+198\.18\.48\.3(?:\s|$)') and
+    student_hybrid_m11_border_bgp_rib.stdout is search('(?m)^\*>?\s*' ~ (student_state.hybrid.m11.verification.gates.client_pod.pod_cidr | regex_escape) ~ '\s') and
+    student_hybrid_m11_border_bgp_rib.stdout is search('(?m)^\*>?\s*' ~ (student_state.hybrid.m11.verification.gates.server_pod.pod_cidr | regex_escape) ~ '\s')
+  no_log: true
+
+- name: Read the tenant return route and both exact PodCIDRs at each fabric leaf by saved ID
+  ansible.builtin.command:
+    argv: >-
+      {{ ['/usr/bin/docker', '--host', 'unix:///var/run/docker.sock', 'exec',
+          student_state.fabric_node_ids[item.node], 'sr_cli'] + item.arguments }}
+  become: true
+  register: student_hybrid_m11_fabric_routes
+  changed_when: false
+  loop:
+    - node: "{{ student_profile.fabric_nodes | select('search', 'leaf1$') | first }}"
+      prefix: "{{ student_state.hybrid.m11.network.tenant_cidr }}"
+      arguments: ["show network-instance default route-table ipv4-unicast prefix {{ student_state.hybrid.m11.network.tenant_cidr }}"]
+    - node: "{{ student_profile.fabric_nodes | select('search', 'leaf1$') | first }}"
+      prefix: "{{ student_state.hybrid.m11.verification.gates.client_pod.pod_cidr }}"
+      arguments: ["show network-instance default route-table ipv4-unicast prefix {{ student_state.hybrid.m11.verification.gates.client_pod.pod_cidr }}"]
+    - node: "{{ student_profile.fabric_nodes | select('search', 'leaf1$') | first }}"
+      prefix: "{{ student_state.hybrid.m11.verification.gates.server_pod.pod_cidr }}"
+      arguments: ["show network-instance default route-table ipv4-unicast prefix {{ student_state.hybrid.m11.verification.gates.server_pod.pod_cidr }}"]
+    - node: "{{ student_profile.fabric_nodes | select('search', 'leaf2$') | first }}"
+      prefix: "{{ student_state.hybrid.m11.network.tenant_cidr }}"
+      arguments: ["show network-instance default route-table ipv4-unicast prefix {{ student_state.hybrid.m11.network.tenant_cidr }}"]
+    - node: "{{ student_profile.fabric_nodes | select('search', 'leaf2$') | first }}"
+      prefix: "{{ student_state.hybrid.m11.verification.gates.client_pod.pod_cidr }}"
+      arguments: ["show network-instance default route-table ipv4-unicast prefix {{ student_state.hybrid.m11.verification.gates.client_pod.pod_cidr }}"]
+    - node: "{{ student_profile.fabric_nodes | select('search', 'leaf2$') | first }}"
+      prefix: "{{ student_state.hybrid.m11.verification.gates.server_pod.pod_cidr }}"
+      arguments: ["show network-instance default route-table ipv4-unicast prefix {{ student_state.hybrid.m11.verification.gates.server_pod.pod_cidr }}"]
+  loop_control:
+    label: "{{ item.node }} {{ item.prefix }}"
+  no_log: true
+
+- name: Require every tenant and PodCIDR route on both selected leaves
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - item.stdout is search(item.item.prefix | regex_escape)
+    fail_msg: "A rota do tenant ou de uma PodCIDR não chegou aos dois leaves próprios."
+  loop: "{{ student_hybrid_m11_fabric_routes.results }}"
+  no_log: true
+
+- name: Read the border FIB for the qrouter tenant next-hop and both PodCIDRs
+  ansible.builtin.command:
+    argv: >-
+      {{ ['/usr/bin/docker', '--host', 'unix:///var/run/docker.sock', 'exec',
+          student_state.fabric_node_ids[item.node], item.cli] + item.arguments }}
+  become: true
+  register: student_hybrid_m11_server_routes
+  changed_when: false
+  loop:
+    - node: "{{ student_profile.fabric_nodes | select('search', 'border1$') | first }}"
+      prefix: "{{ student_state.hybrid.m11.network.tenant_cidr }}"
+      cli: vtysh
+      arguments: ["-c", "show ip route {{ student_state.hybrid.m11.network.tenant_cidr }}"]
+    - node: "{{ student_profile.fabric_nodes | select('search', 'border1$') | first }}"
+      prefix: "{{ student_state.hybrid.m11.verification.gates.client_pod.pod_cidr }}"
+      cli: vtysh
+      arguments: ["-c", "show ip route {{ student_state.hybrid.m11.verification.gates.client_pod.pod_cidr }}"]
+    - node: "{{ student_profile.fabric_nodes | select('search', 'border1$') | first }}"
+      prefix: "{{ student_state.hybrid.m11.verification.gates.server_pod.pod_cidr }}"
+      cli: vtysh
+      arguments: ["-c", "show ip route {{ student_state.hybrid.m11.verification.gates.server_pod.pod_cidr }}"]
+  loop_control:
+    label: "{{ item.node }} {{ item.prefix }}"
+  no_log: true
+
+- name: Require the border FIB to use the qrouter as tenant next-hop and hold both PodCIDRs
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - item.stdout is search(item.item.prefix | regex_escape)
+      - item.item.prefix != student_state.hybrid.m11.network.tenant_cidr or item.stdout is search(student_state.hybrid.m11.network.provider_router_ip | regex_escape)
+    fail_msg: "A FIB do border não contém o next-hop do qrouter e as duas PodCIDRs."
+  loop: "{{ student_hybrid_m11_server_routes.results }}"
+  no_log: true
+
+- name: Require one ready container identity on each exact Pod
+  ansible.builtin.assert:
+    that:
+      - item.pod.status.containerStatuses is sequence
+      - item.pod.status.containerStatuses is not string
+      - item.pod.status.containerStatuses | selectattr('name', 'equalto', item.container_name) | list | length == 1
+      - container_status.ready | bool
+      - container_status.restartCount | int >= 0
+      - container_status.containerID is match('^containerd://[0-9a-f]{64}$')
+      - item.pod.metadata.uid is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - item.pod.status.podIP is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+      - item.pod.spec.nodeName in student_state.kind_node_ids
+      - student_state.kind_node_ids[item.pod.spec.nodeName] is match('^[0-9a-f]{64}$')
+    fail_msg: "O endpoint C1 não possui Pod, container ou node próprios, prontos e identificáveis."
+  loop:
+    - {key: pod_to_cirros, pod: "{{ student_hybrid_m11_client_pod }}", container_name: netshoot}
+    - {key: cirros_to_pod, pod: "{{ student_hybrid_m11_server_pod }}", container_name: agnhost}
+  vars:
+    container_status: "{{ item.pod.status.containerStatuses | selectattr('name', 'equalto', item.container_name) | first }}"
+  no_log: true
+
+- name: Retain only the two Pod-to-container identities selected by UID and container name
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_pod_targets:
+      - key: pod_to_cirros
+        pod: "{{ student_hybrid_m11_client_pod }}"
+        container_name: netshoot
+        container_id: "{{ (student_hybrid_m11_client_pod.status.containerStatuses | selectattr('name', 'equalto', 'netshoot') | first).containerID | regex_replace('^containerd://', '') }}"
+        worker_id: "{{ student_state.kind_node_ids[student_hybrid_m11_client_pod.spec.nodeName] }}"
+      - key: cirros_to_pod
+        pod: "{{ student_hybrid_m11_server_pod }}"
+        container_name: agnhost
+        container_id: "{{ (student_hybrid_m11_server_pod.status.containerStatuses | selectattr('name', 'equalto', 'agnhost') | first).containerID | regex_replace('^containerd://', '') }}"
+        worker_id: "{{ student_state.kind_node_ids[student_hybrid_m11_server_pod.spec.nodeName] }}"
+  no_log: true
+
+- name: Read each selected Kind node's host PID from its saved Docker ID
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - inspect
+      - --format={{ '{{.State.Pid}}' }}
+      - "{{ item.worker_id }}"
+  become: true
+  register: student_hybrid_m11_c1_worker_pids
+  changed_when: false
+  loop: "{{ student_hybrid_m11_c1_pod_targets }}"
+  no_log: true
+
+- name: Require distinct live Kind worker init PIDs
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - item.stdout is match('^[1-9][0-9]*$')
+      - item.stdout | int > 1
+      - student_hybrid_m11_c1_worker_pids.results | map(attribute='stdout') | list | unique | list | length == 2
+    fail_msg: "O ID Docker salvo não resolveu em exatamente dois processos Kind ativos."
+  loop: "{{ student_hybrid_m11_c1_worker_pids.results }}"
+  no_log: true
+
+- name: Locate each kubelet's effective CRI endpoint and the node-local crictl executable
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - exec
+      - "{{ item.worker_id }}"
+      - /bin/sh
+      - -s
+    stdin: |-
+      set -eu
+      kubelet_pids=''
+      kubelet_cmd=''
+      set -- /proc/[0-9]*/cmdline
+      set -f
+      for cmdfile do
+        [ "$cmdfile" != '/proc/[0-9]*/cmdline' ] || continue
+        [ -r "$cmdfile" ] || continue
+        first="$(tr '\000' '\n' <"$cmdfile" | /usr/bin/sed -n '1p')"
+        [ "${first##*/}" = kubelet ] || continue
+        pid="${cmdfile#/proc/}"
+        pid="${pid%/cmdline}"
+        kubelet_pids="$kubelet_pids $pid"
+        kubelet_cmd="$cmdfile"
+      done
+      [ "$(printf '%s\n' "$kubelet_pids" | /usr/bin/awk '{print NF}')" = 1 ]
+      kubelet_pid="${kubelet_pids# }"
+      endpoint=''
+      config=''
+      endpoint_flags=0
+      config_flags=0
+      next_flag=''
+      args_file="$(mktemp /tmp/p010-c1-kubelet-args.XXXXXXXX)"
+      chmod 600 "$args_file"
+      /usr/bin/tr '\000' '\n' <"$kubelet_cmd" >"$args_file"
+      while IFS= read -r arg; do
+        if [ -n "$next_flag" ]; then
+          [ -n "$arg" ] || exit 74
+          if [ "$next_flag" = endpoint ]; then endpoint="$arg"; else config="$arg"; fi
+          next_flag=''
+          continue
+        fi
+        case "$arg" in
+          --container-runtime-endpoint=*) endpoint_flags=$((endpoint_flags + 1)); endpoint="${arg#*=}" ;;
+          --container-runtime-endpoint) endpoint_flags=$((endpoint_flags + 1)); next_flag=endpoint ;;
+          --config=*) config_flags=$((config_flags + 1)); config="${arg#*=}" ;;
+          --config) config_flags=$((config_flags + 1)); next_flag=config ;;
+        esac
+      done <"$args_file"
+      /bin/rm -f -- "$args_file"
+      [ -z "$next_flag" ] || exit 74
+      [ "$endpoint_flags" -le 1 ] || exit 74
+      [ "$config_flags" -le 1 ] || exit 74
+      [ "$endpoint_flags" = 0 ] || [ -n "$endpoint" ] || exit 74
+      [ "$config_flags" = 0 ] || [ -n "$config" ] || exit 74
+      source='flag'
+      if [ -z "$endpoint" ]; then
+        [ -n "$config" ] && [ -r "$config" ]
+        count="$(/usr/bin/awk -F: '$1 == "containerRuntimeEndpoint" {n++} END {print n+0}' "$config")"
+        [ "$count" = 1 ]
+        endpoint="$(/usr/bin/awk 'index($0, ":") { key=substr($0, 1, index($0, ":") - 1); if (key == "containerRuntimeEndpoint") { value=substr($0, index($0, ":") + 1); sub(/^[[:space:]]*/, "", value); sub(/[[:space:]]*$/, "", value); print value } }' "$config")"
+        [ -n "$endpoint" ]
+        source='config'
+      fi
+      case "$endpoint" in unix:///*) ;; *) exit 71 ;; esac
+      case "$endpoint" in *[!A-Za-z0-9._:/-]*) exit 72 ;; esac
+      crictl="$(command -v crictl)"
+      [ -x "$crictl" ]
+      crictl="$(readlink -f -- "$crictl")"
+      crictl_hash="$(sha256sum "$crictl" | /usr/bin/awk '{print $1}')"
+      [ "$(printf '%s' "$crictl_hash" | /usr/bin/awk '{print length($0)}')" = 64 ]
+      kubelet_start="$(/usr/bin/awk '{sub(/^.*\) /, ""); print $20}' "/proc/$kubelet_pid/stat")"
+      boot_id="$(cat /proc/sys/kernel/random/boot_id)"
+      [ "$kubelet_start" -gt 0 ]
+      case "$boot_id" in ????????-????-????-????-????????????) ;; *) exit 73 ;; esac
+      config_id='0:0'
+      if [ "$source" = config ]; then config_id="$(stat -Lc '%d:%i' "$config")"; fi
+      printf '%s|%s|%s|%s|%s|%s|%s|%s\n' "$endpoint" "$source" "$config" "$config_id" "$crictl" "$crictl_hash" "$kubelet_pid:$kubelet_start" "$boot_id"
+    stdin_add_newline: false
+  become: true
+  register: student_hybrid_m11_c1_runtime_discoveries
+  changed_when: false
+  loop: "{{ student_hybrid_m11_c1_pod_targets }}"
+  no_log: true
+
+- name: Require a single recognized CRI discovery record from each own worker
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - item.stdout.split('|') | length == 8
+      - item.stdout.split('|')[0] is match('^unix:///[^| ]+$')
+      - item.stdout.split('|')[1] in ['flag', 'config']
+      - item.stdout.split('|')[4] is match('^/[^| ]+/crictl$')
+      - item.stdout.split('|')[5] is match('^[0-9a-f]{64}$')
+      - item.stdout.split('|')[6] is match('^[1-9][0-9]*:[1-9][0-9]*$')
+      - item.stdout.split('|')[7] is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    fail_msg: "O worker não publicou um endpoint CRI, crictl ou domínio kubelet inequívoco."
+  loop: "{{ student_hybrid_m11_c1_runtime_discoveries.results }}"
+  no_log: true
+
+- name: Keep the observed worker CRI discovery fields only in protected memory
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_runtime_by_key: >-
+      {{ dict(student_hybrid_m11_c1_runtime_discoveries.results
+        | map(attribute='item.key')
+        | zip(student_hybrid_m11_c1_runtime_discoveries.results | map(attribute='stdout') | map('split', '|') | list)) }}
+  no_log: true
+
+- name: Ask each observed crictl binary for its client and runtime versions with explicit endpoints
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - exec
+      - "{{ item.worker_id }}"
+      - "{{ student_hybrid_m11_c1_runtime_by_key[item.key][4] }}"
+      - --version
+  become: true
+  register: student_hybrid_m11_c1_crictl_client_versions
+  changed_when: false
+  loop: "{{ student_hybrid_m11_c1_pod_targets }}"
+  no_log: true
+
+- name: Require the source-backed crictl client version without inferring it from the node image
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - item.stdout | regex_findall('(?m)^crictl version v?1\.33\.0\s*$') | length == 1
+    fail_msg: "O cliente CRI não corresponde à versão v1.33.0 fonteada para este adapter."
+  loop: "{{ student_hybrid_m11_c1_crictl_client_versions.results }}"
+  no_log: true
+
+- name: Read the server runtime version with explicit runtime and image endpoints
+  ansible.builtin.command:
+    argv: >-
+      {{ ['/usr/bin/docker', '--host', 'unix:///var/run/docker.sock', 'exec', item.item.worker_id,
+          item.stdout.split('|')[4], '--runtime-endpoint', item.stdout.split('|')[0], '--image-endpoint', item.stdout.split('|')[0],
+          '--timeout', '10s', '--debug=false', 'version'] }}
+  become: true
+  register: student_hybrid_m11_c1_runtime_versions
+  changed_when: false
+  loop: "{{ student_hybrid_m11_c1_runtime_discoveries.results }}"
+  no_log: true
+
+- name: Query the exact container list from each recognized CRI endpoint
+  ansible.builtin.command:
+    argv: >-
+      {{ ['/usr/bin/docker', '--host', 'unix:///var/run/docker.sock', 'exec', item.item.worker_id,
+          item.stdout.split('|')[4], '--runtime-endpoint', item.stdout.split('|')[0], '--image-endpoint', item.stdout.split('|')[0],
+          '--timeout', '10s', '--debug=false', 'ps', '-o', 'json'] }}
+  become: true
+  register: student_hybrid_m11_c1_cri_containers
+  changed_when: false
+  loop: "{{ student_hybrid_m11_c1_runtime_discoveries.results }}"
+  no_log: true
+
+- name: Require the source-backed crictl v1.33.0 and containerd 2.1.4 text version record
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - "item.stdout | regex_findall('(?m)^Version:  [A-Za-z0-9.+_-]{1,64}\\s*$') | length == 1"
+      - "item.stdout | regex_findall('(?m)^RuntimeName:  containerd\\s*$') | length == 1"
+      - "item.stdout | regex_findall('(?m)^RuntimeVersion:  v?2\\.1\\.4(?:[-+][A-Za-z0-9._-]+)?\\s*$') | length == 1"
+      - "item.stdout | regex_findall('(?m)^RuntimeApiVersion:  v1\\s*$') | length == 1"
+      - item.stdout.splitlines() | reject('equalto', '') | list | length == 4
+    fail_msg: "A versão CRI/formatter ou a listagem de containers não corresponde ao adapter fechado."
+  loop: "{{ student_hybrid_m11_c1_runtime_versions.results }}"
+  no_log: true
+
+- name: Require each explicit CRI container-list response to have the pinned envelope
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - (item.stdout | from_json) is mapping
+      - (item.stdout | from_json).keys() | list | sort == ['containers']
+      - (item.stdout | from_json).containers is sequence
+      - (item.stdout | from_json).containers is not string
+    fail_msg: "A listagem do endpoint CRI está ausente ou tem um formato não reconhecido."
+  loop: "{{ student_hybrid_m11_c1_cri_containers.results }}"
+  no_log: true
+
+- name: Require exactly one running CRI container for each current full Pod container ID
+  ansible.builtin.assert:
+    that:
+      - (item.stdout | from_json).containers is sequence
+      - (item.stdout | from_json).containers is not string
+      - (item.stdout | from_json).containers | selectattr('id', 'equalto', student_hybrid_m11_c1_target.container_id) | list | length == 1
+      - student_hybrid_m11_c1_candidate.state == 'CONTAINER_RUNNING'
+      - student_hybrid_m11_c1_candidate.labels['io.kubernetes.pod.uid'] == student_hybrid_m11_c1_target.pod.metadata.uid
+      - student_hybrid_m11_c1_candidate.labels['io.kubernetes.pod.name'] == student_hybrid_m11_c1_target.pod.metadata.name
+      - student_hybrid_m11_c1_candidate.labels['io.kubernetes.pod.namespace'] == student_hybrid_m11_c1_target.pod.metadata.namespace
+      - student_hybrid_m11_c1_candidate.labels['io.kubernetes.container.name'] == student_hybrid_m11_c1_target.container_name
+      - student_hybrid_m11_c1_candidate.metadata.attempt | int >= 0
+    fail_msg: "O container CRI não pertence à Pod atual ou não está ativo."
+  vars:
+    student_hybrid_m11_c1_target: "{{ student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.item.key) | first }}"
+    student_hybrid_m11_c1_candidate: "{{ (item.stdout | from_json).containers | selectattr('id', 'equalto', student_hybrid_m11_c1_target.container_id) | first }}"
+  loop: "{{ student_hybrid_m11_c1_cri_containers.results }}"
+  no_log: true
+
+- name: Parse the two JSON container lists and join each Pod UID/container ID to one running sandbox
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_cri_joined: "{{ student_hybrid_m11_c1_cri_joined | default({}) | combine({item.item.item.key: student_hybrid_m11_c1_match}) }}"
+  vars:
+    student_hybrid_m11_c1_target: "{{ student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.item.key) | first }}"
+    student_hybrid_m11_c1_container_status: "{{ student_hybrid_m11_c1_target.pod.status.containerStatuses | selectattr('name', 'equalto', student_hybrid_m11_c1_target.container_name) | first }}"
+    student_hybrid_m11_c1_matches: >-
+      {{ (item.stdout | from_json).containers
+        | selectattr('id', 'equalto', student_hybrid_m11_c1_target.container_id)
+        | list }}
+    student_hybrid_m11_c1_match: "{{ student_hybrid_m11_c1_matches | first | combine({'worker_id': student_hybrid_m11_c1_target.worker_id}) }}"
+  loop: "{{ student_hybrid_m11_c1_cri_containers.results }}"
+  no_log: true
+
+- name: Require each CRI join to identify exactly one full sandbox ID and attempt
+  ansible.builtin.assert:
+    that:
+      - item.value.podSandboxId is match('^[0-9a-f]{64}$')
+      - item.value.metadata.attempt | int >= 0
+      - item.value.labels['io.kubernetes.pod.uid'] == (student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.key) | first).pod.metadata.uid
+    fail_msg: "O container não se juntou a um sandbox único da Pod atual."
+  loop: "{{ student_hybrid_m11_c1_cri_joined | dict2items }}"
+  no_log: true
+
+- name: Inspect each complete sandbox ID using the selected worker's explicit CRI endpoint
+  ansible.builtin.command:
+    argv: >-
+      {{ ['/usr/bin/docker', '--host', 'unix:///var/run/docker.sock', 'exec', item.value.worker_id,
+          student_hybrid_m11_c1_runtime_by_key[item.key][4], '--runtime-endpoint', student_hybrid_m11_c1_runtime_by_key[item.key][0],
+          '--image-endpoint', student_hybrid_m11_c1_runtime_by_key[item.key][0], '--timeout', '10s', '--debug=false',
+          'inspectp', '-o', 'json', item.value.podSandboxId] }}
+  become: true
+  register: student_hybrid_m11_c1_sandbox_inspections
+  changed_when: false
+  loop: "{{ student_hybrid_m11_c1_cri_joined | dict2items }}"
+  no_log: true
+
+- name: Require the containerd sandbox schema to match the current Pod UID and network namespace
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - (item.stdout | from_json).keys() | list | sort == ['info', 'status']
+      - (item.stdout | from_json).status.id == item.item.value.podSandboxId
+      - (item.stdout | from_json).status.metadata.uid == (student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.key) | first).pod.metadata.uid
+      - (item.stdout | from_json).status.metadata.name == (student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.key) | first).pod.metadata.name
+      - (item.stdout | from_json).status.metadata.namespace == (student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.key) | first).pod.metadata.namespace
+      - (item.stdout | from_json).status.state == 'SANDBOX_READY'
+      - (item.stdout | from_json).status.metadata.attempt is defined
+      - (item.stdout | from_json).status.metadata.attempt | int >= 0
+      - (item.stdout | from_json).status.network.ip == (student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.key) | first).pod.status.podIP
+      - (item.stdout | from_json).status.linux.namespaces.options.network == 'POD'
+      - (item.stdout | from_json).status.runtimeHandler == 'runc'
+      - (item.stdout | from_json).info.pid | int > 1
+      - (item.stdout | from_json).info.processStatus == 'running'
+      - not (item.stdout | from_json).info.netNamespaceClosed | bool
+      - (item.stdout | from_json).info.runtimeType == 'io.containerd.runc.v2'
+    fail_msg: "O adapter containerd não identificou sandbox Linux READY da Pod atual; nenhum PID de sandbox será sinalizado."
+  loop: "{{ student_hybrid_m11_c1_sandbox_inspections.results }}"
+  no_log: true
+
+- name: Keep only the validated sandbox PID and worker host PID for the proc bridge
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_sandbox_targets: >-
+      {{ student_hybrid_m11_c1_sandbox_targets | default({}) | combine({item.item.key: {
+        'worker_id': item.item.value.worker_id,
+        'worker_host_pid': (student_hybrid_m11_c1_worker_pids.results | selectattr('item.key', 'equalto', item.item.key) | first).stdout | int,
+        'container_id': item.item.value.id,
+        'sandbox_id': item.item.value.podSandboxId,
+        'pod_uid': (student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.key) | first).pod.metadata.uid,
+        'pod_name': (student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.key) | first).pod.metadata.name,
+        'namespace': (student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.key) | first).pod.metadata.namespace,
+        'pod_ip': (student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.key) | first).pod.status.podIP,
+        'sandbox_pid': (item.stdout | from_json).info.pid | int,
+        'container_attempt': item.item.value.metadata.attempt | int,
+        'sandbox_attempt': (item.stdout | from_json).status.metadata.attempt | int,
+        'runtime_handler': (item.stdout | from_json).status.runtimeHandler,
+        'runtime_type': (item.stdout | from_json).info.runtimeType,
+        'runtime_version': (student_hybrid_m11_c1_runtime_versions.results | selectattr('item.item.key', 'equalto', item.item.key) | first).stdout
+      }}) }}
+  loop: "{{ student_hybrid_m11_c1_sandbox_inspections.results }}"
+  no_log: true
+
+- name: Verify each worker PID namespace bridge and inspect the sandbox process and Pod links
+  ansible.builtin.command:
+    argv: [/bin/sh, -s]
+    stdin: |-
+      set -eu
+      proc_root=/proc
+      worker_pid={{ item.value.worker_host_pid | int }}
+      sandbox_pid={{ item.value.sandbox_pid | int }}
+      proc_starttime() {
+        line="$(/bin/cat "$1")" || return 1
+        case "$line" in *") "*) rest="$(printf '%s\n' "$line" | /usr/bin/sed 's/^.*) //')" ;; *) return 1 ;; esac
+        set -- $rest
+        [ "$#" -ge 20 ] || return 1
+        field=0
+        start=''
+        for value do
+          field=$((field + 1))
+          if [ "$field" -eq 20 ]; then start="$value"; break; fi
+        done
+        case "$start" in ''|*[!0-9]*) return 1 ;; esac
+        [ "$start" -gt 0 ] || return 1
+        printf '%s\n' "$start"
+      }
+      worker_proc="$proc_root/$worker_pid"
+      worker_root="$worker_proc/root/proc"
+      sandbox_proc="$worker_root/$sandbox_pid"
+      [ -r "$worker_proc/stat" ] && [ -r "$worker_proc/ns/pid" ]
+      [ -r "$worker_root/1/ns/pid" ]
+      worker_pidns="$(/usr/bin/stat -Lc '%d:%i' "$worker_proc/ns/pid")"
+      root_pidns="$(/usr/bin/stat -Lc '%d:%i' "$worker_root/1/ns/pid")"
+      [ "$worker_pidns" = "$root_pidns" ]
+      worker_start="$(proc_starttime "$worker_proc/stat")"
+      worker_uid="$(/usr/bin/stat -Lc '%u' "$worker_proc")"
+      [ "$worker_start" -gt 0 ] && [ "$worker_uid" -ge 0 ]
+      [ -r "$sandbox_proc/stat" ] && [ -r "$sandbox_proc/status" ] && [ -r "$sandbox_proc/ns/net" ]
+      sandbox_start="$(proc_starttime "$sandbox_proc/stat")"
+      sandbox_uid="$(/usr/bin/stat -Lc '%u' "$sandbox_proc")"
+      sandbox_netns="$(/usr/bin/stat -Lc '%d:%i' "$sandbox_proc/ns/net")"
+      [ "$sandbox_start" -gt 0 ] && [ "$sandbox_uid" -ge 0 ]
+      boot_id="$(/bin/cat "$worker_root/sys/kernel/random/boot_id")"
+      case "$boot_id" in ????????-????-????-????-????????????) ;; *) exit 71 ;; esac
+      links="$(/usr/bin/nsenter --net="$sandbox_proc/ns/net" -- /usr/sbin/ip -j address show)"
+      [ "$(proc_starttime "$worker_proc/stat")" = "$worker_start" ]
+      [ "$(proc_starttime "$sandbox_proc/stat")" = "$sandbox_start" ]
+      printf 'P010_C1_POD_IDENTITY=%s|%s|%s|%s|%s|%s|%s|%s|%s\n' "$worker_pid" "$worker_start" "$worker_uid" "$worker_pidns" "$sandbox_pid" "$sandbox_start" "$sandbox_uid" "$sandbox_netns" "$boot_id"
+      printf 'P010_C1_POD_LINKS=%s\n' "$links"
+    stdin_add_newline: false
+  become: true
+  register: student_hybrid_m11_c1_pod_links
+  changed_when: false
+  loop: "{{ student_hybrid_m11_c1_sandbox_targets | dict2items }}"
+  no_log: true
+
+- name: Require each proc bridge and sandbox identity to remain exact and live
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - c1_identity | length == 9
+      - c1_identity[0] | int == item.item.value.worker_host_pid | int
+      - c1_identity[1] | int > 0
+      - c1_identity[2] is match('^[0-9]+$')
+      - c1_identity[3] is match('^[1-9][0-9]*:[1-9][0-9]*$')
+      - c1_identity[4] | int == item.item.value.sandbox_pid | int
+      - c1_identity[5] | int > 0
+      - c1_identity[6] is match('^[0-9]+$')
+      - c1_identity[7] is match('^[1-9][0-9]*:[1-9][0-9]*$')
+      - c1_identity[8] is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - item.stdout_lines | select('match', '^P010_C1_POD_IDENTITY=') | list | length == 1
+      - item.stdout_lines | select('match', '^P010_C1_POD_LINKS=') | list | length == 1
+      - c1_links is sequence
+      - c1_links is not string
+      - c1_links | map(attribute='ifname') | list | unique | length == c1_links | length
+      - c1_pod_addresses | length == 1
+      - c1_pod_links | length == 1
+      - c1_pod_link.address is match('^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$')
+      - c1_pod_link.ifindex | int > 0
+      - c1_pod_link.ifname is match('^[A-Za-z0-9_.:-]{1,15}$')
+    fail_msg: "O proc bridge ou a identidade atual do sandbox/Pod é ambígua; nenhuma captura ou probe será iniciada."
+  vars:
+    c1_identity: "{{ (item.stdout_lines | select('match', '^P010_C1_POD_IDENTITY=') | first | regex_replace('^P010_C1_POD_IDENTITY=', '')).split('|') }}"
+    c1_links: "{{ item.stdout_lines | select('match', '^P010_C1_POD_LINKS=') | first | regex_replace('^P010_C1_POD_LINKS=', '') | from_json }}"
+    c1_target: "{{ student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.key) | first }}"
+    c1_pod_addresses: >-
+      {{ c1_links | map(attribute='addr_info') | flatten
+        | selectattr('family', 'equalto', 'inet')
+        | selectattr('local', 'equalto', c1_target.pod.status.podIP) | list }}
+    c1_pod_links: >-
+      {{ c1_links | selectattr('addr_info', 'contains', c1_pod_addresses[0]) | list }}
+    c1_pod_link: "{{ c1_pod_links | first }}"
+  loop: "{{ student_hybrid_m11_c1_pod_links.results }}"
+  no_log: true
+
+- name: Keep the measured Pod and worker process and interface identities
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_pod_observations: >-
+      {{ student_hybrid_m11_c1_pod_observations | default({}) | combine({item.item.key: {
+        'identity': (item.stdout_lines | select('match', '^P010_C1_POD_IDENTITY=') | first | regex_replace('^P010_C1_POD_IDENTITY=', '')).split('|'),
+        'links': (item.stdout_lines | select('match', '^P010_C1_POD_LINKS=') | first | regex_replace('^P010_C1_POD_LINKS=', '') | from_json),
+        'pod_uid': (student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.key) | first).pod.metadata.uid,
+        'container_id': (student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.key) | first).container_id,
+        'pod_ip': (student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', item.item.key) | first).pod.status.podIP
+      }}) }}
+  loop: "{{ student_hybrid_m11_c1_pod_links.results }}"
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-validate-border.yml
+  vars:
+    student_hybrid_ports_to_check: []
+
+- name: Read the border TAP only inside the saved border network namespace
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - /usr/sbin/ip
+      - -d
+      - -o
+      - link
+      - show
+      - dev
+      - "{{ student_state.hybrid.network.tap.name }}"
+  become: true
+  register: student_hybrid_m11_c1_border_tap_link
+  changed_when: false
+  no_log: true
+
+- name: Require the border TAP alias, ifindex, and tap kind to match this run
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_border_tap_link.rc == 0
+      - >-
+        student_hybrid_m11_c1_border_tap_link.stdout is search('(?m)^' ~ (student_state.hybrid.network.tap.ifindex | string) ~ ': ' ~ (student_state.hybrid.network.tap.name | regex_escape) ~ '(?:@[^:]+)?:')
+      - student_hybrid_m11_c1_border_tap_link.stdout is search('(?i)alias ' ~ (student_state.hybrid.network.tap.alias | regex_escape))
+      - student_hybrid_m11_c1_border_tap_link.stdout is search('(?i)tun type tap')
+      - student_hybrid_m11_c1_border_tap_link.stdout is search('(?i)link/ether [0-9a-f]{2}(:[0-9a-f]{2}){5}')
+    fail_msg: "A TAP do border não corresponde ao alias, ifindex e netns salvos."
+  no_log: true
+
+- name: Read kernel routes to each exact Cilium PodCIDR inside the saved border namespace
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - /usr/sbin/ip
+      - -j
+      - route
+      - show
+      - exact
+      - "{{ item.prefix }}"
+  become: true
+  register: student_hybrid_m11_c1_border_routes
+  changed_when: false
+  loop:
+    - {direction: pod_to_cirros, prefix: "{{ student_hybrid_m11_client_node.spec.ipam.podCIDRs[0] }}"}
+    - {direction: cirros_to_pod, prefix: "{{ student_hybrid_m11_server_node.spec.ipam.podCIDRs[0] }}"}
+  no_log: true
+
+- name: Require each border PodCIDR route to have one recognized route record
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - (item.stdout | from_json) is sequence
+      - (item.stdout | from_json) is not string
+      - (item.stdout | from_json) | length == 1
+      - ((item.stdout | from_json | first).dst | default(item.item.prefix)) == item.item.prefix
+      - (((item.stdout | from_json | first).nexthops | default([(item.stdout | from_json | first)])) | length) >= 1
+      - (((item.stdout | from_json | first).nexthops | default([(item.stdout | from_json | first)])) | selectattr('dev', 'defined') | list | length) == (((item.stdout | from_json | first).nexthops | default([(item.stdout | from_json | first)])) | length)
+      - (((item.stdout | from_json | first).nexthops | default([(item.stdout | from_json | first)])) | selectattr('gateway', 'defined') | list | length) == (((item.stdout | from_json | first).nexthops | default([(item.stdout | from_json | first)])) | length)
+    fail_msg: "A rota de PodCIDR do border não revelou candidatos reais de next-hop/interface."
+  loop: "{{ student_hybrid_m11_c1_border_routes.results }}"
+  no_log: true
+
+- name: Keep the finite border fabric interfaces selected by the live PodCIDR routes
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_border_route_candidates: >-
+      {{ student_hybrid_m11_c1_border_route_candidates | default([]) + [{
+        'direction': item.item.direction,
+        'prefix': item.item.prefix,
+        'hops': (item.stdout | from_json | first).nexthops | default([(item.stdout | from_json | first)])
+      }] }}
+  loop: "{{ student_hybrid_m11_c1_border_routes.results }}"
+  no_log: true
+
+- name: Require border fabric candidates to stay outside the management link and recorded TAP
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_border_route_candidates | length == 2
+      - (student_hybrid_m11_c1_border_route_candidates | map(attribute='hops') | flatten | map(attribute='dev') | unique | list | length) >= 1
+      - student_state.hybrid.network.tap.name not in (student_hybrid_m11_c1_border_route_candidates | map(attribute='hops') | flatten | map(attribute='dev') | list)
+      - student_hybrid_m11_c1_border_route_candidates | map(attribute='hops') | flatten | map(attribute='gateway') | select('match', '^10\\.30\\.') | list | length == (student_hybrid_m11_c1_border_candidates | default(student_hybrid_m11_c1_border_route_candidates | map(attribute='hops') | flatten | list) | length)
+    fail_msg: "A rota de retorno do border está ausente, usa management/TAP ou tem next-hop fora do fabric observado."
+  vars:
+    student_hybrid_m11_c1_border_candidates: "{{ student_hybrid_m11_c1_border_route_candidates | map(attribute='hops') | flatten | list }}"
+  no_log: true
+
+- name: Read each finite border fabric candidate interface in the saved border namespace
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - /usr/sbin/ip
+      - -d
+      - -o
+      - link
+      - show
+      - dev
+      - "{{ item }}"
+  become: true
+  register: student_hybrid_m11_c1_border_fabric_links
+  changed_when: false
+  loop: "{{ student_hybrid_m11_c1_border_route_candidates | map(attribute='hops') | flatten | map(attribute='dev') | unique | list }}"
+  no_log: true
+
+- name: Require every border fabric interface to have a real ifindex and MAC
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - >-
+        item.stdout is search('(?m)^[1-9][0-9]*: [A-Za-z0-9_.:-]{1,15}(?:@[^:]+)?:')
+      - item.stdout is search('(?i)link/ether [0-9a-f]{2}(:[0-9a-f]{2}){5}')
+    fail_msg: "A border route candidate não possui uma interface física observável."
+  loop: "{{ student_hybrid_m11_c1_border_fabric_links.results }}"
+  no_log: true
+
+- name: Read the live tenant route to CirrOS from both exact Pod workers
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - exec
+      - "{{ item.worker_id }}"
+      - /usr/sbin/ip
+      - -j
+      - route
+      - get
+      - "{{ student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address }}"
+  become: true
+  register: student_hybrid_m11_c1_worker_routes
+  changed_when: false
+  loop: "{{ student_hybrid_m11_c1_pod_targets }}"
+  no_log: true
+
+- name: Require one live route from each exact worker toward the VM tenant address
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - (item.stdout | from_json) is sequence
+      - (item.stdout | from_json) is not string
+      - (item.stdout | from_json) | length == 1
+      - ((item.stdout | from_json | first).dst | default('')) == student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address
+      - ((item.stdout | from_json | first).dev | default('')) is match('^[A-Za-z0-9_.:-]{1,15}$')
+      - ((item.stdout | from_json | first).gateway | default('')) is match('^10\\.30\\.[0-9]{1,3}\\.[0-9]{1,3}$')
+      - ((item.stdout | from_json | first).prefsrc | default('')) is match('^10\\.30\\.[0-9]{1,3}\\.[0-9]{1,3}$')
+    fail_msg: "O worker do Pod não revelou uma rota de tenant pelo next-hop fabric real."
+  loop: "{{ student_hybrid_m11_c1_worker_routes.results }}"
+  no_log: true
+
+- name: Read the exact worker fabric interface selected for the tenant route
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - exec
+      - "{{ item.item.worker_id }}"
+      - /usr/sbin/ip
+      - -d
+      - -o
+      - link
+      - show
+      - dev
+      - "{{ (item.stdout | from_json | first).dev }}"
+  become: true
+  register: student_hybrid_m11_c1_worker_links
+  changed_when: false
+  loop: "{{ student_hybrid_m11_c1_worker_routes.results }}"
+  no_log: true
+
+- name: Require each worker uplink to have a current ifindex and MAC
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - >-
+        item.stdout is search('(?m)^[1-9][0-9]*: [A-Za-z0-9_.:-]{1,15}(?:@[^:]+)?:')
+      - item.stdout is search('(?i)link/ether [0-9a-f]{2}(:[0-9a-f]{2}){5}')
+    fail_msg: "A interface do worker selecionada pela rota não pode ser identificada."
+  loop: "{{ student_hybrid_m11_c1_worker_links.results }}"
+  no_log: true
+
+- name: Read the live CirrOS interface identities from its pinned guest session
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_cirros_links_script: |-
+      set -eu
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      links="$(/usr/sbin/ip -j address show)"
+      printf 'P010_C1_CIRROS_LINKS=%s\n' "$links" >&3
+  no_log: true
+
+- name: Query CirrOS links over its own pinned SSH identity
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: cirros
+    student_hybrid_ssh_remote_command: sh -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_c1_cirros_links_script }}"
+  no_log: true
+
+- name: Parse the actual CirrOS links without using interface-name defaults
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_cirros_link_lines: "{{ student_hybrid_ssh_result.stdout_lines | select('match', '^P010_C1_CIRROS_LINKS=') | list }}"
+    student_hybrid_m11_c1_cirros_links: "{{ (student_hybrid_ssh_result.stdout_lines | select('match', '^P010_C1_CIRROS_LINKS=') | first | regex_replace('^P010_C1_CIRROS_LINKS=', '')) | from_json }}"
+  no_log: true
+
+- name: Select the CirrOS interface by the measured saved tenant MAC
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_cirros_endpoint_links: >-
+      {{ student_hybrid_m11_c1_cirros_links
+        | selectattr('address', 'equalto', student_state.hybrid.guests.cirros.tenant_mac | lower)
+        | selectattr('addr_info', 'defined') | list }}
+  no_log: true
+
+- name: Require one CirrOS interface with the exact saved tenant MAC and address
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_ssh_result.rc | int == 0
+      - student_hybrid_m11_c1_cirros_link_lines | length == 1
+      - student_hybrid_m11_c1_cirros_endpoint_links | length == 1
+      - student_hybrid_m11_c1_cirros_endpoint_links[0].ifindex | int > 0
+      - student_hybrid_m11_c1_cirros_endpoint_links[0].ifname is match('^[A-Za-z0-9_.:-]{1,15}$')
+      - student_hybrid_m11_c1_cirros_endpoint_links[0].addr_info | selectattr('family', 'equalto', 'inet') | selectattr('local', 'equalto', student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address) | list | length == 1
+    fail_msg: "A interface CirrOS não corresponde ao MAC e IP da porta Neutron salva."
+  no_log: true
+
+- name: Initialize the exact observed C1 capture target list
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_filter: >-
+      ip and ((host {{ student_hybrid_m11_client_pod.status.podIP }} and host {{ student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address }}) or
+       (host {{ student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address }} and host {{ student_hybrid_m11_server_pod.status.podIP }})) and
+      (icmp or (tcp and (port 22 or port 8080)))
+    student_hybrid_m11_c1_route_cidrs:
+      pod_to_cirros: "{{ student_state.hybrid.m11.verification.gates.client_pod.pod_cidr }}"
+      cirros_to_pod: "{{ student_state.hybrid.m11.verification.gates.server_pod.pod_cidr }}"
+    student_hybrid_m11_c1_observer_targets: []
+  no_log: true
+
+- name: Add the Ubuntu and CirrOS endpoint observers from measured links
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_observer_targets: >-
+      {{ student_hybrid_m11_c1_observer_targets + [
+        {
+          'key': 'ubuntu-tenant0', 'role': 'ubuntu-tenant0', 'transport': 'guest', 'guest': 'ubuntu',
+          'check_id': student_state.hybrid.m11.verification.gates.positive.c1.check_id,
+          'capture_path': '/tmp/p010-' ~ student_state.run_id ~ '-c1-' ~ student_state.hybrid.m11.verification.gates.positive.c1.check_id ~ '-ubuntu-tenant0.txt',
+          'interface': student_hybrid_m11_c1_ubuntu_links.interface,
+          'expected_ifindex': student_hybrid_m11_c1_ubuntu_links.ifindex | int,
+          'expected_mac': student_hybrid_m11_c1_ubuntu_links.mac | lower
+        },
+        {
+          'key': 'cirros-tenant', 'role': 'cirros-endpoint', 'transport': 'guest', 'guest': 'cirros',
+          'check_id': student_state.hybrid.m11.verification.gates.positive.c1.check_id,
+          'capture_path': '/tmp/p010-' ~ student_state.run_id ~ '-c1-' ~ student_state.hybrid.m11.verification.gates.positive.c1.check_id ~ '-cirros-tenant.txt',
+          'interface': student_hybrid_m11_c1_cirros_endpoint_links[0].ifname,
+          'expected_ifindex': student_hybrid_m11_c1_cirros_endpoint_links[0].ifindex | int,
+          'expected_mac': student_hybrid_m11_c1_cirros_endpoint_links[0].address | lower,
+          'neutron_port_id': student_state.hybrid.m11.api.resources.cirros_port.primary.id
+        }
+      ] }}
+  no_log: true
+
+- name: Add the two qrouter interfaces matched by both saved Neutron port identities
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_observer_targets: >-
+      {{ student_hybrid_m11_c1_observer_targets + [{
+        'key': 'qrouter-' ~ item.side, 'role': 'qrouter-' ~ item.side, 'transport': 'guest',
+        'check_id': student_state.hybrid.m11.verification.gates.positive.c1.check_id,
+        'guest': 'ubuntu',
+        'capture_path': '/tmp/p010-' ~ student_state.run_id ~ '-c1-' ~ student_state.hybrid.m11.verification.gates.positive.c1.check_id ~ '-qrouter-' ~ item.side ~ '.txt',
+        'netns_path': '/run/netns/' ~ student_hybrid_m11_c1_qrouter_links.name,
+        'expected_netns': student_hybrid_m11_c1_qrouter_links.netns,
+        'interface': student_hybrid_m11_c1_qrouter_links[item.side].interface,
+        'expected_ifindex': student_hybrid_m11_c1_qrouter_links[item.side].ifindex | int,
+        'expected_mac': student_hybrid_m11_c1_qrouter_links[item.side].mac | lower,
+        'neutron_port_id': student_state.hybrid.m11.verification.gates.c1_api_paths[( 'tenant_port' if item.side == 'tenant' else 'provider_port')].id
+      }] }}
+  loop:
+    - {side: tenant}
+    - {side: provider}
+  no_log: true
+
+- name: Add the border TAP observer from the saved border process and TAP identity
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_observer_targets: >-
+      {{ student_hybrid_m11_c1_observer_targets + [{
+        'key': 'border-tap', 'role': 'border-tap', 'transport': 'netns',
+        'check_id': student_state.hybrid.m11.verification.gates.positive.c1.check_id,
+        'capture_path': student_run_dir ~ '/m11-evidence/' ~ student_state.hybrid.m11.verification.gates.positive.c1.check_id ~ '/observer-border-tap.txt',
+        'netns_path': '/proc/' ~ (student_state.hybrid.network.border.pid | string) ~ '/ns/net',
+        'expected_netns': (student_state.hybrid.network.border.netns_device | string) ~ ':' ~ (student_state.hybrid.network.border.netns_inode | string),
+        'interface': student_state.hybrid.network.tap.name,
+        'expected_ifindex': student_state.hybrid.network.tap.ifindex | int,
+        'expected_mac': (student_hybrid_m11_c1_border_tap_link.stdout | regex_findall('(?i)link/ether ([0-9a-f:]{17})') | first | lower)
+      }] }}
+  no_log: true
+
+- name: Add each live border fabric route candidate as its own observer
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_observer_targets: >-
+      {{ student_hybrid_m11_c1_observer_targets + [{
+        'key': 'border-' ~ (item.stdout | regex_findall('(?m)^([0-9]+): ([A-Za-z0-9_.:-]{1,15})(?:@[^:]+)?:') | first)[1],
+        'role': 'border-fabric', 'transport': 'netns',
+        'check_id': student_state.hybrid.m11.verification.gates.positive.c1.check_id,
+        'capture_path': student_run_dir ~ '/m11-evidence/' ~ student_state.hybrid.m11.verification.gates.positive.c1.check_id ~ '/observer-border-' ~ (item.stdout | regex_findall('(?m)^([0-9]+): ([A-Za-z0-9_.:-]{1,15})(?:@[^:]+)?:') | first)[1] ~ '.txt',
+        'netns_path': '/proc/' ~ (student_state.hybrid.network.border.pid | string) ~ '/ns/net',
+        'expected_netns': (student_state.hybrid.network.border.netns_device | string) ~ ':' ~ (student_state.hybrid.network.border.netns_inode | string),
+        'interface': (item.stdout | regex_findall('(?m)^([0-9]+): ([A-Za-z0-9_.:-]{1,15})(?:@[^:]+)?:') | first)[1],
+        'expected_ifindex': (item.stdout | regex_findall('(?m)^([0-9]+): ([A-Za-z0-9_.:-]{1,15})(?:@[^:]+)?:') | first)[0] | int,
+        'expected_mac': (item.stdout | regex_findall('(?i)link/ether ([0-9a-f:]{17})') | first | lower),
+        'route_candidates': student_hybrid_m11_c1_border_route_candidates
+      }] }}
+  loop: "{{ student_hybrid_m11_c1_border_fabric_links.results }}"
+  no_log: true
+
+- name: Add each measured worker fabric interface as an observer
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_observer_targets: >-
+      {{ student_hybrid_m11_c1_observer_targets + [{
+        'key': 'worker-' ~ item.item.item.key,
+        'role': 'worker-fabric', 'transport': 'netns',
+        'check_id': student_state.hybrid.m11.verification.gates.positive.c1.check_id,
+        'capture_path': student_run_dir ~ '/m11-evidence/' ~ student_state.hybrid.m11.verification.gates.positive.c1.check_id ~ '/observer-worker-' ~ item.item.item.key ~ '.txt',
+        'netns_path': '/proc/' ~ ((student_hybrid_m11_c1_worker_pids.results | selectattr('item.key', 'equalto', item.item.item.key) | first).stdout | trim) ~ '/ns/net',
+        'expected_netns': '',
+        'interface': ((student_hybrid_m11_c1_worker_routes.results | selectattr('item.key', 'equalto', item.item.item.key) | first).stdout | from_json | first).dev,
+        'expected_ifindex': (item.stdout | regex_findall('(?m)^([0-9]+):') | first) | int,
+        'expected_mac': (item.stdout | regex_findall('(?i)link/ether ([0-9a-f:]{17})') | first | lower),
+        'route': (student_hybrid_m11_c1_worker_routes.results | selectattr('item.key', 'equalto', item.item.item.key) | first).stdout | from_json | first
+      }] }}
+  loop: "{{ student_hybrid_m11_c1_worker_links.results }}"
+  no_log: true
+
+- name: Add each exact Pod network namespace and interface as an observer
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_observer_targets: >-
+      {{ student_hybrid_m11_c1_observer_targets + [{
+        'key': 'pod-' ~ item.key,
+        'role': 'pod-endpoint', 'transport': 'netns',
+        'check_id': student_state.hybrid.m11.verification.gates.positive.c1.check_id,
+        'capture_path': student_run_dir ~ '/m11-evidence/' ~ student_state.hybrid.m11.verification.gates.positive.c1.check_id ~ '/observer-pod-' ~ item.key ~ '.txt',
+        'netns_path': '/proc/' ~ item.value.identity[0] ~ '/root/proc/' ~ item.value.identity[4] ~ '/ns/net',
+        'expected_netns': item.value.identity[7],
+        'interface': (item.value.links | selectattr('addr_info', 'contains', ((item.value.links | map(attribute='addr_info') | flatten | selectattr('family', 'equalto', 'inet') | selectattr('local', 'equalto', item.value.pod_ip) | first))) | first).ifname,
+        'expected_ifindex': (item.value.links | selectattr('addr_info', 'contains', ((item.value.links | map(attribute='addr_info') | flatten | selectattr('family', 'equalto', 'inet') | selectattr('local', 'equalto', item.value.pod_ip) | first))) | first).ifindex | int,
+        'expected_mac': (item.value.links | selectattr('addr_info', 'contains', ((item.value.links | map(attribute='addr_info') | flatten | selectattr('family', 'equalto', 'inet') | selectattr('local', 'equalto', item.value.pod_ip) | first))) | first).address | lower
+      }] }}
+  loop: "{{ student_hybrid_m11_c1_pod_observations | dict2items }}"
+  no_log: true
+
+- name: Require every required C1 path role to have an observer identity
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_observer_targets | selectattr('role', 'equalto', 'ubuntu-tenant0') | list | length == 1
+      - student_hybrid_m11_c1_observer_targets | selectattr('role', 'equalto', 'qrouter-tenant') | list | length == 1
+      - student_hybrid_m11_c1_observer_targets | selectattr('role', 'equalto', 'qrouter-provider') | list | length == 1
+      - student_hybrid_m11_c1_observer_targets | selectattr('role', 'equalto', 'border-tap') | list | length == 1
+      - student_hybrid_m11_c1_observer_targets | selectattr('role', 'equalto', 'border-fabric') | list | length >= 1
+      - student_hybrid_m11_c1_observer_targets | selectattr('role', 'equalto', 'worker-fabric') | list | length == 2
+      - student_hybrid_m11_c1_observer_targets | selectattr('role', 'equalto', 'pod-endpoint') | list | length == 2
+      - student_hybrid_m11_c1_observer_targets | map(attribute='key') | unique | list | length == student_hybrid_m11_c1_observer_targets | length
+    fail_msg: "Uma das interfaces observadas para a prova bilateral C1 está ausente ou ambígua."
+  no_log: true
+
+- name: Start each C1 observer after its individual intent has been saved
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  loop: "{{ student_hybrid_m11_c1_observer_targets }}"
+  loop_control:
+    loop_var: student_hybrid_m11_c1_observer
+    label: "{{ student_hybrid_m11_c1_observer.key }}"
+  vars:
+    student_hybrid_m11_c1_capture_action: start
+  no_log: true
+
+- name: Revalidate every C1 process and live filter after all listeners are ready
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  loop: "{{ student_state.hybrid.m11.verification.gates.c1_capture_active.observers }}"
+  loop_control:
+    loop_var: student_hybrid_m11_c1_observer
+    label: "{{ student_hybrid_m11_c1_observer.key }}"
+  vars:
+    student_hybrid_m11_c1_capture_action: check
+  no_log: true
+
+- name: Require every C1 observer to be live before any traffic probe
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'capturing'
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | length == student_hybrid_m11_c1_observer_targets | length
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | selectattr('phase', 'equalto', 'capturing') | list | length == student_hybrid_m11_c1_observer_targets | length
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | map(attribute='key') | unique | list | length == student_hybrid_m11_c1_observer_targets | length
+    fail_msg: "Todos os observers C1 precisam estar registrados e prontos antes de iniciar a primeira onda."
+  no_log: true
+
+- name: Reset transient C1 stream collections before the two waves
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_capture_snapshots: []
+    student_hybrid_m11_c1_capture_streams: []
+    student_hybrid_m11_c1_receipt_body: {}
+  no_log: true
+
+- name: Revalidate the exact client and server Pod identities before the first wave
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - pod
+      - "{{ item.pod.metadata.name }}"
+      - --namespace
+      - "{{ item.pod.metadata.namespace }}"
+      - --output=json
+  become: true
+  register: student_hybrid_m11_c1_pod_recheck_before
+  changed_when: false
+  loop: "{{ student_hybrid_m11_c1_pod_targets }}"
+  no_log: true
+
+- name: Require both exact ready Pods and full container identities before the first wave
+  ansible.builtin.assert:
+    that:
+      - item.rc | int == 0
+      - (item.stdout | from_json).metadata.uid == item.item.pod.metadata.uid
+      - (item.stdout | from_json).metadata.name == item.item.pod.metadata.name
+      - (item.stdout | from_json).metadata.namespace == item.item.pod.metadata.namespace
+      - (item.stdout | from_json).spec.nodeName == item.item.pod.spec.nodeName
+      - (item.stdout | from_json).status.phase == 'Running'
+      - (item.stdout | from_json).status.podIP == item.item.pod.status.podIP
+      - (item.stdout | from_json).status.conditions | selectattr('type', 'equalto', 'Ready') | selectattr('status', 'equalto', 'True') | list | length == 1
+      - ((item.stdout | from_json).status.containerStatuses | selectattr('name', 'equalto', item.item.container_name) | first).ready | bool
+      - ((item.stdout | from_json).status.containerStatuses | selectattr('name', 'equalto', item.item.container_name) | first).containerID == 'containerd://' ~ item.item.container_id
+    fail_msg: "Um endpoint C1 deixou de ser a mesma Pod/container READY identificado pelo adapter CRI."
+  loop: "{{ student_hybrid_m11_c1_pod_recheck_before.results }}"
+  no_log: true
+
+- name: Revalidate both CRI, proc, namespace, and Pod-interface joins before the first wave
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  loop: "{{ student_hybrid_m11_c1_sandbox_targets | dict2items }}"
+  loop_control:
+    loop_var: student_hybrid_m11_c1_revalidation_target
+    label: "{{ student_hybrid_m11_c1_revalidation_target.key }}"
+  vars:
+    student_hybrid_m11_c1_capture_action: revalidate
+  no_log: true
+
+- name: Snapshot every live observer before dispatching the first wave
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  loop: "{{ student_state.hybrid.m11.verification.gates.c1_capture_active.observers }}"
+  loop_control:
+    loop_var: student_hybrid_m11_c1_observer
+    label: "{{ student_hybrid_m11_c1_observer.key }}"
+  vars:
+    student_hybrid_m11_c1_capture_action: snapshot
+    student_hybrid_m11_c1_snapshot_phase: before_pod_to_cirros
+  no_log: true
+
+- name: Save the baseline live snapshots as transient memory
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_snapshots_before: "{{ student_hybrid_m11_c1_capture_snapshots }}"
+    student_hybrid_m11_c1_capture_snapshots: []
+  no_log: true
+
+- name: Render the bounded measured C1 packet-header parser
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_parser_script: |-
+      import hashlib
+      import ipaddress
+      import json
+      import re
+      import sys
+
+      DATA = json.load(sys.stdin)
+      U32 = 0xffffffff
+      TIME = re.compile(r'^(?P<stamp>[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?)\s')
+      ENDPOINT = re.compile(r'(?P<src>(?:[0-9]{1,3}\.){3}[0-9]{1,3})(?:\.(?P<sport>[0-9]+))? > (?P<dst>(?:[0-9]{1,3}\.){3}[0-9]{1,3})(?:\.(?P<dport>[0-9]+))?:')
+      IP_PROTOCOL = re.compile(r'\bproto (?:(?P<name>ICMP|TCP) \()?(?P<number>[0-9]+)\)?', re.IGNORECASE)
+      STATS = {
+          'captured': re.compile(r'^([0-9]+) packets? captured$'),
+          'received_by_filter': re.compile(r'^([0-9]+) packets? received by filter$'),
+          'dropped_by_kernel': re.compile(r'^([0-9]+) packets? dropped by kernel$'),
+      }
+
+      def reject(reason):
+          print(json.dumps({'error': reason}, separators=(',', ':')))
+          raise SystemExit(2)
+
+      def read_stream(entry, final):
+          text = entry.get('text')
+          if not isinstance(text, str) or not text:
+              reject('capture text is missing')
+          if '\x00' in text:
+              reject('capture text contains a NUL byte')
+          encoded = text.encode('utf-8')
+          if len(encoded) != int(entry.get('bytes', -1)) or len(encoded) > 65536:
+              reject('capture byte bound or measured length differs')
+          if hashlib.sha256(encoded).hexdigest() != entry.get('sha256'):
+              reject('capture digest differs from measured file')
+          if not text.endswith('\n'):
+              reject('capture ends in a truncated line')
+          if final:
+              rc_fields = ('child_rc', 'supervisor_rc', 'transport_rc')
+              if any(not isinstance(entry.get(name), int) for name in rc_fields):
+                  reject('capture process and transport statuses are incomplete')
+              if entry['child_rc'] not in (0, 130) or entry['supervisor_rc'] not in (0, 130):
+                  reject('capture child or supervisor returned an unaccepted status')
+              if entry['transport_rc'] != 0:
+                  reject('capture transport did not return successfully')
+          lines = text.splitlines()
+          listening = 0
+          frames = []
+          current = []
+          counters = {}
+          for line in lines:
+              if line.startswith('tcpdump: listening on '):
+                  listening += 1
+                  if entry.get('interface') not in line or 'link-type EN10MB' not in line:
+                      reject('listener header does not match the selected interface')
+                  continue
+              stat_match = None
+              stat_name = None
+              for name, pattern in STATS.items():
+                  match = pattern.fullmatch(line)
+                  if match:
+                      stat_name = name
+                      stat_match = match
+                      break
+              if stat_match:
+                  if current:
+                      frames.append(current)
+                      current = []
+                  if stat_name in counters:
+                      reject('duplicate tcpdump statistic')
+                  counters[stat_name] = int(stat_match.group(1))
+                  continue
+              if TIME.match(line):
+                  if current:
+                      frames.append(current)
+                  current = [line]
+                  continue
+              if not line:
+                  continue
+              if current:
+                  current.append(line)
+                  continue
+              reject('unrecognized tcpdump preamble or statistics')
+          if current:
+              frames.append(current)
+          if listening != 1:
+              reject('missing or duplicate tcpdump listener header')
+          if len(frames) >= 128:
+              reject('record cap reached')
+          if final:
+              if set(counters) != set(STATS):
+                  reject('required tcpdump statistics are missing')
+              if counters['dropped_by_kernel'] != 0:
+                  reject('kernel dropped captured packets')
+              if counters['captured'] != len(frames):
+                  reject('captured counter differs from measured headers')
+              if counters['received_by_filter'] < counters['captured']:
+                  reject('filter counter is smaller than captured counter')
+          elif counters:
+              reject('statistics appeared while the observer should still be live')
+          packets = []
+          for frame in frames:
+              joined = ' '.join(part.strip() for part in frame)
+              endpoint_matches = list(ENDPOINT.finditer(joined))
+              if len(endpoint_matches) != 1:
+                  reject('packet header has a missing or ambiguous IPv4 tuple')
+              protocol_matches = list(IP_PROTOCOL.finditer(joined))
+              if len(protocol_matches) != 1:
+                  reject('packet header has a missing or ambiguous IPv4 protocol')
+              protocol_match = protocol_matches[0]
+              protocol_number = int(protocol_match.group('number'))
+              if protocol_number > 255:
+                  reject('IPv4 protocol number is outside u8')
+              protocol_name = protocol_match.group('name')
+              if protocol_name and protocol_number != {'ICMP': 1, 'TCP': 6}[protocol_name.upper()]:
+                  reject('IPv4 protocol name does not match its measured number')
+              endpoint = endpoint_matches[0]
+              src = endpoint.group('src')
+              dst = endpoint.group('dst')
+              try:
+                  ipaddress.IPv4Address(src)
+                  ipaddress.IPv4Address(dst)
+              except ValueError:
+                  reject('packet header contains an invalid IPv4 address')
+              stamp = TIME.match(frame[0]).group('stamp')
+              if 'ICMP ' in joined or 'proto ICMP' in joined:
+                  if protocol_number != 1:
+                      reject('ICMP text does not match the measured IPv4 protocol number')
+                  echo = re.search(r'ICMP echo (request|reply), id ([0-9]+), seq ([0-9]+)', joined)
+                  if not echo:
+                      reject('ICMP record is not a measured echo request or reply')
+                  ident = int(echo.group(2))
+                  sequence = int(echo.group(3))
+                  if ident > 65535 or sequence > 65535:
+                      reject('ICMP identifier or sequence is outside u16')
+                  packets.append({
+                      'timestamp': stamp, 'protocol': 'icmp', 'src': src, 'dst': dst,
+                      'type': echo.group(1), 'id': ident, 'icmp_seq': sequence,
+                  })
+                  continue
+              flags_match = re.search(r'Flags \[([A-Za-z.]+)\]', joined)
+              if not flags_match:
+                  reject('IPv4 record is not a recognized ICMP or TCP header')
+              if protocol_number != 6:
+                  reject('TCP flags do not match the measured IPv4 protocol number')
+              if endpoint.group('sport') is None or endpoint.group('dport') is None:
+                  reject('TCP record is missing a measured port')
+              flags = flags_match.group(1)
+              seq_match = re.search(r'\bseq ([0-9]+)(?::([0-9]+))?', joined)
+              ack_match = re.search(r'\back ([0-9]+)', joined)
+              seq = int(seq_match.group(1)) if seq_match else None
+              ack = int(ack_match.group(1)) if ack_match else None
+              if seq is not None and seq > U32:
+                  reject('TCP sequence is outside u32')
+              if ack is not None and ack > U32:
+                  reject('TCP acknowledgement is outside u32')
+              has_ack = '.' in flags or 'A' in flags
+              if has_ack and ack is None:
+                  reject('TCP ACK flag lacks a measured acknowledgement')
+              if not has_ack and ack is not None:
+                  reject('TCP acknowledgement is present without an ACK flag')
+              if seq is None and flags != '.':
+                  reject('only a pure ACK may omit its sequence')
+              packets.append({
+                  'timestamp': stamp, 'protocol': 'tcp', 'src': src, 'dst': dst,
+                  'sport': int(endpoint.group('sport')), 'dport': int(endpoint.group('dport')),
+                  'flags': flags, 'seq': seq, 'ack': ack,
+              })
+          if final and len(frames) == 0:
+              reject('no packet headers were captured')
+          if len({(packet['protocol'], packet['src'], packet['dst'], packet.get('sport'), packet.get('dport'),
+                   packet.get('type'), packet.get('id'), packet.get('icmp_seq'), packet.get('flags'),
+                   packet.get('seq'), packet.get('ack')) for packet in packets}) > len(packets):
+              reject('packet normalization lost a header record')
+          return packets, counters
+
+      def deduplicate(packets):
+          unique = {}
+          counts = {}
+          for packet in packets:
+              key = tuple(packet.get(name) for name in (
+                  'protocol', 'src', 'dst', 'sport', 'dport', 'type', 'id',
+                  'icmp_seq', 'flags', 'seq', 'ack'))
+              counts[key] = counts.get(key, 0) + 1
+              if key not in unique:
+                  unique[key] = dict(packet)
+          result = []
+          for key, packet in unique.items():
+              packet['retransmissions'] = counts[key] - 1
+              result.append(packet)
+          return result
+
+      def wave_participants(observers, name, packets_by_key, flow):
+          common = {'ubuntu-tenant0', 'cirros-endpoint', 'qrouter-tenant',
+                    'qrouter-provider', 'border-tap'}
+          expected_worker = 'worker-' + name
+          expected_pod = 'pod-' + name
+          participants = []
+          for observer in observers:
+              role = observer.get('role')
+              key = observer.get('key')
+              if role in common or (role == 'worker-fabric' and key == expected_worker) or (
+                      role == 'pod-endpoint' and key == expected_pod):
+                  participants.append(observer)
+          route_cidrs = DATA.get('route_cidrs', {})
+          if name not in route_cidrs:
+              reject('the actual PodCIDR route for this wave is missing')
+          route_tables = [route for observer in observers if observer.get('role') == 'border-fabric'
+                          for route in observer.get('route_candidates', [])]
+          matching_routes = [route for route in route_tables if route.get('direction') == name]
+          if not matching_routes or any(route.get('prefix') != route_cidrs[name] for route in matching_routes):
+              reject('the border observer route candidates do not match the current PodCIDR')
+          if any(route != matching_routes[0] for route in matching_routes[1:]):
+              reject('border observers disagree about the measured route candidates')
+          route_candidates = matching_routes[0].get('hops', [])
+          if not route_candidates or any(not re.fullmatch(r'[A-Za-z0-9_.:-]{1,15}', hop.get('dev', '')) or
+                                         not re.fullmatch(r'10\.30\.[0-9]{1,3}\.[0-9]{1,3}', hop.get('gateway', ''))
+                                         for hop in route_candidates):
+              reject('the selected border route has a missing or non-fabric ECMP candidate')
+          expected_border_devs = {hop['dev'] for hop in route_candidates}
+          border_observers = [observer for observer in observers if observer.get('role') == 'border-fabric'
+                              and observer.get('interface') in expected_border_devs]
+          if {observer.get('interface') for observer in border_observers} != expected_border_devs:
+              reject('a finite border route candidate has no measured interface observer')
+          flow_endpoints = {flow['source_ip'], flow['destination_ip']}
+          selected_border = [observer for observer in border_observers
+                             if any(packet['src'] in flow_endpoints and packet['dst'] in flow_endpoints
+                                    for packet in packets_by_key.get(observer.get('key'), []))]
+          if len(selected_border) != 1:
+              reject('the measured flow does not select exactly one observed border ECMP candidate')
+          participants.extend(selected_border)
+          counts = {
+              'ubuntu-tenant0': sum(o.get('role') == 'ubuntu-tenant0' for o in participants),
+              'cirros-endpoint': sum(o.get('role') == 'cirros-endpoint' for o in participants),
+              'qrouter-tenant': sum(o.get('role') == 'qrouter-tenant' for o in participants),
+              'qrouter-provider': sum(o.get('role') == 'qrouter-provider' for o in participants),
+              'border-tap': sum(o.get('role') == 'border-tap' for o in participants),
+              'border-fabric': sum(o.get('role') == 'border-fabric' for o in participants),
+              'worker': sum(o.get('key') == expected_worker and o.get('role') == 'worker-fabric' for o in participants),
+              'pod': sum(o.get('key') == expected_pod and o.get('role') == 'pod-endpoint' for o in participants),
+          }
+          if counts['ubuntu-tenant0'] != 1 or counts['cirros-endpoint'] != 1:
+              reject('endpoint observer roles are absent or ambiguous')
+          if counts['qrouter-tenant'] != 1 or counts['qrouter-provider'] != 1:
+              reject('both measured qrouter port roles are required')
+          if counts['border-tap'] != 1 or counts['border-fabric'] != 1:
+              reject('measured border TAP and exactly one selected fabric ECMP candidate are required')
+          if counts['worker'] != 1 or counts['pod'] != 1:
+              reject('the exact direction worker and Pod netns are required')
+          return participants
+
+      def flow_events(packets, flow):
+          source = flow['source_ip']
+          destination = flow['destination_ip']
+          service = int(flow['service_port'])
+          relevant = []
+          for packet in packets:
+              if packet['src'] == source and packet['dst'] == destination:
+                  if packet['protocol'] == 'tcp' and packet['dport'] != service:
+                      reject('forward TCP service port differs from the requested destination')
+                  relevant.append(packet)
+              elif packet['src'] == destination and packet['dst'] == source:
+                  if packet['protocol'] == 'tcp' and packet['sport'] != service:
+                      reject('reverse TCP service port differs from the requested destination')
+                  relevant.append(packet)
+              else:
+                  reject('captured tuple is outside the bilateral selected IPv4 filter')
+          icmp = [packet for packet in relevant if packet['protocol'] == 'icmp']
+          icmp = deduplicate(icmp)
+          if any(packet['type'] == 'request' and (packet['src'], packet['dst']) != (source, destination) for packet in icmp):
+              reject('ICMP echo request direction differs from the selected flow')
+          if any(packet['type'] == 'reply' and (packet['src'], packet['dst']) != (destination, source) for packet in icmp):
+              reject('ICMP echo reply direction differs from the selected flow')
+          requests = {(packet['id'], packet['icmp_seq']) for packet in icmp if packet['type'] == 'request'}
+          replies = {(packet['id'], packet['icmp_seq']) for packet in icmp if packet['type'] == 'reply'}
+          if len(requests) != 2 or requests != replies or len({item[0] for item in requests}) != 1:
+              reject('two matching ICMP request/reply pairs were not measured')
+          tcp = deduplicate([packet for packet in relevant if packet['protocol'] == 'tcp'])
+          client_ports = set()
+          for packet in tcp:
+              if packet['src'] == source:
+                  client_ports.add(packet['sport'])
+              else:
+                  client_ports.add(packet['dport'])
+          if len(client_ports) != 1:
+              reject('new TCP connection has a missing or ambiguous ephemeral port')
+          client_port = next(iter(client_ports))
+          forward = [p for p in tcp if p['src'] == source and p['dst'] == destination and
+                     p['sport'] == client_port and p['dport'] == service]
+          reverse = [p for p in tcp if p['src'] == destination and p['dst'] == source and
+                     p['sport'] == service and p['dport'] == client_port]
+          syns = [p for p in forward if 'S' in p['flags'] and 'F' not in p['flags'] and 'R' not in p['flags'] and
+                  not ('.' in p['flags'] or 'A' in p['flags'])]
+          synacks = [p for p in reverse if 'S' in p['flags'] and 'F' not in p['flags'] and 'R' not in p['flags'] and
+                     ('.' in p['flags'] or 'A' in p['flags'])]
+          if len({p['seq'] for p in syns}) != 1 or len({(p['seq'], p['ack']) for p in synacks}) != 1:
+              reject('TCP SYN or SYNACK is absent or ambiguous')
+          client_seq = syns[0]['seq']
+          server_seq = synacks[0]['seq']
+          if client_seq is None or server_seq is None:
+              reject('TCP SYN sequence is absent')
+          expected_synack_ack = (client_seq + 1) & U32
+          expected_client_ack = (server_seq + 1) & U32
+          if synacks[0]['ack'] != expected_synack_ack:
+              reject('TCP SYNACK acknowledgement does not match wrapped client sequence')
+          acknowledgements = [p for p in forward if ('.' in p['flags'] or 'A' in p['flags']) and
+                              'S' not in p['flags'] and 'R' not in p['flags'] and
+                              p['ack'] == expected_client_ack and
+                              (p['seq'] is None or p['seq'] == ((client_seq + 1) & U32))]
+          if not acknowledgements:
+              reject('TCP final ACK does not match the measured SYN/SYNACK sequence space')
+          if len({(p['seq'], p['ack']) for p in acknowledgements}) != 1:
+              reject('TCP final ACK is ambiguous across measured sequence values')
+          ack_packet = sorted(acknowledgements, key=lambda p: p['timestamp'])[0]
+          syn_packet = sorted(syns, key=lambda p: p['timestamp'])[0]
+          synack_packet = sorted(synacks, key=lambda p: p['timestamp'])[0]
+          selected = [syn_packet, synack_packet, ack_packet]
+          if not (syn_packet['timestamp'] <= synack_packet['timestamp'] <= ack_packet['timestamp']):
+              reject('TCP handshake headers are not ordered within the observer clock')
+          pair_list = sorted([{'id': ident, 'seq': seq} for ident, seq in requests], key=lambda p: p['seq'])
+          icmp_selected = []
+          seen_icmp = set()
+          for packet in icmp:
+              key = (packet['type'], packet['id'], packet['icmp_seq'])
+              if key not in seen_icmp:
+                  seen_icmp.add(key)
+                  icmp_selected.append(packet)
+          icmp_selected.sort(key=lambda p: (p['icmp_seq'], p['type']))
+          return {
+              'icmp': {'id': pair_list[0]['id'], 'sequences': [p['seq'] for p in pair_list],
+                       'requests': 2, 'replies': 2},
+              'tcp': {
+                  'client_ip': source, 'client_port': client_port,
+                  'server_ip': destination, 'server_port': service,
+                  'client_syn_seq': client_seq, 'server_synack_seq': server_seq,
+                  'server_synack_ack': synack_packet['ack'],
+                  'client_ack_seq': ack_packet['seq'],
+                  'client_ack': ack_packet['ack'],
+                  'seq_absent': ack_packet['seq'] is None,
+              },
+              'headers': icmp_selected + selected,
+          }
+
+      def validate_stage(entries, observers, flows, stage, final):
+          if len(entries) != len(observers) or len({e.get('key') for e in entries}) != len(entries):
+              reject('snapshot/capture inventory is incomplete or duplicated')
+          by_key = {}
+          all_packets = {}
+          counters = {}
+          for entry in entries:
+              key = entry.get('key')
+              if key not in {o.get('key') for o in observers}:
+                  reject('stream refers to an unknown observer')
+              packets, stats = read_stream(entry, final)
+              by_key[key] = entry
+              all_packets[key] = packets
+              counters[key] = stats
+          active_flows = ['pod_to_cirros'] if stage == 'pod_to_cirros' else (
+              ['pod_to_cirros', 'cirros_to_pod'] if stage in ('cirros_to_pod', 'final') else [])
+          if stage == 'pre':
+              if any(all_packets.values()):
+                  reject('a packet was captured before the first controller dispatch')
+              return {'packets': 0}
+          results = {}
+          for flow_name in active_flows:
+              flow = flows[flow_name]
+              participants = wave_participants(observers, flow_name, all_packets, flow)
+              participant_keys = {o['key'] for o in participants}
+              for key, packets in all_packets.items():
+                  matching = [p for p in packets if
+                              (p['src'] == flow['source_ip'] and p['dst'] == flow['destination_ip']) or
+                              (p['src'] == flow['destination_ip'] and p['dst'] == flow['source_ip'])]
+                  if key not in participant_keys and matching:
+                      reject('a direction-specific worker or Pod role was observed outside its selected wave')
+              common_measure = None
+              observer_results = []
+              for observer in participants:
+                  key = observer['key']
+                  if final:
+                      api = DATA.get('api', {})
+                      if observer.get('role') == 'qrouter-tenant' and observer.get('neutron_port_id') != api.get('tenant_port', {}).get('id'):
+                          reject('the tenant qrouter observer is not bound to the saved Neutron port ID')
+                      if observer.get('role') == 'qrouter-provider' and observer.get('neutron_port_id') != api.get('provider_port', {}).get('id'):
+                          reject('the provider qrouter observer is not bound to the saved Neutron port ID')
+                      if observer.get('role') == 'cirros-endpoint' and observer.get('neutron_port_id') != api.get('cirros_port_id'):
+                          reject('the CirrOS endpoint observer is not bound to the saved Neutron port ID')
+                      if observer.get('role') == 'worker-fabric':
+                          route = observer.get('route', {})
+                          vm_ip = flows['pod_to_cirros']['destination_ip']
+                          if route.get('dst') != vm_ip or route.get('dev') != observer.get('interface') or not re.fullmatch(r'10\.30\.[0-9]{1,3}\.[0-9]{1,3}', route.get('gateway', '')) or not re.fullmatch(r'10\.30\.[0-9]{1,3}\.[0-9]{1,3}', route.get('prefsrc', '')):
+                              reject('the worker observer is not bound to its measured tenant route')
+                  selected_packets = []
+                  for packet in all_packets[key]:
+                      if ((packet['src'] == flow['source_ip'] and packet['dst'] == flow['destination_ip']) or
+                          (packet['src'] == flow['destination_ip'] and packet['dst'] == flow['source_ip'])):
+                          selected_packets.append(packet)
+                  normalized = flow_events(selected_packets, flow)
+                  comparable = {
+                      'icmp': normalized['icmp'],
+                      'tcp': {name: value for name, value in normalized['tcp'].items()
+                              if name != 'client_ack_seq'},
+                  }
+                  if common_measure is None:
+                      common_measure = comparable
+                  elif comparable != common_measure:
+                      reject('the same packet exchange or TCP tuple was not seen across required roles')
+                  observer_results.append({'key': key, 'measurement': normalized, 'observer': observer})
+              results[flow_name] = {
+                  'flow': flow, 'observers': observer_results, 'measurement': common_measure,
+              }
+          for flow_name, flow in flows.items():
+              if flow_name not in active_flows:
+                  for packets in all_packets.values():
+                      if any((p['src'] == flow['source_ip'] and p['dst'] == flow['destination_ip']) or
+                             (p['src'] == flow['destination_ip'] and p['dst'] == flow['source_ip'])
+                             for p in packets):
+                          reject('a future flow was captured before its controller dispatch')
+          return {'waves': results, 'packets': sum(len(p) for p in all_packets.values()), 'counters': counters}
+
+      def clean_observer(observer, entry, stats, measurement):
+          return {
+              'key': observer['key'], 'role': observer['role'], 'transport': observer['transport'],
+              'interface': observer['interface'], 'ifindex': int(observer['ifindex']),
+              'mac': observer['mac'], 'netns': observer['netns'], 'boot_id': observer['boot_id'],
+              'started_utc': observer['started_utc'],
+              'neutron_port_id': observer.get('neutron_port_id', ''),
+              'route': ({name: observer.get('route', {}).get(name) for name in ('dst', 'dev', 'gateway', 'prefsrc')}
+                        if observer.get('route') else {}),
+              'route_candidates': [
+                  {'direction': route['direction'], 'prefix': route['prefix'],
+                   'hops': [{'dev': hop['dev'], 'gateway': hop['gateway'],
+                             'weight': int(hop.get('weight', 1))} for hop in route.get('hops', [])]}
+                  for route in observer.get('route_candidates', [])
+              ],
+              'supervisor': {'pid': int(observer['supervisor_pid']),
+                             'starttime': int(observer['supervisor_starttime']),
+                             'uid': int(observer['supervisor_uid']),
+                             'rc': int(observer['supervisor_rc'])},
+              'transport_rc': int(observer['transport_rc']),
+              'tcpdump': {'pid': int(observer['tcpdump_pid']),
+                          'starttime': int(observer['tcpdump_starttime']),
+                          'uid': int(observer['tcpdump_uid']),
+                          'version': observer['tcpdump_version'],
+                          'argv': observer['argv'], 'filter': observer['filter'],
+                          'rc': int(entry['child_rc'])},
+              'supervisor_pidfile': {
+                  'device': int(observer['supervisor_file_device']),
+                  'inode': int(observer['supervisor_file_inode']),
+                  'uid': int(observer['supervisor_file_uid']),
+                  'mode': observer['supervisor_file_mode'],
+              },
+              'tcpdump_pidfile': {
+                  'device': int(observer['tcpdump_file_device']),
+                  'inode': int(observer['tcpdump_file_inode']),
+                  'uid': int(observer['tcpdump_file_uid']),
+                  'mode': observer['tcpdump_file_mode'],
+              },
+              'rc_file': {
+                  'device': int(observer['rc_file_device']),
+                  'inode': int(observer['rc_file_inode']),
+                  'uid': int(observer['rc_file_uid']),
+                  'mode': observer['rc_file_mode'],
+              },
+              'capture_file': {
+                  'path': observer['capture_path'], 'device': int(observer['device']),
+                  'inode': int(observer['inode']), 'uid': int(observer['file_uid']),
+                  'mode': observer['mode'], 'bytes': int(entry['bytes']),
+                  'sha256': entry['sha256'], 'stats': stats,
+              },
+              'selected_headers': measurement['headers'],
+          }
+
+      stage = DATA['stage']
+      observers = DATA['observers']
+      flows = DATA['flows']
+      if stage != 'final':
+          result = validate_stage(DATA['streams'], observers, flows, stage, False)
+          print(json.dumps({'stage': stage, 'packets': result['packets']}, separators=(',', ':')))
+          raise SystemExit(0)
+
+      waves_checked = validate_stage(DATA['streams'], observers, flows, 'final', True)
+      for pod_name in ('client', 'server'):
+          pod = DATA['pods'].get(pod_name, {})
+          if pod.get('phase') != 'Running' or pod.get('ready') is not True:
+              reject('current Pod/container readiness is absent from the receipt source')
+          route_name = 'pod_to_cirros' if pod_name == 'client' else 'cirros_to_pod'
+          if pod.get('pod_cidr') != DATA.get('route_cidrs', {}).get(route_name):
+              reject('the receipt PodCIDR differs from the measured border route')
+          if not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', pod.get('uid', '')):
+              reject('current Pod UID is missing from the receipt source')
+          if not re.fullmatch(r'[0-9a-f]{64}', pod.get('container_id', '')) or not re.fullmatch(r'[0-9a-f]{64}', pod.get('sandbox_id', '')):
+              reject('CRI container or sandbox identity is incomplete')
+          if pod.get('sandbox_uid') != pod.get('uid') or pod.get('sandbox_state') != 'READY' or pod.get('sandbox_pid_role') != 'identity_only':
+              reject('sandbox UID/state/domain is not joined to the current Pod')
+          if not isinstance(pod.get('container_attempt'), int) or pod['container_attempt'] < 0:
+              reject('running CRI container attempt is absent or invalid')
+          if not isinstance(pod.get('sandbox_attempt'), int) or pod['sandbox_attempt'] < 0:
+              reject('inspected PodSandbox attempt is absent or invalid')
+          if int(pod.get('sandbox_pid', 0)) <= 1 or int(pod.get('worker_host_pid', 0)) <= 1 or int(pod.get('worker_starttime', 0)) <= 0:
+              reject('worker or sandbox process identity is incomplete')
+          if not re.fullmatch(r'[1-9][0-9]*:[1-9][0-9]*', pod.get('worker_pidns', '')):
+              reject('worker PID namespace identity is incomplete')
+          if not re.fullmatch(r'[1-9][0-9]*:[1-9][0-9]*', pod.get('sandbox_netns', '')):
+              reject('verified sandbox network namespace is incomplete')
+          if not re.fullmatch(r'[1-9][0-9]*:[1-9][0-9]*', pod.get('kubelet_identity', '')):
+              reject('effective kubelet PID/starttime identity is incomplete')
+          if not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', pod.get('worker_boot_id', '')):
+              reject('worker boot identity is incomplete')
+          if int(pod.get('pod_net_ifindex', 0)) <= 0 or not re.fullmatch(r'(?:[0-9a-f]{2}:){5}[0-9a-f]{2}', pod.get('pod_net_mac', '')):
+              reject('Pod IP link identity is incomplete')
+          if not re.fullmatch(r'unix:///[^| ]+', pod.get('runtime_endpoint', '')) or pod.get('runtime_endpoint_source') not in ('flag', 'config'):
+              reject('effective kubelet runtime endpoint identity is incomplete')
+          if not re.fullmatch(r'/[^| ]+/crictl', pod.get('crictl_path', '')) or not re.fullmatch(r'[0-9a-f]{64}', pod.get('crictl_sha256', '')):
+              reject('observed crictl executable identity is incomplete')
+          if pod.get('crictl_client_version_argv') != [pod.get('crictl_path'), '--version']:
+              reject('crictl client version argv is not the measured candidate query')
+          runtime_base = [pod.get('crictl_path'), '--runtime-endpoint', pod.get('runtime_endpoint'),
+                          '--image-endpoint', pod.get('runtime_endpoint'), '--timeout', '10s', '--debug=false']
+          if pod.get('server_version_argv') != runtime_base + ['version']:
+              reject('CRI server version argv does not use the effective endpoint and bounded flags')
+          if pod.get('cri_ps_argv') != runtime_base + ['ps', '-o', 'json']:
+              reject('CRI container list argv does not use the effective endpoint and JSON envelope')
+          if pod.get('sandbox_inspectp_argv') != runtime_base + ['inspectp', '-o', 'json', pod.get('sandbox_id')]:
+              reject('CRI sandbox inspect argv does not use the joined sandbox identity')
+          if pod.get('crictl_client_version') != 'crictl version v1.33.0' or int(pod.get('crictl_client_version_rc', -1)) != 0:
+              reject('actual crictl client version query is not recognized')
+          version_lines = pod.get('server_version', '').splitlines()
+          if int(pod.get('server_version_rc', -1)) != 0 or len(version_lines) != 4:
+              reject('actual CRI server version query is incomplete')
+          if not re.fullmatch(r'Version:  [A-Za-z0-9.+_-]{1,64}', version_lines[0]):
+              reject('CRI server Version label is malformed')
+          if version_lines[1] != 'RuntimeName:  containerd' or not re.fullmatch(r'RuntimeVersion:  v?2\.1\.4(?:[-+][A-Za-z0-9._-]+)?', version_lines[2]) or version_lines[3] != 'RuntimeApiVersion:  v1':
+              reject('actual CRI server version labels differ from the recognized source contract')
+          if int(pod.get('cri_ps_rc', -1)) != 0 or int(pod.get('sandbox_inspectp_rc', -1)) != 0:
+              reject('CRI list/inspect query did not return successfully')
+          if pod.get('runtime_handler') != 'runc' or pod.get('runtime_type') != 'io.containerd.runc.v2':
+              reject('observed sandbox runtime handler/type is unsupported')
+          chain = pod.get('owner_chain', {})
+          for owner_key in ('pod_replicaset_uid', 'replicaset_deployment_uid', 'deployment_uid'):
+              if not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', chain.get(owner_key, '')):
+                  reject('validated Pod owner chain is incomplete')
+      controller = DATA['controller']
+      if controller['pod_to_cirros']['dispatch']['order'] >= controller['pod_to_cirros']['return']['order']:
+          reject('first controller dispatch/return causal order is invalid')
+      if controller['pod_to_cirros']['dispatch']['monotonic_ns'] >= controller['pod_to_cirros']['return']['monotonic_ns']:
+          reject('first controller dispatch/return monotonic order is invalid')
+      if controller['pod_to_cirros']['return']['order'] >= controller['cirros_to_pod']['dispatch']['order']:
+          reject('second wave was not dispatched after the first probe returned')
+      if controller['pod_to_cirros']['return']['monotonic_ns'] >= controller['cirros_to_pod']['dispatch']['monotonic_ns']:
+          reject('second wave monotonic dispatch preceded the first return')
+      if controller['cirros_to_pod']['dispatch']['order'] >= controller['cirros_to_pod']['return']['order']:
+          reject('second controller dispatch/return causal order is invalid')
+      if controller['cirros_to_pod']['dispatch']['monotonic_ns'] >= controller['cirros_to_pod']['return']['monotonic_ns']:
+          reject('second controller dispatch/return monotonic order is invalid')
+      receipt_waves = {}
+      for name in ('pod_to_cirros', 'cirros_to_pod'):
+          flow_result = waves_checked['waves'][name]
+          control = controller[name]
+          if int(control['probe_rc']) != 0:
+              reject('one exact endpoint probe returned a failure status')
+          identity = flow_result['measurement']
+          wave_observers = []
+          for item in flow_result['observers']:
+              observer = item['observer']
+              entry = next(e for e in DATA['streams'] if e['key'] == observer['key'])
+              wave_observers.append(clean_observer(observer, entry, waves_checked['counters'][observer['key']], item['measurement']))
+          receipt_waves[name] = {
+              'phase': 'observed',
+              'source_ip': flow_result['flow']['source_ip'],
+              'destination_ip': flow_result['flow']['destination_ip'],
+              'destination_port': int(flow_result['flow']['service_port']),
+              'controller': control,
+              'icmp': identity['icmp'],
+              'tcp': identity['tcp'],
+              'observers': wave_observers,
+          }
+      receipt = {
+          'schema': 1,
+          'scope': 'M11 C1 measured two-wave packet observation',
+          'check_id': DATA['check_id'],
+          'run_id': DATA['run_id'],
+          'context': DATA['context'],
+          'observed_utc': controller['cirros_to_pod']['return']['utc'],
+          'api': DATA['api'],
+          'pods': DATA['pods'],
+          'waves': receipt_waves,
+      }
+      print(json.dumps(receipt, separators=(',', ':'), sort_keys=True))
+  no_log: true
+
+- name: Reject any stale or incomplete packet record before the first dispatch
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - -B
+      - -c
+      - "{{ student_hybrid_m11_c1_parser_script }}"
+    stdin: >-
+      {{ {
+        'stage': 'pre',
+        'streams': student_hybrid_m11_c1_snapshots_before,
+        'observers': student_state.hybrid.m11.verification.gates.c1_capture_active.observers,
+        'route_cidrs': student_hybrid_m11_c1_route_cidrs,
+        'flows': {
+          'pod_to_cirros': {
+            'source_ip': student_hybrid_m11_client_pod.status.podIP,
+            'destination_ip': student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address,
+            'service_port': 22
+          },
+          'cirros_to_pod': {
+            'source_ip': student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address,
+            'destination_ip': student_hybrid_m11_server_pod.status.podIP,
+            'service_port': 8080
+          }
+        }
+      } | to_json }}
+    stdin_add_newline: false
+  register: student_hybrid_m11_c1_preflight_parse
+  changed_when: false
+  no_log: true
+
+- name: Require a clean baseline before any C1 traffic probe
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_preflight_parse.rc | int == 0
+      - (student_hybrid_m11_c1_preflight_parse.stdout | from_json).stage == 'pre'
+      - (student_hybrid_m11_c1_preflight_parse.stdout | from_json).packets | int == 0
+    fail_msg: "O baseline C1 contém tráfego anterior ao dispatch; a tentativa permanece parcial."
+  no_log: true
+
+- name: Record the controller dispatch for the exact client Pod probe
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - -B
+      - -c
+      - "import datetime,json,time; n=time.monotonic_ns(); print(json.dumps({'order':1,'monotonic_ns':n,'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='microseconds').replace('+00:00','Z')}))"
+  register: student_hybrid_m11_c1_wave1_dispatch_raw
+  changed_when: false
+  no_log: true
+
+- name: Run ICMP and a new TCP/22 connection from the exact client Pod container
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - exec
+      - --namespace
+      - "{{ student_state.hybrid.m11.verification.gates.namespace }}"
+      - "pod/{{ student_hybrid_m11_client_pod.metadata.name }}"
+      - --container
+      - netshoot
+      - --
+      - /bin/sh
+      - -ec
+      - "ping -c 2 -W 3 {{ student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address }} >/dev/null && nc -vz -w 4 {{ student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address }} 22"
+  become: true
+  register: student_hybrid_m11_pod_to_cirros
+  changed_when: false
+  no_log: true
+
+- name: Record the controller return from the exact client Pod probe
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - -B
+      - -c
+      - "import datetime,json,time; n=time.monotonic_ns(); print(json.dumps({'order':2,'monotonic_ns':n,'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='microseconds').replace('+00:00','Z')}))"
+  register: student_hybrid_m11_c1_wave1_return_raw
+  changed_when: false
+  no_log: true
+
+- name: Require the exact client probe to return successfully
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_pod_to_cirros.rc | int == 0
+      - (student_hybrid_m11_c1_wave1_dispatch_raw.stdout | from_json).monotonic_ns | int < (student_hybrid_m11_c1_wave1_return_raw.stdout | from_json).monotonic_ns | int
+    fail_msg: "A sondagem do container netshoot exato falhou; a observação C1 permanece parcial."
+  no_log: true
+
+- name: Revalidate every live C1 observer and interface after the first wave
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  loop: "{{ student_state.hybrid.m11.verification.gates.c1_capture_active.observers }}"
+  loop_control:
+    loop_var: student_hybrid_m11_c1_observer
+    label: "{{ student_hybrid_m11_c1_observer.key }}"
+  vars:
+    student_hybrid_m11_c1_capture_action: check
+  no_log: true
+
+- name: Snapshot every live observer after the first wave and before the reverse dispatch
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  loop: "{{ student_state.hybrid.m11.verification.gates.c1_capture_active.observers }}"
+  loop_control:
+    loop_var: student_hybrid_m11_c1_observer
+    label: "{{ student_hybrid_m11_c1_observer.key }}"
+  vars:
+    student_hybrid_m11_c1_capture_action: snapshot
+    student_hybrid_m11_c1_snapshot_phase: after_pod_to_cirros
+  no_log: true
+
+- name: Save first-wave snapshots as transient memory and reset the collector
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_snapshots_after_pod_to_cirros: "{{ student_hybrid_m11_c1_capture_snapshots }}"
+    student_hybrid_m11_c1_capture_snapshots: []
+  no_log: true
+
+- name: Validate the first ICMP pairs and TCP handshake before dispatching the reverse wave
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - -B
+      - -c
+      - "{{ student_hybrid_m11_c1_parser_script }}"
+    stdin: >-
+      {{ {
+        'stage': 'pod_to_cirros',
+        'streams': student_hybrid_m11_c1_snapshots_after_pod_to_cirros,
+        'observers': student_state.hybrid.m11.verification.gates.c1_capture_active.observers,
+        'route_cidrs': student_hybrid_m11_c1_route_cidrs,
+        'flows': {
+          'pod_to_cirros': {
+            'source_ip': student_hybrid_m11_client_pod.status.podIP,
+            'destination_ip': student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address,
+            'service_port': 22
+          },
+          'cirros_to_pod': {
+            'source_ip': student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address,
+            'destination_ip': student_hybrid_m11_server_pod.status.podIP,
+            'service_port': 8080
+          }
+        }
+      } | to_json }}
+    stdin_add_newline: false
+  register: student_hybrid_m11_c1_wave1_parse
+  changed_when: false
+  no_log: true
+
+- name: Require measured first-wave packet identities before a second probe
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_wave1_parse.rc | int == 0
+      - (student_hybrid_m11_c1_wave1_parse.stdout | from_json).stage == 'pod_to_cirros'
+      - (student_hybrid_m11_c1_wave1_parse.stdout | from_json).packets | int > 0
+    fail_msg: "A primeira onda não tem os dois pares ICMP e o handshake TCP/22 medidos em todos os papéis."
+  no_log: true
+
+- name: Revalidate both CRI, proc, namespace, and Pod-interface joins after the first wave
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  loop: "{{ student_hybrid_m11_c1_sandbox_targets | dict2items }}"
+  loop_control:
+    loop_var: student_hybrid_m11_c1_revalidation_target
+    label: "{{ student_hybrid_m11_c1_revalidation_target.key }}"
+  vars:
+    student_hybrid_m11_c1_capture_action: revalidate
+  no_log: true
+
+- name: Revalidate the exact server Pod and container before the reverse wave
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - pod
+      - "{{ student_hybrid_m11_server_pod.metadata.name }}"
+      - --namespace
+      - "{{ student_hybrid_m11_server_pod.metadata.namespace }}"
+      - --output=json
+  become: true
+  register: student_hybrid_m11_c1_server_recheck
+  changed_when: false
+  no_log: true
+
+- name: Require the reverse endpoint UID, owner chain, container, and address to remain current
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_server_recheck.rc | int == 0
+      - (student_hybrid_m11_c1_server_recheck.stdout | from_json).metadata.uid == student_hybrid_m11_server_pod.metadata.uid
+      - (student_hybrid_m11_c1_server_recheck.stdout | from_json).spec.nodeName == student_hybrid_m11_server_pod.spec.nodeName
+      - (student_hybrid_m11_c1_server_recheck.stdout | from_json).status.phase == 'Running'
+      - (student_hybrid_m11_c1_server_recheck.stdout | from_json).status.podIP == student_hybrid_m11_server_pod.status.podIP
+      - ((student_hybrid_m11_c1_server_recheck.stdout | from_json).status.containerStatuses | selectattr('name', 'equalto', 'agnhost') | first).ready | bool
+      - ((student_hybrid_m11_c1_server_recheck.stdout | from_json).status.containerStatuses | selectattr('name', 'equalto', 'agnhost') | first).containerID == 'containerd://' ~ (student_hybrid_m11_server_pod.status.containerStatuses | selectattr('name', 'equalto', 'agnhost') | first).containerID | regex_replace('^containerd://', '')
+    fail_msg: "A Pod ou container agnhost mudou antes da segunda onda C1."
+  no_log: true
+
+- name: Record the controller dispatch for the exact CirrOS reverse probe
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - -B
+      - -c
+      - "import datetime,json,time; n=time.monotonic_ns(); print(json.dumps({'order':3,'monotonic_ns':n,'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='microseconds').replace('+00:00','Z')}))"
+  register: student_hybrid_m11_c1_wave2_dispatch_raw
+  changed_when: false
+  no_log: true
+
+- name: Probe the exact server Pod over ICMP and HTTP/8080 from CirrOS
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: cirros
+    student_hybrid_ssh_remote_command: sh -se
+    student_hybrid_ssh_stdin: |-
+      set -eu
+      pod_ip={{ student_hybrid_m11_server_pod.status.podIP | quote }}
+      ping -c 2 -W 3 "$pod_ip" >/dev/null
+      wget -q -T 8 -O /dev/null "http://$pod_ip:8080/"
+      printf 'P010_C1_REVERSE_PROBE=ok\n'
+  no_log: true
+
+- name: Record the controller return from the exact CirrOS reverse probe
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - -B
+      - -c
+      - "import datetime,json,time; n=time.monotonic_ns(); print(json.dumps({'order':4,'monotonic_ns':n,'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='microseconds').replace('+00:00','Z')}))"
+  register: student_hybrid_m11_c1_wave2_return_raw
+  changed_when: false
+  no_log: true
+
+- name: Require the CirrOS reverse probe and ordered controller dispatch
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_ssh_result.rc | int == 0
+      - student_hybrid_ssh_result.stdout_lines | select('equalto', 'P010_C1_REVERSE_PROBE=ok') | list | length == 1
+      - (student_hybrid_m11_c1_wave2_dispatch_raw.stdout | from_json).monotonic_ns | int < (student_hybrid_m11_c1_wave2_return_raw.stdout | from_json).monotonic_ns | int
+      - (student_hybrid_m11_c1_wave1_return_raw.stdout | from_json).monotonic_ns | int < (student_hybrid_m11_c1_wave2_dispatch_raw.stdout | from_json).monotonic_ns | int
+    fail_msg: "A sondagem reversa de CirrOS falhou ou foi despachada antes da primeira onda retornar."
+  no_log: true
+
+- name: Revalidate the exact server Pod after the reverse wave
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - pod
+      - "{{ student_hybrid_m11_server_pod.metadata.name }}"
+      - --namespace
+      - "{{ student_hybrid_m11_server_pod.metadata.namespace }}"
+      - --output=json
+  become: true
+  register: student_hybrid_m11_c1_server_after
+  changed_when: false
+  no_log: true
+
+- name: Require the exact server Pod UID and container to remain ready after the probe
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_server_after.rc | int == 0
+      - (student_hybrid_m11_c1_server_after.stdout | from_json).metadata.uid == student_hybrid_m11_server_pod.metadata.uid
+      - (student_hybrid_m11_c1_server_after.stdout | from_json).status.podIP == student_hybrid_m11_server_pod.status.podIP
+      - ((student_hybrid_m11_c1_server_after.stdout | from_json).status.containerStatuses | selectattr('name', 'equalto', 'agnhost') | first).ready | bool
+      - ((student_hybrid_m11_c1_server_after.stdout | from_json).status.containerStatuses | selectattr('name', 'equalto', 'agnhost') | first).containerID == 'containerd://' ~ (student_hybrid_m11_server_pod.status.containerStatuses | selectattr('name', 'equalto', 'agnhost') | first).containerID | regex_replace('^containerd://', '')
+    fail_msg: "O endpoint de destino mudou ou deixou de estar READY após a segunda onda."
+  no_log: true
+
+- name: Revalidate both CRI, proc, namespace, and Pod-interface joins after the reverse wave
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  loop: "{{ student_hybrid_m11_c1_sandbox_targets | dict2items }}"
+  loop_control:
+    loop_var: student_hybrid_m11_c1_revalidation_target
+    label: "{{ student_hybrid_m11_c1_revalidation_target.key }}"
+  vars:
+    student_hybrid_m11_c1_capture_action: revalidate
+  no_log: true
+
+- name: Revalidate every live C1 observer and interface after the reverse wave
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  loop: "{{ student_state.hybrid.m11.verification.gates.c1_capture_active.observers }}"
+  loop_control:
+    loop_var: student_hybrid_m11_c1_observer
+    label: "{{ student_hybrid_m11_c1_observer.key }}"
+  vars:
+    student_hybrid_m11_c1_capture_action: check
+  no_log: true
+
+- name: Snapshot every live observer after the reverse wave
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  loop: "{{ student_state.hybrid.m11.verification.gates.c1_capture_active.observers }}"
+  loop_control:
+    loop_var: student_hybrid_m11_c1_observer
+    label: "{{ student_hybrid_m11_c1_observer.key }}"
+  vars:
+    student_hybrid_m11_c1_capture_action: snapshot
+    student_hybrid_m11_c1_snapshot_phase: after_cirros_to_pod
+  no_log: true
+
+- name: Save second-wave snapshots as transient memory
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_snapshots_after_cirros_to_pod: "{{ student_hybrid_m11_c1_capture_snapshots }}"
+  no_log: true
+
+- name: Validate both measured packet waves before stopping the observers
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - -B
+      - -c
+      - "{{ student_hybrid_m11_c1_parser_script }}"
+    stdin: >-
+      {{ {
+        'stage': 'cirros_to_pod',
+        'streams': student_hybrid_m11_c1_snapshots_after_cirros_to_pod,
+        'observers': student_state.hybrid.m11.verification.gates.c1_capture_active.observers,
+        'route_cidrs': student_hybrid_m11_c1_route_cidrs,
+        'flows': {
+          'pod_to_cirros': {
+            'source_ip': student_hybrid_m11_client_pod.status.podIP,
+            'destination_ip': student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address,
+            'service_port': 22
+          },
+          'cirros_to_pod': {
+            'source_ip': student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address,
+            'destination_ip': student_hybrid_m11_server_pod.status.podIP,
+            'service_port': 8080
+          }
+        }
+      } | to_json }}
+    stdin_add_newline: false
+  register: student_hybrid_m11_c1_wave2_parse
+  changed_when: false
+  no_log: true
+
+- name: Require both directions and every selected observer before stopping
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_wave2_parse.rc | int == 0
+      - (student_hybrid_m11_c1_wave2_parse.stdout | from_json).stage == 'cirros_to_pod'
+      - (student_hybrid_m11_c1_wave2_parse.stdout | from_json).packets | int > 0
+    fail_msg: "A segunda onda não tem as duas sessões medidas nas interfaces selecionadas."
+  no_log: true
+
+- name: Stop each exact C1 observer and retain its bounded stream in memory
+  ansible.builtin.include_tasks: hybrid-m11-build-stop-origin-script.yml
+  loop: "{{ student_state.hybrid.m11.verification.gates.c1_capture_active.observers }}"
+  loop_control:
+    loop_var: student_hybrid_m11_c1_observer
+    label: "{{ student_hybrid_m11_c1_observer.key }}"
+  vars:
+    student_hybrid_m11_c1_capture_action: stop
+  no_log: true
+
+- name: Require all observers stopped for the current C1 check
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'stopping'
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | selectattr('phase', 'equalto', 'stopped') | list | length == student_state.hybrid.m11.verification.gates.c1_capture_active.observers | length
+      - student_hybrid_m11_c1_capture_streams | length == student_state.hybrid.m11.verification.gates.c1_capture_active.observers | length
+    fail_msg: "A tentativa C1 não manteve todos os processos e streams ligados ao check atual."
+  no_log: true
+
+- name: Build the sanitized source inventory for the two-wave measured receipt
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_receipt_input:
+      stage: final
+      check_id: "{{ student_state.hybrid.m11.verification.gates.positive.c1.check_id }}"
+      run_id: "{{ student_state.run_id }}"
+      context: "{{ student_state.context }}"
+      observers: "{{ student_state.hybrid.m11.verification.gates.c1_capture_active.observers }}"
+      streams: "{{ student_hybrid_m11_c1_capture_streams }}"
+      route_cidrs: "{{ student_hybrid_m11_c1_route_cidrs }}"
+      flows:
+        pod_to_cirros:
+          source_ip: "{{ student_hybrid_m11_client_pod.status.podIP }}"
+          destination_ip: "{{ student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address }}"
+          service_port: 22
+        cirros_to_pod:
+          source_ip: "{{ student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address }}"
+          destination_ip: "{{ student_hybrid_m11_server_pod.status.podIP }}"
+          service_port: 8080
+      controller:
+        pod_to_cirros:
+          dispatch: "{{ student_hybrid_m11_c1_wave1_dispatch_raw.stdout | from_json }}"
+          return: "{{ student_hybrid_m11_c1_wave1_return_raw.stdout | from_json }}"
+          probe_rc: "{{ student_hybrid_m11_pod_to_cirros.rc | int }}"
+          probe_argv: [kubectl, exec, "pod/{{ student_hybrid_m11_client_pod.metadata.name }}", --container, netshoot, /bin/sh, -ec, "ping -c 2 -W 3 {{ student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address }} >/dev/null && nc -vz -w 4 {{ student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address }} 22"]
+        cirros_to_pod:
+          dispatch: "{{ student_hybrid_m11_c1_wave2_dispatch_raw.stdout | from_json }}"
+          return: "{{ student_hybrid_m11_c1_wave2_return_raw.stdout | from_json }}"
+          probe_rc: "{{ student_hybrid_ssh_result.rc | int }}"
+          probe_argv: [ssh, cirros, sh, -se, "ping -c 2 -W 3 {{ student_hybrid_m11_server_pod.status.podIP }} >/dev/null && wget -q -T 8 -O /dev/null http://{{ student_hybrid_m11_server_pod.status.podIP }}:8080/"]
+      api: >-
+        {{ student_state.hybrid.m11.verification.gates.c1_api_paths | combine({
+          'cirros_port_id': student_state.hybrid.m11.api.resources.cirros_port.primary.id
+        }, recursive=false) }}
+      pods:
+        client:
+          key: pod_to_cirros
+          namespace: "{{ student_hybrid_m11_client_pod.metadata.namespace }}"
+          name: "{{ student_hybrid_m11_client_pod.metadata.name }}"
+          uid: "{{ student_hybrid_m11_client_pod.metadata.uid }}"
+          node: "{{ student_hybrid_m11_client_pod.spec.nodeName }}"
+          pod_cidr: "{{ student_state.hybrid.m11.verification.gates.client_pod.pod_cidr }}"
+          ip: "{{ student_hybrid_m11_client_pod.status.podIP }}"
+          phase: "{{ student_hybrid_m11_client_pod.status.phase }}"
+          ready: "{{ (student_hybrid_m11_client_pod.status.containerStatuses | selectattr('name', 'equalto', 'netshoot') | first).ready | bool }}"
+          restart_count: "{{ (student_hybrid_m11_client_pod.status.containerStatuses | selectattr('name', 'equalto', 'netshoot') | first).restartCount | int }}"
+          owner_chain:
+            pod_replicaset_name: "{{ (student_hybrid_m11_client_pod.metadata.ownerReferences | selectattr('controller', 'equalto', true) | first).name }}"
+            pod_replicaset_uid: "{{ (student_hybrid_m11_client_pod.metadata.ownerReferences | selectattr('controller', 'equalto', true) | first).uid }}"
+            replicaset_deployment_name: "{{ (((student_hybrid_m11_workload_replicasets.results | selectattr('item.key', 'equalto', 'client') | first).stdout | from_json).metadata.ownerReferences | selectattr('controller', 'equalto', true) | first).name }}"
+            replicaset_deployment_uid: "{{ (((student_hybrid_m11_workload_replicasets.results | selectattr('item.key', 'equalto', 'client') | first).stdout | from_json).metadata.ownerReferences | selectattr('controller', 'equalto', true) | first).uid }}"
+            deployment_name: "{{ student_state.hybrid.m11.verification.gates.k8s_resources.client_deployment.name }}"
+            deployment_uid: "{{ student_state.hybrid.m11.verification.gates.k8s_resources.client_deployment.uid }}"
+          container_name: netshoot
+          container_id: "{{ student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', 'pod_to_cirros') | map(attribute='container_id') | first }}"
+          sandbox_id: "{{ student_hybrid_m11_c1_sandbox_targets.pod_to_cirros.sandbox_id }}"
+          sandbox_uid: "{{ student_hybrid_m11_c1_sandbox_targets.pod_to_cirros.pod_uid }}"
+          sandbox_attempt: "{{ student_hybrid_m11_c1_sandbox_targets.pod_to_cirros.sandbox_attempt | int }}"
+          container_attempt: "{{ student_hybrid_m11_c1_sandbox_targets.pod_to_cirros.container_attempt | int }}"
+          sandbox_state: READY
+          sandbox_pid: "{{ student_hybrid_m11_c1_sandbox_targets.pod_to_cirros.sandbox_pid | int }}"
+          sandbox_pid_role: identity_only
+          sandbox_netns: "{{ student_hybrid_m11_c1_pod_observations.pod_to_cirros.identity[7] }}"
+          pod_net_ifindex: "{{ (student_hybrid_m11_c1_observer_targets | selectattr('key', 'equalto', 'pod-pod_to_cirros') | first).expected_ifindex | int }}"
+          pod_net_mac: "{{ (student_hybrid_m11_c1_observer_targets | selectattr('key', 'equalto', 'pod-pod_to_cirros') | first).expected_mac | lower }}"
+          runtime_endpoint: "{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[0] }}"
+          runtime_endpoint_source: "{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[1] }}"
+          kubelet_identity: "{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[6] }}"
+          worker_boot_id: "{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[7] }}"
+          crictl_path: "{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[4] }}"
+          crictl_sha256: "{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[5] }}"
+          crictl_client_version: "{{ student_hybrid_m11_c1_crictl_client_versions.results | selectattr('item.key', 'equalto', 'pod_to_cirros') | map(attribute='stdout') | first }}"
+          crictl_client_version_rc: "{{ student_hybrid_m11_c1_crictl_client_versions.results | selectattr('item.key', 'equalto', 'pod_to_cirros') | map(attribute='rc') | first | int }}"
+          crictl_client_version_argv: ["{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[4] }}", --version]
+          server_version: "{{ student_hybrid_m11_c1_runtime_versions.results | selectattr('item.item.key', 'equalto', 'pod_to_cirros') | map(attribute='stdout') | first }}"
+          server_version_rc: "{{ student_hybrid_m11_c1_runtime_versions.results | selectattr('item.item.key', 'equalto', 'pod_to_cirros') | map(attribute='rc') | first | int }}"
+          server_version_argv: ["{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[4] }}", --runtime-endpoint, "{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[0] }}", --image-endpoint, "{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[0] }}", --timeout, 10s, --debug=false, version]
+          cri_ps_argv: ["{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[4] }}", --runtime-endpoint, "{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[0] }}", --image-endpoint, "{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[0] }}", --timeout, 10s, --debug=false, ps, -o, json]
+          cri_ps_rc: "{{ student_hybrid_m11_c1_cri_containers.results | selectattr('item.item.key', 'equalto', 'pod_to_cirros') | map(attribute='rc') | first | int }}"
+          sandbox_inspectp_argv: ["{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[4] }}", --runtime-endpoint, "{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[0] }}", --image-endpoint, "{{ student_hybrid_m11_c1_runtime_by_key.pod_to_cirros[0] }}", --timeout, 10s, --debug=false, inspectp, -o, json, "{{ student_hybrid_m11_c1_sandbox_targets.pod_to_cirros.sandbox_id }}"]
+          sandbox_inspectp_rc: "{{ student_hybrid_m11_c1_sandbox_inspections.results | selectattr('item.key', 'equalto', 'pod_to_cirros') | map(attribute='rc') | first | int }}"
+          runtime_type: "{{ student_hybrid_m11_c1_sandbox_targets.pod_to_cirros.runtime_type }}"
+          runtime_handler: "{{ student_hybrid_m11_c1_sandbox_targets.pod_to_cirros.runtime_handler }}"
+          worker_host_pid: "{{ student_hybrid_m11_c1_pod_observations.pod_to_cirros.identity[0] | int }}"
+          worker_starttime: "{{ student_hybrid_m11_c1_pod_observations.pod_to_cirros.identity[1] | int }}"
+          worker_uid: "{{ student_hybrid_m11_c1_pod_observations.pod_to_cirros.identity[2] | int }}"
+          worker_pidns: "{{ student_hybrid_m11_c1_pod_observations.pod_to_cirros.identity[3] }}"
+        server:
+          key: cirros_to_pod
+          namespace: "{{ student_hybrid_m11_server_pod.metadata.namespace }}"
+          name: "{{ student_hybrid_m11_server_pod.metadata.name }}"
+          uid: "{{ student_hybrid_m11_server_pod.metadata.uid }}"
+          node: "{{ student_hybrid_m11_server_pod.spec.nodeName }}"
+          pod_cidr: "{{ student_state.hybrid.m11.verification.gates.server_pod.pod_cidr }}"
+          ip: "{{ student_hybrid_m11_server_pod.status.podIP }}"
+          phase: "{{ student_hybrid_m11_server_pod.status.phase }}"
+          ready: "{{ (student_hybrid_m11_server_pod.status.containerStatuses | selectattr('name', 'equalto', 'agnhost') | first).ready | bool }}"
+          restart_count: "{{ (student_hybrid_m11_server_pod.status.containerStatuses | selectattr('name', 'equalto', 'agnhost') | first).restartCount | int }}"
+          owner_chain:
+            pod_replicaset_name: "{{ (student_hybrid_m11_server_pod.metadata.ownerReferences | selectattr('controller', 'equalto', true) | first).name }}"
+            pod_replicaset_uid: "{{ (student_hybrid_m11_server_pod.metadata.ownerReferences | selectattr('controller', 'equalto', true) | first).uid }}"
+            replicaset_deployment_name: "{{ (((student_hybrid_m11_workload_replicasets.results | selectattr('item.key', 'equalto', 'server') | first).stdout | from_json).metadata.ownerReferences | selectattr('controller', 'equalto', true) | first).name }}"
+            replicaset_deployment_uid: "{{ (((student_hybrid_m11_workload_replicasets.results | selectattr('item.key', 'equalto', 'server') | first).stdout | from_json).metadata.ownerReferences | selectattr('controller', 'equalto', true) | first).uid }}"
+            deployment_name: "{{ student_state.hybrid.m11.verification.gates.k8s_resources.server_deployment.name }}"
+            deployment_uid: "{{ student_state.hybrid.m11.verification.gates.k8s_resources.server_deployment.uid }}"
+          container_name: agnhost
+          container_id: "{{ student_hybrid_m11_c1_pod_targets | selectattr('key', 'equalto', 'cirros_to_pod') | map(attribute='container_id') | first }}"
+          sandbox_id: "{{ student_hybrid_m11_c1_sandbox_targets.cirros_to_pod.sandbox_id }}"
+          sandbox_uid: "{{ student_hybrid_m11_c1_sandbox_targets.cirros_to_pod.pod_uid }}"
+          sandbox_attempt: "{{ student_hybrid_m11_c1_sandbox_targets.cirros_to_pod.sandbox_attempt | int }}"
+          container_attempt: "{{ student_hybrid_m11_c1_sandbox_targets.cirros_to_pod.container_attempt | int }}"
+          sandbox_state: READY
+          sandbox_pid: "{{ student_hybrid_m11_c1_sandbox_targets.cirros_to_pod.sandbox_pid | int }}"
+          sandbox_pid_role: identity_only
+          sandbox_netns: "{{ student_hybrid_m11_c1_pod_observations.cirros_to_pod.identity[7] }}"
+          pod_net_ifindex: "{{ (student_hybrid_m11_c1_observer_targets | selectattr('key', 'equalto', 'pod-cirros_to_pod') | first).expected_ifindex | int }}"
+          pod_net_mac: "{{ (student_hybrid_m11_c1_observer_targets | selectattr('key', 'equalto', 'pod-cirros_to_pod') | first).expected_mac | lower }}"
+          runtime_endpoint: "{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[0] }}"
+          runtime_endpoint_source: "{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[1] }}"
+          kubelet_identity: "{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[6] }}"
+          worker_boot_id: "{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[7] }}"
+          crictl_path: "{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[4] }}"
+          crictl_sha256: "{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[5] }}"
+          crictl_client_version: "{{ student_hybrid_m11_c1_crictl_client_versions.results | selectattr('item.key', 'equalto', 'cirros_to_pod') | map(attribute='stdout') | first }}"
+          crictl_client_version_rc: "{{ student_hybrid_m11_c1_crictl_client_versions.results | selectattr('item.key', 'equalto', 'cirros_to_pod') | map(attribute='rc') | first | int }}"
+          crictl_client_version_argv: ["{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[4] }}", --version]
+          server_version: "{{ student_hybrid_m11_c1_runtime_versions.results | selectattr('item.item.key', 'equalto', 'cirros_to_pod') | map(attribute='stdout') | first }}"
+          server_version_rc: "{{ student_hybrid_m11_c1_runtime_versions.results | selectattr('item.item.key', 'equalto', 'cirros_to_pod') | map(attribute='rc') | first | int }}"
+          server_version_argv: ["{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[4] }}", --runtime-endpoint, "{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[0] }}", --image-endpoint, "{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[0] }}", --timeout, 10s, --debug=false, version]
+          cri_ps_argv: ["{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[4] }}", --runtime-endpoint, "{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[0] }}", --image-endpoint, "{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[0] }}", --timeout, 10s, --debug=false, ps, -o, json]
+          cri_ps_rc: "{{ student_hybrid_m11_c1_cri_containers.results | selectattr('item.item.key', 'equalto', 'cirros_to_pod') | map(attribute='rc') | first | int }}"
+          sandbox_inspectp_argv: ["{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[4] }}", --runtime-endpoint, "{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[0] }}", --image-endpoint, "{{ student_hybrid_m11_c1_runtime_by_key.cirros_to_pod[0] }}", --timeout, 10s, --debug=false, inspectp, -o, json, "{{ student_hybrid_m11_c1_sandbox_targets.cirros_to_pod.sandbox_id }}"]
+          sandbox_inspectp_rc: "{{ student_hybrid_m11_c1_sandbox_inspections.results | selectattr('item.key', 'equalto', 'cirros_to_pod') | map(attribute='rc') | first | int }}"
+          runtime_type: "{{ student_hybrid_m11_c1_sandbox_targets.cirros_to_pod.runtime_type }}"
+          runtime_handler: "{{ student_hybrid_m11_c1_sandbox_targets.cirros_to_pod.runtime_handler }}"
+          worker_host_pid: "{{ student_hybrid_m11_c1_pod_observations.cirros_to_pod.identity[0] | int }}"
+          worker_starttime: "{{ student_hybrid_m11_c1_pod_observations.cirros_to_pod.identity[1] | int }}"
+          worker_uid: "{{ student_hybrid_m11_c1_pod_observations.cirros_to_pod.identity[2] | int }}"
+          worker_pidns: "{{ student_hybrid_m11_c1_pod_observations.cirros_to_pod.identity[3] }}"
+  no_log: true
+
+- name: Parse the final stopped streams and build a receipt only from measured headers
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - -B
+      - -c
+      - "{{ student_hybrid_m11_c1_parser_script }}"
+    stdin: "{{ student_hybrid_m11_c1_receipt_input | to_json }}"
+    stdin_add_newline: false
+  register: student_hybrid_m11_c1_receipt_result
+  changed_when: false
+  no_log: true
+
+- name: Require measured normalized packet evidence before saving the receipt
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_receipt_result.rc | int == 0
+      - (student_hybrid_m11_c1_receipt_result.stdout | from_json).schema | int == 1
+      - (student_hybrid_m11_c1_receipt_result.stdout | from_json).check_id == student_state.hybrid.m11.verification.gates.positive.c1.check_id
+      - (student_hybrid_m11_c1_receipt_result.stdout | from_json).waves.pod_to_cirros.phase == 'observed'
+      - (student_hybrid_m11_c1_receipt_result.stdout | from_json).waves.cirros_to_pod.phase == 'observed'
+      - (student_hybrid_m11_c1_receipt_result.stdout | from_json).waves.pod_to_cirros.icmp.sequences | length == 2
+      - (student_hybrid_m11_c1_receipt_result.stdout | from_json).waves.cirros_to_pod.icmp.sequences | length == 2
+      - (student_hybrid_m11_c1_receipt_result.stdout | from_json).waves.pod_to_cirros.observers | length >= 7
+      - (student_hybrid_m11_c1_receipt_result.stdout | from_json).waves.cirros_to_pod.observers | length >= 7
+    fail_msg: "A parser C1 não produziu duas ondas a partir dos headers e estatísticas efetivamente capturados."
+  no_log: true
+
+- name: Retain only the normalized measured C1 receipt body
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_receipt_body: "{{ student_hybrid_m11_c1_receipt_result.stdout | from_json }}"
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-m11-save-positive-result.yml

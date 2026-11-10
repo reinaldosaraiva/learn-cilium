@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+guest_home={{ student_hybrid_shell_home | quote }}
+run_id={{ student_hybrid_shell_run_id | quote }}
+console_id={{ student_hybrid_shell_console_id | quote }}
+clouds_b64={{ student_hybrid_shell_cloud_config | quote }}
+[[ "$(id -un)" == stack && -d "${guest_home}" && ! -L "${guest_home}" ]] || exit 70
+owner_uid="$(id -u)"
+[[ "${run_id}" =~ ^[0-9]{8}-[0-9a-f]{32}$ && "${console_id}" =~ ^[0-9a-f]{32}$ ]] || exit 70
+
+private_root="${guest_home}/.p010-student-lab"
+run_root="${private_root}/runs/${run_id}"
+shell_root="${run_root}/shell"
+console_dir="${shell_root}/${console_id}"
+created_console=0
+
+ensure_private_dir() {
+  local path="$1"
+  [[ ! -L "${path}" ]] || return 1
+  if [[ ! -e "${path}" ]]; then
+    mkdir -m 0700 -- "${path}" 2>/dev/null || [[ -d "${path}" ]] || return 1
+  fi
+  [[ -d "${path}" && ! -L "${path}" ]] || return 1
+  [[ "$(stat -c '%u:%a' -- "${path}")" == "${owner_uid}:700" ]]
+}
+
+cleanup_created_console() {
+  local original_rc="$?" path
+  trap - EXIT
+  if [[ "${created_console}" == 1 ]]; then
+    for path in "${console_dir}/clouds.yaml" "${console_dir}/secure.yaml" "${console_dir}/.owner.new" "${console_dir}/.owner"; do
+      if [[ -e "${path}" || -L "${path}" ]]; then
+        if [[ -f "${path}" && ! -L "${path}" && "$(stat -c '%u:%a' -- "${path}")" == "${owner_uid}:600" ]]; then
+          rm -- "${path}"
+        fi
+      fi
+    done
+    rmdir -- "${console_dir}" 2>/dev/null || true
+  fi
+  exit "${original_rc}"
+}
+
+ensure_private_dir "${private_root}"
+ensure_private_dir "${private_root}/runs"
+ensure_private_dir "${run_root}"
+ensure_private_dir "${shell_root}"
+[[ ! -e "${console_dir}" && ! -L "${console_dir}" ]] || exit 73
+mkdir -m 0700 -- "${console_dir}"
+created_console=1
+trap cleanup_created_console EXIT
+
+set -C
+printf '%s\n' 'preparing' >"${console_dir}/.owner"
+printf '%s' "${clouds_b64}" | base64 --decode >"${console_dir}/clouds.yaml"
+printf 'clouds: {}\n' >"${console_dir}/secure.yaml"
+chmod 0600 "${console_dir}/.owner" "${console_dir}/clouds.yaml" "${console_dir}/secure.yaml"
+
+for path in "${console_dir}/.owner" "${console_dir}/clouds.yaml" "${console_dir}/secure.yaml"; do
+  [[ -f "${path}" && ! -L "${path}" && -r "${path}" ]] || exit 74
+  [[ "$(stat -c '%u:%a' -- "${path}")" == "${owner_uid}:600" ]] || exit 74
+done
+
+clouds_identity="$(stat -c '%d:%i' -- "${console_dir}/clouds.yaml")"
+secure_identity="$(stat -c '%d:%i' -- "${console_dir}/secure.yaml")"
+printf '%s %s %s %s %s %s %s\n' \
+  "${run_id}" "${console_id}" ubuntu \
+  "${clouds_identity%%:*}" "${clouds_identity#*:}" \
+  "${secure_identity%%:*}" "${secure_identity#*:}" \
+  >"${console_dir}/.owner.new"
+chmod 0600 "${console_dir}/.owner.new"
+mv -- "${console_dir}/.owner.new" "${console_dir}/.owner"
+[[ "$(stat -c '%u:%a' -- "${console_dir}/.owner")" == "${owner_uid}:600" ]] || exit 74
+created_console=0
+trap - EXIT

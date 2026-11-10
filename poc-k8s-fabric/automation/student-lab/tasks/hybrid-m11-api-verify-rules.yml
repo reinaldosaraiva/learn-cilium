@@ -1,0 +1,22 @@
+---
+- name: Compare the attached rule IDs against the exact recorded pod-CIDR policy
+  ansible.builtin.set_fact:
+    student_hybrid_api_actual_rule_ids: "{{ student_hybrid_api_response.json.security_group_rules | map(attribute='id') | list | sort }}"
+    student_hybrid_api_expected_rule_ids: "{{ [student_state.hybrid.m11.api.resources.security_group_rules.egress_icmp.id, student_state.hybrid.m11.api.resources.security_group_rules.egress_tcp.id, student_state.hybrid.m11.api.resources.security_group_rules.ingress_icmp.id, student_state.hybrid.m11.api.resources.security_group_rules.ingress_tcp.id] | sort }}"
+    student_hybrid_api_rule_ids: "{{ student_hybrid_api_response.json.security_group_rules | map(attribute='id') | list }}"
+  no_log: true
+
+- name: Require exactly the four recorded pod-CIDR rules and no default egress rules
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_actual_rule_ids == student_hybrid_api_expected_rule_ids
+      - student_hybrid_api_response.json.security_group_rules | selectattr('tenant_id', 'equalto', student_state.hybrid.m11.api.project_id) | list | length == 4
+      - student_state.hybrid.m11.api.resources.security_group_rules.get('default_ipv4', {}).get('id', '') not in student_hybrid_api_rule_ids
+      - student_state.hybrid.m11.api.resources.security_group_rules.get('default_ipv6', {}).get('id', '') not in student_hybrid_api_rule_ids
+    fail_msg: "O grupo Neutron contém regra extra, ausente ou ampla além das quatro regras registradas."
+  no_log: true
+
+- name: Retain the exact live security-group rules for C0 evidence
+  ansible.builtin.set_fact:
+    student_hybrid_api_verified_security_group_rules: "{{ student_hybrid_api_response.json.security_group_rules | sort(attribute='id') }}"
+  no_log: true

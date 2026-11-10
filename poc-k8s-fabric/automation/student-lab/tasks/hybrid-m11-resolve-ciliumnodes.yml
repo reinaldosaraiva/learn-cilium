@@ -1,0 +1,6 @@
+---
+- name: Resolve one allocated PodCIDR for each workload node
+  ansible.builtin.set_fact:
+    student_hybrid_m11_client_node: "{{ (student_hybrid_m11_ciliumnodes.stdout | from_json)['items'] | selectattr('metadata.name', 'equalto', student_hybrid_m11_client_pod.spec.nodeName) | list | first }}"
+    student_hybrid_m11_server_node: "{{ (student_hybrid_m11_ciliumnodes.stdout | from_json)['items'] | selectattr('metadata.name', 'equalto', student_hybrid_m11_server_pod.spec.nodeName) | list | first }}"
+  no_log: true

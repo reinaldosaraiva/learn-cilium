@@ -1,0 +1,229 @@
+---
+- name: Report an empty hybrid cleanup without inspecting host resources
+  ansible.builtin.debug:
+    msg: "Nenhuma execução híbrida ativa está registrada; nenhum recurso foi removido."
+  when: not student_has_state or student_state.status == 'down'
+
+- name: Require an active recorded hybrid state before cleanup
+  ansible.builtin.assert:
+    that:
+      - student_state.profile == 'hibrido'
+      - student_state.schema | int == 3
+      - student_state.status in ['preparing', 'partial', 'up']
+    fail_msg: "lab-down recebeu state híbrido divergente; nenhuma remoção será inferida."
+  when: student_has_state and student_state.status != 'down'
+
+- name: Mark the hybrid state partial before cleanup effects
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'status': 'partial', 'phase': 'hybrid-down-start', 'hybrid': {'phase': 'partial'}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+  when: student_has_state and student_state.status != 'down'
+  no_log: true
+
+- name: Persist cleanup intent before asking guests to stop
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  when: student_has_state and student_state.status != 'down'
+
+- name: Remove M11 Kubernetes, Neutron, NDR, and CirrOS port effects first
+  ansible.builtin.include_tasks: hybrid-m11-down.yml
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - student_state.hybrid.schema | int == 4
+
+- ansible.builtin.include_tasks: hybrid-validate-tap-create-intent.yml
+  vars:
+    student_hybrid_tap_intent_record_absence: true
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - student_state.hybrid.schema | int == 4
+    - student_state.hybrid.network.tap.create_phase == 'creating'
+    - student_state.hybrid.network.tap.ifindex | int == 0
+
+- name: Require the versioned socket identity for any live guest before shutdown
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.schema | int in [2, 3, 4]
+      - student_state.hybrid.qmp_dir.device | int > 0
+      - student_state.hybrid.qmp_dir.inode | int > 0
+    fail_msg: "Guest ativo sem a identidade QMP versionada; cleanup permanece parcial sem enviar comandos."
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - (student_hybrid_live_guest_names | default([]) | length) > 0
+  no_log: true
+
+- name: Ask live guests to quit only after same-connection QMP UUID verification
+  ansible.builtin.include_tasks: hybrid-qmp-command.yml
+  vars:
+    student_hybrid_qmp_action: quit
+    student_hybrid_qmp_guest_name: "{{ item }}"
+  loop: [cirros, ubuntu]
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - item in (student_hybrid_live_guest_names | default([]))
+
+- name: Wait for each saved QEMU process to exit
+  ansible.builtin.wait_for:
+    path: "/proc/{{ student_state.hybrid.guests[item].pid }}/stat"
+    state: absent
+    timeout: 30
+  loop: [cirros, ubuntu]
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - item in (student_hybrid_live_guest_names | default([]))
+
+- name: Confirm every recorded guest PID is absent after QMP shutdown
+  ansible.builtin.stat:
+    path: "/proc/{{ student_state.hybrid.guests[item].pid }}/stat"
+    follow: false
+  register: student_hybrid_processes_after
+  loop: [cirros, ubuntu]
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - student_state.hybrid.guests[item].pid | int > 1
+  no_log: true
+
+- name: Refuse cleanup while a recorded QEMU PID remains
+  ansible.builtin.assert:
+    that:
+      - not (item.stat.exists | default(false))
+    fail_msg: "Processo QEMU registrado ainda existe; overlays e chaves serão preservados."
+  loop: "{{ student_hybrid_processes_after.results | default([]) }}"
+  when: not (item.skipped | default(false))
+  no_log: true
+
+- name: Remove CirrOS QMP socket and PID file by recorded inode
+  ansible.builtin.include_tasks: hybrid-remove-path.yml
+  vars:
+    student_hybrid_remove_path: "{{ student_state.hybrid.guests.cirros.qmp_path }}"
+    student_hybrid_remove_device: "{{ student_state.hybrid.guests.cirros.qmp_device }}"
+    student_hybrid_remove_inode: "{{ student_state.hybrid.guests.cirros.qmp_inode }}"
+    student_hybrid_remove_kind: socket
+  when: student_has_state and student_state.status != 'down'
+- ansible.builtin.include_tasks: hybrid-remove-path.yml
+  vars:
+    student_hybrid_remove_path: "{{ student_state.hybrid.guests.cirros.pidfile }}"
+    student_hybrid_remove_device: "{{ student_state.hybrid.guests.cirros.pidfile_device }}"
+    student_hybrid_remove_inode: "{{ student_state.hybrid.guests.cirros.pidfile_inode }}"
+    student_hybrid_remove_kind: file
+  when: student_has_state and student_state.status != 'down'
+- ansible.builtin.include_tasks: hybrid-remove-path.yml
+  vars:
+    student_hybrid_remove_path: "{{ student_state.hybrid.guests.ubuntu.qmp_path }}"
+    student_hybrid_remove_device: "{{ student_state.hybrid.guests.ubuntu.qmp_device }}"
+    student_hybrid_remove_inode: "{{ student_state.hybrid.guests.ubuntu.qmp_inode }}"
+    student_hybrid_remove_kind: socket
+  when: student_has_state and student_state.status != 'down'
+- ansible.builtin.include_tasks: hybrid-remove-path.yml
+  vars:
+    student_hybrid_remove_path: "{{ student_state.hybrid.guests.ubuntu.pidfile }}"
+    student_hybrid_remove_device: "{{ student_state.hybrid.guests.ubuntu.pidfile_device }}"
+    student_hybrid_remove_inode: "{{ student_state.hybrid.guests.ubuntu.pidfile_inode }}"
+    student_hybrid_remove_kind: file
+  when: student_has_state and student_state.status != 'down'
+
+- ansible.builtin.include_tasks: hybrid-remove-path.yml
+  vars:
+    student_hybrid_remove_path: "{{ student_state.hybrid.network.tenant_socket.path }}"
+    student_hybrid_remove_device: "{{ student_state.hybrid.network.tenant_socket.device }}"
+    student_hybrid_remove_inode: "{{ student_state.hybrid.network.tenant_socket.inode }}"
+    student_hybrid_remove_kind: socket
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - student_state.hybrid.schema | int in [3, 4]
+
+- ansible.builtin.include_tasks: hybrid-remove-tap.yml
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - student_state.hybrid.schema | int in [3, 4]
+    - student_state.hybrid.network.tap.ifindex | int > 0
+
+- name: Remove the empty private QMP directory by its saved identity
+  ansible.builtin.include_tasks: hybrid-remove-path.yml
+  vars:
+    student_hybrid_remove_path: "{{ student_state.hybrid.qmp_dir.path }}"
+    student_hybrid_remove_device: "{{ student_state.hybrid.qmp_dir.device }}"
+    student_hybrid_remove_inode: "{{ student_state.hybrid.qmp_dir.inode }}"
+    student_hybrid_remove_kind: dir
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - student_state.hybrid.schema | int in [2, 3, 4]
+
+- name: Remove the CirrOS seed ISO, seed directory, and overlay in reverse creation order
+  ansible.builtin.include_tasks: hybrid-remove-path.yml
+  vars:
+    student_hybrid_remove_path: "{{ item.path }}"
+    student_hybrid_remove_device: "{{ item.device }}"
+    student_hybrid_remove_inode: "{{ item.inode }}"
+    student_hybrid_remove_kind: "{{ item.kind }}"
+  loop:
+    - { path: "{{ student_state.hybrid.guests.cirros.seed_path }}", device: "{{ student_state.hybrid.guests.cirros.seed_device }}", inode: "{{ student_state.hybrid.guests.cirros.seed_inode }}", kind: file }
+    - { path: "{{ student_state.hybrid.guests.cirros.seed_dir }}", device: "{{ student_state.hybrid.guests.cirros.seed_dir_device }}", inode: "{{ student_state.hybrid.guests.cirros.seed_dir_inode }}", kind: dir }
+    - { path: "{{ student_state.hybrid.guests.cirros.overlay_path }}", device: "{{ student_state.hybrid.guests.cirros.overlay_device }}", inode: "{{ student_state.hybrid.guests.cirros.overlay_inode }}", kind: file }
+  when: student_has_state and student_state.status != 'down'
+
+- name: Remove the Ubuntu seed ISO, seed directory, and overlay in reverse creation order
+  ansible.builtin.include_tasks: hybrid-remove-path.yml
+  vars:
+    student_hybrid_remove_path: "{{ item.path }}"
+    student_hybrid_remove_device: "{{ item.device }}"
+    student_hybrid_remove_inode: "{{ item.inode }}"
+    student_hybrid_remove_kind: "{{ item.kind }}"
+  loop:
+    - { path: "{{ student_state.hybrid.guests.ubuntu.seed_path }}", device: "{{ student_state.hybrid.guests.ubuntu.seed_device }}", inode: "{{ student_state.hybrid.guests.ubuntu.seed_inode }}", kind: file }
+    - { path: "{{ student_state.hybrid.guests.ubuntu.seed_dir }}", device: "{{ student_state.hybrid.guests.ubuntu.seed_dir_device }}", inode: "{{ student_state.hybrid.guests.ubuntu.seed_dir_inode }}", kind: dir }
+    - { path: "{{ student_state.hybrid.guests.ubuntu.overlay_path }}", device: "{{ student_state.hybrid.guests.ubuntu.overlay_device }}", inode: "{{ student_state.hybrid.guests.ubuntu.overlay_inode }}", kind: file }
+  when: student_has_state and student_state.status != 'down'
+
+- name: Remove the shared SSH key by its recorded inode
+  ansible.builtin.include_tasks: hybrid-remove-path.yml
+  vars:
+    student_hybrid_remove_path: "{{ student_state.hybrid.guests.ubuntu.ssh_private_key }}"
+    student_hybrid_remove_device: "{{ student_state.hybrid.guests.ubuntu.ssh_device }}"
+    student_hybrid_remove_inode: "{{ student_state.hybrid.guests.ubuntu.ssh_inode }}"
+    student_hybrid_remove_kind: file
+  when: student_has_state and student_state.status != 'down'
+
+- name: Remove the shared public key by its recorded inode
+  ansible.builtin.include_tasks: hybrid-remove-path.yml
+  vars:
+    student_hybrid_remove_path: "{{ student_state.hybrid.guests.ubuntu.ssh_private_key }}.pub"
+    student_hybrid_remove_device: "{{ student_state.hybrid.guests.ubuntu.ssh_public_device }}"
+    student_hybrid_remove_inode: "{{ student_state.hybrid.guests.ubuntu.ssh_public_inode }}"
+    student_hybrid_remove_kind: file
+  when: student_has_state and student_state.status != 'down'
+
+- ansible.builtin.include_tasks: hybrid-m11-remove-private.yml
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - student_state.hybrid.schema | int == 4
+
+- name: Remove the CirrOS and Ubuntu base images by saved inodes
+  ansible.builtin.include_tasks: hybrid-remove-path.yml
+  vars:
+    student_hybrid_remove_path: "{{ item.value.path }}"
+    student_hybrid_remove_device: "{{ item.value.device }}"
+    student_hybrid_remove_inode: "{{ item.value.inode }}"
+    student_hybrid_remove_kind: file
+  loop: "{{ student_state.hybrid.sources | dict2items }}"
+  when: student_has_state and student_state.status != 'down'
+
+- name: Refresh recorded Docker identities before generic cluster and fabric cleanup
+  ansible.builtin.include_tasks: validate-identities.yml
+  when: student_has_state and student_state.status != 'down'
+
+- name: Remove only recorded Kind, fabric, and network identities after guest cleanup
+  ansible.builtin.include_tasks: down.yml
+  when: student_has_state and student_state.status != 'down'

@@ -1,0 +1,129 @@
+---
+- name: Require the declared guest OS and architecture
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version == '24.04'
+      - ansible_architecture == 'x86_64'
+    fail_msg: "A automação suporta somente Ubuntu 24.04 amd64; detectado {{ ansible_distribution }} {{ ansible_distribution_version }} {{ ansible_architecture }}."
+
+- name: Read Linux MemAvailable in KiB
+  ansible.builtin.command:
+    argv:
+      - awk
+      - '/^MemAvailable:/ { print $2 }'
+      - /proc/meminfo
+  register: student_mem_available
+  changed_when: false
+
+- name: Read free disk space on the root filesystem
+  ansible.builtin.command:
+    argv:
+      - df
+      - -Pk
+      - /
+  register: student_root_disk
+  changed_when: false
+
+- name: Read the cgroup version
+  ansible.builtin.command:
+    argv:
+      - stat
+      - -fc
+      - '%T'
+      - /sys/fs/cgroup
+  register: student_cgroup_type
+  changed_when: false
+
+- name: Read host IPv6 state for fabric profiles
+  ansible.builtin.command:
+    argv:
+      - sysctl
+      - -n
+      - net.ipv6.conf.all.disable_ipv6
+  register: student_ipv6_disabled
+  changed_when: false
+  when: student_profile.topology_source is not none
+
+- name: Enforce CPU and disk floors
+  ansible.builtin.assert:
+    that:
+      - ansible_processor_vcpus | int >= student_profile.min_cpus | int
+      - (student_root_disk.stdout_lines[1].split()[3] | int) >= (student_profile.min_disk_mib | int * 1024)
+    fail_msg: >-
+      Perfil {{ student_profile_name }} requer {{ student_profile.min_cpus }} vCPU e
+      {{ student_profile.min_disk_mib }} MiB livres no filesystem raiz.
+
+- name: Report total RAM recommendation separately from admission reserve
+  ansible.builtin.debug:
+    msg: >-
+      MemTotal={{ ansible_memtotal_mb }} MiB (recomendação do perfil:
+      {{ student_profile.recommended_total_mib }} MiB); MemAvailable={{ (student_mem_available.stdout | int / 1024) | round(0) | int }} MiB;
+      pico estimado={{ student_profile.estimated_peak_mib }} MiB e reserva obrigatória=4096 MiB.
+
+- name: Enforce the 4 GiB reserve before a new run
+  ansible.builtin.assert:
+    that:
+      - student_mem_available.stdout | int >= (student_profile.estimated_peak_mib | int + 4096) * 1024
+    fail_msg: >-
+      MemAvailable é {{ (student_mem_available.stdout | int / 1024) | round(0) | int }} MiB;
+      {{ student_profile_name }} estima {{ student_profile.estimated_peak_mib }} MiB e preserva 4096 MiB.
+      O limite calculado é {{ student_profile.estimated_peak_mib | int + 4096 }} MiB. Nenhum recurso foi iniciado.
+  when: student_force_admission_check | default(false) or not (student_has_state and student_state.status in ['preparing', 'partial', 'up'])
+
+- name: Require cgroup v2 for kind/containerlab workloads
+  ansible.builtin.assert:
+    that:
+      - student_cgroup_type.stdout == 'cgroup2fs'
+    fail_msg: "kind/containerlab exige cgroup v2; o host informou {{ student_cgroup_type.stdout }}."
+
+- name: Require IPv6 support without changing host networking
+  ansible.builtin.assert:
+    that:
+      - student_ipv6_disabled.stdout == '0'
+    fail_msg: "O kernel tem IPv6 desabilitado. Habilite-o fora desta automação; NICs e rotas do host não serão alteradas."
+  when: student_profile.topology_source is not none
+
+- name: Check whether a rootful Docker client exists
+  ansible.builtin.stat:
+    path: /usr/bin/docker
+  register: student_docker_client_stat
+
+- name: Check the running Docker server version when present
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - version
+      - --format
+      - "{{ '{{' }}.Server.Version{{ '}}' }}"
+  become: true
+  register: student_docker_version
+  changed_when: false
+  failed_when: false
+  when: student_docker_client_stat.stat.exists | default(false)
+
+- name: Refuse an incompatible existing Docker engine instead of upgrading it
+  ansible.builtin.assert:
+    that:
+      - student_docker_version.rc == 0
+      - student_docker_version.stdout is version('20.10.0', '>=')
+    fail_msg: "Docker local está parado, inacessível ou incompatível. Inicie/corrija o engine e repita; não será iniciado ou atualizado antes de verificar colisões."
+  when: student_docker_client_stat.stat.exists | default(false)
+
+- name: Explain the Docker action when no engine is installed
+  ansible.builtin.debug:
+    msg: "Docker Engine não encontrado; lab-up instalará o pacote docker.io do Ubuntu sem atualizar pacotes gerais."
+  when: not (student_docker_client_stat.stat.exists | default(false))
+
+- name: Check for an unowned name collision when Docker is available
+  ansible.builtin.include_tasks: check-collisions.yml
+  when:
+    - student_action in ['preflight', 'up']
+    - (student_docker_version.rc | default(1)) == 0
+    - not (student_has_state and student_state.status in ['preparing', 'partial', 'up'])
+
+- name: Check hybrid KVM, management ports, and private QMP prerequisites
+  ansible.builtin.include_tasks: hybrid-preflight.yml
+  when: student_profile_name == 'hibrido'

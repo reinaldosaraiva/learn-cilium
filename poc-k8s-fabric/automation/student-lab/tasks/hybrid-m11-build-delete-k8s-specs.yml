@@ -1,0 +1,76 @@
+---
+- name: Reserve exact Kubernetes delete paths for the run-owned M11 objects
+  ansible.builtin.set_fact:
+    student_hybrid_m11_namespace: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}"
+    student_hybrid_m11_delete_k8s_specs:
+      - key: server_deployment
+        resource: deployments
+        plural: deployments
+        kind: Deployment
+        api_group: apps
+        api_version: v1
+        api_version_full: apps/v1
+        namespaced: true
+        namespace: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}"
+        name: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-server"
+      - key: client_deployment
+        resource: deployments
+        plural: deployments
+        kind: Deployment
+        api_group: apps
+        api_version: v1
+        api_version_full: apps/v1
+        namespaced: true
+        namespace: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}"
+        name: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-client"
+      - key: cluster_rack1
+        resource: ciliumbgpclusterconfigs
+        plural: ciliumbgpclusterconfigs
+        kind: CiliumBGPClusterConfig
+        api_group: cilium.io
+        api_version: v2
+        api_version_full: cilium.io/v2
+        namespaced: false
+        namespace: ''
+        name: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-rack1"
+      - key: cluster_rack2
+        resource: ciliumbgpclusterconfigs
+        plural: ciliumbgpclusterconfigs
+        kind: CiliumBGPClusterConfig
+        api_group: cilium.io
+        api_version: v2
+        api_version_full: cilium.io/v2
+        namespaced: false
+        namespace: ''
+        name: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-rack2"
+      - key: advertisement
+        resource: ciliumbgpadvertisements
+        plural: ciliumbgpadvertisements
+        kind: CiliumBGPAdvertisement
+        api_group: cilium.io
+        api_version: v2
+        api_version_full: cilium.io/v2
+        namespaced: false
+        namespace: ''
+        name: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-pods"
+      - key: peer_config
+        resource: ciliumbgppeerconfigs
+        plural: ciliumbgppeerconfigs
+        kind: CiliumBGPPeerConfig
+        api_group: cilium.io
+        api_version: v2
+        api_version_full: cilium.io/v2
+        namespaced: false
+        namespace: ''
+        name: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-peer"
+      - key: namespace
+        resource: namespaces
+        plural: namespaces
+        kind: Namespace
+        api_group: ''
+        api_version: v1
+        api_version_full: v1
+        namespaced: false
+        namespace: ''
+        name: "p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}"
+  no_log: true

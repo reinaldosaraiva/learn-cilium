@@ -1,0 +1,28 @@
+---
+- name: Apply one allowlisted API state patch in memory
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine(student_hybrid_api_state_patch, recursive=true) }}"
+  no_log: true
+
+- name: Replace the API pending intent when this patch explicitly supplies it
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({
+        'hybrid': student_state.hybrid | combine({
+          'm11': student_state.hybrid.m11 | combine({
+            'api': student_state.hybrid.m11.api | combine({
+              'pending': student_hybrid_api_state_patch.hybrid.m11.api.pending
+            }, recursive=false)
+          }, recursive=false)
+        }, recursive=false)
+      }, recursive=false) }}
+  when: student_hybrid_api_state_patch.hybrid.m11.api.pending is defined
+  no_log: true
+
+- name: Atomically persist the exact API checkpoint
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true

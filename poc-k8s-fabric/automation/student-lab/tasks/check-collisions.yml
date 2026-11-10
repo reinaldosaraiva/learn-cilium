@@ -1,0 +1,144 @@
+---
+- name: Inspect Kind cluster labels before first creation
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - ps
+      - -a
+      - --filter
+      - "label=io.x-k8s.kind.cluster={{ student_profile.kind_name }}"
+      - --format
+      - "{{ '{{' }}.Names{{ '}}' }}"
+  become: true
+  register: student_kind_label_collision
+  changed_when: false
+  failed_when: false
+
+- name: Refuse a kind cluster with any existing Docker node names
+  ansible.builtin.assert:
+    that:
+      - student_kind_label_collision.rc == 0
+      - student_kind_label_collision.stdout_lines | length == 0
+    fail_msg: >-
+      {% if student_kind_label_collision.rc == 0 %}
+      Cluster kind {{ student_profile.kind_name }} já possui containers no Docker; não será adotado.
+      {% else %}
+      Não foi possível verificar os containers do cluster kind {{ student_profile.kind_name }} (Docker rc={{ student_kind_label_collision.rc }}); preflight interrompido sem inferir colisão.
+      {% endif %}
+
+- name: Inspect expected kind node names before first creation
+  ansible.builtin.command:
+    argv: ["{{ student_docker_bin }}", --host, unix:///var/run/docker.sock, inspect, "{{ item }}"]
+  become: true
+  register: student_kind_collision_results
+  changed_when: false
+  failed_when: false
+  loop: "{{ student_profile.kind_nodes }}"
+
+- name: Refuse to adopt an existing kind container by name
+  ansible.builtin.assert:
+    that:
+      - item.rc == 1
+      - item.stdout in ['', '[]']
+      - item.stderr | trim in student_docker_not_found_messages
+    fail_msg: >-
+      {% if item.rc == 0 %}
+      Container kind {{ item.item }} já existe sem estado desta automação; não será adotado.
+      {% else %}
+      Não foi possível provar a ausência exata do container kind {{ item.item }} (Docker rc={{ item.rc }}); preflight interrompido sem inferir que ele existe.
+      {% endif %}
+  loop: "{{ student_kind_collision_results.results }}"
+  no_log: true
+  vars:
+    student_docker_not_found_messages:
+      - "Error: No such object: {{ item.item }}"
+      - "error: no such object: {{ item.item }}"
+
+- name: Inspect expected containerlab node names before first creation
+  ansible.builtin.command:
+    argv: ["{{ student_docker_bin }}", --host, unix:///var/run/docker.sock, inspect, "{{ item }}"]
+  become: true
+  register: student_fabric_collision_results
+  changed_when: false
+  failed_when: false
+  loop: "{{ student_profile.fabric_nodes }}"
+  when: student_profile.fabric_nodes | length > 0
+
+- name: Refuse to adopt an existing fabric container by name
+  ansible.builtin.assert:
+    that:
+      - item.rc == 1
+      - item.stdout in ['', '[]']
+      - item.stderr | trim in student_docker_not_found_messages
+    fail_msg: >-
+      {% if item.rc == 0 %}
+      Containerlab {{ item.item }} já existe sem estado desta automação; não será adotado.
+      {% else %}
+      Não foi possível provar a ausência exata do containerlab {{ item.item }} (Docker rc={{ item.rc }}); preflight interrompido sem inferir que ele existe.
+      {% endif %}
+  loop: "{{ student_fabric_collision_results.results | default([]) }}"
+  no_log: true
+  vars:
+    student_docker_not_found_messages:
+      - "Error: No such object: {{ item.item }}"
+      - "error: no such object: {{ item.item }}"
+
+- name: Inspect the management network before first creation
+  ansible.builtin.command:
+    argv: ["{{ student_docker_bin }}", --host, unix:///var/run/docker.sock, network, inspect, "{{ student_profile.topology_network }}"]
+  become: true
+  register: student_network_collision
+  changed_when: false
+  failed_when: false
+  when: student_profile.topology_network is not none
+
+- name: Refuse to adopt an existing management network by name
+  ansible.builtin.assert:
+    that:
+      - student_network_collision.rc == 1
+      - student_network_collision.stdout in ['', '[]']
+      - student_network_collision.stderr | trim == student_network_not_found_message
+    fail_msg: >-
+      {% if student_network_collision.rc == 0 %}
+      Rede Docker {{ student_profile.topology_network }} já existe sem estado desta automação; não será adotada.
+      {% else %}
+      Não foi possível confirmar a ausência da rede Docker {{ student_profile.topology_network }} (Docker rc={{ student_network_collision.rc }}); preflight interrompido sem inferir colisão.
+      {% endif %}
+  when: student_profile.topology_network is not none
+  no_log: true
+  vars:
+    student_network_not_found_message: "Error response from daemon: network {{ student_profile.topology_network }} not found"
+
+- name: Check for the pinned private kind binary
+  ansible.builtin.stat:
+    path: "{{ student_tool_dir }}/kind"
+  register: student_private_kind_stat
+
+- name: Inspect existing kind clusters before first creation
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kind"
+      - get
+      - clusters
+  register: student_kind_clusters
+  changed_when: false
+  failed_when: false
+  become: true
+  environment:
+    DOCKER_HOST: unix:///var/run/docker.sock
+  when: student_private_kind_stat.stat.exists | default(false)
+
+- name: Refuse an existing kind cluster by profile name
+  ansible.builtin.assert:
+    that:
+      - student_kind_clusters.rc == 0
+      - student_profile.kind_name not in (student_kind_clusters.stdout_lines | default([]))
+    fail_msg: >-
+      {% if student_kind_clusters.rc == 0 %}
+      Cluster kind {{ student_profile.kind_name }} já existe sem estado desta automação; não será adotado.
+      {% else %}
+      Não foi possível consultar os clusters kind (rc={{ student_kind_clusters.rc }}); preflight interrompido sem inferir que {{ student_profile.kind_name }} existe.
+      {% endif %}
+  when: student_private_kind_stat.stat.exists | default(false)

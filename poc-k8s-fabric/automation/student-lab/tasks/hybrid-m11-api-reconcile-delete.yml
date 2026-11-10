@@ -1,0 +1,169 @@
+---
+- name: Require cleanup mode and the saved identity for one uncertain DELETE
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_mode in ['remove-routing', 'remove-resources']
+      - student_state.hybrid.m11.api.pending.method == 'DELETE'
+      - student_state.hybrid.m11.api.pending.run_id == student_state.run_id
+      - student_state.hybrid.m11.api.pending.resource.split(':', 1) | length == 2
+      - >-
+        (student_state.hybrid.m11.api.pending.resource == 'relation:drinstance' and
+         student_state.hybrid.m11.api.pending.path == '/agents/' ~ student_state.hybrid.m11.api.pending.agent_id ~
+         '/bgp-drinstances/' ~ student_state.hybrid.m11.api.pending.speaker_id and
+         student_state.hybrid.m11.api.pending.collection_path == '/agents/' ~ student_state.hybrid.m11.api.pending.agent_id ~ '/bgp-drinstances' and
+         student_state.hybrid.m11.api.pending.agent_id == student_state.hybrid.m11.api.agent_ids.bgp and
+         student_state.hybrid.m11.api.pending.speaker_id == student_state.hybrid.m11.api.resources.bgp_speaker.primary.id)
+        or
+        (student_state.hybrid.m11.api.pending.resource != 'relation:drinstance' and
+         student_state.hybrid.m11.api.pending.path is match('^/[^?]+/[0-9a-f-]{36}$'))
+    fail_msg: "DELETE incerto não será repetido sem consultar o ID persistido."
+  no_log: true
+
+- name: Snapshot the exact pending DELETE before any reconciliation checkpoint
+  ansible.builtin.set_fact:
+    student_hybrid_api_delete_reconcile_pending: "{{ student_state.hybrid.m11.api.pending }}"
+  no_log: true
+
+- name: Query a saved resource DELETE path and accept only HTTP 200 or 404
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}{{ student_hybrid_api_delete_reconcile_pending.path }}"
+    method: GET
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+    return_content: true
+    status_code: [200, 404]
+    timeout: 15
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_delete_reconcile_response
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+  when: student_hybrid_api_delete_reconcile_pending.resource != 'relation:drinstance'
+
+- name: Resolve the exact resource record for an uncertain resource DELETE
+  ansible.builtin.set_fact:
+    student_hybrid_api_delete_reconcile_parts: "{{ student_hybrid_api_delete_reconcile_pending.resource.split(':', 1) }}"
+    student_hybrid_api_delete_reconcile_record: >-
+      {{ student_state.hybrid.m11.api.resources[student_hybrid_api_delete_reconcile_pending.resource.split(':', 1)[0]]
+         [student_hybrid_api_delete_reconcile_pending.resource.split(':', 1)[1]] }}
+    student_hybrid_api_delete_reconcile_object: >-
+      {{ student_hybrid_api_delete_reconcile_response.json[student_hybrid_api_delete_reconcile_pending.envelope]
+         if student_hybrid_api_delete_reconcile_response.status == 200 else {} }}
+  no_log: true
+  when: student_hybrid_api_delete_reconcile_pending.resource != 'relation:drinstance'
+
+- name: Require the object to remain the same owned ID if its DELETE did not finish
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_delete_reconcile_object.id == student_hybrid_api_delete_reconcile_record.id
+      - item.value is none or (student_hybrid_api_delete_reconcile_object[item.key] is defined and student_hybrid_api_delete_reconcile_object[item.key] == item.value)
+    fail_msg: "Objeto retornado depois de DELETE incerto não corresponde ao registro; limpeza interrompida."
+  loop: "{{ student_hybrid_api_delete_reconcile_pending.expected | dict2items }}"
+  when: student_hybrid_api_delete_reconcile_pending.resource != 'relation:drinstance' and student_hybrid_api_delete_reconcile_response.status == 200
+  no_log: true
+
+- name: Build the absent-resource patch with resolved API map keys
+  ansible.builtin.set_fact:
+    student_hybrid_api_delete_reconcile_resource_patch: >-
+      {{ {student_hybrid_api_delete_reconcile_parts[0]: {
+        student_hybrid_api_delete_reconcile_parts[1]:
+          student_hybrid_api_delete_reconcile_record | combine({'id': ''})
+      }} }}
+  when: student_hybrid_api_delete_reconcile_pending.resource != 'relation:drinstance' and student_hybrid_api_delete_reconcile_response.status == 404
+  no_log: true
+
+- name: Clear only the observed existing DELETE intent so cleanup can re-read then delete once
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-delete-reconciled-present
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending: {}
+  when: student_hybrid_api_delete_reconcile_pending.resource != 'relation:drinstance' and student_hybrid_api_delete_reconcile_response.status == 200
+  no_log: true
+
+- name: Clear only an ID returned absent by authenticated Neutron for the saved path
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-delete-reconciled-absent
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending: {}
+            resources: "{{ student_hybrid_api_delete_reconcile_resource_patch }}"
+  when: student_hybrid_api_delete_reconcile_pending.resource != 'relation:drinstance' and student_hybrid_api_delete_reconcile_response.status == 404
+  no_log: true
+
+- name: Read only the saved BGP agent's scheduler collection after an uncertain relation DELETE
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "{{ student_hybrid_api_delete_reconcile_pending.collection_path }}"
+  when: student_hybrid_api_delete_reconcile_pending.resource == 'relation:drinstance'
+  no_log: true
+
+- name: Validate the scheduler collection against the saved speaker ID
+  ansible.builtin.include_tasks: hybrid-m11-api-validate-scheduled.yml
+  vars:
+    student_hybrid_api_expected_speaker_id: "{{ student_hybrid_api_delete_reconcile_pending.speaker_id }}"
+  when: student_hybrid_api_delete_reconcile_pending.resource == 'relation:drinstance'
+  no_log: true
+
+- name: Record whether the exact agent-to-speaker relationship remains present
+  ansible.builtin.set_fact:
+    student_hybrid_api_delete_reconcile_relation_present: "{{ student_hybrid_api_scheduled_speaker_ids == [student_hybrid_api_delete_reconcile_pending.speaker_id] }}"
+  when: student_hybrid_api_delete_reconcile_pending.resource == 'relation:drinstance'
+  no_log: true
+
+- name: Clear an uncertain relation DELETE intent when the exact relation remains present
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-scheduler-delete-reconciled-present
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending: {}
+  when:
+    - student_hybrid_api_delete_reconcile_pending.resource == 'relation:drinstance'
+    - student_hybrid_api_delete_reconcile_relation_present
+  no_log: true
+
+- name: Clear only the proven-absent two-ID scheduler relationship and its intent
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-scheduler-delete-reconciled-absent
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending: {}
+            links:
+              drinstance:
+                agent_id: ''
+                speaker_id: ''
+                method: ''
+                status: 0
+                envelope: bgp_speakers
+            resources:
+              drinstance:
+                primary:
+                  id: ''
+                  name: ''
+                  agent_id: ''
+                  speaker_id: ''
+  when:
+    - student_hybrid_api_delete_reconcile_pending.resource == 'relation:drinstance'
+    - not student_hybrid_api_delete_reconcile_relation_present
+  no_log: true

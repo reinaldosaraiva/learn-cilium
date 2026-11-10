@@ -1,0 +1,418 @@
+---
+- ansible.builtin.include_tasks: validate-owner-token.yml
+
+- name: Inspect the short QMP directory saved for the active hybrid run
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.qmp_dir.path }}"
+    follow: false
+  register: student_hybrid_qmp_dir_stats
+  when: student_state.hybrid.schema | int in [2, 3, 4]
+  no_log: true
+
+- name: Require the recorded QMP directory or its absence during down
+  ansible.builtin.assert:
+    that:
+      - >-
+        (student_hybrid_qmp_dir_stats.stat.isdir | default(false) and
+         not (student_hybrid_qmp_dir_stats.stat.islnk | default(false)) and
+         student_hybrid_qmp_dir_stats.stat.uid | int == student_uid and
+         student_hybrid_qmp_dir_stats.stat.mode == '0700' and
+         student_state.hybrid.qmp_dir.device | int > 0 and
+         student_state.hybrid.qmp_dir.inode | int > 0 and
+         student_hybrid_qmp_dir_stats.stat.dev | int == student_state.hybrid.qmp_dir.device | int and
+         student_hybrid_qmp_dir_stats.stat.inode | int == student_state.hybrid.qmp_dir.inode | int)
+        or (not (student_hybrid_qmp_dir_stats.stat.exists | default(false)) and student_action == 'down')
+        or (not (student_hybrid_qmp_dir_stats.stat.exists | default(false)) and
+            student_state.hybrid.qmp_dir.device | int == 0 and student_state.hybrid.qmp_dir.inode | int == 0)
+    fail_msg: "Diretório QMP substituído ou inconclusivo; cleanup interrompido sem adoção."
+  when: student_state.hybrid.schema | int in [2, 3, 4]
+  no_log: true
+
+- name: Inspect the pinned guest image paths without following symlinks
+  ansible.builtin.stat:
+    path: "{{ item.value.path }}"
+    follow: false
+  register: student_hybrid_source_stats
+  loop: "{{ student_state.hybrid.sources | dict2items }}"
+  no_log: true
+
+- name: Require each image to match its saved filesystem identity
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.stat.exists | default(false) and item.stat.isreg | default(false) and
+         not (item.stat.islnk | default(false)) and item.item.value.device | int > 0 and
+         item.item.value.inode | int > 0 and item.stat.dev | int == item.item.value.device | int and
+         item.stat.inode | int == item.item.value.inode | int and item.stat.uid | int == student_uid)
+        or (not (item.stat.exists | default(false)) and student_action == 'down')
+    fail_msg: "A identidade de uma imagem híbrida divergiu; nenhum arquivo será removido por caminho."
+  loop: "{{ student_hybrid_source_stats.results }}"
+  no_log: true
+
+- name: Inspect all guest overlays without following symlinks
+  ansible.builtin.stat:
+    path: "{{ item.value.overlay_path }}"
+    follow: false
+  register: student_hybrid_overlay_stats
+  loop: "{{ student_state.hybrid.guests | dict2items }}"
+  no_log: true
+
+- name: Require each overlay to match its saved filesystem identity
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.stat.exists | default(false) and item.stat.isreg | default(false) and
+         not (item.stat.islnk | default(false)) and item.item.value.overlay_device | int > 0 and
+         item.item.value.overlay_inode | int > 0 and item.stat.dev | int == item.item.value.overlay_device | int and
+         item.stat.inode | int == item.item.value.overlay_inode | int and item.stat.uid | int == student_uid)
+        or (not (item.stat.exists | default(false)) and student_action == 'down')
+    fail_msg: "Overlay substituído ou inconclusivo; cleanup interrompido sem exclusão."
+  loop: "{{ student_hybrid_overlay_stats.results }}"
+  no_log: true
+
+- name: Inspect guest seed ISO paths without following symlinks
+  ansible.builtin.stat:
+    path: "{{ item.value.seed_path }}"
+    follow: false
+  register: student_hybrid_seed_stats
+  loop: "{{ student_state.hybrid.guests | dict2items }}"
+  no_log: true
+
+- name: Require each seed ISO to match its saved filesystem identity
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.stat.exists | default(false) and item.stat.isreg | default(false) and
+         not (item.stat.islnk | default(false)) and item.item.value.seed_device | int > 0 and
+         item.item.value.seed_inode | int > 0 and item.stat.dev | int == item.item.value.seed_device | int and
+         item.stat.inode | int == item.item.value.seed_inode | int and item.stat.uid | int == student_uid)
+        or (not (item.stat.exists | default(false)) and student_action == 'down')
+    fail_msg: "Seed ISO substituído ou inconclusivo; cleanup interrompido sem exclusão."
+  loop: "{{ student_hybrid_seed_stats.results }}"
+  no_log: true
+
+- name: Inspect seed directories without following symlinks
+  ansible.builtin.stat:
+    path: "{{ item.value.seed_dir }}"
+    follow: false
+  register: student_hybrid_seed_dir_stats
+  loop: "{{ student_state.hybrid.guests | dict2items }}"
+  no_log: true
+
+- name: Require each seed directory to match its saved filesystem identity
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.stat.exists | default(false) and item.stat.isdir | default(false) and
+         not (item.stat.islnk | default(false)) and item.item.value.seed_dir_device | int > 0 and
+         item.item.value.seed_dir_inode | int > 0 and item.stat.dev | int == item.item.value.seed_dir_device | int and
+         item.stat.inode | int == item.item.value.seed_dir_inode | int and item.stat.uid | int == student_uid)
+        or (not (item.stat.exists | default(false)) and student_action == 'down')
+    fail_msg: "Diretório seed substituído ou inconclusivo; cleanup interrompido sem exclusão."
+  loop: "{{ student_hybrid_seed_dir_stats.results }}"
+  no_log: true
+
+- name: Inspect the shared private SSH key
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.guests.ubuntu.ssh_private_key }}"
+    follow: false
+  register: student_hybrid_key_stat
+  no_log: true
+
+- name: Require the shared SSH key to match both saved guest identities
+  ansible.builtin.assert:
+    that:
+      - >-
+        (student_hybrid_key_stat.stat.exists | default(false) and student_hybrid_key_stat.stat.isreg | default(false) and
+         not (student_hybrid_key_stat.stat.islnk | default(false)) and student_state.hybrid.guests.ubuntu.ssh_device | int > 0 and
+         student_state.hybrid.guests.ubuntu.ssh_inode | int > 0 and
+         student_state.hybrid.guests.cirros.ssh_device | int == student_state.hybrid.guests.ubuntu.ssh_device | int and
+         student_state.hybrid.guests.cirros.ssh_inode | int == student_state.hybrid.guests.ubuntu.ssh_inode | int and
+         student_hybrid_key_stat.stat.dev | int == student_state.hybrid.guests.ubuntu.ssh_device | int and
+         student_hybrid_key_stat.stat.inode | int == student_state.hybrid.guests.ubuntu.ssh_inode | int and
+         student_hybrid_key_stat.stat.uid | int == student_uid)
+        or (not (student_hybrid_key_stat.stat.exists | default(false)) and student_action == 'down')
+    fail_msg: "Chave SSH substituída ou inconclusiva; cleanup interrompido sem exclusão."
+  no_log: true
+
+- name: Inspect the shared public SSH key
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.guests.ubuntu.ssh_private_key }}.pub"
+    follow: false
+  register: student_hybrid_public_key_stat
+  no_log: true
+
+- name: Require the public key to match its saved guest identities
+  ansible.builtin.assert:
+    that:
+      - >-
+        (student_hybrid_public_key_stat.stat.exists | default(false) and student_hybrid_public_key_stat.stat.isreg | default(false) and
+         not (student_hybrid_public_key_stat.stat.islnk | default(false)) and student_state.hybrid.guests.ubuntu.ssh_public_device | int > 0 and
+         student_state.hybrid.guests.ubuntu.ssh_public_inode | int > 0 and
+         student_state.hybrid.guests.cirros.ssh_public_device | int == student_state.hybrid.guests.ubuntu.ssh_public_device | int and
+         student_state.hybrid.guests.cirros.ssh_public_inode | int == student_state.hybrid.guests.ubuntu.ssh_public_inode | int and
+         student_hybrid_public_key_stat.stat.dev | int == student_state.hybrid.guests.ubuntu.ssh_public_device | int and
+         student_hybrid_public_key_stat.stat.inode | int == student_state.hybrid.guests.ubuntu.ssh_public_inode | int and
+         student_hybrid_public_key_stat.stat.uid | int == student_uid)
+        or (not (student_hybrid_public_key_stat.stat.exists | default(false)) and student_action == 'down')
+    fail_msg: "Chave pública substituída ou inconclusiva; cleanup interrompido sem exclusão."
+  no_log: true
+
+- name: Inspect QEMU PID files without following symlinks
+  ansible.builtin.stat:
+    path: "{{ item.value.pidfile }}"
+    follow: false
+  register: student_hybrid_pidfile_stats
+  loop: "{{ student_state.hybrid.guests | dict2items }}"
+  no_log: true
+
+- name: Require each QEMU PID file to match its saved identity
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.stat.exists | default(false) and item.stat.isreg | default(false) and
+         not (item.stat.islnk | default(false)) and item.item.value.pid | int > 1 and
+         item.item.value.pidfile_device | int > 0 and item.item.value.pidfile_inode | int > 0 and
+         item.stat.dev | int == item.item.value.pidfile_device | int and
+         item.stat.inode | int == item.item.value.pidfile_inode | int and item.stat.uid | int == student_uid)
+        or (not (item.stat.exists | default(false)) and item.item.value.pid | int == 0)
+        or (not (item.stat.exists | default(false)) and student_action == 'down')
+    fail_msg: "PID file substituído ou sem identidade salva; processo não será sinalizado."
+  loop: "{{ student_hybrid_pidfile_stats.results }}"
+  no_log: true
+
+- name: Read existing QEMU PID files as data
+  ansible.builtin.slurp:
+    src: "{{ item.item.value.pidfile }}"
+  register: student_hybrid_pidfile_data
+  loop: "{{ student_hybrid_pidfile_stats.results | selectattr('stat.exists') | list }}"
+  no_log: true
+
+- name: Require PID file contents to match the saved numeric PID
+  ansible.builtin.assert:
+    that:
+      - item.content | b64decode | trim == (item.item.item.value.pid | string)
+    fail_msg: "PID file diverge do PID registrado; cleanup interrompido."
+  loop: "{{ student_hybrid_pidfile_data.results | default([]) }}"
+  no_log: true
+
+- name: Inspect QMP sockets without following symlinks
+  ansible.builtin.stat:
+    path: "{{ item.value.qmp_path }}"
+    follow: false
+  register: student_hybrid_qmp_stats
+  loop: "{{ student_state.hybrid.guests | dict2items }}"
+  no_log: true
+
+- name: Require each QMP socket to match its saved identity
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.stat.exists | default(false) and item.stat.issock | default(false) and
+         not (item.stat.islnk | default(false)) and item.item.value.qmp_device | int > 0 and
+         item.item.value.qmp_inode | int > 0 and item.stat.dev | int == item.item.value.qmp_device | int and
+         item.stat.inode | int == item.item.value.qmp_inode | int and item.stat.uid | int == student_uid)
+        or (not (item.stat.exists | default(false)) and item.item.value.pid | int == 0)
+        or (not (item.stat.exists | default(false)) and student_action == 'down')
+    fail_msg: "Socket QMP substituído ou sem identidade salva; nenhum comando será enviado."
+  loop: "{{ student_hybrid_qmp_stats.results }}"
+  no_log: true
+
+- name: Inspect saved QEMU process entries
+  ansible.builtin.stat:
+    path: "/proc/{{ item.value.pid }}/stat"
+    follow: false
+  register: student_hybrid_process_stats
+  loop: "{{ student_state.hybrid.guests | dict2items | selectattr('value.pid', 'gt', 1) | list }}"
+  no_log: true
+
+- name: Read start times from still-live saved PIDs
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/awk
+      - '{ sub(/^.*\) /, ""); print $20 }'
+      - "/proc/{{ item.item.value.pid }}/stat"
+  register: student_hybrid_live_starttimes
+  changed_when: false
+  failed_when: false
+  loop: "{{ student_hybrid_process_stats.results | selectattr('stat.exists') | list }}"
+  no_log: true
+
+- name: Refuse PID reuse or any inconclusive process identity
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - item.stdout | trim is match('^[0-9]+$')
+      - item.stdout | trim == (item.item.item.value.starttime | string)
+    fail_msg: "PID reutilizado ou consulta QEMU inconclusiva; processo não será terminado."
+  loop: "{{ student_hybrid_live_starttimes.results | default([]) }}"
+  no_log: true
+
+- name: Inspect each recorded live QEMU network namespace
+  ansible.builtin.stat:
+    path: "/proc/{{ item.value.pid }}/ns/net"
+    follow: true
+  register: student_hybrid_guest_netns_stats
+  loop: "{{ student_state.hybrid.guests | dict2items | selectattr('value.pid', 'gt', 1) | list }}"
+  when: student_state.hybrid.schema | int in [2, 3, 4]
+  no_log: true
+
+- name: Require live QEMU to remain in the saved border namespace
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.stat.exists | default(false) and
+         item.stat.dev | int == item.item.value.netns_device | int and
+         item.stat.inode | int == item.item.value.netns_inode | int and
+         item.item.value.netns_device | int == student_state.hybrid.network.border.netns_device | int and
+         item.item.value.netns_inode | int == student_state.hybrid.network.border.netns_inode | int)
+        or (not (item.stat.exists | default(false)) and student_action == 'down')
+    fail_msg: "QEMU saiu do namespace de rede salvo ou a consulta ficou inconclusiva; nenhuma adoção será feita."
+  loop: "{{ student_hybrid_guest_netns_stats.results | default([]) }}"
+  when: student_state.hybrid.schema | int in [2, 3, 4]
+  no_log: true
+
+- name: Collect the names of processes proven live by their saved PID
+  ansible.builtin.set_fact:
+    student_hybrid_live_guest_names: "{{ student_hybrid_process_stats.results | selectattr('stat.exists') | map(attribute='item.key') | list }}"
+  no_log: true
+
+- name: Refuse status when a checkpointed guest process is absent
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_live_guest_names | sort == ['cirros', 'ubuntu']
+    fail_msg: "O estado registra guests iniciados, mas ambos os processos não foram provados; status permanece inconclusivo."
+  when:
+    - student_action in ['status', 'verify', 'up', 'shell']
+    - student_state.hybrid.schema | int == 4
+    - student_state.hybrid.phase in ['guests-started', 'api-ready', 'verified']
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-validate-border.yml
+  vars:
+    student_hybrid_ports_to_check: []
+  when:
+    - student_state.hybrid.schema | int in [3, 4]
+    - student_state.status != 'down'
+    - student_state.hybrid.network.tap.ifindex | int > 0
+    - "'ubuntu' not in student_hybrid_live_guest_names"
+
+- ansible.builtin.include_tasks: hybrid-validate-tap.yml
+  vars:
+    student_hybrid_network_namespace_pid: "{{ student_state.hybrid.guests.ubuntu.pid if 'ubuntu' in student_hybrid_live_guest_names else student_state.hybrid.network.border.pid }}"
+    student_hybrid_tap_allow_absent: "{{ student_action == 'down' }}"
+  when:
+    - student_state.hybrid.schema | int in [3, 4]
+    - student_state.status != 'down'
+    - student_state.hybrid.network.tap.ifindex | int > 0
+
+- ansible.builtin.include_tasks: hybrid-validate-tap-create-intent.yml
+  when:
+    - student_state.hybrid.schema | int == 4
+    - student_state.status != 'down'
+    - student_state.hybrid.network.tap.create_phase == 'creating'
+    - student_state.hybrid.network.tap.ifindex | int == 0
+
+- ansible.builtin.include_tasks: hybrid-validate-tenant-socket.yml
+  vars:
+    student_hybrid_tenant_socket_allow_absent: "{{ student_action == 'down' }}"
+  when:
+    - student_state.hybrid.schema | int in [3, 4]
+    - student_state.status != 'down'
+
+- name: Require a live process to retain both recorded control paths
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_pidfile_stats.results | selectattr('item.key', 'equalto', item.item.key) | map(attribute='stat.exists') | first | default(false)
+      - student_hybrid_qmp_stats.results | selectattr('item.key', 'equalto', item.item.key) | map(attribute='stat.exists') | first | default(false)
+    fail_msg: "Guest {{ item.item.key }} está ativo sem PID file/QMP verificável; cleanup interrompido."
+  loop: "{{ student_hybrid_process_stats.results | selectattr('stat.exists') | list }}"
+  no_log: true
+
+- name: Confirm each live QEMU command line contains its UUID
+  ansible.builtin.command:
+    argv: [grep, -aF, --, "{{ item.value.uuid }}", "/proc/{{ item.value.pid }}/cmdline"]
+  register: student_hybrid_live_uuid_checks
+  changed_when: false
+  failed_when: false
+  loop: "{{ student_state.hybrid.guests | dict2items }}"
+  when: item.key in student_hybrid_live_guest_names
+  no_log: true
+
+- name: Confirm each live QEMU command line contains its QMP path
+  ansible.builtin.command:
+    argv: [grep, -aF, --, "{{ item.value.qmp_path }}", "/proc/{{ item.value.pid }}/cmdline"]
+  register: student_hybrid_live_qmp_checks
+  changed_when: false
+  failed_when: false
+  loop: "{{ student_state.hybrid.guests | dict2items }}"
+  when: item.key in student_hybrid_live_guest_names
+  no_log: true
+
+- name: Confirm each live QEMU command line contains the reserved tenant stream path
+  ansible.builtin.command:
+    argv: [grep, -aF, --, "{{ student_state.hybrid.network.tenant_socket.path }}", "/proc/{{ item.value.pid }}/cmdline"]
+  register: student_hybrid_live_tenant_socket_checks
+  changed_when: false
+  failed_when: false
+  loop: "{{ student_state.hybrid.guests | dict2items }}"
+  when:
+    - student_state.hybrid.schema | int in [3, 4]
+    - item.key in student_hybrid_live_guest_names
+  no_log: true
+
+- name: Confirm Ubuntu's command line contains the saved TAP name
+  ansible.builtin.command:
+    argv: [grep, -aF, --, "{{ student_state.hybrid.network.tap.name }}", "/proc/{{ student_state.hybrid.guests.ubuntu.pid }}/cmdline"]
+  register: student_hybrid_live_tap_checks
+  changed_when: false
+  failed_when: false
+  when:
+    - student_state.hybrid.schema | int in [3, 4]
+    - "'ubuntu' in student_hybrid_live_guest_names"
+  no_log: true
+
+- name: Require live QEMU command lines to match saved guest identities
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_live_uuid_checks.results | rejectattr('skipped', 'defined') | selectattr('rc', 'equalto', 0) | list | length == student_hybrid_live_guest_names | length
+      - student_hybrid_live_qmp_checks.results | rejectattr('skipped', 'defined') | selectattr('rc', 'equalto', 0) | list | length == student_hybrid_live_guest_names | length
+      - student_state.hybrid.schema | int not in [3, 4] or student_hybrid_live_tenant_socket_checks.results | rejectattr('skipped', 'defined') | selectattr('rc', 'equalto', 0) | list | length == student_hybrid_live_guest_names | length
+      - student_state.hybrid.schema | int not in [3, 4] or 'ubuntu' not in student_hybrid_live_guest_names or student_hybrid_live_tap_checks.rc == 0
+    fail_msg: "Processo vivo não corresponde ao UUID/QMP salvo; nenhuma ação será feita."
+  no_log: true
+
+- name: Require versioned QMP identity before status or cleanup of a live guest
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.schema | int in [2, 3, 4]
+      - student_state.hybrid.qmp_dir.device | int > 0
+      - student_state.hybrid.qmp_dir.inode | int > 0
+    fail_msg: "Guest ativo sem diretório QMP versionado; nenhuma ação será feita."
+  when: (student_hybrid_live_guest_names | length) > 0
+  no_log: true
+
+- name: Verify each live QMP peer and UUID on the same connection before reporting status or rechecking health
+  ansible.builtin.include_tasks: hybrid-qmp-command.yml
+  vars:
+    student_hybrid_qmp_action: verify
+    student_hybrid_qmp_guest_name: "{{ item }}"
+  loop: "{{ student_hybrid_live_guest_names }}"
+  when: student_action in ['status', 'verify', 'up', 'shell']
+
+- name: Require the exact reserved hybrid network record for its schema
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.network.bridge.name == ''
+      - student_state.hybrid.network.bridge.alias == ''
+      - student_state.hybrid.network.bridge.ifindex | int == 0
+      - (student_state.hybrid.schema | int in [1, 2] and student_state.hybrid.network.tap.name == '' and student_state.hybrid.network.tap.alias == '' and student_state.hybrid.network.tap.ifindex | int == 0 and student_state.hybrid.network.tenant_socket.path == '')
+        or
+        (student_state.hybrid.schema | int in [3, 4] and
+         student_state.hybrid.network.tap.name == 'p10t' ~ (student_state.hybrid.guests.ubuntu.uuid | replace('-', '') | truncate(8, true, '')) and
+         student_state.hybrid.network.tap.reserved_alias == 'p010-hyb-' ~ student_uid ~ '-' ~ student_state.run_id and
+         student_state.hybrid.network.tap.alias in ['', student_state.hybrid.network.tap.reserved_alias] and
+         student_state.hybrid.network.tenant_socket.path == student_state.hybrid.qmp_dir.path ~ '/t.sock')
+      - student_state.hybrid.neutron.values() | reject('equalto', '') | list | length == 0
+    fail_msg: "A identidade de rede não corresponde à reserva desta execução; nenhum recurso será procurado por nome."
+  no_log: true

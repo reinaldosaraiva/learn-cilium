@@ -1,0 +1,279 @@
+---
+- name: Require the recognized hybrid schema and exact top-level fields
+  ansible.builtin.assert:
+    that:
+      - student_state.profile == 'hibrido'
+      - student_state.hybrid is mapping
+      - (student_state.hybrid.schema | int == 1 and student_state.hybrid.keys() | list | sort == ['guests', 'network', 'neutron', 'phase', 'schema', 'source_revisions', 'sources']) or (student_state.hybrid.schema | int in [2, 3] and student_state.hybrid.keys() | list | sort == ['guests', 'network', 'neutron', 'phase', 'qmp_dir', 'schema', 'source_revisions', 'sources']) or (student_state.hybrid.schema | int == 4 and student_state.hybrid.keys() | list | sort == ['guests', 'm11', 'network', 'neutron', 'phase', 'qmp_dir', 'schema', 'source_revisions', 'sources'])
+      - student_state.hybrid.schema | int in [1, 2, 3, 4]
+      - student_state.hybrid.phase in ['reserved', 'assets-ready', 'guests-booting', 'guests-started', 'api-ready', 'verified', 'partial', 'removed']
+      - student_state.status != 'up' or student_action | default('') == 'down' or (student_state.hybrid.schema | int == 4 and student_state.hybrid.m11.phase == 'verified' and student_state.hybrid.m11.verification.gates.positive.c1 is defined and student_state.hybrid.m11.verification.gates.positive.c1.phase == 'verified' and student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'absent' and student_state.hybrid.m11.verification.gates.c1_capture_active.observers == [] and student_state.hybrid.m11.verification.gates.positive.c1.receipt.sha256 is match('^[0-9a-f]{64}$'))
+      - (student_state.status != 'preparing') or student_state.hybrid.phase == 'reserved'
+      - (student_state.status != 'down') or student_state.hybrid.phase == 'removed'
+      - (student_state.hybrid.phase != 'removed') or student_state.status == 'down'
+      - student_state.hybrid.source_revisions == student_hybrid_source_revisions
+      - student_state.hybrid.sources is mapping
+      - student_state.hybrid.sources.keys() | list | sort == ['cirros', 'ubuntu']
+      - student_state.hybrid.guests is mapping
+      - student_state.hybrid.guests.keys() | list | sort == ['cirros', 'ubuntu']
+      - student_state.hybrid.network is mapping
+      - (student_state.hybrid.schema | int == 1 and student_state.hybrid.network.keys() | list | sort == ['bridge', 'tap', 'tenant_socket']) or (student_state.hybrid.schema | int == 2 and student_state.hybrid.network.keys() | list | sort == ['border', 'bridge', 'tap', 'tenant_socket']) or (student_state.hybrid.schema | int in [3, 4] and student_state.hybrid.network.keys() | list | sort == ['border', 'bridge', 'management_dns', 'tap', 'tenant_socket'])
+      - student_state.hybrid.neutron is mapping
+      - student_state.hybrid.neutron.keys() | list | sort == ['cirros_tenant_port_id', 'external_port_id', 'network_id', 'router_id', 'subnet_id', 'ubuntu_tenant_port_id']
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.keys() | list | sort == ['api', 'cilium', 'credentials', 'devstack', 'frr', 'network', 'phase', 'schema', 'ssh', 'verification']
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.schema | int in [1, 2]
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.phase in ['reserved', 'border-ready', 'credentials-ready', 'transport-ready', 'ubuntu-started', 'devstack-running', 'api-authenticated', 'api-provisioning', 'api-ready', 'api-removing', 'network-attaching', 'network-ready', 'dhcp-capturing', 'guest-ready', 'cilium-configuring', 'cilium-ready', 'verified', 'partial', 'removed']
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.credentials.keys() | list | sort == ['device', 'inode', 'path']
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.credentials.path == student_state_run_dir ~ '/keys/devstack-credentials.json'
+      - student_state.hybrid.schema | int != 4 or (student_state.hybrid.m11.credentials.device | int >= 0 and student_state.hybrid.m11.credentials.inode | int >= 0)
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.devstack.keys() | list | sort == ['checkout_path', 'config_device', 'config_inode', 'config_path', 'phase', 'revision', 'stack_rc', 'versions']
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.devstack.checkout_path == '/home/stack/devstack'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.devstack.config_path == student_state_run_dir ~ '/keys/local.conf'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.devstack.revision == student_hybrid_source_revisions.devstack
+      - student_state.hybrid.schema | int != 4 or (student_state.hybrid.m11.schema | int == 1 and student_state.hybrid.m11.network.keys() | list | sort == ['border_asn', 'provider_allocation_pool', 'provider_border_ip', 'provider_cidr', 'provider_router_ip', 'provider_speaker_ip', 'speaker_asn', 'tenant_cidr', 'tenant_gateway']) or (student_state.hybrid.m11.schema | int == 2 and student_state.hybrid.m11.network.keys() | list | sort == ['border_asn', 'provider_allocation_pool', 'provider_border_ip', 'provider_cidr', 'provider_interface', 'provider_router_ip', 'provider_speaker_ip', 'speaker_asn', 'tenant_cidr', 'tenant_gateway'])
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.network.provider_cidr == '198.18.48.0/29'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.network.tenant_cidr == '198.18.49.0/24'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.network.provider_speaker_ip == '198.18.48.2'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.schema | int != 2 or student_state.hybrid.m11.network.provider_interface == student_profiles.hibrido.hybrid_m11.provider_interface
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.network.provider_router_ip == '198.18.48.3'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.network.tenant_gateway == '198.18.49.1'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.network.speaker_asn | int == 64590
+      - student_state.hybrid.schema | int != 4 or (student_state.hybrid.m11.schema | int == 1 and student_state.hybrid.m11.api.keys() | list | sort == ['agent_ids', 'auth_url', 'extensions', 'identity_endpoint', 'neutron_endpoint', 'pending', 'project_id', 'resources', 'user_id']) or (student_state.hybrid.m11.schema | int == 2 and student_state.hybrid.m11.api.keys() | list | sort == ['agent_ids', 'auth_url', 'extensions', 'identity_endpoint', 'links', 'neutron_endpoint', 'pending', 'project_id', 'resources', 'user_id'])
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.api.auth_url == 'http://10.0.2.15/identity/v3/auth/tokens'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.api.pending is mapping
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.schema | int != 2 or student_state.hybrid.m11.api.links is mapping
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.api.resources.keys() | list | sort == ['address_scope', 'bgp_peer', 'bgp_speaker', 'cirros_port', 'drinstance', 'external_network', 'external_subnet', 'external_subnetpool', 'router', 'router_gateway_port', 'router_interface', 'security_group', 'security_group_rules', 'tenant_network', 'tenant_subnet', 'tenant_subnetpool']
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.ssh.keys() | list | sort == ['host_keys', 'known_hosts_device', 'known_hosts_inode', 'known_hosts_path']
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.ssh.known_hosts_path == student_state_run_dir ~ '/keys/known_hosts'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.ssh.host_keys.keys() | list | sort == ['cirros', 'ubuntu']
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.ssh.host_keys.ubuntu.keys() | list | sort == ['alias', 'fingerprint', 'private_device', 'private_inode', 'private_path', 'public_device', 'public_inode', 'public_path']
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.ssh.host_keys.cirros.keys() | list | sort == ['alias', 'fingerprint', 'private_device', 'private_inode', 'private_path', 'public_device', 'public_inode', 'public_path']
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.ssh.host_keys.ubuntu.private_path == student_state_run_dir ~ '/keys/ubuntu-host-ed25519'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.ssh.host_keys.cirros.private_path == student_state_run_dir ~ '/keys/cirros-host-ed25519'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.ssh.host_keys.ubuntu.public_path == student_state_run_dir ~ '/keys/ubuntu-host-ed25519.pub'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.ssh.host_keys.cirros.public_path == student_state_run_dir ~ '/keys/cirros-host-ed25519.pub'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.ssh.host_keys.ubuntu.alias == 'p010-' ~ student_state.run_id ~ '-' ~ student_state.hybrid.guests.ubuntu.uuid ~ '-ubuntu'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.ssh.host_keys.cirros.alias == 'p010-' ~ student_state.run_id ~ '-' ~ student_state.hybrid.guests.cirros.uuid ~ '-cirros'
+      - student_state.hybrid.schema | int != 4 or (student_state.hybrid.m11.ssh.host_keys.ubuntu.private_device | int == 0 and student_state.hybrid.m11.ssh.host_keys.ubuntu.private_inode | int == 0) or (student_state.hybrid.m11.ssh.host_keys.ubuntu.private_device | int >= 0 and student_state.hybrid.m11.ssh.host_keys.ubuntu.private_inode | int > 0)
+      - student_state.hybrid.schema | int != 4 or (student_state.hybrid.m11.ssh.host_keys.cirros.private_device | int == 0 and student_state.hybrid.m11.ssh.host_keys.cirros.private_inode | int == 0) or (student_state.hybrid.m11.ssh.host_keys.cirros.private_device | int >= 0 and student_state.hybrid.m11.ssh.host_keys.cirros.private_inode | int > 0)
+      - student_state.hybrid.schema | int != 4 or (student_state.hybrid.m11.ssh.host_keys.ubuntu.public_device | int == 0 and student_state.hybrid.m11.ssh.host_keys.ubuntu.public_inode | int == 0) or (student_state.hybrid.m11.ssh.host_keys.ubuntu.public_device | int >= 0 and student_state.hybrid.m11.ssh.host_keys.ubuntu.public_inode | int > 0)
+      - student_state.hybrid.schema | int != 4 or (student_state.hybrid.m11.ssh.host_keys.cirros.public_device | int == 0 and student_state.hybrid.m11.ssh.host_keys.cirros.public_inode | int == 0) or (student_state.hybrid.m11.ssh.host_keys.cirros.public_device | int >= 0 and student_state.hybrid.m11.ssh.host_keys.cirros.public_inode | int > 0)
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.ssh.host_keys.ubuntu.fingerprint == '' or student_state.hybrid.m11.ssh.host_keys.ubuntu.fingerprint is match('^SHA256:[A-Za-z0-9+/]{43}$')
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.ssh.host_keys.cirros.fingerprint == '' or student_state.hybrid.m11.ssh.host_keys.cirros.fingerprint is match('^SHA256:[A-Za-z0-9+/]{43}$')
+      - student_state.hybrid.schema | int != 4 or (student_state.hybrid.m11.schema | int == 1 and student_state.hybrid.m11.frr.keys() | list | sort == ['config_device', 'config_inode', 'config_sha256', 'private_config_path', 'tap_address_installed']) or (student_state.hybrid.m11.schema | int == 2 and student_state.hybrid.m11.frr.keys() | list | sort == ['config_device', 'config_inode', 'config_sha256', 'private_config_path', 'tap_address_installed', 'tap_address_phase'])
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.frr.private_config_path == student_state_run_dir ~ '/frr/p003-frr.conf'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.schema | int != 2 or student_state.hybrid.m11.frr.tap_address_phase in ['reserved', 'adding', 'installed']
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.cilium.keys() | list | sort == ['pod_ip_masq_exemption', 'values_device', 'values_inode', 'values_path', 'values_sha256']
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.cilium.values_path == student_state_run_dir ~ '/cilium-hybrid-values.yml'
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.cilium.pod_ip_masq_exemption == student_state.hybrid.m11.network.tenant_cidr
+      - student_state.hybrid.schema | int != 4 or (student_state.hybrid.m11.cilium.values_device | int == 0 and student_state.hybrid.m11.cilium.values_inode | int == 0) or (student_state.hybrid.m11.cilium.values_device | int >= 0 and student_state.hybrid.m11.cilium.values_inode | int > 0)
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.cilium.values_sha256 == '' or student_state.hybrid.m11.cilium.values_sha256 is match('^[0-9a-f]{64}$')
+      - student_state.hybrid.schema | int != 4 or student_state.hybrid.m11.verification.keys() | list | sort == ['gates', 'phase']
+    fail_msg: "Estado híbrido tem versão ou campos desconhecidos; não vou adotar nem remover recursos."
+
+- name: Validate the optional sanitized API identities used by C1
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.keys() | list | sort == ['observed_utc', 'router', 'run_id', 'schema', 'source', 'tenant_port', 'provider_port']
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.schema | int == 1
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.run_id == student_state.run_id
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.router.keys() | list | sort == ['external_ip', 'external_network_id', 'external_subnet_id', 'id', 'project_id']
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.tenant_port.keys() | list | sort == ['device_id', 'device_owner', 'fixed_ips', 'id', 'mac_address', 'network_id', 'project_id']
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.provider_port.keys() | list | sort == ['device_id', 'device_owner', 'fixed_ips', 'id', 'mac_address', 'network_id', 'project_id']
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.tenant_port.fixed_ips is sequence
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.tenant_port.fixed_ips is not string
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.tenant_port.fixed_ips | length == 1
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.provider_port.fixed_ips is sequence
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.provider_port.fixed_ips is not string
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.provider_port.fixed_ips | length == 1
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.tenant_port.fixed_ips[0].keys() | list | sort == ['ip_address', 'subnet_id']
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.provider_port.fixed_ips[0].keys() | list | sort == ['ip_address', 'subnet_id']
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.tenant_port.mac_address is match('^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$')
+      - student_state.hybrid.m11.verification.gates.c1_api_paths is not defined or student_state.hybrid.m11.verification.gates.c1_api_paths.provider_port.mac_address is match('^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$')
+    fail_msg: "O mapa API C1 é ausente ou inválido; não usarei nomes nem dados não observados."
+  when: student_state.hybrid.schema | int == 4
+  no_log: true
+
+- name: Validate the optional C1 result and active capture identity maps
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.positive is not defined or student_state.hybrid.m11.verification.gates.positive.c1 is not defined or student_state.hybrid.m11.verification.gates.positive.c1.keys() | list | sort == ['check_id', 'phase', 'previous_receipt', 'receipt', 'schema']
+      - student_state.hybrid.m11.verification.gates.positive is not defined or student_state.hybrid.m11.verification.gates.positive.c1 is not defined or student_state.hybrid.m11.verification.gates.positive.c1.schema | int == 1
+      - student_state.hybrid.m11.verification.gates.positive is not defined or student_state.hybrid.m11.verification.gates.positive.c1 is not defined or student_state.hybrid.m11.verification.gates.positive.c1.phase in ['collecting', 'observed', 'verified', 'inconclusive']
+      - student_state.hybrid.m11.verification.gates.positive is not defined or student_state.hybrid.m11.verification.gates.positive.c1 is not defined or student_state.hybrid.m11.verification.gates.positive.c1.check_id == '' or student_state.hybrid.m11.verification.gates.positive.c1.check_id is match('^c1-[A-Za-z0-9_-]{8,64}$')
+      - student_state.hybrid.m11.verification.gates.positive is not defined or student_state.hybrid.m11.verification.gates.positive.c1 is not defined or student_state.hybrid.m11.verification.gates.positive.c1.previous_receipt is mapping
+      - student_state.hybrid.m11.verification.gates.positive is not defined or student_state.hybrid.m11.verification.gates.positive.c1 is not defined or student_state.hybrid.m11.verification.gates.positive.c1.receipt is mapping
+      - student_state.hybrid.m11.verification.gates.positive is not defined or student_state.hybrid.m11.verification.gates.positive.c1 is not defined or student_state.hybrid.m11.verification.gates.positive.c1.phase != 'verified' or student_state.hybrid.m11.verification.gates.positive.c1.receipt.keys() | list | sort == ['device', 'inode', 'mode', 'owner_uid', 'path', 'sha256']
+      - student_state.hybrid.m11.verification.gates.positive is not defined or student_state.hybrid.m11.verification.gates.positive.c1 is not defined or student_state.hybrid.m11.verification.gates.positive.c1.phase != 'verified' or student_state.hybrid.m11.verification.gates.positive.c1.receipt.path == student_state_run_dir ~ '/m11-evidence/' ~ student_state.hybrid.m11.verification.gates.positive.c1.check_id ~ '/receipt.json'
+      - student_state.hybrid.m11.verification.gates.positive is not defined or student_state.hybrid.m11.verification.gates.positive.c1 is not defined or student_state.hybrid.m11.verification.gates.positive.c1.phase != 'verified' or student_state.hybrid.m11.verification.gates.positive.c1.receipt.device | int > 0
+      - student_state.hybrid.m11.verification.gates.positive is not defined or student_state.hybrid.m11.verification.gates.positive.c1 is not defined or student_state.hybrid.m11.verification.gates.positive.c1.phase != 'verified' or student_state.hybrid.m11.verification.gates.positive.c1.receipt.inode | int > 0
+      - student_state.hybrid.m11.verification.gates.positive is not defined or student_state.hybrid.m11.verification.gates.positive.c1 is not defined or student_state.hybrid.m11.verification.gates.positive.c1.phase != 'verified' or student_state.hybrid.m11.verification.gates.positive.c1.receipt.owner_uid | int == student_uid | int
+      - student_state.hybrid.m11.verification.gates.positive is not defined or student_state.hybrid.m11.verification.gates.positive.c1 is not defined or student_state.hybrid.m11.verification.gates.positive.c1.phase != 'verified' or student_state.hybrid.m11.verification.gates.positive.c1.receipt.mode == '0600'
+      - student_state.hybrid.m11.verification.gates.c1_capture_active is not defined or student_state.hybrid.m11.verification.gates.c1_capture_active.keys() | list | sort == ['check_id', 'observers', 'phase', 'schema']
+      - student_state.hybrid.m11.verification.gates.c1_capture_active is not defined or student_state.hybrid.m11.verification.gates.c1_capture_active.schema | int == 1
+      - student_state.hybrid.m11.verification.gates.c1_capture_active is not defined or student_state.hybrid.m11.verification.gates.c1_capture_active.phase in ['absent', 'starting', 'capturing', 'stopping']
+      - student_state.hybrid.m11.verification.gates.c1_capture_active is not defined or student_state.hybrid.m11.verification.gates.c1_capture_active.phase != 'absent' or (student_state.hybrid.m11.verification.gates.c1_capture_active.check_id == '' and student_state.hybrid.m11.verification.gates.c1_capture_active.observers | length == 0)
+      - student_state.hybrid.m11.verification.gates.c1_capture_active is not defined or student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'absent' or student_state.hybrid.m11.verification.gates.c1_capture_active.check_id is match('^c1-[A-Za-z0-9_-]{8,64}$')
+      - student_state.hybrid.m11.verification.gates.c1_capture_active is not defined or student_state.hybrid.m11.verification.gates.c1_capture_active.observers is sequence
+      - student_state.hybrid.m11.verification.gates.c1_capture_active is not defined or student_state.hybrid.m11.verification.gates.c1_capture_active.observers is not string
+      - student_state.hybrid.m11.verification.gates.c1_capture_active is not defined or student_state.hybrid.m11.verification.gates.c1_capture_active.observers is not mapping
+    fail_msg: "Estado C1 tem resultado ou identidade ativa incompletos; nenhum efeito será adotado."
+  when: student_state.hybrid.schema | int == 4
+  no_log: true
+
+- name: Validate the short private QMP directory reserved for a new hybrid run
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.qmp_dir.keys() | list | sort == ['device', 'inode', 'path']
+      - student_state.hybrid.qmp_dir.path == '/tmp/p10q-' ~ student_uid ~ '-' ~ student_state.run_id
+      - student_state.hybrid.qmp_dir.device | int >= 0
+      - student_state.hybrid.qmp_dir.inode | int >= 0
+      - (student_state.hybrid.qmp_dir.device | int == 0 and student_state.hybrid.qmp_dir.inode | int == 0) or (student_state.hybrid.qmp_dir.device | int > 0 and student_state.hybrid.qmp_dir.inode | int > 0)
+      - student_state.hybrid.guests.ubuntu.qmp_path == student_state.hybrid.qmp_dir.path ~ '/u.qmp'
+      - student_state.hybrid.guests.cirros.qmp_path == student_state.hybrid.qmp_dir.path ~ '/c.qmp'
+      - student_state.hybrid.guests.ubuntu.qmp_path | length <= 107
+      - student_state.hybrid.guests.cirros.qmp_path | length <= 107
+    fail_msg: "Diretório/socket QMP excede o AF_UNIX ou diverge do caminho privado reservado."
+  when: student_state.hybrid.schema | int in [2, 3, 4]
+
+- name: Preserve schema-one QMP paths for historical hybrid cleanup
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.guests.ubuntu.qmp_path == student_state_run_dir ~ '/qemu/ubuntu.qmp'
+      - student_state.hybrid.guests.cirros.qmp_path == student_state_run_dir ~ '/qemu/cirros.qmp'
+    fail_msg: "Caminho QMP do estado híbrido antigo diverge; nenhuma adoção será feita."
+  when: student_state.hybrid.schema | int == 1
+
+- name: Validate the saved border process and namespace identity fields
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.network.border.keys() | list | sort == ['container_id', 'netns_device', 'netns_inode', 'pid', 'starttime', 'uid']
+      - (student_state.hybrid.network.border.container_id == '' and student_state.hybrid.network.border.pid | int == 0 and student_state.hybrid.network.border.starttime | int == 0 and student_state.hybrid.network.border.uid | int == 0 and student_state.hybrid.network.border.netns_device | int == 0 and student_state.hybrid.network.border.netns_inode | int == 0) or (student_state.hybrid.network.border.container_id is match('^[0-9a-f]{64}$') and student_state.hybrid.network.border.pid | int > 1 and student_state.hybrid.network.border.starttime | int > 0 and student_state.hybrid.network.border.uid | int >= 0 and student_state.hybrid.network.border.netns_device | int > 0 and student_state.hybrid.network.border.netns_inode | int > 0)
+      - (student_state.hybrid.guests.ubuntu.pid | int == 0 and student_state.hybrid.guests.ubuntu.netns_device | int == 0 and student_state.hybrid.guests.ubuntu.netns_inode | int == 0) or (student_state.hybrid.guests.ubuntu.pid | int > 1 and student_state.hybrid.guests.ubuntu.netns_device | int == student_state.hybrid.network.border.netns_device | int and student_state.hybrid.guests.ubuntu.netns_inode | int == student_state.hybrid.network.border.netns_inode | int)
+      - (student_state.hybrid.guests.cirros.pid | int == 0 and student_state.hybrid.guests.cirros.netns_device | int == 0 and student_state.hybrid.guests.cirros.netns_inode | int == 0) or (student_state.hybrid.guests.cirros.pid | int > 1 and student_state.hybrid.guests.cirros.netns_device | int == student_state.hybrid.network.border.netns_device | int and student_state.hybrid.guests.cirros.netns_inode | int == student_state.hybrid.network.border.netns_inode | int)
+    fail_msg: "Identidade do namespace do border/QEMU incompleta ou divergente; nenhum processo será adotado."
+  when: student_state.hybrid.schema | int in [2, 3, 4]
+
+- name: Validate pinned image records and immutable private paths
+  ansible.builtin.assert:
+    that:
+      - item.value.keys() | list | sort == ['device', 'inode', 'path', 'sha256']
+      - item.value.path == student_state_run_dir ~ '/images/' ~ item.filename
+      - item.value.sha256 == student_hybrid_sources[item.key].checksum
+      - item.value.device | int >= 0
+      - item.value.inode | int >= 0
+    fail_msg: "Registro da imagem híbrida {{ item.key }} diverge dos pins ou do caminho privado."
+  loop:
+    - key: ubuntu
+      filename: ubuntu-24.04-server-cloudimg-amd64.img
+      value: "{{ student_state.hybrid.sources.ubuntu }}"
+    - key: cirros
+      filename: cirros-0.6.3-x86_64-disk.img
+      value: "{{ student_state.hybrid.sources.cirros }}"
+  no_log: true
+
+- name: Require exact guest resource maps and run-private paths
+  ansible.builtin.assert:
+    that:
+      - (student_state.hybrid.schema | int == 1 and guest.keys() | list | sort == ['host_port', 'overlay_device', 'overlay_inode', 'overlay_path', 'pid', 'pidfile', 'pidfile_device', 'pidfile_inode', 'qmp_device', 'qmp_inode', 'qmp_path', 'seed_device', 'seed_dir', 'seed_dir_device', 'seed_dir_inode', 'seed_inode', 'seed_path', 'ssh_device', 'ssh_inode', 'ssh_private_key', 'ssh_public_device', 'ssh_public_inode', 'starttime', 'uuid']) or (student_state.hybrid.schema | int in [2, 3, 4] and guest.keys() | list | sort == (student_hybrid_guest_schema_two_keys + (student_hybrid_guest_network_keys if student_state.hybrid.schema | int in [3, 4] else [])) | sort)
+      - guest.uuid is match('^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+      - guest.pid | int >= 0
+      - guest.starttime | int >= 0
+      - guest.pidfile == student_state_run_dir ~ '/qemu/' ~ item.key ~ '.pid'
+      - (student_state.hybrid.schema | int == 1 and guest.qmp_path == student_state_run_dir ~ '/qemu/' ~ item.key ~ '.qmp') or (student_state.hybrid.schema | int in [2, 3, 4] and guest.qmp_path == student_state.hybrid.qmp_dir.path ~ '/' ~ ('u' if item.key == 'ubuntu' else 'c') ~ '.qmp')
+      - (student_state.hybrid.schema | int == 1 and guest.netns_device is not defined) or (student_state.hybrid.schema | int in [2, 3, 4] and guest.netns_device | int >= 0 and guest.netns_inode | int >= 0)
+      - guest.overlay_path == student_state_run_dir ~ '/images/' ~ item.key ~ '-overlay.qcow2'
+      - guest.seed_dir == student_state_run_dir ~ '/seed/' ~ item.key
+      - guest.seed_dir_device | int >= 0
+      - guest.seed_dir_inode | int >= 0
+      - guest.seed_path == student_state_run_dir ~ '/images/' ~ item.key ~ '-seed.iso'
+      - guest.ssh_private_key == student_state_run_dir ~ '/keys/hybrid-ed25519'
+      - guest.host_port | int == (42422 if item.key == 'ubuntu' else 42423)
+      - guest.pidfile_device | int >= 0
+      - guest.pidfile_inode | int >= 0
+      - guest.qmp_device | int >= 0
+      - guest.qmp_inode | int >= 0
+      - guest.overlay_device | int >= 0
+      - guest.overlay_inode | int >= 0
+      - guest.seed_device | int >= 0
+      - guest.seed_inode | int >= 0
+      - guest.ssh_device | int >= 0
+      - guest.ssh_inode | int >= 0
+      - guest.ssh_public_device | int >= 0
+      - guest.ssh_public_inode | int >= 0
+    fail_msg: "Identidade/caminhos do guest {{ item.key }} divergem do run privado."
+  loop: "{{ student_state.hybrid.guests | dict2items }}"
+  loop_control:
+    loop_var: item
+  vars:
+    guest: "{{ item.value }}"
+    student_hybrid_guest_schema_two_keys: [host_port, netns_device, netns_inode, overlay_device, overlay_inode, overlay_path, pid, pidfile, pidfile_device, pidfile_inode, qmp_device, qmp_inode, qmp_path, seed_device, seed_dir, seed_dir_device, seed_dir_inode, seed_inode, seed_path, ssh_device, ssh_inode, ssh_private_key, ssh_public_device, ssh_public_inode, starttime, uuid]
+    student_hybrid_guest_network_keys: "{{ ['management_mac', 'external_mac', 'tenant_mac'] if item.key == 'ubuntu' else ['management_mac', 'tenant_mac'] }}"
+  no_log: true
+
+- name: Refuse reused guest UUIDs
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.guests.ubuntu.uuid != student_state.hybrid.guests.cirros.uuid
+    fail_msg: "Os dois guests compartilham UUID; nenhuma identidade será reutilizada."
+  no_log: true
+
+- name: Validate the fixed and distinct guest NIC MAC reservations for schema three
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.guests.ubuntu.management_mac == '52:54:00:10:11:01'
+      - student_state.hybrid.guests.ubuntu.external_mac == '52:54:00:10:11:02'
+      - student_state.hybrid.guests.ubuntu.tenant_mac == '52:54:00:10:11:03'
+      - student_state.hybrid.guests.cirros.management_mac == '52:54:00:10:12:01'
+      - student_state.hybrid.guests.cirros.tenant_mac == '52:54:00:10:12:02'
+      - student_hybrid_reserved_macs | select('match', '^[0-9a-f]{2}(:[0-9a-f]{2}){5}$') | list | length == 5
+      - student_hybrid_reserved_macs | unique | list | length == 5
+    fail_msg: "Endereços MAC híbridos ausentes, alterados ou repetidos; guest não será adotado."
+  vars:
+    student_hybrid_reserved_macs:
+      - "{{ student_state.hybrid.guests.ubuntu.management_mac }}"
+      - "{{ student_state.hybrid.guests.ubuntu.external_mac }}"
+      - "{{ student_state.hybrid.guests.ubuntu.tenant_mac }}"
+      - "{{ student_state.hybrid.guests.cirros.management_mac }}"
+      - "{{ student_state.hybrid.guests.cirros.tenant_mac }}"
+  when: student_state.hybrid.schema | int in [3, 4]
+  no_log: true
+
+- name: Validate the saved bridge and TAP identity shapes without name-based adoption
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.network.bridge.keys() | list | sort == ['alias', 'ifindex', 'name']
+      - (student_state.hybrid.schema | int in [1, 2] and student_state.hybrid.network.tap.keys() | list | sort == ['alias', 'ifindex', 'name']) or (student_state.hybrid.schema | int == 3 and student_state.hybrid.network.tap.keys() | list | sort == ['alias', 'ifindex', 'name', 'reserved_alias']) or (student_state.hybrid.schema | int == 4 and student_state.hybrid.network.tap.keys() | list | sort == ['alias', 'create_phase', 'ifindex', 'name', 'reserved_alias'])
+      - student_state.hybrid.network.tenant_socket.keys() | list | sort == ['device', 'inode', 'path']
+      - student_state.hybrid.network.bridge.name == '' or student_state.hybrid.network.bridge.name is match('^[a-zA-Z0-9_-]{1,15}$')
+      - student_state.hybrid.network.tap.name == '' or student_state.hybrid.network.tap.name is match('^[a-zA-Z0-9_-]{1,15}$')
+      - student_state.hybrid.network.bridge.ifindex | int >= 0
+      - student_state.hybrid.network.tap.ifindex | int >= 0
+      - student_state.hybrid.network.bridge.name == ''
+      - student_state.hybrid.network.bridge.alias == ''
+      - (student_state.hybrid.schema | int in [1, 2] and student_state.hybrid.network.tap.name == '' and student_state.hybrid.network.tap.alias == '' and student_state.hybrid.network.tap.ifindex | int == 0)
+        or
+        (student_state.hybrid.schema | int in [3, 4] and
+         student_state.hybrid.network.tap.name == 'p10t' ~ (student_state.hybrid.guests.ubuntu.uuid | replace('-', '') | truncate(8, true, '')) and
+         student_state.hybrid.network.tap.reserved_alias == 'p010-hyb-' ~ student_uid ~ '-' ~ student_state.run_id and
+         student_state.hybrid.network.tap.alias in ['', student_state.hybrid.network.tap.reserved_alias] and
+         (student_state.hybrid.schema | int != 4 or student_state.hybrid.network.tap.create_phase in ['reserved', 'creating', 'identified', 'absent']) and
+         ((student_state.hybrid.network.tap.ifindex | int == 0 and student_state.hybrid.network.tap.alias == '') or student_state.hybrid.network.tap.ifindex | int > 0))
+      - (student_state.hybrid.schema | int in [1, 2] and (student_state.hybrid.network.tenant_socket.path == '' or student_state.hybrid.network.tenant_socket.path == student_state_run_dir ~ '/qemu/tenant.sock'))
+        or
+        (student_state.hybrid.schema | int in [3, 4] and
+         student_state.hybrid.network.tenant_socket.path == student_state.hybrid.qmp_dir.path ~ '/t.sock' and
+         student_state.hybrid.network.tenant_socket.path | length <= 107)
+      - student_state.hybrid.network.tenant_socket.device | int >= 0
+      - student_state.hybrid.network.tenant_socket.inode | int >= 0
+      - (student_state.hybrid.schema | int in [1, 2] and student_state.hybrid.network.tenant_socket.device | int == 0 and student_state.hybrid.network.tenant_socket.inode | int == 0) or (student_state.hybrid.network.tenant_socket.device | int == 0 and student_state.hybrid.network.tenant_socket.inode | int == 0) or (student_state.hybrid.network.tenant_socket.device | int >= 0 and student_state.hybrid.network.tenant_socket.inode | int > 0)
+      - (student_state.hybrid.schema | int in [1, 2] and student_state.hybrid.neutron.values() | reject('equalto', '') | list | length == 0) or student_state.hybrid.neutron.values() | reject('equalto', '') | list | length == 0
+      - (student_state.hybrid.schema | int in [1, 2] and student_state.hybrid.network.tap.name == '' and student_state.hybrid.network.tenant_socket.path == '') or (student_state.hybrid.schema | int in [3, 4] and student_state.hybrid.network.management_dns is sequence and student_state.hybrid.network.management_dns is not string and (student_state.hybrid.network.management_dns | select('match', '^(?:[0-9]{1,3}[.]){3}[0-9]{1,3}$') | list | length == student_state.hybrid.network.management_dns | length) and (student_state.hybrid.network.management_dns | reject('match', '^(0[.]|127[.]|169[.]254[.]|22[4-9][.]|23[0-9][.]|255[.]|10[.]0[.]2[.])') | list | length == student_state.hybrid.network.management_dns | length))
+      - student_state.hybrid.neutron.network_id == '' or student_state.hybrid.neutron.network_id is match('^[0-9a-f-]{36}$')
+      - student_state.hybrid.neutron.subnet_id == '' or student_state.hybrid.neutron.subnet_id is match('^[0-9a-f-]{36}$')
+      - student_state.hybrid.neutron.router_id == '' or student_state.hybrid.neutron.router_id is match('^[0-9a-f-]{36}$')
+      - student_state.hybrid.neutron.ubuntu_tenant_port_id == '' or student_state.hybrid.neutron.ubuntu_tenant_port_id is match('^[0-9a-f-]{36}$')
+      - student_state.hybrid.neutron.cirros_tenant_port_id == '' or student_state.hybrid.neutron.cirros_tenant_port_id is match('^[0-9a-f-]{36}$')
+      - student_state.hybrid.neutron.external_port_id == '' or student_state.hybrid.neutron.external_port_id is match('^[0-9a-f-]{36}$')
+    fail_msg: "Registro de rede híbrida contém identidade desconhecida; nenhum recurso será removido por nome."
+  no_log: true

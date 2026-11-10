@@ -1,0 +1,1239 @@
+---
+- name: Record one C1 observer intent before starting its capture processes
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_observer_intent: >-
+      {{ student_hybrid_m11_c1_observer | combine({
+        'schema': 1, 'phase': 'starting', 'supervisor_pid': 0, 'supervisor_starttime': 0,
+        'supervisor_uid': 0, 'tcpdump_pid': 0, 'tcpdump_starttime': 0, 'tcpdump_uid': 0,
+        'netns': '', 'boot_id': '', 'ifindex': 0, 'mac': '', 'device': 0, 'inode': 0,
+        'file_uid': 0, 'mode': '', 'started_utc': '', 'child_rc': -1,
+        'supervisor_rc': -1, 'transport_rc': -1, 'tcpdump_version': '',
+        'filter': student_hybrid_m11_c1_observer.filter | default(student_hybrid_m11_c1_filter | default('')),
+        'argv': ['/usr/sbin/tcpdump', '-nn', '-e', '-vv', '-l', '-tttt', '-S', '-c', '128', '-i', student_hybrid_m11_c1_observer.interface, student_hybrid_m11_c1_observer.filter | default(student_hybrid_m11_c1_filter | default(''))],
+        'supervisor_argv': [
+          '/usr/bin/bash', '-c',
+          'set -eu; supervisor_pidfile="$1"; tcpdump_pidfile="$2"; rcfile="$3"; shift 3; printf "%s\\n" "$$" >"$supervisor_pidfile"; child_rc=-1; save_supervisor_rc() { supervisor_rc=$?; trap - EXIT; printf "%s|%s\\n" "$child_rc" "$supervisor_rc" >"$rcfile"; }; trap save_supervisor_rc EXIT; "$@" & tcpdump_pid="$!"; printf "%s\\n" "$tcpdump_pid" >"$tcpdump_pidfile"; ( sleep 120; kill -TERM "$tcpdump_pid" 2>/dev/null || true ) & timer_pid="$!"; set +e; wait "$tcpdump_pid"; child_rc="$?"; set -e; kill -TERM "$timer_pid" 2>/dev/null || true; wait "$timer_pid" 2>/dev/null || true; exit "$child_rc"',
+          'p010-c1-observer-' ~ student_hybrid_m11_c1_observer.key,
+          student_hybrid_m11_c1_observer.capture_path ~ '.supervisor',
+          student_hybrid_m11_c1_observer.capture_path ~ '.tcpdump',
+          student_hybrid_m11_c1_observer.capture_path ~ '.rc'
+        ] + ['/usr/sbin/tcpdump', '-nn', '-e', '-vv', '-l', '-tttt', '-S', '-c', '128', '-i', student_hybrid_m11_c1_observer.interface, student_hybrid_m11_c1_observer.filter | default(student_hybrid_m11_c1_filter | default(''))],
+        'supervisor_file_device': 0, 'supervisor_file_inode': 0, 'supervisor_file_uid': 0, 'supervisor_file_mode': '',
+        'tcpdump_file_device': 0, 'tcpdump_file_inode': 0, 'tcpdump_file_uid': 0, 'tcpdump_file_mode': '',
+        'rc_file_device': 0, 'rc_file_inode': 0, 'rc_file_uid': 0, 'rc_file_mode': ''
+      }, recursive=false) }}
+  when: student_hybrid_m11_c1_capture_action | default('') == 'start'
+  no_log: true
+
+- name: Persist the C1 observer intent before creating its capture file or process
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      status: partial
+      phase: hybrid-c1-observer-starting
+      hybrid:
+        phase: partial
+        m11:
+          verification:
+            phase: collecting
+            gates:
+              c1_capture_active:
+                schema: 1
+                check_id: "{{ student_state.hybrid.m11.verification.gates.positive.c1.check_id }}"
+                phase: starting
+                observers: "{{ student_state.hybrid.m11.verification.gates.c1_capture_active.observers + [student_hybrid_m11_c1_observer_intent] }}"
+  when: student_hybrid_m11_c1_capture_action | default('') == 'start'
+  no_log: true
+
+- name: Reload the exact C1 observer intent before its first effect
+  ansible.builtin.set_fact:
+    student_state: "{{ lookup('file', student_state_file) | from_json }}"
+  when: student_hybrid_m11_c1_capture_action | default('') == 'start'
+  no_log: true
+
+- name: Require the unique saved intent for this exact C1 observer
+  ansible.builtin.assert:
+    that:
+      - student_state.status == 'partial'
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.check_id == student_hybrid_m11_c1_observer.check_id
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | selectattr('key', 'equalto', student_hybrid_m11_c1_observer.key) | list | length == 1
+      - student_hybrid_m11_c1_observer.capture_path is match('^' ~ (student_run_dir | regex_escape) ~ '/m11-evidence/c1-[A-Za-z0-9_-]{8,64}/observer-[A-Za-z0-9_-]{1,48}\.txt$') or student_hybrid_m11_c1_observer.transport == 'guest'
+    fail_msg: "O observador C1 não tem caminho privado e intenção durável únicos."
+  when: student_hybrid_m11_c1_capture_action | default('') == 'start'
+  no_log: true
+
+- name: Refuse a pre-existing host-side C1 capture file
+  ansible.builtin.stat:
+    path: "{{ student_hybrid_m11_c1_observer.capture_path }}"
+    follow: false
+  register: student_hybrid_m11_c1_capture_file_before
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'start'
+    - student_hybrid_m11_c1_observer.transport == 'netns'
+  no_log: true
+
+- name: Require the host-side C1 capture path to be unused
+  ansible.builtin.assert:
+    that:
+      - not (student_hybrid_m11_c1_capture_file_before.stat.exists | default(false))
+      - not (student_hybrid_m11_c1_capture_file_before.stat.islnk | default(false))
+    fail_msg: "O caminho novo do observador C1 já existe; não vou adotar um arquivo anterior."
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'start'
+    - student_hybrid_m11_c1_observer.transport == 'netns'
+  no_log: true
+
+- name: Create one private empty host-side C1 capture file
+  ansible.builtin.copy:
+    dest: "{{ student_hybrid_m11_c1_observer.capture_path }}"
+    content: ''
+    owner: "{{ student_uid }}"
+    mode: '0600'
+    force: false
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'start'
+    - student_hybrid_m11_c1_observer.transport == 'netns'
+  no_log: true
+
+- name: Measure the initial private C1 capture file identity
+  ansible.builtin.stat:
+    path: "{{ student_hybrid_m11_c1_observer.capture_path }}"
+    follow: false
+  register: student_hybrid_m11_c1_capture_file_initial
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'start'
+    - student_hybrid_m11_c1_observer.transport == 'netns'
+  no_log: true
+
+- name: Require the initial C1 capture file to be regular, private, and student-owned
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_capture_file_initial.stat.isreg | default(false)
+      - not (student_hybrid_m11_c1_capture_file_initial.stat.islnk | default(false))
+      - student_hybrid_m11_c1_capture_file_initial.stat.uid | int == student_uid | int
+      - student_hybrid_m11_c1_capture_file_initial.stat.mode == '0600'
+      - student_hybrid_m11_c1_capture_file_initial.stat.dev | int > 0
+      - student_hybrid_m11_c1_capture_file_initial.stat.inode | int > 0
+    fail_msg: "O arquivo do observador C1 não é privado ou tem identidade inválida."
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'start'
+    - student_hybrid_m11_c1_observer.transport == 'netns'
+  no_log: true
+
+- name: Build the bounded header-only C1 capture launcher
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_capture_start_script: |-
+      set -eu
+      umask 077
+      TZ=UTC
+      export TZ
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      capture={{ student_hybrid_m11_c1_observer.capture_path | quote }}
+      proc_root=/proc
+      supervisor_pidfile={{ (student_hybrid_m11_c1_observer.capture_path ~ '.supervisor') | quote }}
+      tcpdump_pidfile={{ (student_hybrid_m11_c1_observer.capture_path ~ '.tcpdump') | quote }}
+      rcfile={{ (student_hybrid_m11_c1_observer.capture_path ~ '.rc') | quote }}
+      interface={{ student_hybrid_m11_c1_observer.interface | quote }}
+      expected_ifindex={{ student_hybrid_m11_c1_observer.expected_ifindex | default(0) | string | quote }}
+      expected_mac={{ student_hybrid_m11_c1_observer.expected_mac | default('') | lower | quote }}
+      filter={{ student_hybrid_m11_c1_observer_intent.filter | quote }}
+      tcpdump_version="$(/usr/sbin/tcpdump --version 2>&1 | /usr/bin/sed -n '1p' | tr -d '\r')"
+      case "$tcpdump_version" in 'tcpdump version '[0-9]*) ;; *) exit 70 ;; esac
+      [ "$(printf '%s' "$tcpdump_version" | wc -c | tr -d ' ')" -le 128 ]
+      netns_path={{ student_hybrid_m11_c1_observer.netns_path | default('') | quote }}
+      expected_netns={{ student_hybrid_m11_c1_observer.expected_netns | default('') | quote }}
+      if [ {{ student_hybrid_m11_c1_observer.transport | quote }} = guest ]; then
+        run_as_root() { sudo -n "$@"; }
+      else
+        run_as_root() { "$@"; }
+      fi
+      proc_starttime() {
+        line="$(run_as_root /usr/bin/cat "$1")" || return 1
+        case "$line" in *") "*) rest="$(printf '%s\n' "$line" | /usr/bin/sed 's/^.*) //')" ;; *) return 1 ;; esac
+        set -- $rest
+        [ "$#" -ge 20 ] || return 1
+        field=0
+        start=''
+        for value do
+          field=$((field + 1))
+          if [ "$field" -eq 20 ]; then start="$value"; break; fi
+        done
+        case "$start" in ''|*[!0-9]*) return 1 ;; esac
+        [ "$start" -gt 0 ] || return 1
+        printf '%s\n' "$start"
+      }
+      if [ {{ student_hybrid_m11_c1_observer.transport | quote }} = guest ]; then
+        expected_capture_uid="$(id -u)"
+      else
+        expected_capture_uid={{ student_uid | int }}
+      fi
+      if [ {{ student_hybrid_m11_c1_observer.transport | quote }} = guest ]; then
+        [ ! -e "$capture" ] && [ ! -L "$capture" ]
+        (set -C; : >"$capture")
+        chmod 600 "$capture"
+        [ "$(stat -c '%u|%a' "$capture")" = "$expected_capture_uid|600" ]
+        target_netns=''
+        if [ -n "$netns_path" ]; then
+          target_netns="$(run_as_root /usr/bin/stat -Lc '%d:%i' "$netns_path")"
+          [ -z "$expected_netns" ] || [ "$target_netns" = "$expected_netns" ]
+        fi
+      else
+        [ -f "$capture" ] && [ ! -L "$capture" ]
+        [ "$(stat -c '%d|%i|%u|%a' "$capture")" = "{{ student_hybrid_m11_c1_capture_file_initial.stat.dev | default(0) }}|{{ student_hybrid_m11_c1_capture_file_initial.stat.inode | default(0) }}|{{ student_uid }}|600" ]
+        [ -n "$netns_path" ]
+        target_netns="$(stat -Lc '%d:%i' "$netns_path")"
+        [ -z "$expected_netns" ] || [ "$target_netns" = "$expected_netns" ]
+      fi
+      [ ! -e "$supervisor_pidfile" ] && [ ! -L "$supervisor_pidfile" ]
+      [ ! -e "$tcpdump_pidfile" ] && [ ! -L "$tcpdump_pidfile" ]
+      [ ! -e "$rcfile" ] && [ ! -L "$rcfile" ]
+      (set -C; : >"$supervisor_pidfile")
+      (set -C; : >"$tcpdump_pidfile")
+      (set -C; : >"$rcfile")
+      chmod 600 "$supervisor_pidfile" "$tcpdump_pidfile" "$rcfile"
+      if [ -n "$target_netns" ]; then
+        link="$(run_as_root /usr/bin/nsenter --net="$netns_path" -- /usr/sbin/ip -o link show dev "$interface")"
+      else
+        link="$(/usr/sbin/ip -o link show dev "$interface")"
+      fi
+      ifindex="$(printf '%s\n' "$link" | /usr/bin/awk -F: '{print $1}')"
+      mac="$(printf '%s\n' "$link" | /usr/bin/sed -n 's/.*link\/ether \([^ ]*\).*/\1/p' | tr '[:upper:]' '[:lower:]')"
+      case "$ifindex" in ''|*[!0-9]*) exit 71 ;; esac
+      case "$mac" in ??\:??\:??\:??\:??\:??) ;; *) exit 72 ;; esac
+      [ "$ifindex" -gt 0 ]
+      [ "$expected_ifindex" = 0 ] || [ "$ifindex" = "$expected_ifindex" ]
+      [ -z "$expected_mac" ] || [ "$mac" = "$expected_mac" ]
+      set -- {{ student_hybrid_m11_c1_observer_intent.supervisor_argv | map('quote') | join(' ') }}
+      if [ {{ student_hybrid_m11_c1_observer.transport | quote }} = guest ] && [ -n "$netns_path" ]; then
+        /usr/bin/sudo -n /usr/bin/nsenter --net="$netns_path" -- "$@" >"$capture" 2>&1 </dev/null &
+      elif [ {{ student_hybrid_m11_c1_observer.transport | quote }} = guest ]; then
+        /usr/bin/sudo -n "$@" >"$capture" 2>&1 </dev/null &
+      else
+        "$@" >"$capture" 2>&1 </dev/null &
+      fi
+      launch_pid="$!"
+      ready=''
+      for _ in $(seq 1 100); do
+        [ -s "$supervisor_pidfile" ] && [ -s "$tcpdump_pidfile" ] && grep -Fq 'listening on' "$capture" && { ready=1; break; }
+        kill -0 "$launch_pid" 2>/dev/null || break
+        sleep 0.1
+      done
+      [ "$ready" = 1 ]
+      supervisor_pid="$(cat "$supervisor_pidfile")"
+      tcpdump_pid="$(cat "$tcpdump_pidfile")"
+      case "$supervisor_pid:$tcpdump_pid" in *[!0-9:]*) exit 73 ;; esac
+      [ "$supervisor_pid" -gt 1 ] && [ "$tcpdump_pid" -gt 1 ]
+      supervisor_start="$(proc_starttime "$proc_root/$supervisor_pid/stat")"
+      tcpdump_start="$(proc_starttime "$proc_root/$tcpdump_pid/stat")"
+      supervisor_uid="$(run_as_root /usr/bin/stat -Lc '%u' "$proc_root/$supervisor_pid")"
+      tcpdump_uid="$(run_as_root /usr/bin/stat -Lc '%u' "$proc_root/$tcpdump_pid")"
+      netns="$(run_as_root /usr/bin/stat -Lc '%d:%i' "$proc_root/$tcpdump_pid/ns/net")"
+      printf '%s\0' {{ student_hybrid_m11_c1_observer_intent.supervisor_argv | map('quote') | join(' ') }} | run_as_root cmp - "$proc_root/$supervisor_pid/cmdline"
+      printf '%s\0' {{ student_hybrid_m11_c1_observer_intent.argv | map('quote') | join(' ') }} | run_as_root cmp - "$proc_root/$tcpdump_pid/cmdline"
+      [ "$supervisor_start" -gt 0 ] && [ "$tcpdump_start" -gt 0 ]
+      [ "$supervisor_uid" -eq 0 ] && [ "$tcpdump_uid" -ge 0 ]
+      [ "$(run_as_root /usr/bin/stat -Lc '%d:%i' "$proc_root/$supervisor_pid/ns/net")" = "$netns" ]
+      [ -z "$target_netns" ] || [ "$netns" = "$target_netns" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$capture" | /usr/bin/cut -d'|' -f3-4)" = "$expected_capture_uid|600" ]
+      supervisor_file="$(stat -c '%d|%i|%u|%a' "$supervisor_pidfile")"
+      tcpdump_file="$(stat -c '%d|%i|%u|%a' "$tcpdump_pidfile")"
+      rc_file="$(stat -c '%d|%i|%u|%a' "$rcfile")"
+      boot_id="$(cat $proc_root/sys/kernel/random/boot_id)"
+      started_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      printf 'P010_C1_CAPTURE_RECORD=%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
+        "{{ student_hybrid_m11_c1_observer.key }}" "$supervisor_pid" "$supervisor_start" "$supervisor_uid" \
+        "$tcpdump_pid" "$tcpdump_start" "$tcpdump_uid" "$netns" "$ifindex" "$mac" \
+        "$(stat -c '%d' "$capture")" "$(stat -c '%i' "$capture")" "$(stat -c '%u' "$capture")" \
+        "$(stat -c '%a' "$capture")" "$boot_id" "$started_utc" "$(wc -c <"$capture" | tr -d ' ')" \
+        "$(printf '%s' "$supervisor_file" | cut -d'|' -f1)" "$(printf '%s' "$supervisor_file" | cut -d'|' -f2)" "$(printf '%s' "$supervisor_file" | cut -d'|' -f3)" "$(printf '%s' "$supervisor_file" | cut -d'|' -f4)" \
+        "$(printf '%s' "$tcpdump_file" | cut -d'|' -f1)" "$(printf '%s' "$tcpdump_file" | cut -d'|' -f2)" "$(printf '%s' "$tcpdump_file" | cut -d'|' -f3)" "$(printf '%s' "$tcpdump_file" | cut -d'|' -f4)" \
+        "$(printf '%s' "$rc_file" | cut -d'|' -f1)" "$(printf '%s' "$rc_file" | cut -d'|' -f2)" "$(printf '%s' "$rc_file" | cut -d'|' -f3)" "$(printf '%s' "$rc_file" | cut -d'|' -f4)" "$tcpdump_version" >&3
+  when: student_hybrid_m11_c1_capture_action | default('') == 'start'
+  no_log: true
+
+- name: Start one C1 capture inside the measured guest or network namespace
+  ansible.builtin.command:
+    argv: >-
+      {{ [student_hybrid_nsenter_bin | default('/usr/bin/nsenter'), '--net=' ~ student_hybrid_m11_c1_observer.netns_path, '--', '/bin/bash', '-se'] }}
+    stdin: "{{ student_hybrid_m11_c1_capture_start_script }}"
+    stdin_add_newline: false
+  become: true
+  register: student_hybrid_m11_c1_capture_start_result
+  changed_when: false
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'start'
+    - student_hybrid_m11_c1_observer.transport == 'netns'
+  no_log: true
+
+- name: Start one C1 capture through the measured pinned guest SSH identity
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: "{{ student_hybrid_m11_c1_observer.guest }}"
+    student_hybrid_ssh_remote_command: sh -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_c1_capture_start_script }}"
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'start'
+    - student_hybrid_m11_c1_observer.transport == 'guest'
+  no_log: true
+
+- name: Build a live identity check for one C1 observer
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_capture_check_script: |-
+      set -eu
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      capture={{ student_hybrid_m11_c1_observer.capture_path | quote }}
+      proc_root=/proc
+      interface={{ student_hybrid_m11_c1_observer.interface | quote }}
+      filter={{ student_hybrid_m11_c1_observer.filter | quote }}
+      pid={{ student_hybrid_m11_c1_observer.tcpdump_pid | int }}
+      pid_start={{ student_hybrid_m11_c1_observer.tcpdump_starttime | int }}
+      supervisor={{ student_hybrid_m11_c1_observer.supervisor_pid | int }}
+      supervisor_start={{ student_hybrid_m11_c1_observer.supervisor_starttime | int }}
+      key={{ student_hybrid_m11_c1_observer.key | quote }}
+      netns_path={{ student_hybrid_m11_c1_observer.netns_path | default('') | quote }}
+      expected_supervisor_uid={{ student_hybrid_m11_c1_observer.supervisor_uid | int }}
+      expected_netns={{ student_hybrid_m11_c1_observer.netns | quote }}
+      expected_ifindex={{ student_hybrid_m11_c1_observer.ifindex | int }}
+      expected_mac={{ student_hybrid_m11_c1_observer.mac | lower | quote }}
+      [ -f "$capture" ] && [ ! -L "$capture" ]
+      [ -s "$capture" ] && grep -Fq "listening on $interface, link-type EN10MB" "$capture"
+      [ "$(stat -c '%d|%i|%u|%a' "$capture")" = "{{ student_hybrid_m11_c1_observer.device }}|{{ student_hybrid_m11_c1_observer.inode }}|{{ student_hybrid_m11_c1_observer.file_uid }}|600" ]
+      if [ {{ student_hybrid_m11_c1_observer.transport | quote }} = guest ]; then
+        run_as_root() { sudo -n "$@"; }
+      else
+        run_as_root() { "$@"; }
+      fi
+      proc_starttime() {
+        line="$(run_as_root /usr/bin/cat "$1")" || return 1
+        case "$line" in *") "*) rest="$(printf '%s\n' "$line" | /usr/bin/sed 's/^.*) //')" ;; *) return 1 ;; esac
+        set -- $rest
+        [ "$#" -ge 20 ] || return 1
+        field=0
+        start=''
+        for value do
+          field=$((field + 1))
+          if [ "$field" -eq 20 ]; then start="$value"; break; fi
+        done
+        case "$start" in ''|*[!0-9]*) return 1 ;; esac
+        [ "$start" -gt 0 ] || return 1
+        printf '%s\n' "$start"
+      }
+      [ -r "$proc_root/$pid/stat" ] && [ -r "$proc_root/$supervisor/stat" ]
+      actual_start="$(proc_starttime "$proc_root/$pid/stat")"
+      actual_supervisor_start="$(proc_starttime "$proc_root/$supervisor/stat")"
+      [ "$actual_start" = "$pid_start" ] && [ "$actual_supervisor_start" = "$supervisor_start" ]
+      [ "$(run_as_root /usr/bin/stat -Lc '%u' "$proc_root/$pid")" = "{{ student_hybrid_m11_c1_observer.tcpdump_uid }}" ]
+      [ "$(run_as_root /usr/bin/stat -Lc '%u' "$proc_root/$supervisor")" = "$expected_supervisor_uid" ]
+      [ "$(run_as_root /usr/bin/stat -Lc '%d:%i' "$proc_root/$pid/ns/net")" = "$expected_netns" ]
+      [ "$(run_as_root /usr/bin/stat -Lc '%d:%i' "$proc_root/$supervisor/ns/net")" = "$expected_netns" ]
+      if [ {{ student_hybrid_m11_c1_observer.transport | quote }} = guest ] && [ -n "$netns_path" ]; then
+        live_link="$(run_as_root /usr/bin/nsenter --net="$netns_path" -- /usr/sbin/ip -o link show dev "$interface")" || exit 90
+      else
+        live_link="$(/usr/sbin/ip -o link show dev "$interface")" || exit 90
+      fi
+      live_ifindex="$(printf '%s\n' "$live_link" | /usr/bin/awk -F: '{print $1}')" || exit 90
+      live_mac="$(printf '%s\n' "$live_link" | /usr/bin/sed -n 's/.*link\/ether \([^ ]*\).*/\1/p' | tr '[:upper:]' '[:lower:]')" || exit 90
+      [ "$live_ifindex" = "$expected_ifindex" ] || exit 81
+      [ "$live_mac" = "$expected_mac" ] || exit 81
+      run_as_root /usr/bin/kill -0 "$pid"
+      run_as_root /usr/bin/kill -0 "$supervisor"
+      printf '%s\0' {{ student_hybrid_m11_c1_observer.argv | map('quote') | join(' ') }} | run_as_root cmp - "$proc_root/$pid/cmdline"
+      printf '%s\0' {{ student_hybrid_m11_c1_observer.supervisor_argv | map('quote') | join(' ') }} | run_as_root cmp - "$proc_root/$supervisor/cmdline"
+      [ -f "$capture.rc" ] && [ ! -L "$capture.rc" ] && [ ! -s "$capture.rc" ]
+      printf 'P010_C1_CAPTURE_CHECK=%s|live\n' "{{ student_hybrid_m11_c1_observer.key }}" >&3
+  when: student_hybrid_m11_c1_capture_action | default('') == 'check'
+  no_log: true
+
+- name: Check one C1 capture in its measured network namespace
+  ansible.builtin.command:
+    argv: >-
+      {{ [student_hybrid_nsenter_bin | default('/usr/bin/nsenter'), '--net=' ~ student_hybrid_m11_c1_observer.netns_path, '--', '/bin/sh', '-se'] }}
+    stdin: "{{ student_hybrid_m11_c1_capture_check_script }}"
+    stdin_add_newline: false
+  become: true
+  register: student_hybrid_m11_c1_capture_check_result
+  changed_when: false
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'check'
+    - student_hybrid_m11_c1_observer.transport == 'netns'
+  no_log: true
+
+- name: Check one C1 capture through its measured guest SSH identity
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: "{{ student_hybrid_m11_c1_observer.guest }}"
+    student_hybrid_ssh_remote_command: sh -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_c1_capture_check_script }}"
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'check'
+    - student_hybrid_m11_c1_observer.transport == 'guest'
+  no_log: true
+
+- name: Require the live observer marker after the readiness barrier
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_check_result.rc | int == 0
+      - student_hybrid_m11_c1_check_result.stdout_lines | select('equalto', 'P010_C1_CAPTURE_CHECK=' ~ student_hybrid_m11_c1_observer.key ~ '|live') | list | length == 1
+    fail_msg: "Um observador C1 encerrou ou trocou de identidade antes do primeiro probe."
+  vars:
+    student_hybrid_m11_c1_check_result: "{{ student_hybrid_ssh_result if student_hybrid_m11_c1_observer.transport == 'guest' else student_hybrid_m11_c1_capture_check_result }}"
+  when: student_hybrid_m11_c1_capture_action | default('') == 'check'
+  no_log: true
+
+- name: Parse the one measured C1 capture identity tuple
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_capture_start_output: "{{ student_hybrid_ssh_result if student_hybrid_m11_c1_observer.transport == 'guest' else student_hybrid_m11_c1_capture_start_result }}"
+  when: student_hybrid_m11_c1_capture_action | default('') == 'start'
+  no_log: true
+
+- name: Parse the one measured C1 capture identity tuple
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_capture_start_lines: >-
+      {{ (student_hybrid_ssh_result.stdout_lines if student_hybrid_m11_c1_observer.transport == 'guest' else student_hybrid_m11_c1_capture_start_result.stdout_lines)
+        | select('match', '^P010_C1_CAPTURE_RECORD=') | list }}
+    student_hybrid_m11_c1_capture_start_record: >-
+      {{ ((student_hybrid_ssh_result.stdout_lines if student_hybrid_m11_c1_observer.transport == 'guest' else student_hybrid_m11_c1_capture_start_result.stdout_lines)
+        | select('match', '^P010_C1_CAPTURE_RECORD=') | first | regex_replace('^P010_C1_CAPTURE_RECORD=', '')).split('|') }}
+  when: student_hybrid_m11_c1_capture_action | default('') == 'start'
+  no_log: true
+
+- name: Require the ready capture's two exact process identities and private file
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_capture_start_output.rc | int == 0
+      - student_hybrid_m11_c1_capture_start_lines | length == 1
+      - student_hybrid_m11_c1_capture_start_record | length == 30
+      - student_hybrid_m11_c1_capture_start_record[0] == student_hybrid_m11_c1_observer.key
+      - student_hybrid_m11_c1_capture_start_record[1] | int > 1
+      - student_hybrid_m11_c1_capture_start_record[2] | int > 0
+      - student_hybrid_m11_c1_capture_start_record[3] | int == 0
+      - student_hybrid_m11_c1_capture_start_record[4] | int > 1
+      - student_hybrid_m11_c1_capture_start_record[5] | int > 0
+      - student_hybrid_m11_c1_capture_start_record[6] | int >= 0
+      - student_hybrid_m11_c1_capture_start_record[7] is match('^[1-9][0-9]*:[1-9][0-9]*$')
+      - student_hybrid_m11_c1_capture_start_record[8] | int > 0
+      - student_hybrid_m11_c1_capture_start_record[9] is match('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
+      - student_hybrid_m11_c1_capture_start_record[10] | int > 0
+      - student_hybrid_m11_c1_capture_start_record[11] | int > 0
+      - student_hybrid_m11_c1_observer.transport == 'guest' or student_hybrid_m11_c1_capture_start_record[12] | int == student_uid | int
+      - student_hybrid_m11_c1_capture_start_record[13] == '600'
+      - student_hybrid_m11_c1_capture_start_record[14] is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_hybrid_m11_c1_capture_start_record[15] is match('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$')
+      - student_hybrid_m11_c1_capture_start_record[16] | int < 65536
+      - student_hybrid_m11_c1_capture_start_record[17] | int > 0
+      - student_hybrid_m11_c1_capture_start_record[18] | int > 0
+      - student_hybrid_m11_c1_capture_start_record[19] | int >= 0
+      - student_hybrid_m11_c1_capture_start_record[20] == '600'
+      - student_hybrid_m11_c1_capture_start_record[21] | int > 0
+      - student_hybrid_m11_c1_capture_start_record[22] | int > 0
+      - student_hybrid_m11_c1_capture_start_record[23] | int >= 0
+      - student_hybrid_m11_c1_capture_start_record[24] == '600'
+      - student_hybrid_m11_c1_capture_start_record[25] | int > 0
+      - student_hybrid_m11_c1_capture_start_record[26] | int > 0
+      - student_hybrid_m11_c1_capture_start_record[27] | int >= 0
+      - student_hybrid_m11_c1_capture_start_record[28] == '600'
+      - student_hybrid_m11_c1_capture_start_record[29] is match('^tcpdump version [0-9][A-Za-z0-9 .+_-]{0,63}$')
+    fail_msg: "O observador C1 não passou a prontidão com processos e arquivo identificáveis."
+  when: student_hybrid_m11_c1_capture_action | default('') == 'start'
+  no_log: true
+
+- name: Replace the observer intent with its measured capture process identities
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_observer_record: >-
+      {{ student_hybrid_m11_c1_observer_intent | combine({
+        'phase': 'capturing', 'supervisor_pid': student_hybrid_m11_c1_capture_start_record[1] | int,
+        'supervisor_starttime': student_hybrid_m11_c1_capture_start_record[2] | int,
+        'supervisor_uid': student_hybrid_m11_c1_capture_start_record[3] | int,
+        'tcpdump_pid': student_hybrid_m11_c1_capture_start_record[4] | int,
+        'tcpdump_starttime': student_hybrid_m11_c1_capture_start_record[5] | int,
+        'tcpdump_uid': student_hybrid_m11_c1_capture_start_record[6] | int,
+        'netns': student_hybrid_m11_c1_capture_start_record[7],
+        'ifindex': student_hybrid_m11_c1_capture_start_record[8] | int,
+        'mac': student_hybrid_m11_c1_capture_start_record[9] | lower,
+        'device': student_hybrid_m11_c1_capture_start_record[10] | int,
+        'inode': student_hybrid_m11_c1_capture_start_record[11] | int,
+        'file_uid': student_hybrid_m11_c1_capture_start_record[12] | int,
+        'mode': student_hybrid_m11_c1_capture_start_record[13],
+        'boot_id': student_hybrid_m11_c1_capture_start_record[14],
+        'started_utc': student_hybrid_m11_c1_capture_start_record[15],
+        'start_bytes': student_hybrid_m11_c1_capture_start_record[16] | int,
+        'supervisor_file_device': student_hybrid_m11_c1_capture_start_record[17] | int,
+        'supervisor_file_inode': student_hybrid_m11_c1_capture_start_record[18] | int,
+        'supervisor_file_uid': student_hybrid_m11_c1_capture_start_record[19] | int,
+        'supervisor_file_mode': student_hybrid_m11_c1_capture_start_record[20],
+        'tcpdump_file_device': student_hybrid_m11_c1_capture_start_record[21] | int,
+        'tcpdump_file_inode': student_hybrid_m11_c1_capture_start_record[22] | int,
+        'tcpdump_file_uid': student_hybrid_m11_c1_capture_start_record[23] | int,
+        'tcpdump_file_mode': student_hybrid_m11_c1_capture_start_record[24],
+        'rc_file_device': student_hybrid_m11_c1_capture_start_record[25] | int,
+        'rc_file_inode': student_hybrid_m11_c1_capture_start_record[26] | int,
+        'rc_file_uid': student_hybrid_m11_c1_capture_start_record[27] | int,
+        'rc_file_mode': student_hybrid_m11_c1_capture_start_record[28],
+        'child_rc': -1,
+        'supervisor_rc': -1,
+        'transport_rc': -1,
+        'start_transport_rc': student_hybrid_m11_c1_capture_start_output.rc | int,
+        'tcpdump_version': student_hybrid_m11_c1_capture_start_record[29]
+      }, recursive=false) }}
+  when: student_hybrid_m11_c1_capture_action | default('') == 'start'
+  no_log: true
+
+- name: Persist and reload the measured C1 process identities before the next observer
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      status: partial
+      phase: hybrid-c1-observer-capturing
+      hybrid:
+        phase: partial
+        m11:
+          verification:
+            phase: collecting
+            gates:
+              c1_capture_active:
+                schema: 1
+                check_id: "{{ student_state.hybrid.m11.verification.gates.positive.c1.check_id }}"
+                phase: capturing
+                observers: >-
+                  {{ (student_state.hybrid.m11.verification.gates.c1_capture_active.observers
+                     | rejectattr('key', 'equalto', student_hybrid_m11_c1_observer.key) | list) + [student_hybrid_m11_c1_observer_record] }}
+  when: student_hybrid_m11_c1_capture_action | default('') == 'start'
+  no_log: true
+
+- name: Reload the exact measured C1 capture checkpoint
+  ansible.builtin.set_fact:
+    student_state: "{{ lookup('file', student_state_file) | from_json }}"
+  when: student_hybrid_m11_c1_capture_action | default('') == 'start'
+  no_log: true
+
+- name: Build the identity-bound C1 observer stop and stream script
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_capture_stop_script: |-
+      set -eu
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      capture={{ student_hybrid_m11_c1_observer.capture_path | quote }}
+      proc_root=/proc
+      supervisor_file="$capture.supervisor"
+      tcpdump_file="$capture.tcpdump"
+      rcfile="$capture.rc"
+      tcpdump_pid={{ student_hybrid_m11_c1_observer.tcpdump_pid | int }}
+      tcpdump_start={{ student_hybrid_m11_c1_observer.tcpdump_starttime | int }}
+      tcpdump_uid={{ student_hybrid_m11_c1_observer.tcpdump_uid | int }}
+      supervisor_pid={{ student_hybrid_m11_c1_observer.supervisor_pid | int }}
+      supervisor_start={{ student_hybrid_m11_c1_observer.supervisor_starttime | int }}
+      expected_netns={{ student_hybrid_m11_c1_observer.netns | quote }}
+      expected_boot={{ student_hybrid_m11_c1_observer.boot_id | quote }}
+      interface={{ student_hybrid_m11_c1_observer.interface | quote }}
+      key={{ student_hybrid_m11_c1_observer.key | quote }}
+      filter={{ student_hybrid_m11_c1_observer.filter | quote }}
+      if [ {{ student_hybrid_m11_c1_observer.transport | quote }} = guest ]; then
+        run_as_root() { sudo -n "$@"; }
+      else
+        run_as_root() { "$@"; }
+      fi
+      [ -d "$proc_root" ]
+      proc_starttime() {
+        line="$(run_as_root /usr/bin/cat "$1")" || return 1
+        case "$line" in *") "*) rest="$(printf '%s\n' "$line" | /usr/bin/sed 's/^.*) //')" ;; *) return 1 ;; esac
+        set -- $rest
+        [ "$#" -ge 20 ] || return 1
+        field=0
+        start=''
+        for value do
+          field=$((field + 1))
+          if [ "$field" -eq 20 ]; then start="$value"; break; fi
+        done
+        case "$start" in ''|*[!0-9]*) return 1 ;; esac
+        [ "$start" -gt 0 ] || return 1
+        printf '%s\n' "$start"
+      }
+      [ -f "$capture" ] && [ ! -L "$capture" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$capture")" = "{{ student_hybrid_m11_c1_observer.device }}|{{ student_hybrid_m11_c1_observer.inode }}|{{ student_hybrid_m11_c1_observer.file_uid }}|600" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$supervisor_file")" = "{{ student_hybrid_m11_c1_observer.supervisor_file_device }}|{{ student_hybrid_m11_c1_observer.supervisor_file_inode }}|{{ student_hybrid_m11_c1_observer.supervisor_file_uid }}|{{ student_hybrid_m11_c1_observer.supervisor_file_mode }}" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$tcpdump_file")" = "{{ student_hybrid_m11_c1_observer.tcpdump_file_device }}|{{ student_hybrid_m11_c1_observer.tcpdump_file_inode }}|{{ student_hybrid_m11_c1_observer.tcpdump_file_uid }}|{{ student_hybrid_m11_c1_observer.tcpdump_file_mode }}" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$rcfile")" = "{{ student_hybrid_m11_c1_observer.rc_file_device }}|{{ student_hybrid_m11_c1_observer.rc_file_inode }}|{{ student_hybrid_m11_c1_observer.rc_file_uid }}|{{ student_hybrid_m11_c1_observer.rc_file_mode }}" ]
+      [ ! -L "$supervisor_file" ] && [ ! -L "$tcpdump_file" ] && [ ! -L "$rcfile" ]
+      [ "$(cat "$supervisor_file")" = "$supervisor_pid" ]
+      [ "$(cat "$tcpdump_file")" = "$tcpdump_pid" ]
+      [ ! -s "$rcfile" ]
+      [ "$(cat $proc_root/sys/kernel/random/boot_id)" = "$expected_boot" ]
+      run_as_root /usr/bin/test -r $proc_root/1/stat
+      process_present() {
+        proc_pid="$1"
+        if run_as_root /usr/bin/test -d "$proc_root/$proc_pid"; then
+          run_as_root /usr/bin/test -r "$proc_root/$proc_pid/stat" || exit 90
+          return 0
+        fi
+        run_as_root /usr/bin/test -r $proc_root/1/stat || exit 90
+        if run_as_root /usr/bin/test -e "$proc_root/$proc_pid"; then exit 90; fi
+        return 1
+      }
+      inspect_process() {
+        proc_pid="$1"
+        expected_start="$2"
+        expected_uid="$3"
+        if process_present "$proc_pid"; then
+          actual_start="$(proc_starttime "$proc_root/$proc_pid/stat")" || return 90
+          [ "$actual_start" = "$expected_start" ] || return 81
+          actual_uid="$(run_as_root /usr/bin/stat -Lc '%u' "$proc_root/$proc_pid")" || return 90
+          [ "$actual_uid" = "$expected_uid" ] || return 81
+          actual_netns="$(run_as_root /usr/bin/stat -Lc '%d:%i' "$proc_root/$proc_pid/ns/net")" || return 90
+          [ "$actual_netns" = "$expected_netns" ] || return 81
+          if [ "$proc_pid" = "$tcpdump_pid" ]; then
+            printf '%s\0' {{ student_hybrid_m11_c1_observer.argv | map('quote') | join(' ') }} | run_as_root cmp - "$proc_root/$proc_pid/cmdline" || return 81
+          elif [ "$proc_pid" = "$supervisor_pid" ]; then
+            printf '%s\0' {{ student_hybrid_m11_c1_observer.supervisor_argv | map('quote') | join(' ') }} | run_as_root cmp - "$proc_root/$proc_pid/cmdline" || return 81
+          else
+            exit 81
+          fi
+          return 0
+        fi
+        return 1
+      }
+      if process_present "$supervisor_pid"; then
+        inspect_process "$supervisor_pid" "$supervisor_start" "{{ student_hybrid_m11_c1_observer.supervisor_uid }}" || exit $?
+      elif [ ! -s "$rcfile" ]; then
+        exit 90
+      fi
+      if inspect_process "$tcpdump_pid" "$tcpdump_start" "$tcpdump_uid"; then
+        run_as_root /usr/bin/kill -INT "$tcpdump_pid" || exit 90
+      else
+        inspect_rc="$?"
+        [ "$inspect_rc" -eq 1 ] || exit "$inspect_rc"
+      fi
+      for _ in $(seq 1 100); do
+        if process_present "$tcpdump_pid"; then
+          current_start="$(proc_starttime "$proc_root/$tcpdump_pid/stat")"
+          [ "$current_start" = "$tcpdump_start" ] || exit 82
+          sleep 0.1
+        else
+          break
+        fi
+      done
+      if process_present "$tcpdump_pid"; then exit 83; fi
+      for _ in $(seq 1 100); do
+        [ -s "$rcfile" ] && break
+        if process_present "$supervisor_pid"; then
+          current_start="$(proc_starttime "$proc_root/$supervisor_pid/stat")"
+          [ "$current_start" = "$supervisor_start" ] || exit 84
+        fi
+        sleep 0.1
+      done
+      [ -s "$rcfile" ]
+      rc_record="$(cat "$rcfile")"
+      case "$rc_record" in *'|'*) ;; *) exit 85 ;; esac
+      child_rc="${rc_record%%|*}"
+      supervisor_rc="${rc_record#*|}"
+      case "$child_rc:$supervisor_rc" in 0:0|0:130|130:0|130:130) ;; *) exit 85 ;; esac
+      if process_present "$supervisor_pid"; then
+        current_start="$(proc_starttime "$proc_root/$supervisor_pid/stat")"
+        [ "$current_start" != "$supervisor_start" ] || exit 86
+        exit 87
+      fi
+      capture_bytes="$(wc -c <"$capture" | tr -d ' ')"
+      case "$capture_bytes" in ''|*[!0-9]*) exit 88 ;; esac
+      [ "$capture_bytes" -gt 0 ] && [ "$capture_bytes" -le 65536 ]
+      capture_sha="$(sha256sum "$capture" | /usr/bin/awk '{print $1}')"
+      case "$capture_sha" in *[!0-9a-f]*|'') exit 89 ;; esac
+      capture_sha_length="$(printf '%s' "$capture_sha" | wc -c | tr -d ' ')"
+      [ "$capture_sha_length" -eq 64 ]
+      printf 'P010_C1_CAPTURE_RESULT=%s|%s|%s|%s|%s\n' "$key" "$child_rc" "$supervisor_rc" "$capture_bytes" "$capture_sha" >&3
+      printf 'P010_C1_CAPTURE_BEGIN=%s\n' "$key" >&3
+      cat "$capture" >&3
+      printf 'P010_C1_CAPTURE_END=%s\n' "$key" >&3
+  when: student_hybrid_m11_c1_capture_action | default('') == 'stop'
+  no_log: true
+
+- name: Build a bounded C1 snapshot while the saved listener identities remain live
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_capture_snapshot_script: |-
+      set -eu
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      capture={{ student_hybrid_m11_c1_observer.capture_path | quote }}
+      proc_root=/proc
+      interface={{ student_hybrid_m11_c1_observer.interface | quote }}
+      pid={{ student_hybrid_m11_c1_observer.tcpdump_pid | int }}
+      supervisor={{ student_hybrid_m11_c1_observer.supervisor_pid | int }}
+      expected_netns={{ student_hybrid_m11_c1_observer.netns | quote }}
+      key={{ student_hybrid_m11_c1_observer.key | quote }}
+      filter={{ student_hybrid_m11_c1_observer.filter | quote }}
+      if [ {{ student_hybrid_m11_c1_observer.transport | quote }} = guest ]; then
+        run_as_root() { sudo -n "$@"; }
+      else
+        run_as_root() { "$@"; }
+      fi
+      proc_starttime() {
+        line="$(run_as_root /usr/bin/cat "$1")" || return 1
+        case "$line" in *") "*) rest="$(printf '%s\n' "$line" | /usr/bin/sed 's/^.*) //')" ;; *) return 1 ;; esac
+        set -- $rest
+        [ "$#" -ge 20 ] || return 1
+        field=0
+        start=''
+        for value do
+          field=$((field + 1))
+          if [ "$field" -eq 20 ]; then start="$value"; break; fi
+        done
+        case "$start" in ''|*[!0-9]*) return 1 ;; esac
+        [ "$start" -gt 0 ] || return 1
+        printf '%s\n' "$start"
+      }
+      [ -f "$capture" ] && [ ! -L "$capture" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$capture")" = "{{ student_hybrid_m11_c1_observer.device }}|{{ student_hybrid_m11_c1_observer.inode }}|{{ student_hybrid_m11_c1_observer.file_uid }}|600" ]
+      [ "$(proc_starttime "$proc_root/$pid/stat")" = "{{ student_hybrid_m11_c1_observer.tcpdump_starttime }}" ]
+      [ "$(proc_starttime "$proc_root/$supervisor/stat")" = "{{ student_hybrid_m11_c1_observer.supervisor_starttime }}" ]
+      [ "$(run_as_root /usr/bin/stat -Lc '%u' "$proc_root/$pid")" = "{{ student_hybrid_m11_c1_observer.tcpdump_uid }}" ]
+      [ "$(run_as_root /usr/bin/stat -Lc '%u' "$proc_root/$supervisor")" = "{{ student_hybrid_m11_c1_observer.supervisor_uid }}" ]
+      [ "$(run_as_root /usr/bin/stat -Lc '%d:%i' "$proc_root/$pid/ns/net")" = "$expected_netns" ]
+      [ "$(run_as_root /usr/bin/stat -Lc '%d:%i' "$proc_root/$supervisor/ns/net")" = "$expected_netns" ]
+      printf '%s\0' {{ student_hybrid_m11_c1_observer.argv | map('quote') | join(' ') }} | run_as_root cmp - "$proc_root/$pid/cmdline"
+      printf '%s\0' {{ student_hybrid_m11_c1_observer.supervisor_argv | map('quote') | join(' ') }} | run_as_root cmp - "$proc_root/$supervisor/cmdline"
+      run_as_root /usr/bin/kill -0 "$pid"
+      run_as_root /usr/bin/kill -0 "$supervisor"
+      bytes="$(wc -c <"$capture" | tr -d ' ')"
+      case "$bytes" in ''|*[!0-9]*) exit 91 ;; esac
+      [ "$bytes" -gt 0 ] && [ "$bytes" -le 65536 ]
+      digest="$(sha256sum "$capture" | /usr/bin/awk '{print $1}')"
+      case "$digest" in *[!0-9a-f]*|'') exit 92 ;; esac
+      digest_length="$(printf '%s' "$digest" | wc -c | tr -d ' ')"
+      [ "$digest_length" -eq 64 ]
+      printf 'P010_C1_CAPTURE_SNAPSHOT=%s|%s|%s\n' "$key" "$bytes" "$digest" >&3
+      printf 'P010_C1_CAPTURE_SNAPSHOT_BEGIN=%s\n' "$key" >&3
+      cat "$capture" >&3
+      printf 'P010_C1_CAPTURE_SNAPSHOT_END=%s\n' "$key" >&3
+      [ "$(proc_starttime "$proc_root/$pid/stat")" = "{{ student_hybrid_m11_c1_observer.tcpdump_starttime }}" ]
+      [ "$(proc_starttime "$proc_root/$supervisor/stat")" = "{{ student_hybrid_m11_c1_observer.supervisor_starttime }}" ]
+      run_as_root /usr/bin/kill -0 "$pid"
+      run_as_root /usr/bin/kill -0 "$supervisor"
+      [ "$(stat -c '%d|%i|%u|%a' "$capture")" = "{{ student_hybrid_m11_c1_observer.device }}|{{ student_hybrid_m11_c1_observer.inode }}|{{ student_hybrid_m11_c1_observer.file_uid }}|600" ]
+  when: student_hybrid_m11_c1_capture_action | default('') == 'snapshot'
+  no_log: true
+
+- name: Read one bounded C1 live snapshot from its measured network namespace
+  ansible.builtin.command:
+    argv: >-
+      {{ [student_hybrid_nsenter_bin | default('/usr/bin/nsenter'), '--net=' ~ student_hybrid_m11_c1_observer.netns_path, '--', '/bin/sh', '-se'] }}
+    stdin: "{{ student_hybrid_m11_c1_capture_snapshot_script }}"
+    stdin_add_newline: false
+  become: true
+  register: student_hybrid_m11_c1_capture_snapshot_result
+  changed_when: false
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'snapshot'
+    - student_hybrid_m11_c1_observer.transport == 'netns'
+  no_log: true
+
+- name: Read one bounded C1 live snapshot through its pinned guest SSH identity
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: "{{ student_hybrid_m11_c1_observer.guest }}"
+    student_hybrid_ssh_remote_command: sh -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_c1_capture_snapshot_script }}"
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'snapshot'
+    - student_hybrid_m11_c1_observer.transport == 'guest'
+  no_log: true
+
+- name: Select and bind the bounded live snapshot to its measured digest
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_snapshot_output: "{{ student_hybrid_ssh_result if student_hybrid_m11_c1_observer.transport == 'guest' else student_hybrid_m11_c1_capture_snapshot_result }}"
+    student_hybrid_m11_c1_snapshot_lines: "{{ (student_hybrid_ssh_result.stdout_lines if student_hybrid_m11_c1_observer.transport == 'guest' else student_hybrid_m11_c1_capture_snapshot_result.stdout_lines) | select('match', '^P010_C1_CAPTURE_SNAPSHOT=') | list }}"
+    student_hybrid_m11_c1_snapshot_record: "{{ (((student_hybrid_ssh_result.stdout_lines if student_hybrid_m11_c1_observer.transport == 'guest' else student_hybrid_m11_c1_capture_snapshot_result.stdout_lines) | select('match', '^P010_C1_CAPTURE_SNAPSHOT=') | first | regex_replace('^P010_C1_CAPTURE_SNAPSHOT=', '')).split('|')) }}"
+    student_hybrid_m11_c1_snapshot_begin: "P010_C1_CAPTURE_SNAPSHOT_BEGIN={{ student_hybrid_m11_c1_observer.key }}"
+    student_hybrid_m11_c1_snapshot_end: "P010_C1_CAPTURE_SNAPSHOT_END={{ student_hybrid_m11_c1_observer.key }}"
+  when: student_hybrid_m11_c1_capture_action | default('') == 'snapshot'
+  no_log: true
+
+- name: Require one exact live snapshot and preserve it only in transient memory
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_snapshot_output.rc | int == 0
+      - student_hybrid_m11_c1_snapshot_lines | length == 1
+      - student_hybrid_m11_c1_snapshot_record | length == 3
+      - student_hybrid_m11_c1_snapshot_record[0] == student_hybrid_m11_c1_observer.key
+      - student_hybrid_m11_c1_snapshot_record[1] | int > 0
+      - student_hybrid_m11_c1_snapshot_record[1] | int <= 65536
+      - student_hybrid_m11_c1_snapshot_record[2] is match('^[0-9a-f]{64}$')
+      - student_hybrid_m11_c1_snapshot_begin in student_hybrid_m11_c1_snapshot_output.stdout_lines
+      - student_hybrid_m11_c1_snapshot_end in student_hybrid_m11_c1_snapshot_output.stdout_lines
+      - student_hybrid_m11_c1_snapshot_output.stdout.split(student_hybrid_m11_c1_snapshot_begin, 1) | length == 2
+      - student_hybrid_m11_c1_snapshot_output.stdout.split(student_hybrid_m11_c1_snapshot_end, 1) | length == 2
+    fail_msg: "O snapshot C1 excedeu o limite ou perdeu a identidade/digest do listener vivo."
+  when: student_hybrid_m11_c1_capture_action | default('') == 'snapshot'
+  no_log: true
+
+- name: Retain the exact snapshot text and identity only in memory
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_capture_snapshots: >-
+      {{ (student_hybrid_m11_c1_capture_snapshots | default([])) + [{
+        'key': student_hybrid_m11_c1_observer.key,
+        'role': student_hybrid_m11_c1_observer.role,
+        'interface': student_hybrid_m11_c1_observer.interface,
+        'observer': student_hybrid_m11_c1_observer,
+        'bytes': student_hybrid_m11_c1_snapshot_record[1] | int,
+        'sha256': student_hybrid_m11_c1_snapshot_record[2],
+        'text': (((student_hybrid_m11_c1_snapshot_output.stdout.split(student_hybrid_m11_c1_snapshot_begin, 1) | last).lstrip()).split(student_hybrid_m11_c1_snapshot_end, 1) | first)
+      }] }}
+  when: student_hybrid_m11_c1_capture_action | default('') == 'snapshot'
+  no_log: true
+
+- name: Stop and collect a C1 observer in its measured network namespace
+  ansible.builtin.command:
+    argv: >-
+      {{ [student_hybrid_nsenter_bin | default('/usr/bin/nsenter'), '--net=' ~ student_hybrid_m11_c1_observer.netns_path, '--', '/bin/sh', '-se'] }}
+    stdin: "{{ student_hybrid_m11_c1_capture_stop_script }}"
+    stdin_add_newline: false
+  become: true
+  register: student_hybrid_m11_c1_capture_stop_result
+  changed_when: false
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'stop'
+    - student_hybrid_m11_c1_observer.transport == 'netns'
+  no_log: true
+
+- name: Stop and collect a C1 observer through its pinned guest SSH identity
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: "{{ student_hybrid_m11_c1_observer.guest }}"
+    student_hybrid_ssh_remote_command: sh -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_c1_capture_stop_script }}"
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'stop'
+    - student_hybrid_m11_c1_observer.transport == 'guest'
+  no_log: true
+
+- name: Select this observer's bounded stop output
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_stop_output: "{{ student_hybrid_ssh_result if student_hybrid_m11_c1_observer.transport == 'guest' else student_hybrid_m11_c1_capture_stop_result }}"
+  when: student_hybrid_m11_c1_capture_action | default('') == 'stop'
+  no_log: true
+
+- name: Parse the stop status and delimited header-only stream in memory
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_stop_result_lines: "{{ student_hybrid_m11_c1_stop_output.stdout_lines | select('match', '^P010_C1_CAPTURE_RESULT=') | list }}"
+    student_hybrid_m11_c1_stop_result_record: "{{ ((student_hybrid_m11_c1_stop_output.stdout_lines | select('match', '^P010_C1_CAPTURE_RESULT=') | first | regex_replace('^P010_C1_CAPTURE_RESULT=', '')).split('|')) }}"
+    student_hybrid_m11_c1_stop_begin_lines: "{{ student_hybrid_m11_c1_stop_output.stdout_lines | select('equalto', 'P010_C1_CAPTURE_BEGIN=' ~ student_hybrid_m11_c1_observer.key) | list }}"
+    student_hybrid_m11_c1_stop_end_lines: "{{ student_hybrid_m11_c1_stop_output.stdout_lines | select('equalto', 'P010_C1_CAPTURE_END=' ~ student_hybrid_m11_c1_observer.key) | list }}"
+    student_hybrid_m11_c1_stop_begin_index: "{{ student_hybrid_m11_c1_stop_output.stdout_lines.index('P010_C1_CAPTURE_BEGIN=' ~ student_hybrid_m11_c1_observer.key) }}"
+    student_hybrid_m11_c1_stop_end_index: "{{ student_hybrid_m11_c1_stop_output.stdout_lines.index('P010_C1_CAPTURE_END=' ~ student_hybrid_m11_c1_observer.key) }}"
+  when: student_hybrid_m11_c1_capture_action | default('') == 'stop'
+  no_log: true
+
+- name: Require one bounded stop result and a complete delimited capture stream
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_stop_output.rc | int == 0
+      - student_hybrid_m11_c1_stop_result_lines | length == 1
+      - student_hybrid_m11_c1_stop_result_record | length == 5
+      - student_hybrid_m11_c1_stop_result_record[0] == student_hybrid_m11_c1_observer.key
+      - student_hybrid_m11_c1_stop_result_record[1] | int in [0, 130]
+      - student_hybrid_m11_c1_stop_result_record[2] | int in [0, 130]
+      - student_hybrid_m11_c1_stop_result_record[3] | int > 0
+      - student_hybrid_m11_c1_stop_result_record[3] | int <= 65536
+      - student_hybrid_m11_c1_stop_result_record[4] is match('^[0-9a-f]{64}$')
+      - student_hybrid_m11_c1_stop_begin_lines | length == 1
+      - student_hybrid_m11_c1_stop_end_lines | length == 1
+      - student_hybrid_m11_c1_stop_end_index > student_hybrid_m11_c1_stop_begin_index
+    fail_msg: "A captura C1 está incompleta, fora do limite ou terminou com erro; o estado permanece parcial."
+  when: student_hybrid_m11_c1_capture_action | default('') == 'stop'
+  no_log: true
+
+- name: Retain one raw stream only in transient memory for packet parsing
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_capture_streams: >-
+      {{ (student_hybrid_m11_c1_capture_streams | default([])) + [{
+        'key': student_hybrid_m11_c1_observer.key,
+        'role': student_hybrid_m11_c1_observer.role,
+        'transport': student_hybrid_m11_c1_observer.transport,
+        'guest': student_hybrid_m11_c1_observer.guest | default(''),
+        'interface': student_hybrid_m11_c1_observer.interface,
+        'observer': student_hybrid_m11_c1_observer,
+        'child_rc': student_hybrid_m11_c1_stop_result_record[1] | int,
+        'supervisor_rc': student_hybrid_m11_c1_stop_result_record[2] | int,
+        'transport_rc': student_hybrid_m11_c1_stop_output.rc | int,
+        'bytes': student_hybrid_m11_c1_stop_result_record[3] | int,
+        'sha256': student_hybrid_m11_c1_stop_result_record[4],
+        'text': (((student_hybrid_m11_c1_stop_output.stdout.split('P010_C1_CAPTURE_BEGIN=' ~ student_hybrid_m11_c1_observer.key, 1) | last).lstrip()).split('P010_C1_CAPTURE_END=' ~ student_hybrid_m11_c1_observer.key, 1) | first)
+      }] }}
+  when: student_hybrid_m11_c1_capture_action | default('') == 'stop'
+  no_log: true
+
+- name: Replace one observer with its stopped but still identity-bound result
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_observer_stopped: "{{ student_hybrid_m11_c1_observer | combine({'phase': 'stopped', 'child_rc': student_hybrid_m11_c1_stop_result_record[1] | int, 'supervisor_rc': student_hybrid_m11_c1_stop_result_record[2] | int, 'transport_rc': student_hybrid_m11_c1_stop_output.rc | int, 'stream_bytes': student_hybrid_m11_c1_stop_result_record[3] | int, 'stream_sha256': student_hybrid_m11_c1_stop_result_record[4]}, recursive=false) }}"
+  when: student_hybrid_m11_c1_capture_action | default('') == 'stop'
+  no_log: true
+
+- name: Persist the stopped observer identity without saving packet text
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      status: partial
+      phase: hybrid-c1-observer-stopped
+      hybrid:
+        phase: partial
+        m11:
+          verification:
+            phase: collecting
+            gates:
+              c1_capture_active:
+                schema: 1
+                check_id: "{{ student_state.hybrid.m11.verification.gates.c1_capture_active.check_id }}"
+                phase: stopping
+                observers: >-
+                  {{ (student_state.hybrid.m11.verification.gates.c1_capture_active.observers
+                     | rejectattr('key', 'equalto', student_hybrid_m11_c1_observer.key) | list) + [student_hybrid_m11_c1_observer_stopped] }}
+  when: student_hybrid_m11_c1_capture_action | default('') == 'stop'
+  no_log: true
+
+- name: Reload the exact stopped observer checkpoint before parsing
+  ansible.builtin.set_fact:
+    student_state: "{{ lookup('file', student_state_file) | from_json }}"
+  when: student_hybrid_m11_c1_capture_action | default('') == 'stop'
+  no_log: true
+
+- name: Build the exact-file cleanup script for one stopped C1 observer
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_capture_cleanup_script: |-
+      set -eu
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      capture={{ student_hybrid_m11_c1_observer.capture_path | quote }}
+      proc_root=/proc
+      supervisor_file="$capture.supervisor"
+      tcpdump_file="$capture.tcpdump"
+      rcfile="$capture.rc"
+      tcpdump_pid={{ student_hybrid_m11_c1_observer.tcpdump_pid | int }}
+      supervisor_pid={{ student_hybrid_m11_c1_observer.supervisor_pid | int }}
+      if [ {{ student_hybrid_m11_c1_observer.transport | quote }} = guest ]; then
+        run_as_root() { sudo -n "$@"; }
+      else
+        run_as_root() { "$@"; }
+      fi
+      [ -d "$proc_root" ]
+      run_as_root /usr/bin/test -r $proc_root/1/stat
+      process_present() {
+        proc_pid="$1"
+        if run_as_root /usr/bin/test -e "$proc_root/$proc_pid/stat"; then
+          return 0
+        fi
+        run_as_root /usr/bin/test -r $proc_root/1/stat || exit 90
+        return 1
+      }
+      if process_present "$tcpdump_pid"; then exit 91; fi
+      if process_present "$supervisor_pid"; then exit 92; fi
+      [ -f "$capture" ] && [ ! -L "$capture" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$capture")" = "{{ student_hybrid_m11_c1_observer.device }}|{{ student_hybrid_m11_c1_observer.inode }}|{{ student_hybrid_m11_c1_observer.file_uid }}|600" ]
+      [ -f "$supervisor_file" ] && [ ! -L "$supervisor_file" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$supervisor_file")" = "{{ student_hybrid_m11_c1_observer.supervisor_file_device }}|{{ student_hybrid_m11_c1_observer.supervisor_file_inode }}|{{ student_hybrid_m11_c1_observer.supervisor_file_uid }}|{{ student_hybrid_m11_c1_observer.supervisor_file_mode }}" ]
+      [ "$(cat "$supervisor_file")" = "$supervisor_pid" ]
+      [ -f "$tcpdump_file" ] && [ ! -L "$tcpdump_file" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$tcpdump_file")" = "{{ student_hybrid_m11_c1_observer.tcpdump_file_device }}|{{ student_hybrid_m11_c1_observer.tcpdump_file_inode }}|{{ student_hybrid_m11_c1_observer.tcpdump_file_uid }}|{{ student_hybrid_m11_c1_observer.tcpdump_file_mode }}" ]
+      [ "$(cat "$tcpdump_file")" = "$tcpdump_pid" ]
+      [ -f "$rcfile" ] && [ ! -L "$rcfile" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$rcfile")" = "{{ student_hybrid_m11_c1_observer.rc_file_device }}|{{ student_hybrid_m11_c1_observer.rc_file_inode }}|{{ student_hybrid_m11_c1_observer.rc_file_uid }}|{{ student_hybrid_m11_c1_observer.rc_file_mode }}" ]
+      [ "$(cat "$rcfile")" = "{{ student_hybrid_m11_c1_observer.child_rc }}|{{ student_hybrid_m11_c1_observer.supervisor_rc }}" ]
+      rm -- "$capture" "$supervisor_file" "$tcpdump_file" "$rcfile"
+      printf 'P010_C1_CAPTURE_REMOVED=%s\n' {{ student_hybrid_m11_c1_observer.key | quote }} >&3
+  when: student_hybrid_m11_c1_capture_action | default('') == 'cleanup'
+  no_log: true
+
+- name: Remove stopped C1 files in their measured network namespace
+  ansible.builtin.command:
+    argv: >-
+      {{ [student_hybrid_nsenter_bin | default('/usr/bin/nsenter'), '--net=' ~ student_hybrid_m11_c1_observer.netns_path, '--', '/bin/sh', '-se'] }}
+    stdin: "{{ student_hybrid_m11_c1_capture_cleanup_script }}"
+    stdin_add_newline: false
+  become: true
+  register: student_hybrid_m11_c1_capture_cleanup_result
+  changed_when: false
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'cleanup'
+    - student_hybrid_m11_c1_observer.transport == 'netns'
+    - student_hybrid_m11_c1_observer.phase == 'stopped'
+  no_log: true
+
+- name: Remove stopped C1 files through their pinned guest SSH identity
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: "{{ student_hybrid_m11_c1_observer.guest }}"
+    student_hybrid_ssh_remote_command: sh -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_c1_capture_cleanup_script }}"
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'cleanup'
+    - student_hybrid_m11_c1_observer.transport == 'guest'
+    - student_hybrid_m11_c1_observer.phase == 'stopped'
+  no_log: true
+
+- name: Select the C1 cleanup output for its observer
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_cleanup_output: "{{ student_hybrid_ssh_result if student_hybrid_m11_c1_observer.transport == 'guest' else student_hybrid_m11_c1_capture_cleanup_result }}"
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'cleanup'
+    - student_hybrid_m11_c1_observer.phase == 'stopped'
+  no_log: true
+
+- name: Require exact removal marker before checkpointing the observer absent
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_cleanup_output.rc | int == 0
+      - student_hybrid_m11_c1_cleanup_output.stdout_lines | select('equalto', 'P010_C1_CAPTURE_REMOVED=' ~ student_hybrid_m11_c1_observer.key) | list | length == 1
+    fail_msg: "O cleanup C1 não comprovou a remoção dos arquivos de identidade exata."
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'cleanup'
+    - student_hybrid_m11_c1_observer.phase == 'stopped'
+  no_log: true
+
+- name: Replace one cleaned observer with an identity-free removed marker
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_observer_removed:
+      key: "{{ student_hybrid_m11_c1_observer.key }}"
+      role: "{{ student_hybrid_m11_c1_observer.role }}"
+      transport: "{{ student_hybrid_m11_c1_observer.transport }}"
+      check_id: "{{ student_hybrid_m11_c1_observer.check_id }}"
+      phase: removed
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'cleanup'
+    - student_hybrid_m11_c1_observer.phase == 'stopped'
+  no_log: true
+
+- name: Persist C1 observer file removal without retaining old active identities
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      status: partial
+      phase: hybrid-c1-observer-removed
+      hybrid:
+        phase: partial
+        m11:
+          verification:
+            phase: collecting
+            gates:
+              c1_capture_active:
+                schema: 1
+                check_id: "{{ student_state.hybrid.m11.verification.gates.c1_capture_active.check_id }}"
+                phase: stopping
+                observers: >-
+                  {{ (student_state.hybrid.m11.verification.gates.c1_capture_active.observers
+                     | rejectattr('key', 'equalto', student_hybrid_m11_c1_observer.key) | list) + [student_hybrid_m11_c1_observer_removed] }}
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'cleanup'
+    - student_hybrid_m11_c1_observer.phase == 'stopped'
+  no_log: true
+
+- name: Reload the exact C1 file-removal checkpoint
+  ansible.builtin.set_fact:
+    student_state: "{{ lookup('file', student_state_file) | from_json }}"
+  when:
+    - student_hybrid_m11_c1_capture_action | default('') == 'cleanup'
+    - student_hybrid_m11_c1_observer.phase == 'stopped'
+  no_log: true
+
+- name: Render the origin-capture stop script with strict process-identity reads
+  ansible.builtin.set_fact:
+    student_hybrid_m11_stop_origin_script: |-
+      set -eu
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      proc_root=/proc
+      capture={{ student_state.hybrid.m11.verification.gates.traffic_capture.path | quote }}
+      vm_ip={{ student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address | quote }}
+      pod_ip={{ student_state.hybrid.m11.verification.gates.server_pod.ip | quote }}
+      pid={{ student_state.hybrid.m11.verification.gates.traffic_capture.pid | quote }}
+      expected_start={{ student_state.hybrid.m11.verification.gates.traffic_capture.starttime | quote }}
+      expected_uid={{ student_state.hybrid.m11.verification.gates.traffic_capture.process_uid | quote }}
+      expected_file={{ ((student_state.hybrid.m11.verification.gates.traffic_capture.device | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.traffic_capture.inode | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.traffic_capture.file_uid | string) ~ '|600') | quote }}
+      if [ -e "$proc_root/$pid/stat" ]; then
+        actual_start="$(sudo -n /usr/bin/awk '{ sub(/^.*\) /, ""); print $20 }' "$proc_root/$pid/stat")"
+        if [ "$actual_start" = "$expected_start" ]; then
+          [ "$(sudo -n /usr/bin/stat -c '%u' "$proc_root/$pid")" = "$expected_uid" ]
+          cmdline="$(sudo -n /usr/bin/cat "$proc_root/$pid/cmdline" | tr '\000' ' ')"
+          case "$cmdline" in
+            *"/usr/bin/timeout --foreground 60 /usr/sbin/tcpdump -n -l -vv -c 1 -i tenant0 src host $vm_ip and dst host $pod_ip and tcp dst port 8080"*) ;;
+            *) exit 71 ;;
+          esac
+          sudo -n /usr/bin/kill -INT "$pid"
+          for _ in $(seq 1 20); do
+            if [ -e "$proc_root/$pid/stat" ]; then
+              current_start="$(sudo -n /usr/bin/awk '{ sub(/^.*\) /, ""); print $20 }' "$proc_root/$pid/stat")"
+            else
+              current_start=''
+            fi
+            [ "$current_start" != "$expected_start" ] && break
+            sleep 1
+          done
+          if [ -e "$proc_root/$pid/stat" ]; then
+            current_start="$(sudo -n /usr/bin/awk '{ sub(/^.*\) /, ""); print $20 }' "$proc_root/$pid/stat")"
+          else
+            current_start=''
+          fi
+          [ "$current_start" != "$expected_start" ]
+        fi
+      fi
+      if [ -e "$capture" ] || [ -L "$capture" ]; then
+        [ -f "$capture" ] && [ ! -L "$capture" ]
+        [ "$(stat -c '%d|%i|%u|%a' "$capture")" = "$expected_file" ]
+        rm -- "$capture"
+      fi
+      printf 'P010_M11_ORIGIN_CAPTURE=absent\n' >&3
+  when: student_hybrid_m11_c1_capture_action | default('') == ''
+  no_log: true
+
+- name: Revalidate the current CRI container list for one saved C1 Pod
+  ansible.builtin.command:
+    argv: >-
+      {{ ['/usr/bin/docker', '--host', 'unix:///var/run/docker.sock', 'exec', student_hybrid_m11_c1_revalidation_target.value.worker_id,
+          student_hybrid_m11_c1_runtime_by_key[student_hybrid_m11_c1_revalidation_target.key][4],
+          '--runtime-endpoint', student_hybrid_m11_c1_runtime_by_key[student_hybrid_m11_c1_revalidation_target.key][0],
+          '--image-endpoint', student_hybrid_m11_c1_runtime_by_key[student_hybrid_m11_c1_revalidation_target.key][0],
+          '--timeout', '10s', '--debug=false', 'ps', '-o', 'json'] }}
+  become: true
+  register: student_hybrid_m11_c1_revalidation_containers
+  changed_when: false
+  when: student_hybrid_m11_c1_capture_action | default('') == 'revalidate'
+  no_log: true
+
+- name: Require the saved C1 container ID, labels, state, and attempt to remain current
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_revalidation_containers.rc | int == 0
+      - (student_hybrid_m11_c1_revalidation_containers.stdout | from_json).keys() | list | sort == ['containers']
+      - (student_hybrid_m11_c1_revalidation_containers.stdout | from_json).containers | selectattr('id', 'equalto', student_hybrid_m11_c1_revalidation_target.value.container_id) | list | length == 1
+      - student_hybrid_m11_c1_revalidation_container.state == 'CONTAINER_RUNNING'
+      - student_hybrid_m11_c1_revalidation_container.podSandboxId == student_hybrid_m11_c1_revalidation_target.value.sandbox_id
+      - student_hybrid_m11_c1_revalidation_container.metadata.attempt | int == student_hybrid_m11_c1_revalidation_target.value.container_attempt | int
+      - student_hybrid_m11_c1_revalidation_container.labels['io.kubernetes.pod.uid'] == student_hybrid_m11_c1_revalidation_target.value.pod_uid
+      - student_hybrid_m11_c1_revalidation_container.labels['io.kubernetes.pod.name'] == student_hybrid_m11_c1_revalidation_target.value.pod_name
+      - student_hybrid_m11_c1_revalidation_container.labels['io.kubernetes.pod.namespace'] == student_hybrid_m11_c1_revalidation_target.value.namespace
+  vars:
+    student_hybrid_m11_c1_revalidation_container: >-
+      {{ (student_hybrid_m11_c1_revalidation_containers.stdout | from_json).containers
+        | selectattr('id', 'equalto', student_hybrid_m11_c1_revalidation_target.value.container_id) | first }}
+  when: student_hybrid_m11_c1_capture_action | default('') == 'revalidate'
+  no_log: true
+
+- name: Reinspect the saved C1 sandbox ID through the current CRI endpoint
+  ansible.builtin.command:
+    argv: >-
+      {{ ['/usr/bin/docker', '--host', 'unix:///var/run/docker.sock', 'exec', student_hybrid_m11_c1_revalidation_target.value.worker_id,
+          student_hybrid_m11_c1_runtime_by_key[student_hybrid_m11_c1_revalidation_target.key][4],
+          '--runtime-endpoint', student_hybrid_m11_c1_runtime_by_key[student_hybrid_m11_c1_revalidation_target.key][0],
+          '--image-endpoint', student_hybrid_m11_c1_runtime_by_key[student_hybrid_m11_c1_revalidation_target.key][0],
+          '--timeout', '10s', '--debug=false', 'inspectp', '-o', 'json', student_hybrid_m11_c1_revalidation_target.value.sandbox_id] }}
+  become: true
+  register: student_hybrid_m11_c1_revalidation_sandbox
+  changed_when: false
+  when: student_hybrid_m11_c1_capture_action | default('') == 'revalidate'
+  no_log: true
+
+- name: Require the current sandbox attempt and running process to match the saved join
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_revalidation_sandbox.rc | int == 0
+      - (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).keys() | list | sort == ['info', 'status']
+      - (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).status.id == student_hybrid_m11_c1_revalidation_target.value.sandbox_id
+      - (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).status.metadata.uid == student_hybrid_m11_c1_revalidation_target.value.pod_uid
+      - (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).status.metadata.name == student_hybrid_m11_c1_revalidation_target.value.pod_name
+      - (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).status.metadata.namespace == student_hybrid_m11_c1_revalidation_target.value.namespace
+      - (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).status.state == 'SANDBOX_READY'
+      - (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).status.metadata.attempt | int == student_hybrid_m11_c1_revalidation_target.value.sandbox_attempt | int
+      - (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).status.network.ip == student_hybrid_m11_c1_revalidation_target.value.pod_ip
+      - (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).info.pid | int == student_hybrid_m11_c1_revalidation_target.value.sandbox_pid | int
+      - (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).info.processStatus == 'running'
+      - not (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).info.netNamespaceClosed | bool
+      - (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).info.runtimeType == student_hybrid_m11_c1_revalidation_target.value.runtime_type
+      - (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).status.runtimeHandler == student_hybrid_m11_c1_revalidation_target.value.runtime_handler
+      - (student_hybrid_m11_c1_revalidation_sandbox.stdout | from_json).status.linux.namespaces.options.network == 'POD'
+  when: student_hybrid_m11_c1_capture_action | default('') == 'revalidate'
+  no_log: true
+
+- name: Recheck the saved worker, sandbox proc bridge, netns, and Pod interface
+  ansible.builtin.command:
+    argv: [/bin/sh, -s]
+    stdin: |-
+      set -eu
+      proc_root=/proc
+      worker_pid={{ student_hybrid_m11_c1_revalidation_target.value.worker_host_pid | int }}
+      sandbox_pid={{ student_hybrid_m11_c1_revalidation_target.value.sandbox_pid | int }}
+      expected_worker_start={{ student_hybrid_m11_c1_pod_observations[student_hybrid_m11_c1_revalidation_target.key].identity[1] | quote }}
+      expected_worker_uid={{ student_hybrid_m11_c1_pod_observations[student_hybrid_m11_c1_revalidation_target.key].identity[2] | quote }}
+      expected_pidns={{ student_hybrid_m11_c1_pod_observations[student_hybrid_m11_c1_revalidation_target.key].identity[3] | quote }}
+      expected_sandbox_start={{ student_hybrid_m11_c1_pod_observations[student_hybrid_m11_c1_revalidation_target.key].identity[5] | quote }}
+      expected_sandbox_uid={{ student_hybrid_m11_c1_pod_observations[student_hybrid_m11_c1_revalidation_target.key].identity[6] | quote }}
+      expected_netns={{ student_hybrid_m11_c1_pod_observations[student_hybrid_m11_c1_revalidation_target.key].identity[7] | quote }}
+      expected_boot={{ student_hybrid_m11_c1_pod_observations[student_hybrid_m11_c1_revalidation_target.key].identity[8] | quote }}
+      proc_starttime() {
+        line="$(/bin/cat "$1")" || return 1
+        case "$line" in *") "*) rest="$(printf '%s\n' "$line" | /usr/bin/sed 's/^.*) //')" ;; *) return 1 ;; esac
+        set -- $rest
+        [ "$#" -ge 20 ] || return 1
+        field=0
+        start=''
+        for value do
+          field=$((field + 1))
+          if [ "$field" -eq 20 ]; then start="$value"; break; fi
+        done
+        case "$start" in ''|*[!0-9]*) return 1 ;; esac
+        [ "$start" -gt 0 ] || return 1
+        printf '%s\n' "$start"
+      }
+      worker_proc="$proc_root/$worker_pid"
+      worker_root="$worker_proc/root/proc"
+      sandbox_proc="$worker_root/$sandbox_pid"
+      [ -r "$worker_proc/stat" ] && [ -r "$worker_proc/ns/pid" ]
+      [ -r "$worker_root/1/ns/pid" ]
+      [ "$(proc_starttime "$worker_proc/stat")" = "$expected_worker_start" ]
+      [ "$(/usr/bin/stat -Lc '%u' "$worker_proc")" = "$expected_worker_uid" ]
+      [ "$(/usr/bin/stat -Lc '%d:%i' "$worker_proc/ns/pid")" = "$expected_pidns" ]
+      [ "$(/usr/bin/stat -Lc '%d:%i' "$worker_root/1/ns/pid")" = "$expected_pidns" ]
+      [ -r "$sandbox_proc/stat" ] && [ -r "$sandbox_proc/status" ] && [ -r "$sandbox_proc/ns/net" ]
+      [ "$(proc_starttime "$sandbox_proc/stat")" = "$expected_sandbox_start" ]
+      [ "$(/usr/bin/stat -Lc '%u' "$sandbox_proc")" = "$expected_sandbox_uid" ]
+      [ "$(/usr/bin/stat -Lc '%d:%i' "$sandbox_proc/ns/net")" = "$expected_netns" ]
+      [ "$(/bin/cat "$worker_root/sys/kernel/random/boot_id")" = "$expected_boot" ]
+      links="$(/usr/bin/nsenter --net="$sandbox_proc/ns/net" -- /usr/sbin/ip -j address show)"
+      [ "$(proc_starttime "$worker_proc/stat")" = "$expected_worker_start" ]
+      [ "$(proc_starttime "$sandbox_proc/stat")" = "$expected_sandbox_start" ]
+      printf 'P010_C1_REVALIDATED_IDENTITY=%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
+        "$worker_pid" "$expected_worker_start" "$expected_worker_uid" "$expected_pidns" \
+        "$sandbox_pid" "$expected_sandbox_start" "$expected_sandbox_uid" "$expected_netns" "$expected_boot"
+      printf 'P010_C1_REVALIDATED_LINKS=%s\n' "$links"
+  become: true
+  register: student_hybrid_m11_c1_revalidation_proc
+  changed_when: false
+  when: student_hybrid_m11_c1_capture_action | default('') == 'revalidate'
+  no_log: true
+
+- name: Require the revalidated Pod identity and interface to equal the measured values
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_revalidation_proc.rc | int == 0
+      - (student_hybrid_m11_c1_revalidation_proc.stdout_lines | select('match', '^P010_C1_REVALIDATED_IDENTITY=') | first | regex_replace('^P010_C1_REVALIDATED_IDENTITY=', '')).split('|') == student_hybrid_m11_c1_pod_observations[student_hybrid_m11_c1_revalidation_target.key].identity
+      - student_hybrid_m11_c1_revalidation_link.ifindex | int == student_hybrid_m11_c1_revalidation_old_link.ifindex | int
+      - student_hybrid_m11_c1_revalidation_link.ifname == student_hybrid_m11_c1_revalidation_old_link.ifname
+      - student_hybrid_m11_c1_revalidation_link.address | lower == student_hybrid_m11_c1_revalidation_old_link.address | lower
+      - student_hybrid_m11_c1_revalidation_link.addr_info | selectattr('family', 'equalto', 'inet') | selectattr('local', 'equalto', student_hybrid_m11_c1_revalidation_target.value.pod_ip) | list | length == 1
+  vars:
+    student_hybrid_m11_c1_revalidation_links: >-
+      {{ (student_hybrid_m11_c1_revalidation_proc.stdout_lines | select('match', '^P010_C1_REVALIDATED_LINKS=') | first
+          | regex_replace('^P010_C1_REVALIDATED_LINKS=', '')) | from_json }}
+    student_hybrid_m11_c1_revalidation_address: >-
+      {{ student_hybrid_m11_c1_revalidation_links | map(attribute='addr_info') | flatten
+        | selectattr('family', 'equalto', 'inet')
+        | selectattr('local', 'equalto', student_hybrid_m11_c1_revalidation_target.value.pod_ip) | first }}
+    student_hybrid_m11_c1_revalidation_link: >-
+      {{ student_hybrid_m11_c1_revalidation_links
+        | selectattr('addr_info', 'contains', student_hybrid_m11_c1_revalidation_address) | first }}
+    student_hybrid_m11_c1_revalidation_old_address: >-
+      {{ student_hybrid_m11_c1_pod_observations[student_hybrid_m11_c1_revalidation_target.key].links
+        | map(attribute='addr_info') | flatten
+        | selectattr('family', 'equalto', 'inet')
+        | selectattr('local', 'equalto', student_hybrid_m11_c1_revalidation_target.value.pod_ip) | first }}
+    student_hybrid_m11_c1_revalidation_old_link: >-
+      {{ student_hybrid_m11_c1_pod_observations[student_hybrid_m11_c1_revalidation_target.key].links
+        | selectattr('addr_info', 'contains', student_hybrid_m11_c1_revalidation_old_address) | first }}
+  when: student_hybrid_m11_c1_capture_action | default('') == 'revalidate'
+  no_log: true

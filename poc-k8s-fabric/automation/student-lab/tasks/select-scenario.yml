@@ -1,0 +1,11 @@
+---
+- name: Select a new requested scenario or the scenario persisted with infrastructure
+  ansible.builtin.set_fact:
+    student_effective_exercise: >-
+      {{ (student_exercise_input | default('baseline', true)) if student_profile_name == 'plataforma' and student_action in ['up', 'preflight'] else (student_state.exercise if student_has_state and student_state.profile == 'plataforma' else '') }}
+    student_effective_wireguard_mode: >-
+      {{ (student_wireguard_input | default('W1', true)) if student_profile_name == 'plataforma' and student_action in ['up', 'preflight'] and student_exercise_input in ['wireguard-native', 'wireguard-vxlan'] else ('' if student_profile_name == 'plataforma' and student_action in ['up', 'preflight'] else (student_state.wireguard_mode if student_has_state and student_state.profile == 'plataforma' else '')) }}
+
+- name: Select the immutable scenario definition
+  ansible.builtin.set_fact:
+    student_exercise_config: "{{ student_exercises[student_effective_exercise] if student_profile_name == 'plataforma' and student_effective_exercise in student_exercises else {} }}"

@@ -1,0 +1,101 @@
+---
+- name: Require a fresh POST intent and an empty target ID
+  ansible.builtin.assert:
+    that:
+      - student_state.status == 'partial'
+      - student_state.hybrid.m11.api.pending | length == 0
+      - >-
+        (student_hybrid_api_slot is defined and
+         student_state.hybrid.m11.api.resources[student_hybrid_api_resource_key].get(student_hybrid_api_slot, {}).get('id', '') == '') or
+        (student_hybrid_api_slot is not defined and
+         student_state.hybrid.m11.api.resources[student_hybrid_api_resource_key].id == '')
+    fail_msg: "POST não será repetido: há intenção ou recurso salvo sem confirmação."
+  no_log: true
+
+- name: Persist the exact resource creation intent before issuing POST
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      status: partial
+      phase: hybrid-api-post-pending
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-provisioning
+          api:
+            pending:
+              method: POST
+              resource: "{{ student_hybrid_api_resource_key }}{{ ':' ~ student_hybrid_api_slot if student_hybrid_api_slot is defined else '' }}"
+              path: "{{ student_hybrid_api_path }}"
+              run_id: "{{ student_state.run_id }}"
+              envelope: "{{ student_hybrid_api_envelope }}"
+              slot: "{{ student_hybrid_api_slot | default('primary') }}"
+              expected: "{{ student_hybrid_api_expected }}"
+              body: "{{ student_hybrid_api_body }}"
+
+- name: Issue one protected API POST without retries or public response data
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}{{ student_hybrid_api_path }}"
+    method: POST
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+      Content-Type: application/json
+    body_format: json
+    body: "{{ {student_hybrid_api_envelope: student_hybrid_api_body} }}"
+    return_content: true
+    status_code: [201]
+    timeout: 20
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_post_response
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+
+- name: Retain only an allowlisted created-resource response for validation
+  ansible.builtin.set_fact:
+    student_hybrid_api_created_resource: "{{ student_hybrid_api_post_response.json[student_hybrid_api_envelope] }}"
+  no_log: true
+
+- name: Require a valid created UUID and each requested API attribute
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_created_resource[student_hybrid_api_identity_field | default('id')] is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - item.value is none or (student_hybrid_api_created_resource[item.key] is defined and student_hybrid_api_created_resource[item.key] == item.value)
+    fail_msg: "Neutron criou um objeto com identidade ou atributo solicitado divergente."
+  loop: "{{ student_hybrid_api_expected | dict2items }}"
+  no_log: true
+
+- name: Require any additional safe response fields selected for the state record
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_created_resource[item] is defined
+    fail_msg: "Neutron não devolveu um campo necessário para o checkpoint privado."
+  loop: "{{ student_hybrid_api_record_fields | default([]) }}"
+  no_log: true
+
+- name: Build the exact safe resource record and successful request ID
+  ansible.builtin.set_fact:
+    student_hybrid_api_safe_record: "{{ student_hybrid_api_expected | combine({'id': student_hybrid_api_created_resource[student_hybrid_api_identity_field | default('id')]}) | combine(dict((student_hybrid_api_record_fields | default([]) | zip(student_hybrid_api_record_fields | default([]) | map('extract', student_hybrid_api_created_resource))) | list)) }}"
+    student_hybrid_api_request_id: "{{ student_hybrid_api_post_response.x_openstack_request_id | default('') }}"
+  no_log: true
+
+- name: Persist the confirmed resource ID and clear its pending intent
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-resource-created
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-provisioning
+          api:
+            pending: {}
+            resources: >-
+              {{ {student_hybrid_api_resource_key:
+                (student_state.hybrid.m11.api.resources[student_hybrid_api_resource_key]
+                 | combine({student_hybrid_api_slot: student_hybrid_api_safe_record})
+                 if student_hybrid_api_slot is defined else student_hybrid_api_safe_record)} }}
+            links:
+              last_request_id: "{{ student_hybrid_api_request_id }}"
+  no_log: true

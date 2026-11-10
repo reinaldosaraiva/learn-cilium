@@ -1,0 +1,173 @@
+
+- name: List links in the saved border namespace before reserving the TAP
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - -j
+      - -d
+      - link
+      - show
+  register: student_hybrid_links_before_tap
+  changed_when: false
+  become: "{{ student_hybrid_become | default(true) }}"
+  no_log: true
+
+- name: Refuse a reserved TAP name or alias already present in the border namespace
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_links_before_tap.rc == 0
+      - (student_hybrid_links_before_tap.stdout | from_json) is sequence
+      - >-
+        (student_hybrid_links_before_tap.stdout | from_json
+         | selectattr('ifname', 'equalto', student_state.hybrid.network.tap.name)
+         | list | length) == 0
+      - >-
+        (student_hybrid_links_before_tap.stdout | from_json
+         | selectattr('ifalias', 'defined')
+         | selectattr('ifalias', 'equalto', student_state.hybrid.network.tap.reserved_alias)
+         | list | length) == 0
+      - student_state.hybrid.network.tap.ifindex | int == 0
+      - student_state.hybrid.network.tap.alias == ''
+      - student_state.hybrid.network.tap.reserved_alias == student_hybrid_tap_alias
+    fail_msg: "Nome/alias TAP já existe ou a consulta ao namespace foi inconclusiva; nada será adotado."
+  vars:
+    student_hybrid_tap_alias: "p010-hyb-{{ student_uid }}-{{ student_run_id }}"
+  no_log: true
+
+- name: Record the effect-uncertain TAP creation intent
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'hybrid': {'network': {'tap': {'create_phase': 'creating'}}}, 'status': 'partial', 'phase': 'hybrid-tap-create-pending', 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+  no_log: true
+
+- name: Persist TAP creation intent before calling ip tuntap
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Create a TAP owned by the invoking student in the saved border namespace
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - tuntap
+      - add
+      - dev
+      - "{{ student_state.hybrid.network.tap.name }}"
+      - mode
+      - tap
+      - user
+      - "{{ student_uid }}"
+  register: student_hybrid_tap_create
+  changed_when: true
+  become: "{{ student_hybrid_become | default(true) }}"
+  no_log: true
+
+- name: Read the newly created TAP by exact name in the saved namespace
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - -j
+      - -d
+      - link
+      - show
+  register: student_hybrid_links_after_tap_create
+  changed_when: false
+  become: "{{ student_hybrid_become | default(true) }}"
+  no_log: true
+
+- name: Require one newly created TAP and save its index before setting the alias
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_links_after_tap_create.rc == 0
+      - student_hybrid_tap_matches | length == 1
+      - student_hybrid_tap_matches[0].ifindex | int > 0
+      - student_hybrid_tap_matches[0].linkinfo.info_kind == 'tun'
+      - student_hybrid_tap_matches[0].linkinfo.info_data.type == 'tap'
+      - (student_hybrid_tap_matches[0].ifalias | default('')) == ''
+    fail_msg: "O TAP criado não tem identidade JSON única e verificável; o estado permanece parcial."
+  vars:
+    student_hybrid_tap_matches: >-
+      {{ student_hybrid_links_after_tap_create.stdout | from_json
+         | selectattr('ifname', 'equalto', student_state.hybrid.network.tap.name)
+         | list }}
+  no_log: true
+
+- name: Checkpoint the TAP index before assigning its run-specific alias
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'hybrid': {'phase': 'partial', 'network': {'tap': {'ifindex': student_hybrid_tap_matches[0].ifindex | int, 'create_phase': 'identified'}}}, 'status': 'partial', 'phase': 'hybrid-tap-created', 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+  vars:
+    student_hybrid_tap_matches: >-
+      {{ student_hybrid_links_after_tap_create.stdout | from_json
+         | selectattr('ifname', 'equalto', student_state.hybrid.network.tap.name)
+         | list }}
+  no_log: true
+
+- name: Persist the TAP index checkpoint before further network configuration
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Assign the reserved run-specific alias inside the border namespace
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - link
+      - set
+      - dev
+      - "{{ student_state.hybrid.network.tap.name }}"
+      - alias
+      - "{{ student_hybrid_tap_alias }}"
+  register: student_hybrid_tap_alias_set
+  changed_when: true
+  become: "{{ student_hybrid_become | default(true) }}"
+  vars:
+    student_hybrid_tap_alias: "p010-hyb-{{ student_uid }}-{{ student_run_id }}"
+  no_log: true
+
+- name: Checkpoint the run-specific TAP alias after the kernel accepted it
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'hybrid': {'network': {'tap': {'alias': student_state.hybrid.network.tap.reserved_alias}}, 'phase': 'partial'}, 'status': 'partial', 'phase': 'hybrid-tap-identified', 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+  no_log: true
+
+- name: Persist the complete TAP identity before bringing it up
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Bring up only the TAP with the saved name in the saved namespace
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - link
+      - set
+      - dev
+      - "{{ student_state.hybrid.network.tap.name }}"
+      - up
+  changed_when: true
+  become: "{{ student_hybrid_become | default(true) }}"
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-validate-tap.yml

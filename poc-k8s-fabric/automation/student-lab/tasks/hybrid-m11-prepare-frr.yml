@@ -1,0 +1,196 @@
+---
+- name: Reserve a private border configuration copy before editing routes
+  ansible.builtin.file:
+    path: "{{ student_run_dir }}/frr"
+    state: directory
+    owner: "{{ student_uid }}"
+    mode: '0700'
+
+- name: Refuse an existing private M11 border configuration without this run's identity
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.m11.frr.private_config_path }}"
+    follow: false
+  register: student_hybrid_m11_frr_before
+  no_log: true
+
+- name: Require the private FRR destination to be absent
+  ansible.builtin.assert:
+    that:
+      - not (student_hybrid_m11_frr_before.stat.exists | default(false))
+      - not (student_hybrid_m11_frr_before.stat.islnk | default(false))
+    fail_msg: "Configuração FRR privada já existe sem identidade desta execução."
+  no_log: true
+
+- name: Copy the reviewed border configuration into private run state
+  ansible.builtin.copy:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/configs/frr/p003-frr.conf"
+    dest: "{{ student_state.hybrid.m11.frr.private_config_path }}"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Require the runtime topology to reference the reviewed FRR source once
+  ansible.builtin.assert:
+    that:
+      - lookup('file', student_topology_file) is search(student_hybrid_m11_frr_source_file | regex_escape)
+    fail_msg: "A topologia híbrida não aponta para o FRR de referência esperado."
+  vars:
+    student_hybrid_m11_frr_source_file: "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/configs/frr/p003-frr.conf"
+
+- name: Rebind only the private topology copy to its run-owned FRR configuration
+  ansible.builtin.replace:
+    path: "{{ student_topology_file }}"
+    regexp: "{{ student_hybrid_m11_frr_source_file | regex_escape }}"
+    replace: "{{ student_state.hybrid.m11.frr.private_config_path }}"
+  vars:
+    student_hybrid_m11_frr_source_file: "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/configs/frr/p003-frr.conf"
+
+- name: Add only the hybrid pod prefix to the private border import filter
+  ansible.builtin.replace:
+    path: "{{ student_state.hybrid.m11.frr.private_config_path }}"
+    regexp: '(?m)^ip prefix-list PL-FROM-FABRIC seq 40 permit 10\.1\.0\.0/16 le 32$'
+    replace: |-
+      ip prefix-list PL-FROM-FABRIC seq 40 permit 10.1.0.0/16 le 32
+      ip prefix-list PL-FROM-FABRIC seq 50 permit {{ student_profile.hybrid_network.pod_cidr }} le 32
+  register: student_hybrid_m11_frr_import
+  no_log: true
+
+- name: Add only the tenant return prefix to the private border export filter
+  ansible.builtin.replace:
+    path: "{{ student_state.hybrid.m11.frr.private_config_path }}"
+    regexp: '(?m)^ip prefix-list PL-TO-FABRIC seq 20 permit 198\.19\.0\.0/24$'
+    replace: |-
+      ip prefix-list PL-TO-FABRIC seq 20 permit 198.19.0.0/24
+      ip prefix-list PL-TO-FABRIC seq 30 permit {{ student_state.hybrid.m11.network.tenant_cidr }}
+  register: student_hybrid_m11_frr_export
+  no_log: true
+
+- name: Add a narrow inbound filter for the Neutron BGP speaker
+  ansible.builtin.blockinfile:
+    path: "{{ student_state.hybrid.m11.frr.private_config_path }}"
+    insertafter: '^ip prefix-list PL-TO-FABRIC seq 20 permit 198\.19\.0\.0/24$'
+    marker: '! {mark} P010 student-lab M11 Neutron filter'
+    block: |
+      ip prefix-list PL-M11-FROM-NEUTRON seq 10 permit {{ student_state.hybrid.m11.network.tenant_cidr }}
+      route-map RM-M11-FROM-NEUTRON permit 10
+       match ip address prefix-list PL-M11-FROM-NEUTRON
+      route-map RM-M11-TO-NEUTRON deny 10
+  register: student_hybrid_m11_frr_neutron_filter
+  no_log: true
+
+- name: Add the private provider neighbor to the border BGP process
+  ansible.builtin.blockinfile:
+    path: "{{ student_state.hybrid.m11.frr.private_config_path }}"
+    insertafter: '^ neighbor 10\.254\.0\.0 remote-as 65203$'
+    marker: '! {mark} P010 student-lab M11 Neutron neighbor'
+    block: |1-
+      neighbor {{ student_state.hybrid.m11.network.provider_speaker_ip }} remote-as {{ student_state.hybrid.m11.network.speaker_asn }}
+      neighbor {{ student_state.hybrid.m11.network.provider_speaker_ip }} description p010-hybrid-neutron-speaker
+      neighbor {{ student_state.hybrid.m11.network.provider_speaker_ip }} timers 3 9
+  register: student_hybrid_m11_frr_neutron_neighbor
+  no_log: true
+
+- name: Apply only the tenant route filter to the Neutron speaker in both directions
+  ansible.builtin.blockinfile:
+    path: "{{ student_state.hybrid.m11.frr.private_config_path }}"
+    insertafter: '^  neighbor 10\.254\.0\.0 route-map RM-TO-FABRIC out$'
+    marker: '! {mark} P010 student-lab M11 Neutron address family'
+    block: |2-
+        neighbor {{ student_state.hybrid.m11.network.provider_speaker_ip }} activate
+        neighbor {{ student_state.hybrid.m11.network.provider_speaker_ip }} soft-reconfiguration inbound
+        neighbor {{ student_state.hybrid.m11.network.provider_speaker_ip }} maximum-prefix 1
+        neighbor {{ student_state.hybrid.m11.network.provider_speaker_ip }} route-map RM-M11-FROM-NEUTRON in
+        neighbor {{ student_state.hybrid.m11.network.provider_speaker_ip }} route-map RM-M11-TO-NEUTRON out
+  register: student_hybrid_m11_frr_neutron_address_family
+  no_log: true
+
+- name: Read the private border configuration for exact route-filter validation
+  ansible.builtin.slurp:
+    src: "{{ student_state.hybrid.m11.frr.private_config_path }}"
+  register: student_hybrid_m11_frr_content
+  no_log: true
+
+- name: Require the complete intended filter path and one parseable border ASN
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_frr_import.changed
+      - student_hybrid_m11_frr_export.changed
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^ip prefix-list PL-FROM-FABRIC seq 50 permit 10\.246\.0\.0/16 le 32$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^ip prefix-list PL-TO-FABRIC seq 30 permit 198\.18\.49\.0/24$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^ip prefix-list PL-M11-FROM-NEUTRON seq 10 permit 198\.18\.49\.0/24$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^route-map RM-M11-FROM-NEUTRON permit 10$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^ match ip address prefix-list PL-M11-FROM-NEUTRON$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^route-map RM-M11-TO-NEUTRON deny 10$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^route-map RM-FROM-FABRIC permit 10$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^ match ip address prefix-list PL-FROM-FABRIC$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^route-map RM-TO-FABRIC permit 10$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^ match ip address prefix-list PL-TO-FABRIC$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^router bgp ([0-9]+)$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^ neighbor 10\.254\.0\.0 remote-as ([0-9]+)$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^ neighbor 198\.18\.48\.2 remote-as 64590$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^  neighbor 198\.18\.48\.2 route-map RM-M11-FROM-NEUTRON in$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^  neighbor 198\.18\.48\.2 route-map RM-M11-TO-NEUTRON out$') | length) == 1
+      - (student_hybrid_m11_frr_text | regex_findall('(?m)^  neighbor 198\.18\.48\.2 maximum-prefix 1$') | length) == 1
+      - student_hybrid_m11_frr_topology_text is search(student_state.hybrid.m11.frr.private_config_path | regex_escape)
+      - student_hybrid_m11_frr_topology_text is not search(student_hybrid_m11_frr_source_file | regex_escape)
+    fail_msg: "Os filtros privados do border não carregam os prefixos M11 exatos pelo caminho FRR esperado."
+  vars:
+    student_hybrid_m11_frr_text: "{{ student_hybrid_m11_frr_content.content | b64decode }}"
+    student_hybrid_m11_frr_topology_text: "{{ lookup('file', student_topology_file) }}"
+    student_hybrid_m11_frr_source_file: "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/configs/frr/p003-frr.conf"
+  no_log: true
+
+- name: Inspect and hash the private border configuration
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.m11.frr.private_config_path }}"
+    follow: false
+  register: student_hybrid_m11_frr_stat
+  no_log: true
+
+- name: Require a private regular FRR copy with a real inode
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_frr_stat.stat.isreg | default(false)
+      - not (student_hybrid_m11_frr_stat.stat.islnk | default(false))
+      - student_hybrid_m11_frr_stat.stat.uid | int == student_uid
+      - student_hybrid_m11_frr_stat.stat.mode == '0600'
+      - student_hybrid_m11_frr_stat.stat.inode | int > 0
+    fail_msg: "A cópia FRR privada não tem identidade/permissões esperadas."
+  no_log: true
+
+- name: Hash the private border configuration without printing its contents
+  ansible.builtin.command:
+    argv: [sha256sum, "{{ student_state.hybrid.m11.frr.private_config_path }}"]
+  register: student_hybrid_m11_frr_hash
+  changed_when: false
+  no_log: true
+
+- name: Capture the private border ASN and file identity
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'m11': {
+        'network': {'border_asn': (student_hybrid_m11_frr_text | regex_findall('(?m)^router bgp ([0-9]+)$') | first | int)},
+        'frr': {'config_device': student_hybrid_m11_frr_stat.stat.dev,
+                'config_inode': student_hybrid_m11_frr_stat.stat.inode,
+                'config_sha256': student_hybrid_m11_frr_hash.stdout.split()[0]}
+      }}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  vars:
+    student_hybrid_m11_frr_text: "{{ student_hybrid_m11_frr_content.content | b64decode }}"
+  no_log: true
+
+- name: Persist the private FRR identity before deploying the topology
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Require the topology to reference the private filter copy exactly once
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.frr.private_config_path in lookup('file', student_topology_file)
+      - (lookup('file', student_topology_file) | regex_findall(student_state.hybrid.m11.frr.private_config_path | regex_escape) | length) == 1
+      - (lookup('file', student_topology_file) | regex_findall('p003-frr\.conf:/etc/frr/frr\.conf') | length) == 0
+    fail_msg: "A topologia privada não usa a cópia FRR do M11."
+  no_log: true

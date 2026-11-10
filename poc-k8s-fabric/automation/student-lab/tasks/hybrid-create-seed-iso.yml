@@ -1,0 +1,58 @@
+---
+- name: Refuse a pre-existing seed ISO path
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.guests[student_hybrid_seed_guest_name].seed_path }}"
+    follow: false
+  register: student_hybrid_seed_before
+  no_log: true
+
+- name: Require the seed ISO path to be absent before creation
+  ansible.builtin.assert:
+    that:
+      - not (student_hybrid_seed_before.stat.exists | default(false))
+      - not (student_hybrid_seed_before.stat.islnk | default(false))
+    fail_msg: "Seed ISO {{ student_hybrid_seed_guest_name }} já existe sem identidade desta execução."
+  no_log: true
+
+- name: Render one guest's NoCloud seed ISO
+  ansible.builtin.command:
+    argv: >-
+      {{ [student_hybrid_genisoimage_bin | default('/usr/bin/genisoimage'),
+          '-output', student_state.hybrid.guests[student_hybrid_seed_guest_name].seed_path,
+          '-volid', 'cidata', '-joliet', '-rock', 'meta-data']
+         + (['user-data', 'network-config'] if student_hybrid_seed_guest_name == 'ubuntu' else ['files']) }}
+    chdir: "{{ student_state.hybrid.guests[student_hybrid_seed_guest_name].seed_dir }}"
+  register: student_hybrid_seed_create
+  changed_when: true
+
+- name: Inspect the created seed ISO without following symlinks
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.guests[student_hybrid_seed_guest_name].seed_path }}"
+    follow: false
+  register: student_hybrid_created_seed
+  no_log: true
+
+- name: Require a private regular seed ISO before saving its identity
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_created_seed.stat.isreg | default(false)
+      - not (student_hybrid_created_seed.stat.islnk | default(false))
+      - student_hybrid_created_seed.stat.uid | int == student_uid
+      - student_hybrid_created_seed.stat.inode | int > 0
+      - student_hybrid_created_seed.stat.dev | int >= 0
+      - student_hybrid_created_seed.stat.mode == '0600'
+    fail_msg: "Seed ISO {{ student_hybrid_seed_guest_name }} não tem identidade privada verificável."
+  no_log: true
+
+- name: Save this seed identity before rendering the next
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'hybrid': {'guests': {student_hybrid_seed_guest_name: {'seed_device': student_hybrid_created_seed.stat.dev, 'seed_inode': student_hybrid_created_seed.stat.inode}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+  no_log: true
+
+- name: Persist this seed checkpoint before rendering the next
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true

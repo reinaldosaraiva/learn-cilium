@@ -1,0 +1,12 @@
+---
+- name: Mark the state down and replace completed resource identity maps
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ (student_state | combine(
+        {'status': 'down', 'phase': 'removed', 'helm_revision': 0,
+         'updated_utc': ansible_date_time.iso8601}
+        | combine(
+          {'hybrid': {'phase': 'removed', 'm11': {'phase': 'removed'}}}
+          if student_state.profile == 'hibrido' else {}, recursive=false),
+        recursive=true))
+         | combine({'kind_node_ids': {}, 'fabric_node_ids': {}, 'network_ids': {}}, recursive=false) }}

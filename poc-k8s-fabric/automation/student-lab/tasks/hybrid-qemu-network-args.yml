@@ -1,0 +1,23 @@
+---
+- name: Compose management and private tenant network devices for this guest
+  ansible.builtin.set_fact:
+    student_hybrid_qemu_network_args: >-
+      {{ ['-netdev',
+          'user,id=management,ipv6=off,' ~ ('restrict=on,' if student_hybrid_guest_name == 'cirros' else '') ~
+          'hostfwd=tcp:127.0.0.1:' ~ (student_hybrid_guest.host_port | string) ~ '-10.0.2.15:22',
+          '-device',
+          'virtio-net-pci,netdev=management,mac=' ~ student_hybrid_guest.management_mac ~ ',addr=0x2']
+         + (['-netdev',
+             'tap,id=external,ifname=' ~ student_state.hybrid.network.tap.name ~ ',script=no,downscript=no',
+             '-device',
+             'virtio-net-pci,netdev=external,mac=' ~ student_hybrid_guest.external_mac ~ ',addr=0x3',
+             '-netdev',
+             'stream,id=tenant,server=on,addr.type=unix,addr.path=' ~ student_state.hybrid.network.tenant_socket.path,
+             '-device',
+             'virtio-net-pci,netdev=tenant,mac=' ~ student_hybrid_guest.tenant_mac ~ ',addr=0x4']
+            if student_hybrid_guest_name == 'ubuntu' else
+            ['-netdev',
+             'stream,id=tenant,server=off,addr.type=unix,addr.path=' ~ student_state.hybrid.network.tenant_socket.path,
+             '-device',
+             'virtio-net-pci,netdev=tenant,mac=' ~ student_hybrid_guest.tenant_mac ~ ',addr=0x3']) }}
+  no_log: true

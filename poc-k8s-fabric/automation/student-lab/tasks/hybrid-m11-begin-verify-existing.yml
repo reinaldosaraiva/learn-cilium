@@ -1,0 +1,182 @@
+---
+- name: Require a saved C1 result as historical integrity input, never as current health
+  ansible.builtin.assert:
+    that:
+      - student_profile_name == 'hibrido'
+      - student_state.profile == 'hibrido'
+      - student_state.status == 'up'
+      - student_state.hybrid.schema | int == 4
+      - student_state.hybrid.phase == 'verified'
+      - student_state.hybrid.m11.phase == 'verified'
+      - student_state.hybrid.m11.api.pending == {}
+      - student_state.hybrid.m11.verification.gates.k8s_pending | default({}) == {}
+      - student_state.hybrid.m11.verification.gates.k8s_delete_pending | default({}) == {}
+      - student_state.hybrid.m11.verification.gates.positive.c1.schema | int == 1
+      - student_state.hybrid.m11.verification.gates.positive.c1.phase == 'verified'
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.schema | int == 1
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.check_id == ''
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'absent'
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers == []
+      - student_state.hybrid.m11.verification.gates.positive.c1.check_id is match('^c1-[A-Za-z0-9_-]{8,64}$')
+      - student_state.hybrid.m11.verification.gates.positive.c1.receipt.path == student_run_dir ~ '/m11-evidence/' ~ student_state.hybrid.m11.verification.gates.positive.c1.check_id ~ '/receipt.json'
+      - student_state.hybrid.m11.verification.gates.positive.c1.receipt.sha256 is match('^[0-9a-f]{64}$')
+    fail_msg: "Reverificação exige receipt C1 íntegro como histórico; gates antigos não comprovam saúde atual."
+  no_log: true
+
+- name: Inspect only the recorded historical C1 receipt file
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.m11.verification.gates.positive.c1.receipt.path }}"
+    follow: false
+    checksum_algorithm: sha256
+  register: student_hybrid_m11_previous_c1_stat
+  no_log: true
+
+- name: Require the historical receipt to retain its private file identity and digest
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_previous_c1_stat.stat.isreg | default(false)
+      - not (student_hybrid_m11_previous_c1_stat.stat.islnk | default(false))
+      - student_hybrid_m11_previous_c1_stat.stat.uid | int == student_uid | int
+      - student_hybrid_m11_previous_c1_stat.stat.mode == '0600'
+      - student_hybrid_m11_previous_c1_stat.stat.dev | int == student_state.hybrid.m11.verification.gates.positive.c1.receipt.device | int
+      - student_hybrid_m11_previous_c1_stat.stat.inode | int == student_state.hybrid.m11.verification.gates.positive.c1.receipt.inode | int
+      - student_hybrid_m11_previous_c1_stat.stat.checksum == student_state.hybrid.m11.verification.gates.positive.c1.receipt.sha256
+    fail_msg: "O receipt C1 histórico foi removido ou trocado; a nova verificação não será iniciada."
+  no_log: true
+
+- name: Read the receipt bytes without exposing them in output
+  ansible.builtin.slurp:
+    src: "{{ student_state.hybrid.m11.verification.gates.positive.c1.receipt.path }}"
+  register: student_hybrid_m11_previous_c1_content
+  no_log: true
+
+- name: Parse the historical C1 receipt privately
+  ansible.builtin.set_fact:
+    student_hybrid_m11_previous_c1_receipt: "{{ student_hybrid_m11_previous_c1_content.content | b64decode | from_json }}"
+  no_log: true
+
+- name: Require the historical receipt to match this run and its saved check ID
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_previous_c1_receipt.keys() | list | sort == ['api', 'check_id', 'context', 'observed_utc', 'pods', 'run_id', 'schema', 'scope', 'waves']
+      - student_hybrid_m11_previous_c1_receipt.schema | int == 1
+      - student_hybrid_m11_previous_c1_receipt.scope == 'M11 C1 measured two-wave packet observation'
+      - student_hybrid_m11_previous_c1_receipt.run_id == student_state.run_id
+      - student_hybrid_m11_previous_c1_receipt.context == student_state.context
+      - student_hybrid_m11_previous_c1_receipt.check_id == student_state.hybrid.m11.verification.gates.positive.c1.check_id
+      - student_hybrid_m11_previous_c1_receipt.api is mapping
+      - student_hybrid_m11_previous_c1_receipt.pods is mapping
+      - student_hybrid_m11_previous_c1_receipt.waves.keys() | list | sort == ['cirros_to_pod', 'pod_to_cirros']
+      - student_hybrid_m11_previous_c1_receipt.waves.pod_to_cirros.phase == 'observed'
+      - student_hybrid_m11_previous_c1_receipt.waves.cirros_to_pod.phase == 'observed'
+    fail_msg: "O conteúdo histórico C1 não corresponde ao run/check persistido."
+  no_log: true
+
+- name: Reserve a new private C1 check directory for this recheck
+  ansible.builtin.tempfile:
+    path: "{{ student_run_dir }}/m11-evidence"
+    state: directory
+    prefix: c1-
+  register: student_hybrid_m11_c1_recheck_dir
+  no_log: true
+
+- name: Set the new C1 evidence directory to the student's private ownership
+  ansible.builtin.file:
+    path: "{{ student_hybrid_m11_c1_recheck_dir.path }}"
+    state: directory
+    owner: "{{ student_uid }}"
+    mode: '0700'
+  no_log: true
+
+- name: Inspect the reserved C1 directory before recording its identity
+  ansible.builtin.stat:
+    path: "{{ student_hybrid_m11_c1_recheck_dir.path }}"
+    follow: false
+  register: student_hybrid_m11_c1_recheck_dir_stat
+  no_log: true
+
+- name: Require a fresh bounded C1 check ID and private directory identity
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_recheck_dir.path | dirname == student_run_dir ~ '/m11-evidence'
+      - student_hybrid_m11_c1_recheck_dir.path | basename is match('^c1-[A-Za-z0-9_-]{8,64}$')
+      - student_hybrid_m11_c1_recheck_dir_stat.stat.isdir | default(false)
+      - not (student_hybrid_m11_c1_recheck_dir_stat.stat.islnk | default(false))
+      - student_hybrid_m11_c1_recheck_dir_stat.stat.uid | int == student_uid | int
+      - student_hybrid_m11_c1_recheck_dir_stat.stat.mode == '0700'
+      - student_hybrid_m11_c1_recheck_dir_stat.stat.dev | int > 0
+      - student_hybrid_m11_c1_recheck_dir_stat.stat.inode | int > 0
+      - student_hybrid_m11_c1_recheck_dir.path | basename != student_state.hybrid.m11.verification.gates.positive.c1.check_id
+    fail_msg: "A nova tentativa C1 não tem um diretório privado e distinto desta execução."
+  no_log: true
+
+- name: Replace C1 result and active maps before any new health observation
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'status': 'partial', 'phase': 'hybrid-live-verifying',
+        'hybrid': student_state.hybrid | combine({'phase': 'partial', 'm11': student_state.hybrid.m11 | combine({
+          'phase': 'cilium-ready',
+          'verification': student_state.hybrid.m11.verification | combine({
+            'phase': 'collecting',
+            'gates': student_state.hybrid.m11.verification.gates | combine({
+              'positive': student_state.hybrid.m11.verification.gates.positive | combine({
+                'c1': {
+                  'schema': 1,
+                  'check_id': student_hybrid_m11_c1_recheck_dir.path | basename,
+                  'phase': 'collecting',
+                  'previous_receipt': student_state.hybrid.m11.verification.gates.positive.c1.receipt,
+                  'receipt': {'path': '', 'sha256': '', 'device': 0, 'inode': 0, 'owner_uid': 0, 'mode': ''}
+                }
+              }, recursive=false),
+              'c1_capture_active': {
+                'schema': 1,
+                'check_id': student_hybrid_m11_c1_recheck_dir.path | basename,
+                'phase': 'starting',
+                'observers': []
+              }
+            }, recursive=false)
+          }, recursive=false)
+        }, recursive=false)}, recursive=false), 'updated_utc': ansible_date_time.iso8601}, recursive=false) }}
+  no_log: true
+
+- name: Persist the new C1 check and active intent before any probes
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Reload the new C1 partial checkpoint before any probes
+  ansible.builtin.set_fact:
+    student_state: "{{ lookup('file', student_state_file) | from_json }}"
+  no_log: true
+
+- name: Require a fresh collecting check after reload
+  ansible.builtin.assert:
+    that:
+      - student_state.status == 'partial'
+      - student_state.hybrid.m11.verification.gates.positive.c1.check_id == student_hybrid_m11_c1_recheck_dir.path | basename
+      - student_state.hybrid.m11.verification.gates.positive.c1.phase == 'collecting'
+      - student_state.hybrid.m11.verification.gates.positive.c1.previous_receipt.sha256 == student_hybrid_m11_previous_c1_stat.stat.checksum
+      - student_state.hybrid.m11.verification.gates.positive.c1.receipt.path == ''
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.check_id == student_hybrid_m11_c1_recheck_dir.path | basename
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'starting'
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers == []
+    fail_msg: "O novo check C1 não foi persistido como partial/collecting antes da observação."
+  no_log: true
+
+- name: Require the prior receipt to remain historical while the fresh C1 run is partial
+  ansible.builtin.assert:
+    that:
+      - student_state.status == 'partial'
+      - student_state.hybrid.phase == 'partial'
+      - student_state.hybrid.m11.phase == 'cilium-ready'
+      - student_state.hybrid.m11.verification.gates.positive.c1.phase == 'collecting'
+      - student_state.hybrid.m11.verification.gates.positive.c1.previous_receipt.sha256 == student_hybrid_m11_previous_c1_stat.stat.checksum
+      - student_state.hybrid.m11.verification.gates.positive.c1.receipt.path == ''
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.check_id == student_hybrid_m11_c1_recheck_dir.path | basename
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'starting'
+      - student_state.hybrid.m11.verification.phase == 'collecting'
+    fail_msg: "A reverificação não preservou o receipt histórico e a nova identidade collecting."
+  no_log: true

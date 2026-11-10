@@ -1,0 +1,324 @@
+---
+- name: Exercise durable C0 evidence writes and verification with local files
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    c0_run_id: p010-c0-roundtrip-01
+    c0_port_id: 11111111-1111-4111-8111-111111111111
+    c0_network_id: 22222222-2222-4222-8222-222222222222
+    c0_subnet_id: 33333333-3333-4333-8333-333333333333
+    c0_security_group_id: 44444444-4444-4444-8444-444444444444
+    c0_dhcp_id: 55555555-5555-4555-8555-555555555555
+    c0_fixed_ips:
+      - subnet_id: "{{ c0_subnet_id }}"
+        ip_address: 198.18.49.4
+    c0_rule_ids:
+      - 66666666-6666-4666-8666-666666666661
+      - 66666666-6666-4666-8666-666666666662
+      - 66666666-6666-4666-8666-666666666663
+      - 66666666-6666-4666-8666-666666666664
+    c0_rules:
+      - {id: 66666666-6666-4666-8666-666666666661, direction: ingress, protocol: icmp, remote_ip_prefix: 10.30.0.0/16}
+      - {id: 66666666-6666-4666-8666-666666666662, direction: ingress, protocol: tcp, port_range_min: 8080, port_range_max: 8080, remote_ip_prefix: 10.30.0.0/16}
+      - {id: 66666666-6666-4666-8666-666666666663, direction: egress, protocol: icmp, remote_ip_prefix: 10.30.0.0/16}
+      - {id: 66666666-6666-4666-8666-666666666664, direction: egress, protocol: tcp, port_range_min: 8080, port_range_max: 8080, remote_ip_prefix: 10.30.0.0/16}
+    c0_ovs_attachment:
+      phase: attached
+      bridge_name: br-int
+      interface_name: tenant0
+      neutron_port_id: "{{ c0_port_id }}"
+      attached_mac: '52:54:00:10:12:02'
+      guest_interface_mac: '52:54:00:10:12:03'
+      bridge_uuid: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+      port_uuid: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
+      interface_uuid: cccccccc-cccc-4ccc-8ccc-cccccccccccc
+      ifindex: 8
+      ofport: 4
+    c0_raw_headers: |-
+      listening on tenant0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+      6 packets captured
+      8 packets received by filter
+      0 packets dropped by kernel
+    c0_sha256: "{{ c0_raw_headers | hash('sha256') }}"
+  tasks:
+    - ansible.builtin.tempfile:
+        state: directory
+        prefix: p010-c0-evidence-
+      register: c0_temp
+
+    - ansible.builtin.set_fact:
+        student_uid: "{{ lookup('pipe', 'id -u') | int }}"
+        student_run_dir: "{{ c0_temp.path }}/run"
+        student_state_file: "{{ c0_temp.path }}/state.json"
+        student_state:
+          schema_version: 3
+          profile: hibrido
+          status: partial
+          phase: hybrid-dhcp-capture-pending
+          run_id: "{{ c0_run_id }}"
+          owner_uid: "{{ lookup('pipe', 'id -u') | int }}"
+          hybrid:
+            guests:
+              ubuntu:
+                tenant_mac: '52:54:00:10:12:03'
+              cirros:
+                tenant_mac: '52:54:00:10:12:02'
+            m11:
+              phase: dhcp-capturing
+              network:
+                tenant_cidr: 198.18.49.0/24
+                tenant_gateway: 198.18.49.1
+              api:
+                project_id: 0123456789abcdef0123456789abcdef
+                pending: {}
+                resources:
+                  cirros_port:
+                    primary:
+                      id: "{{ c0_port_id }}"
+                      mac_address: '52:54:00:10:12:02'
+                      fixed_ips: "{{ c0_fixed_ips }}"
+                      security_groups:
+                        - "{{ c0_security_group_id }}"
+                  security_group:
+                    primary:
+                      id: "{{ c0_security_group_id }}"
+              verification:
+                gates:
+                  ovs_attach: "{{ c0_ovs_attachment }}"
+                  dhcp_server:
+                    id: "{{ c0_dhcp_id }}"
+                    ip_address: 198.18.49.2
+                    mac_address: '52:54:00:10:12:01'
+                    subnet_id: "{{ c0_subnet_id }}"
+                  c0_binding_observation:
+                    schema: 1
+                    observed_utc: '2026-10-30T12:00:00Z'
+                    run_id: "{{ c0_run_id }}"
+                    port:
+                      id: "{{ c0_port_id }}"
+                      mac_address: '52:54:00:10:12:02'
+                      fixed_ips: "{{ c0_fixed_ips }}"
+                      security_groups:
+                        - "{{ c0_security_group_id }}"
+                      port_security_enabled: true
+                      allowed_address_pairs: []
+                      binding_host_id: m11-ovs-host
+                      binding_vnic_type: normal
+                      binding_vif_type: ovs
+                      binding_vif_details: {port_filter: true}
+                      device_id: cirros-vm-id
+                      device_owner: ''
+                    dhcp_server: "{{ {
+                      'id': c0_dhcp_id,
+                      'mac_address': '52:54:00:10:12:01',
+                      'ip_address': '198.18.49.2',
+                      'subnet_id': c0_subnet_id
+                    } }}"
+                    security_group:
+                      id: "{{ c0_security_group_id }}"
+                      rule_ids: "{{ c0_rule_ids | sort }}"
+                      rules: "{{ c0_rules }}"
+                    ovs:
+                      attachment: "{{ c0_ovs_attachment }}"
+                  dhcp_capture:
+                    phase: captured
+                    path: /tmp/p010-p010-c0-roundtrip-01-dhcp.log
+                    result_path: /tmp/p010-p010-c0-roundtrip-01-dhcp.result
+                    client_mac: '52:54:00:10:12:02'
+                    address: 198.18.49.4
+                    gateway: 198.18.49.1
+                    server_ip: 198.18.49.2
+                    server_mac: '52:54:00:10:12:01'
+                    device: 2049
+                    inode: 30001
+                    owner_uid: 0
+                    result_device: 2049
+                    result_inode: 30002
+                    result_owner_uid: 0
+                    pid: 321
+                    starttime: 111111
+                    process_uid: 0
+                    netns: 'net:[4026531840]'
+                    ifindex: 5
+                    tcpdump_pid: 322
+                    tcpdump_starttime: 222222
+                    tcpdump_uid: 0
+                    tcpdump_netns: 'net:[4026531840]'
+                    supervisor_pid: 320
+                    supervisor_starttime: 333333
+                    supervisor_uid: 501
+                    capture_rc: 130
+                    captured_count: 6
+                    started_utc: '2026-10-30T12:00:00Z'
+                    completed_utc: '2026-10-30T12:00:01Z'
+                    stop_requested: true
+                  c0_binding_evidence: {}
+                  c0_dora_evidence: {}
+        student_hybrid_m11_dora_fields:
+          CAPTURE_RC: '130'
+          CAPTURE_SHA256: "{{ c0_sha256 }}"
+          RAW_B64: "{{ c0_raw_headers | b64encode }}"
+          PACKET_COUNT: '6'
+          CAPTURED_COUNT: '6'
+          RECEIVED_COUNT: '8'
+          DROPPED_COUNT: '0'
+          EVENT_INDEXES: '1,3,4,6'
+          EXCHANGE: DISCOVER,OFFER,REQUEST,ACK
+          CLIENT_MAC: '52:54:00:10:12:02'
+          SERVER_IP: 198.18.49.2
+          SERVER_MAC: '52:54:00:10:12:01'
+          ADDRESS: 198.18.49.4
+          GATEWAY: 198.18.49.1
+          STARTED_UTC: '2026-10-30T12:00:00Z'
+          COMPLETED_UTC: '2026-10-30T12:00:01Z'
+          CAPTURE_FILE: 2049|30001|0|600
+          RESULT_FILE: 2049|30002|0|600
+          XID: '0x1234abcd'
+
+    - ansible.builtin.file:
+        path: "{{ student_run_dir }}"
+        state: directory
+        owner: "{{ student_uid }}"
+        mode: '0700'
+
+    - block:
+        - ansible.builtin.include_tasks: ../tasks/hybrid-m11-save-c0-binding-evidence.yml
+
+        - ansible.builtin.include_tasks: ../tasks/hybrid-m11-save-c0-dora-evidence.yml
+
+        - ansible.builtin.include_tasks: ../tasks/hybrid-m11-verify-c0-evidence.yml
+
+        - ansible.builtin.set_fact:
+            student_state: "{{ student_state | combine({'hybrid': {'m11': {'verification': {'gates': {'dhcp_capture': {'stop_requested': false}}}}}}, recursive=true) }}"
+
+        - name: Require the evidence writer to reject rc130 without a recorded stop request
+          block:
+            - ansible.builtin.include_tasks: ../tasks/hybrid-m11-save-c0-dora-evidence.yml
+          rescue:
+            - ansible.builtin.set_fact:
+                c0_unrequested_stop_rejected: true
+
+        - ansible.builtin.assert:
+            that:
+              - c0_unrequested_stop_rejected | default(false) | bool
+            fail_msg: "O gravador C0 aceitou rc130 sem identidade do encerramento controlado."
+
+        - ansible.builtin.set_fact:
+            student_state: "{{ student_state | combine({'hybrid': {'m11': {'verification': {'gates': {'dhcp_capture': {'stop_requested': true}}}}}}, recursive=true) }}"
+
+        - name: Clear the completed capture's active identities after remote cleanup
+          ansible.builtin.include_tasks: ../tasks/hybrid-m11-clear-captures.yml
+          vars:
+            student_hybrid_m11_capture_cleanup_complete: true
+
+        - ansible.builtin.include_tasks: ../tasks/hybrid-m11-verify-c0-evidence.yml
+
+        - name: Keep historical identity without retaining active capture paths or processes
+          ansible.builtin.assert:
+            that:
+              - student_state.hybrid.m11.verification.gates.dhcp_capture.phase == 'absent'
+              - student_state.hybrid.m11.verification.gates.dhcp_capture.path == ''
+              - student_state.hybrid.m11.verification.gates.dhcp_capture.pid | int == 0
+              - student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.file_inode | int == 30001
+              - student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.result_inode | int == 30002
+              - "'path' not in student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity"
+              - "'pid' not in student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity"
+
+        - name: Remove the historical capture identity from DORA evidence metadata
+          ansible.builtin.set_fact:
+            student_hybrid_m11_c0_dora_reference_without_identity: "{{ student_state.hybrid.m11.verification.gates.c0_dora_evidence | combine({'capture_identity': {}}, recursive=false) }}"
+          no_log: true
+
+        - name: Remove the historical capture identity from the DORA reference in memory
+          ansible.builtin.set_fact:
+            student_state: >-
+              {{ student_state | combine({
+                'hybrid': student_state.hybrid | combine({
+                  'm11': student_state.hybrid.m11 | combine({
+                    'verification': student_state.hybrid.m11.verification | combine({
+                      'gates': student_state.hybrid.m11.verification.gates | combine({
+                        'c0_dora_evidence': student_hybrid_m11_c0_dora_reference_without_identity
+                      }, recursive=false)
+                    }, recursive=false)
+                  }, recursive=false)
+                }, recursive=false)
+              }, recursive=false) }}
+          no_log: true
+
+        - name: Require verification to reject absent durable DORA history
+          block:
+            - ansible.builtin.include_tasks: ../tasks/hybrid-m11-verify-c0-evidence.yml
+          rescue:
+            - ansible.builtin.set_fact:
+                c0_missing_history_rejected: true
+
+        - ansible.builtin.assert:
+            that:
+              - c0_missing_history_rejected | default(false) | bool
+            fail_msg: "A verificação C0 aceitou ausência do registro histórico desta execução."
+
+        - ansible.builtin.set_fact:
+            student_state: "{{ lookup('file', student_state_file) | from_json }}"
+          no_log: true
+
+        - name: Change a stable capture inode in the saved DORA history
+          ansible.builtin.set_fact:
+            student_hybrid_m11_c0_dora_identity_changed: "{{ student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity | combine({'file_inode': 99999}, recursive=false) }}"
+          no_log: true
+
+        - name: Change only the historical DORA capture identity in memory
+          ansible.builtin.set_fact:
+            student_state: >-
+              {{ student_state | combine({
+                'hybrid': student_state.hybrid | combine({
+                  'm11': student_state.hybrid.m11 | combine({
+                    'verification': student_state.hybrid.m11.verification | combine({
+                      'gates': student_state.hybrid.m11.verification.gates | combine({
+                        'c0_dora_evidence': student_state.hybrid.m11.verification.gates.c0_dora_evidence | combine({
+                          'capture_identity': student_hybrid_m11_c0_dora_identity_changed
+                        }, recursive=false)
+                      }, recursive=false)
+                    }, recursive=false)
+                  }, recursive=false)
+                }, recursive=false)
+              }, recursive=false) }}
+          no_log: true
+
+        - name: Require verification to reject a changed historical capture identity
+          block:
+            - ansible.builtin.include_tasks: ../tasks/hybrid-m11-verify-c0-evidence.yml
+          rescue:
+            - ansible.builtin.set_fact:
+                c0_changed_history_rejected: true
+
+        - ansible.builtin.assert:
+            that:
+              - c0_changed_history_rejected | default(false) | bool
+            fail_msg: "A verificação C0 aceitou identidade histórica divergente da execução."
+
+        - ansible.builtin.set_fact:
+            student_state: "{{ lookup('file', student_state_file) | from_json }}"
+          no_log: true
+
+        - name: Change the DORA record after its identity has been checkpointed
+          ansible.builtin.lineinfile:
+            path: "{{ student_state.hybrid.m11.verification.gates.c0_dora_evidence.path }}"
+            line: tampered-record
+            state: present
+
+        - name: Require verification to reject changed evidence content
+          block:
+            - ansible.builtin.include_tasks: ../tasks/hybrid-m11-verify-c0-evidence.yml
+          rescue:
+            - ansible.builtin.set_fact:
+                c0_tamper_rejected: true
+
+        - ansible.builtin.assert:
+            that:
+              - c0_tamper_rejected | default(false) | bool
+            fail_msg: "A verificação C0 aceitou conteúdo de evidência alterado."
+      always:
+        - ansible.builtin.file:
+            path: "{{ c0_temp.path }}"
+            state: absent

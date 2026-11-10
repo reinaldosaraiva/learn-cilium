@@ -1,0 +1,56 @@
+---
+- name: Require every discovered DNS upstream to have a route in the saved border namespace
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - route
+      - get
+      - "{{ item }}"
+  register: student_hybrid_dns_routes
+  changed_when: false
+  become: "{{ student_hybrid_become | default(true) }}"
+  loop: "{{ student_hybrid_dns_upstreams }}"
+  no_log: true
+
+- name: Refuse an upstream with no selected route in this exact border namespace
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - item.stdout | trim | length > 0
+      - "'unreachable' not in item.stdout"
+      - "'prohibit' not in item.stdout"
+      - "'blackhole' not in item.stdout"
+    fail_msg: "Um DNS descoberto não tem rota selecionável no namespace salvo; nenhum fallback será inventado."
+  loop: "{{ student_hybrid_dns_routes.results }}"
+  no_log: true
+
+- name: Query the image source through each discovered server from the saved border namespace
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_dig_bin | default('/usr/bin/dig') }}"
+      - +time=2
+      - +tries=1
+      - +short
+      - A
+      - "@{{ item }}"
+      - cloud-images.ubuntu.com
+  register: student_hybrid_dns_answers
+  changed_when: false
+  become: "{{ student_hybrid_become | default(true) }}"
+  loop: "{{ student_hybrid_dns_upstreams }}"
+  no_log: true
+
+- name: Require a real IPv4 answer from every selected upstream
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - item.stdout_lines | select('match', '^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])[.]){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$') | list | length > 0
+    fail_msg: "Um upstream descoberto não respondeu com A válido para cloud-images.ubuntu.com; nenhum fallback será inventado."
+  loop: "{{ student_hybrid_dns_answers.results }}"
+  no_log: true

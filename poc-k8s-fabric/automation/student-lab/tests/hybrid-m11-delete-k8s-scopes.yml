@@ -1,0 +1,105 @@
+---
+- name: Exercise the production hybrid delete specs and UID helper for core, namespaced, and grouped APIs
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    test_scratch: "{{ lookup('env', 'P010_HYBRID_API_TEST_SCRATCH') }}"
+    student_uid: "{{ ansible_user_uid | int }}"
+    student_tool_dir: "{{ test_scratch }}/scope-bin"
+    student_state_file: "{{ test_scratch }}/scope-state.json"
+    student_run_dir: "{{ test_scratch }}/scope-run"
+    student_state:
+      status: partial
+      profile: hibrido
+      owner_token: '11111111111141118111111111111111'
+      run_id: 20261029-0123456789abcdef0123456789abcdef
+      kubeconfig: /unused/kubeconfig
+      context: p010-hibrido
+      hybrid:
+        schema: 4
+        phase: partial
+        m11:
+          schema: 2
+          phase: api-ready
+          verification:
+            phase: api-ready
+            gates:
+              k8s_pending: {}
+              k8s_delete_pending: {}
+              k8s_resources:
+                namespace:
+                  api_version: v1
+                  kind: Namespace
+                  name: p010-hyb-0123456789ab
+                  namespace: ''
+                  uid: 55555555-5555-4555-8555-555555555555
+                client_deployment:
+                  api_version: apps/v1
+                  kind: Deployment
+                  name: p010-hyb-0123456789ab-client
+                  namespace: p010-hyb-0123456789ab
+                  uid: 55555555-5555-4555-8555-555555555555
+                cluster_rack1:
+                  api_version: cilium.io/v2
+                  kind: CiliumBGPClusterConfig
+                  name: p010-hyb-0123456789ab-rack1
+                  namespace: ''
+                  uid: 55555555-5555-4555-8555-555555555555
+    ansible_become_exe: "{{ lookup('env', 'P010_HYBRID_TEST_BECOME_EXE') }}"
+  tasks:
+    - name: Create private directories and install the generic kubectl fake
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0700'
+      loop:
+        - "{{ student_tool_dir }}"
+        - "{{ student_run_dir }}/m11-k8s"
+
+    - ansible.builtin.copy:
+        src: fake-kubectl-k8s-delete.sh
+        dest: "{{ student_tool_dir }}/kubectl"
+        mode: '0700'
+
+    - name: Persist the initial UID inventory
+      ansible.builtin.copy:
+        dest: "{{ student_state_file }}"
+        content: "{{ student_state | to_nice_json }}\n"
+        mode: '0600'
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-build-delete-k8s-specs.yml
+
+    - name: Verify the production URL versions and namespace scopes
+      ansible.builtin.assert:
+        that:
+          - (student_hybrid_m11_delete_k8s_specs | selectattr('key', 'equalto', 'namespace') | first).api_version == 'v1'
+          - (student_hybrid_m11_delete_k8s_specs | selectattr('key', 'equalto', 'namespace') | first).namespace == ''
+          - (student_hybrid_m11_delete_k8s_specs | selectattr('key', 'equalto', 'client_deployment') | first).api_version == 'v1'
+          - (student_hybrid_m11_delete_k8s_specs | selectattr('key', 'equalto', 'client_deployment') | first).api_version_full == 'apps/v1'
+          - (student_hybrid_m11_delete_k8s_specs | selectattr('key', 'equalto', 'client_deployment') | first).namespace == student_hybrid_m11_namespace
+          - (student_hybrid_m11_delete_k8s_specs | selectattr('key', 'equalto', 'cluster_rack1') | first).api_version == 'v2'
+          - (student_hybrid_m11_delete_k8s_specs | selectattr('key', 'equalto', 'cluster_rack1') | first).api_version_full == 'cilium.io/v2'
+          - (student_hybrid_m11_delete_k8s_specs | selectattr('key', 'equalto', 'cluster_rack1') | first).namespace == ''
+
+    - name: Delete each representative object using the actual production helper
+      ansible.builtin.include_tasks: hybrid-m11-delete-k8s-one.yml
+      loop:
+        - namespace
+        - client_deployment
+        - cluster_rack1
+      loop_control:
+        loop_var: student_hybrid_m11_delete_test_key
+      vars:
+        student_hybrid_m11_delete_k8s_key: "{{ student_hybrid_m11_delete_test_key }}"
+        student_hybrid_m11_delete_k8s_spec: "{{ student_hybrid_m11_delete_k8s_specs | selectattr('key', 'equalto', student_hybrid_m11_delete_test_key) | first }}"
+
+    - name: Require one UID-preconditioned deletion at each actual REST path
+      ansible.builtin.assert:
+        that:
+          - lookup('file', lookup('env', 'P010_HYBRID_FAKE_KUBECTL_CALLS')).splitlines() == [
+              '/api/v1/namespaces/p010-hyb-0123456789ab',
+              '/apis/apps/v1/namespaces/p010-hyb-0123456789ab/deployments/p010-hyb-0123456789ab-client',
+              '/apis/cilium.io/v2/ciliumbgpclusterconfigs/p010-hyb-0123456789ab-rack1']
+          - lookup('file', lookup('env', 'P010_HYBRID_FAKE_KUBECTL_DELETES')) | int == 3
+          - (lookup('file', student_state_file) | from_json).hybrid.m11.verification.gates.k8s_resources == {}

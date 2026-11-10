@@ -1,0 +1,36 @@
+_p010_prepare_dropbear_host_key() {
+  source_key=/etc/p010-hibrido/ssh/host_ed25519.openssh
+  expected_key=/etc/p010-hibrido/ssh/host_ed25519.pub
+  native_key=/etc/p010-hibrido/ssh/host_ed25519.dropbear
+  temp_key="${native_key}.tmp.$$"
+  dropbear_convert="$(command -v dropbearconvert)" || return 1
+  dropbear_key="$(command -v dropbearkey)" || return 1
+  [ -f "$expected_key" ] && [ ! -L "$expected_key" ] || return 1
+  [ "$(busybox stat -c '%u' "$expected_key" 2>/dev/null)" = 0 ] || return 1
+  expected_public="$(awk '$1 == "ssh-ed25519" && NF >= 2 { print $1, $2 }' "$expected_key")"
+  [ -n "$expected_public" ] || return 1
+  if [ -e "$native_key" ] || [ -L "$native_key" ]; then
+    [ -f "$native_key" ] && [ ! -L "$native_key" ] || return 1
+    [ "$(busybox stat -c '%u:%a' "$native_key" 2>/dev/null)" = 0:600 ] || return 1
+  else
+    [ -f "$source_key" ] && [ ! -L "$source_key" ] || return 1
+    [ "$(busybox stat -c '%u' "$source_key" 2>/dev/null)" = 0 ] || return 1
+    chmod 600 "$source_key" || return 1
+    umask 077
+    [ ! -e "$temp_key" ] && [ ! -L "$temp_key" ] || return 1
+    "$dropbear_convert" openssh dropbear "$source_key" "$temp_key" >/dev/null 2>&1 || return 1
+    chmod 600 "$temp_key" || return 1
+    [ "$(busybox stat -c '%u:%a' "$temp_key" 2>/dev/null)" = 0:600 ] || return 1
+    [ ! -e "$native_key" ] && [ ! -L "$native_key" ] || return 1
+    mv "$temp_key" "$native_key" || return 1
+  fi
+  observed_public="$("$dropbear_key" -y -f "$native_key" 2>/dev/null | awk '$1 == "ssh-ed25519" && NF >= 2 { print $1, $2 }')"
+  [ -n "$observed_public" ] && [ "$observed_public" = "$expected_public" ]
+}
+
+if ! _p010_prepare_dropbear_host_key; then
+  printf '%s\n' 'P010: host-key validation failed; Dropbear will not start.' >&2
+  exit 1
+fi
+unset -f _p010_prepare_dropbear_host_key
+DROPBEAR_ARGS="-s -w -r /etc/p010-hibrido/ssh/host_ed25519.dropbear"

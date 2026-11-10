@@ -1,0 +1,96 @@
+---
+- name: Render creation of the two private DHCP observer files before process startup
+  ansible.builtin.set_fact:
+    student_hybrid_m11_dhcp_prepare_script: |-
+      set -eu
+      umask 077
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      capture={{ student_state.hybrid.m11.verification.gates.dhcp_capture.path | quote }}
+      result={{ student_state.hybrid.m11.verification.gates.dhcp_capture.result_path | quote }}
+      [ ! -e "$capture" ] && [ ! -L "$capture" ]
+      [ ! -e "$result" ] && [ ! -L "$result" ]
+      : >"$result"
+      chmod 600 "$result"
+      result_stat="$(stat -c '%d|%i|%u|%a' "$result")"
+      [ "$(stat -c '%u|%a' "$result")" = "$(id -u)|600" ]
+      printf 'P010_DHCP_RESULT_FILE=%s\n' "$result_stat" >&3
+      : >"$capture"
+      chmod 600 "$capture"
+      capture_stat="$(stat -c '%d|%i|%u|%a' "$capture")"
+      [ "$(stat -c '%u|%a' "$capture")" = "$(id -u)|600" ]
+      printf 'P010_DHCP_FILE=%s\n' "$capture_stat" >&3
+  no_log: true
+
+- name: Create the observer files using the pinned Ubuntu SSH identity
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: ubuntu
+    student_hybrid_ssh_remote_command: bash -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_dhcp_prepare_script }}"
+    student_hybrid_ssh_allow_failure: true
+
+- name: Parse any private-file identities emitted before a preparation error
+  ansible.builtin.include_tasks: hybrid-m11-parse-markers.yml
+  vars:
+    student_hybrid_m11_marker_prefix: P010_DHCP_
+    student_hybrid_m11_marker_lines: "{{ student_hybrid_ssh_result.stdout_lines }}"
+
+- name: Retain observer file identities for a partial cleanup checkpoint
+  ansible.builtin.set_fact:
+    student_hybrid_m11_dhcp_prepare_fields: "{{ student_hybrid_m11_parsed_markers }}"
+  no_log: true
+
+- name: Checkpoint created file identities before requiring both files
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'m11': {'verification': {'gates': {
+        'dhcp_capture': {
+          'phase': 'starting',
+          'path': student_state.hybrid.m11.verification.gates.dhcp_capture.path,
+          'result_path': student_state.hybrid.m11.verification.gates.dhcp_capture.result_path,
+          'client_mac': student_state.hybrid.m11.verification.gates.dhcp_capture.client_mac,
+          'address': student_state.hybrid.m11.verification.gates.dhcp_capture.address,
+          'gateway': student_state.hybrid.m11.verification.gates.dhcp_capture.gateway,
+          'server_ip': student_state.hybrid.m11.verification.gates.dhcp_capture.server_ip,
+          'server_mac': student_state.hybrid.m11.verification.gates.dhcp_capture.server_mac,
+          'pid': 0, 'starttime': 0, 'process_uid': 0, 'netns': '', 'ifindex': 0,
+          'tcpdump_pid': 0, 'tcpdump_starttime': 0, 'tcpdump_uid': 0, 'tcpdump_netns': '',
+          'supervisor_pid': 0, 'supervisor_starttime': 0, 'supervisor_uid': 0,
+          'device': (student_hybrid_m11_dhcp_prepare_fields.FILE | default('0|0|0|0')).split('|')[0] | int,
+          'inode': (student_hybrid_m11_dhcp_prepare_fields.FILE | default('0|0|0|0')).split('|')[1] | int,
+          'owner_uid': (student_hybrid_m11_dhcp_prepare_fields.FILE | default('0|0|0|0')).split('|')[2] | int,
+          'result_device': (student_hybrid_m11_dhcp_prepare_fields.RESULT_FILE | default('0|0|0|0')).split('|')[0] | int,
+          'result_inode': (student_hybrid_m11_dhcp_prepare_fields.RESULT_FILE | default('0|0|0|0')).split('|')[1] | int,
+          'result_owner_uid': (student_hybrid_m11_dhcp_prepare_fields.RESULT_FILE | default('0|0|0|0')).split('|')[2] | int,
+          'started_utc': '', 'xid': ''
+        }
+      }}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Persist any file identity captured before preparation failed
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Require both owner-only files and successful private-path preparation
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_ssh_result.rc | int == 0
+      - student_hybrid_m11_dhcp_prepare_fields.FILE is defined
+      - student_hybrid_m11_dhcp_prepare_fields.RESULT_FILE is defined
+      - student_hybrid_m11_dhcp_prepare_fields.FILE.split('|') | length == 4
+      - student_hybrid_m11_dhcp_prepare_fields.FILE.split('|')[0] | int > 0
+      - student_hybrid_m11_dhcp_prepare_fields.FILE.split('|')[1] | int > 0
+      - student_hybrid_m11_dhcp_prepare_fields.FILE.split('|')[2] | int == student_uid | int
+      - student_hybrid_m11_dhcp_prepare_fields.FILE.split('|')[3] == '600'
+      - student_hybrid_m11_dhcp_prepare_fields.RESULT_FILE.split('|') | length == 4
+      - student_hybrid_m11_dhcp_prepare_fields.RESULT_FILE.split('|')[0] | int > 0
+      - student_hybrid_m11_dhcp_prepare_fields.RESULT_FILE.split('|')[1] | int > 0
+      - student_hybrid_m11_dhcp_prepare_fields.RESULT_FILE.split('|')[2] | int == student_uid | int
+      - student_hybrid_m11_dhcp_prepare_fields.RESULT_FILE.split('|')[3] == '600'
+    fail_msg: "A preparação dos arquivos privados da captura falhou; os inodes conhecidos permanecem registrados para cleanup."
+  no_log: true

@@ -1,0 +1,50 @@
+---
+- name: Require a complete M11 attachment record before checkpoint
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_ovs_attachment_record is mapping
+      - student_hybrid_m11_ovs_attachment_record.keys() | list | sort == ['attached_mac', 'bridge_name', 'bridge_uuid', 'guest_interface_mac', 'guest_uuid', 'ifindex', 'interface_name', 'interface_uuid', 'neutron_port_id', 'ofport', 'phase', 'port_uuid']
+      - student_hybrid_m11_ovs_attachment_record.phase in ['attaching', 'attached']
+      - student_hybrid_m11_ovs_attachment_record.bridge_name == 'br-int'
+      - student_hybrid_m11_ovs_attachment_record.interface_name == 'tenant0'
+      - student_hybrid_m11_ovs_attachment_record.guest_uuid == student_state.hybrid.guests.ubuntu.uuid
+      - student_hybrid_m11_ovs_attachment_record.neutron_port_id == student_state.hybrid.m11.api.resources.cirros_port.primary.id
+      - student_hybrid_m11_ovs_attachment_record.attached_mac == student_state.hybrid.m11.api.resources.cirros_port.primary.mac_address
+      - student_hybrid_m11_ovs_attachment_record.guest_interface_mac == student_state.hybrid.guests.ubuntu.tenant_mac
+      - student_hybrid_m11_ovs_attachment_record.attached_mac | lower != student_hybrid_m11_ovs_attachment_record.guest_interface_mac | lower
+      - (student_hybrid_m11_ovs_attachment_record.phase == 'attaching' and student_hybrid_m11_ovs_attachment_record.bridge_uuid == '' and student_hybrid_m11_ovs_attachment_record.port_uuid == '' and student_hybrid_m11_ovs_attachment_record.interface_uuid == '' and student_hybrid_m11_ovs_attachment_record.ifindex | int == 0 and student_hybrid_m11_ovs_attachment_record.ofport | int == 0) or (student_hybrid_m11_ovs_attachment_record.phase == 'attached' and student_hybrid_m11_ovs_attachment_record.bridge_uuid is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') and student_hybrid_m11_ovs_attachment_record.port_uuid is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') and student_hybrid_m11_ovs_attachment_record.interface_uuid is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') and student_hybrid_m11_ovs_attachment_record.ifindex | int > 0 and student_hybrid_m11_ovs_attachment_record.ofport | int > 0)
+    fail_msg: "OVS attachment checkpoint não corresponde à porta e às identidades registradas desta execução."
+  no_log: true
+
+- name: Replace the attachment map exactly while preserving sibling verification gates
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': student_state.hybrid | combine({
+        'm11': student_state.hybrid.m11 | combine({
+          'verification': student_state.hybrid.m11.verification | combine({
+            'gates': student_state.hybrid.m11.verification.gates | combine({
+              'ovs_attach': student_hybrid_m11_ovs_attachment_record
+            }, recursive=false)
+          }, recursive=false)
+        }, recursive=false)
+      }, recursive=false)}, recursive=false) }}
+  no_log: true
+
+- name: Persist the exact Neutron binding and OVS identities
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Reload the exact attachment checkpoint
+  ansible.builtin.set_fact:
+    student_state: "{{ lookup('file', student_state_file) | from_json }}"
+  no_log: true
+
+- name: Require attachment identity to survive durable reload
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.ovs_attach == student_hybrid_m11_ovs_attachment_record
+  no_log: true

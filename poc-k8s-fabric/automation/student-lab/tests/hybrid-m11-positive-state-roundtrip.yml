@@ -1,0 +1,32 @@
+---
+- name: Consume a measured C1 result as history and reserve a fresh partial check
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    student_profile_name: hibrido
+    student_uid: "{{ ansible_user_uid | int }}"
+    student_state_file: "{{ lookup('env', 'P010_HYBRID_POSITIVE_STATE_FILE') }}"
+    student_run_dir: "{{ lookup('env', 'P010_HYBRID_POSITIVE_RUN_DIR') }}"
+  tasks:
+    - name: Load the state written by the measured positive composition
+      ansible.builtin.set_fact:
+        student_state: "{{ lookup('file', student_state_file) | from_json }}"
+      no_log: true
+
+    - name: Consume the historical receipt and persist the fresh reverify intent
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-begin-verify-existing.yml
+
+    - name: Confirm the old receipt remains historical after a durable fresh check
+      ansible.builtin.assert:
+        that:
+          - student_state.status == 'partial'
+          - student_state.hybrid.m11.verification.gates.positive.c1.phase == 'collecting'
+          - student_state.hybrid.m11.verification.gates.positive.c1.check_id != student_hybrid_m11_previous_c1_receipt.check_id
+          - student_state.hybrid.m11.verification.gates.positive.c1.previous_receipt.sha256 == student_hybrid_m11_previous_c1_stat.stat.checksum
+          - student_state.hybrid.m11.verification.gates.positive.c1.receipt.path == ''
+          - student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'starting'
+          - student_state.hybrid.m11.verification.gates.c1_capture_active.check_id == student_state.hybrid.m11.verification.gates.positive.c1.check_id
+          - (lookup('file', student_state_file) | from_json).status == 'partial'
+          - (lookup('file', student_state_file) | from_json).hybrid.m11.verification.gates.positive.c1.phase == 'collecting'
+        fail_msg: "O receipt histórico não pode promover saúde; o novo check C1 precisa ficar partial/collecting após reload."

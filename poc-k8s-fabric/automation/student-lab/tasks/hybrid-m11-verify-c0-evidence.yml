@@ -1,0 +1,148 @@
+---
+- name: Require durable C0 evidence references scoped to this run
+  ansible.builtin.assert:
+    that:
+      - student_state.profile == 'hibrido'
+      - student_state.status in ['partial', 'up']
+      - student_state.hybrid.m11.verification.gates.c0_binding_evidence.path == student_run_dir ~ '/m11-evidence/c0-binding.json'
+      - student_state.hybrid.m11.verification.gates.c0_dora_evidence.path == student_run_dir ~ '/m11-evidence/c0-dora.json'
+      - student_state.hybrid.m11.verification.gates.c0_binding_evidence.sha256 is match('^[0-9a-f]{64}$')
+      - student_state.hybrid.m11.verification.gates.c0_dora_evidence.sha256 is match('^[0-9a-f]{64}$')
+      - student_state.hybrid.m11.verification.gates.c0_binding_evidence.owner_uid | int == student_uid | int
+      - student_state.hybrid.m11.verification.gates.c0_dora_evidence.owner_uid | int == student_uid | int
+      - student_state.hybrid.m11.verification.gates.c0_binding_evidence.mode == '0600'
+      - student_state.hybrid.m11.verification.gates.c0_dora_evidence.mode == '0600'
+      - student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.file_device | int > 0
+      - student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.file_inode | int > 0
+      - student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.file_owner_uid | int >= 0
+      - student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.result_device | int > 0
+      - student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.result_inode | int > 0
+      - student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.result_owner_uid | int >= 0
+      - student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.capture_rc | int in [0, 130]
+      - student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.started_utc is match('^20[0-9]{2}-[0-9]{2}-[0-9]{2}T')
+      - student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.completed_utc is match('^20[0-9]{2}-[0-9]{2}-[0-9]{2}T')
+    fail_msg: "O estado ativo não identifica os dois registros C0 owner-only desta execução."
+  no_log: true
+
+- name: Inspect the binding evidence inode and content hash without following links
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.m11.verification.gates.c0_binding_evidence.path }}"
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  register: student_hybrid_m11_c0_binding_verify_stat
+  no_log: true
+
+- name: Inspect the DORA evidence inode and content hash without following links
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.m11.verification.gates.c0_dora_evidence.path }}"
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  register: student_hybrid_m11_c0_dora_verify_stat
+  no_log: true
+
+- name: Require both evidence files to retain their exact saved inode, owner, mode, and hash
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c0_binding_verify_stat.stat.isreg | default(false)
+      - not (student_hybrid_m11_c0_binding_verify_stat.stat.islnk | default(false))
+      - student_hybrid_m11_c0_binding_verify_stat.stat.dev | int == student_state.hybrid.m11.verification.gates.c0_binding_evidence.device | int
+      - student_hybrid_m11_c0_binding_verify_stat.stat.inode | int == student_state.hybrid.m11.verification.gates.c0_binding_evidence.inode | int
+      - student_hybrid_m11_c0_binding_verify_stat.stat.uid | int == student_state.hybrid.m11.verification.gates.c0_binding_evidence.owner_uid | int
+      - student_hybrid_m11_c0_binding_verify_stat.stat.mode == student_state.hybrid.m11.verification.gates.c0_binding_evidence.mode
+      - student_hybrid_m11_c0_binding_verify_stat.stat.checksum == student_state.hybrid.m11.verification.gates.c0_binding_evidence.sha256
+      - student_hybrid_m11_c0_dora_verify_stat.stat.isreg | default(false)
+      - not (student_hybrid_m11_c0_dora_verify_stat.stat.islnk | default(false))
+      - student_hybrid_m11_c0_dora_verify_stat.stat.dev | int == student_state.hybrid.m11.verification.gates.c0_dora_evidence.device | int
+      - student_hybrid_m11_c0_dora_verify_stat.stat.inode | int == student_state.hybrid.m11.verification.gates.c0_dora_evidence.inode | int
+      - student_hybrid_m11_c0_dora_verify_stat.stat.uid | int == student_state.hybrid.m11.verification.gates.c0_dora_evidence.owner_uid | int
+      - student_hybrid_m11_c0_dora_verify_stat.stat.mode == student_state.hybrid.m11.verification.gates.c0_dora_evidence.mode
+      - student_hybrid_m11_c0_dora_verify_stat.stat.checksum == student_state.hybrid.m11.verification.gates.c0_dora_evidence.sha256
+    fail_msg: "A evidência C0 foi removida ou mudou de inode, dono, permissão ou conteúdo."
+  no_log: true
+
+- name: Read the private C0 records as data for semantic verification
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  loop:
+    - "{{ student_state.hybrid.m11.verification.gates.c0_binding_evidence.path }}"
+    - "{{ student_state.hybrid.m11.verification.gates.c0_dora_evidence.path }}"
+  register: student_hybrid_m11_c0_evidence_inputs
+  no_log: true
+
+- name: Parse the two durable C0 observations in memory only
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c0_binding_record: "{{ student_hybrid_m11_c0_evidence_inputs.results[0].content | b64decode | from_json }}"
+    student_hybrid_m11_c0_dora_record: "{{ student_hybrid_m11_c0_evidence_inputs.results[1].content | b64decode | from_json }}"
+  no_log: true
+
+- name: Require saved binding, service, OVS, and DORA evidence to match current run identities
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c0_binding_record.schema | int == 1
+      - student_hybrid_m11_c0_binding_record.scope == 'C0 Neutron port binding, security-group rules, and OVS attachment'
+      - student_hybrid_m11_c0_binding_record.run_id == student_state.run_id
+      - student_hybrid_m11_c0_binding_record.observation.run_id == student_state.run_id
+      - student_hybrid_m11_c0_binding_record.observation.port.id == student_state.hybrid.m11.api.resources.cirros_port.primary.id
+      - student_hybrid_m11_c0_binding_record.observation.port.id == student_state.hybrid.m11.verification.gates.c0_binding_observation.port.id
+      - student_hybrid_m11_c0_binding_record.observation.port.mac_address | lower == student_state.hybrid.m11.verification.gates.c0_binding_observation.port.mac_address | lower
+      - student_hybrid_m11_c0_binding_record.observation.port.fixed_ips == student_state.hybrid.m11.verification.gates.c0_binding_observation.port.fixed_ips
+      - student_hybrid_m11_c0_binding_record.observation.port.security_groups == student_state.hybrid.m11.verification.gates.c0_binding_observation.port.security_groups
+      - student_hybrid_m11_c0_binding_record.observation.port.binding_vif_type == 'ovs'
+      - student_hybrid_m11_c0_binding_record.observation.port.binding_vif_details.port_filter | bool
+      - student_hybrid_m11_c0_binding_record.observation.port.port_security_enabled | bool
+      - student_hybrid_m11_c0_binding_record.observation.port.allowed_address_pairs | length == 0
+      - student_hybrid_m11_c0_binding_record.observation.dhcp_server.id == student_state.hybrid.m11.verification.gates.dhcp_server.id
+      - student_hybrid_m11_c0_binding_record.observation.dhcp_server.mac_address | lower == student_state.hybrid.m11.verification.gates.dhcp_server.mac_address | lower
+      - student_hybrid_m11_c0_binding_record.observation.security_group.id == student_state.hybrid.m11.api.resources.security_group.primary.id
+      - student_hybrid_m11_c0_binding_record.observation.security_group.rule_ids | length == 4
+      - student_hybrid_m11_c0_binding_record.observation.security_group.rule_ids == student_state.hybrid.m11.verification.gates.c0_binding_observation.security_group.rule_ids
+      - student_hybrid_m11_c0_binding_record.observation.security_group.rules | length == 4
+      - student_hybrid_m11_c0_binding_record.observation.security_group.rules == student_state.hybrid.m11.verification.gates.c0_binding_observation.security_group.rules
+      - student_hybrid_m11_c0_binding_record.observation.ovs.attachment == student_state.hybrid.m11.verification.gates.ovs_attach
+      - student_hybrid_m11_c0_binding_record.observation.ovs.attachment.ifindex | int > 0
+      - student_hybrid_m11_c0_binding_record.observation.ovs.attachment.ofport | int > 0
+      - student_hybrid_m11_c0_dora_record.schema | int == 1
+      - student_hybrid_m11_c0_dora_record.scope == 'C0 initial DHCP DORA on tenant0; no C1-C8 path claim'
+      - student_hybrid_m11_c0_dora_record.run_id == student_state.run_id
+      - student_hybrid_m11_c0_dora_record.command.rc | int in [0, 130]
+      - student_hybrid_m11_c0_dora_record.command.rc | int == student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.capture_rc | int
+      - student_hybrid_m11_c0_dora_record.command.rc | int != 130 or student_hybrid_m11_c0_dora_record.capture.stop_requested | bool
+      - student_hybrid_m11_c0_dora_record.command.completed_utc is match('^20[0-9]{2}-[0-9]{2}-[0-9]{2}T')
+      - student_hybrid_m11_c0_dora_record.command.started_utc == student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.started_utc
+      - student_hybrid_m11_c0_dora_record.command.completed_utc == student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.completed_utc
+      - student_hybrid_m11_c0_dora_record.capture.remote_path == '/tmp/p010-' ~ student_state.run_id ~ '-dhcp.log'
+      - student_hybrid_m11_c0_dora_record.capture.result_path == '/tmp/p010-' ~ student_state.run_id ~ '-dhcp.result'
+      - student_hybrid_m11_c0_dora_record.capture.device | int == student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.file_device | int
+      - student_hybrid_m11_c0_dora_record.capture.inode | int == student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.file_inode | int
+      - student_hybrid_m11_c0_dora_record.capture.owner_uid | int == student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.file_owner_uid | int
+      - student_hybrid_m11_c0_dora_record.capture.mode == '0600'
+      - student_hybrid_m11_c0_dora_record.capture.result_device | int == student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.result_device | int
+      - student_hybrid_m11_c0_dora_record.capture.result_inode | int == student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.result_inode | int
+      - student_hybrid_m11_c0_dora_record.capture.result_owner_uid | int == student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.result_owner_uid | int
+      - student_hybrid_m11_c0_dora_record.capture.result_mode == '0600'
+      - student_hybrid_m11_c0_dora_record.capture.sha256 is match('^[0-9a-f]{64}$')
+      - student_hybrid_m11_c0_dora_record.capture.sha256 == student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_sha256
+      - student_hybrid_m11_c0_dora_record.capture.stop_requested | bool == student_state.hybrid.m11.verification.gates.c0_dora_evidence.capture_identity.stop_requested | bool
+      - student_hybrid_m11_c0_dora_record.capture.dropped_by_kernel | int == 0
+      - student_hybrid_m11_c0_dora_record.capture.captured_packets | int >= 4
+      - student_hybrid_m11_c0_dora_record.capture.captured_packets | int <= 32
+      - student_hybrid_m11_c0_dora_record.capture.captured_packets | int == student_state.hybrid.m11.verification.gates.c0_dora_evidence.captured_packets | int
+      - student_hybrid_m11_c0_dora_record.capture.received_by_filter | int == student_state.hybrid.m11.verification.gates.c0_dora_evidence.received_by_filter | int
+      - student_hybrid_m11_c0_dora_record.capture.dropped_by_kernel | int == student_state.hybrid.m11.verification.gates.c0_dora_evidence.dropped_by_kernel | int
+      - student_hybrid_m11_c0_dora_record.capture.received_by_filter | int >= 0
+      - student_hybrid_m11_c0_dora_record.raw_headers | hash('sha256') == student_hybrid_m11_c0_dora_record.capture.sha256
+      - student_hybrid_m11_c0_dora_record.transaction.xid == student_state.hybrid.m11.verification.gates.c0_dora_evidence.xid
+      - student_hybrid_m11_c0_dora_record.transaction.xid is match('^0x[0-9A-Fa-f]{8}$')
+      - student_hybrid_m11_c0_dora_record.transaction.exchange == ['DISCOVER', 'OFFER', 'REQUEST', 'ACK']
+      - student_hybrid_m11_c0_dora_record.transaction.packet_count | int == student_hybrid_m11_c0_dora_record.capture.captured_packets | int
+      - student_hybrid_m11_c0_dora_record.transaction.client_mac | lower == student_state.hybrid.guests.cirros.tenant_mac | lower
+      - student_hybrid_m11_c0_dora_record.transaction.server_ip == student_state.hybrid.m11.verification.gates.dhcp_server.ip_address
+      - student_hybrid_m11_c0_dora_record.transaction.server_mac | lower == student_state.hybrid.m11.verification.gates.dhcp_server.mac_address | lower
+      - student_hybrid_m11_c0_dora_record.transaction.address == student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address
+      - student_hybrid_m11_c0_dora_record.transaction.gateway == student_state.hybrid.m11.network.tenant_gateway
+      - student_hybrid_m11_c0_dora_record.observer.netns is match('^net:\[[0-9]+\]$')
+      - student_hybrid_m11_c0_dora_record.observer.tcpdump_netns == student_hybrid_m11_c0_dora_record.observer.netns
+    fail_msg: "Os registros C0 não comprovam uma captura DORA inicial e o binding atual desta execução."
+  no_log: true

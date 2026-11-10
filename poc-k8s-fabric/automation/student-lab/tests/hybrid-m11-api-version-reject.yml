@@ -1,0 +1,22 @@
+---
+- name: Set a synthetic Neutron version-discovery response under test
+  ansible.builtin.set_fact:
+    student_hybrid_api_network_catalog_url: "{{ item.catalog }}"
+    student_hybrid_api_network_discovery:
+      status: 200
+      json:
+        versions: "{{ [{'id': item.version_id | default('v2.0'), 'status': 'CURRENT', 'links': ([{'rel': 'self', 'href': item.href | default('')}] if item.self_link | default(true) else [])}] + ([{'id': 'v2.0', 'status': 'CURRENT', 'links': [{'rel': 'self', 'href': item.href | default('')}]}] if item.duplicate | default(false) else []) }}"
+    student_hybrid_api_version_rejected: false
+
+- name: Require the production version validator to reject this unsafe link
+  block:
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-validate-neutron-version.yml
+  rescue:
+    - ansible.builtin.set_fact:
+        student_hybrid_api_version_rejected: true
+
+- name: Confirm the unsafe Neutron link was rejected
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_version_rejected | bool
+    fail_msg: "O validador aceitou link Neutron inválido: {{ item.name }}"

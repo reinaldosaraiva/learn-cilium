@@ -1,0 +1,115 @@
+---
+- name: Select the required IPAM pool and namespace definitions from S010
+  ansible.builtin.set_fact:
+    student_ipam_setup_documents: >-
+      {{ (lookup('file', student_repo_root ~ '/poc-k8s-fabric/studies/p003/cases/s010/01-m24-setup.yaml')
+          | from_yaml_all | list)
+         if student_exercise_config.ipam == 'm24'
+         else
+         ((lookup('file', student_repo_root ~ '/poc-k8s-fabric/studies/p003/cases/s010/06-m32-setup.yaml')
+            | from_yaml_all | list)
+          + (lookup('file', student_repo_root ~ '/poc-k8s-fabric/studies/p003/cases/s010/01-m24-setup.yaml')
+             | from_yaml_all | list
+             | selectattr('kind', 'defined') | selectattr('kind', 'equalto', 'CiliumPodIPPool')
+             | selectattr('metadata.name', 'equalto', 'p003-m24') | list)) }}
+
+- name: Render the selected IPAM namespaces and pool selectors privately
+  ansible.builtin.template:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/selected-documents.yml.j2"
+    dest: "{{ student_run_dir }}/ipam-setup.yaml"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  vars:
+    student_selected_documents: "{{ student_ipam_setup_documents }}"
+
+- name: Copy the reviewed pool-route advertisement and selected workload privately
+  ansible.builtin.copy:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/cases/s010/{{ item.source }}"
+    dest: "{{ student_run_dir }}/{{ item.dest }}"
+    remote_src: true
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  loop:
+    - { source: 02-bgp-advertisement.yaml, dest: ipam-bgp-advertisement.yaml }
+    - { source: "{{ '03-m24-workload.yaml' if student_exercise_config.ipam == 'm24' else '07-m32-workload.yaml' }}", dest: ipam-workload.yaml }
+
+- name: Wait for CiliumPodIPPool CRD before applying selected pool selectors
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - wait
+      - --for=condition=Established
+      - crd/ciliumpodippools.cilium.io
+      - --timeout=120s
+  become: true
+  changed_when: false
+
+- name: Require Helm to pre-create every pool referenced by multi-pool preallocation
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - ciliumpodippool
+      - "{{ item }}"
+      - -o
+      - name
+  become: true
+  register: student_precreated_pool
+  changed_when: false
+  retries: 30
+  delay: 2
+  until: student_precreated_pool.rc == 0
+  loop: "{{ ['default', 'p003-m24'] + (['p003-m32'] if student_exercise_config.ipam == 'm32' else []) }}"
+
+- name: Apply namespace labels and selectors after pools exist but before workloads
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - apply
+      - -f
+      - "{{ student_run_dir }}/ipam-setup.yaml"
+  become: true
+  register: student_ipam_setup_apply
+  changed_when: "'configured' in student_ipam_setup_apply.stdout or 'created' in student_ipam_setup_apply.stdout"
+
+- name: Add IPAM pool blocks to the reviewed fabric BGP advertisement
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - apply
+      - -f
+      - "{{ student_run_dir }}/ipam-bgp-advertisement.yaml"
+  become: true
+  register: student_ipam_advertisement_apply
+  changed_when: "'configured' in student_ipam_advertisement_apply.stdout or 'created' in student_ipam_advertisement_apply.stdout"
+
+- name: Apply the selected IPAM workload after selector labels are present
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - apply
+      - -f
+      - "{{ student_run_dir }}/ipam-workload.yaml"
+  become: true
+  register: student_ipam_workload_apply
+  changed_when: "'configured' in student_ipam_workload_apply.stdout or 'created' in student_ipam_workload_apply.stdout"

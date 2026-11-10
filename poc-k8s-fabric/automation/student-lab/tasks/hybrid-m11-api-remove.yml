@@ -1,0 +1,383 @@
+---
+- name: Withdraw the provider network from the saved NDR speaker
+  ansible.builtin.include_tasks: hybrid-m11-api-unlink.yml
+  vars:
+    student_hybrid_api_link_key: bgp_gateway_network
+    student_hybrid_api_path: "/bgp-speakers/{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}/remove_gateway_network"
+    student_hybrid_api_body:
+      network_id: "{{ student_state.hybrid.m11.api.resources.external_network.primary.id }}"
+  when:
+    - student_hybrid_api_remove_phase == 'routing'
+    - student_state.hybrid.m11.api.links.bgp_gateway_network | default(false) | bool
+  no_log: true
+
+- name: Remove the saved border peer relationship from the NDR speaker
+  ansible.builtin.include_tasks: hybrid-m11-api-unlink.yml
+  vars:
+    student_hybrid_api_link_key: bgp_peer
+    student_hybrid_api_path: "/bgp-speakers/{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}/remove_bgp_peer"
+    student_hybrid_api_body:
+      bgp_peer_id: "{{ student_state.hybrid.m11.api.resources.bgp_peer.primary.id }}"
+  when:
+    - student_hybrid_api_remove_phase == 'routing'
+    - student_state.hybrid.m11.api.links.bgp_peer | default(false) | bool
+  no_log: true
+
+- name: Wait for NDR to withdraw every advertised route before deleting its speaker
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}/bgp-speakers/{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}/get_advertised_routes"
+    method: GET
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+    return_content: true
+    status_code: [200]
+    timeout: 15
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_withdrawn_routes
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+  changed_when: false
+  retries: 30
+  delay: 2
+  until: student_hybrid_api_withdrawn_routes.json.advertised_routes | length == 0
+  when:
+    - student_hybrid_api_remove_phase == 'routing'
+    - student_state.hybrid.m11.api.resources.bgp_speaker.primary.id is match('^[0-9a-f-]{36}$')
+
+- ansible.builtin.include_tasks: hybrid-m11-api-unschedule.yml
+  when:
+    - student_hybrid_api_remove_phase == 'routing'
+    - student_state.hybrid.m11.api.links.drinstance | default({}) is mapping
+    - student_state.hybrid.m11.api.links.drinstance.agent_id | default('') | length > 0
+  no_log: true
+
+- name: Delete only the saved BGP speaker ID after withdrawal
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: bgp_speaker
+    student_hybrid_api_slot: primary
+    student_hybrid_api_collection_path: /bgp-speakers
+    student_hybrid_api_envelope: bgp_speaker
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      name: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.name }}"
+  when:
+    - student_hybrid_api_remove_phase == 'routing'
+    - student_state.hybrid.m11.api.resources.bgp_speaker.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete only the saved BGP peer ID after unlinking
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: bgp_peer
+    student_hybrid_api_slot: primary
+    student_hybrid_api_collection_path: /bgp-peers
+    student_hybrid_api_envelope: bgp_peer
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      name: "{{ student_state.hybrid.m11.api.resources.bgp_peer.primary.name }}"
+  when:
+    - student_hybrid_api_remove_phase == 'routing'
+    - student_state.hybrid.m11.api.resources.bgp_peer.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the explicit CirrOS TCP egress policy
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: security_group_rules
+    student_hybrid_api_slot: egress_tcp
+    student_hybrid_api_collection_path: /security-group-rules
+    student_hybrid_api_envelope: security_group_rule
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+      direction: egress
+      ethertype: IPv4
+      protocol: tcp
+      port_range_min: 8080
+      port_range_max: 8080
+      remote_ip_prefix: "{{ student_profile.hybrid_network.pod_cidr }}"
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.security_group_rules.egress_tcp.id | default('') is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the explicit CirrOS ICMP egress policy
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: security_group_rules
+    student_hybrid_api_slot: egress_icmp
+    student_hybrid_api_collection_path: /security-group-rules
+    student_hybrid_api_envelope: security_group_rule
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+      direction: egress
+      ethertype: IPv4
+      protocol: icmp
+      remote_ip_prefix: "{{ student_profile.hybrid_network.pod_cidr }}"
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.security_group_rules.egress_icmp.id | default('') is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the explicit CirrOS TCP ingress policy
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: security_group_rules
+    student_hybrid_api_slot: ingress_tcp
+    student_hybrid_api_collection_path: /security-group-rules
+    student_hybrid_api_envelope: security_group_rule
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+      direction: ingress
+      ethertype: IPv4
+      protocol: tcp
+      port_range_min: "{{ student_profile.hybrid_m11.cirros_probe_tcp_port }}"
+      port_range_max: "{{ student_profile.hybrid_m11.cirros_probe_tcp_port }}"
+      remote_ip_prefix: "{{ student_profile.hybrid_network.pod_cidr }}"
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.security_group_rules.ingress_tcp.id | default('') is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the explicit Cilium pod CIDR ICMP ingress policy
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: security_group_rules
+    student_hybrid_api_slot: ingress_icmp
+    student_hybrid_api_collection_path: /security-group-rules
+    student_hybrid_api_envelope: security_group_rule
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+      direction: ingress
+      ethertype: IPv4
+      protocol: icmp
+      remote_ip_prefix: "{{ student_profile.hybrid_network.pod_cidr }}"
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.security_group_rules.ingress_icmp.id | default('') is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the saved CirrOS tenant port after the OVS port is detached
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: cirros_port
+    student_hybrid_api_slot: primary
+    student_hybrid_api_collection_path: /ports
+    student_hybrid_api_envelope: port
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      name: "{{ student_state.hybrid.m11.api.resources.cirros_port.primary.name }}"
+      network_id: "{{ student_state.hybrid.m11.api.resources.tenant_network.primary.id }}"
+      mac_address: "{{ student_state.hybrid.guests.cirros.tenant_mac }}"
+      security_groups: ["{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"]
+      binding:host_id: "{{ student_state.hybrid.m11.api.agent_ids.ovs_host }}"
+      binding:vnic_type: normal
+      device_id: "{{ student_state.hybrid.guests.cirros.uuid }}"
+      device_owner: ''
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.cirros_port.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete saved default IPv6 group egress by ID when Neutron created it
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: security_group_rules
+    student_hybrid_api_slot: default_ipv6
+    student_hybrid_api_collection_path: /security-group-rules
+    student_hybrid_api_envelope: security_group_rule
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+      direction: egress
+      ethertype: IPv6
+      remote_ip_prefix: ::/0
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.security_group_rules.default_ipv6.id | default('') is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete saved default IPv4 group egress by ID when Neutron created it
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: security_group_rules
+    student_hybrid_api_slot: default_ipv4
+    student_hybrid_api_collection_path: /security-group-rules
+    student_hybrid_api_envelope: security_group_rule
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+      direction: egress
+      ethertype: IPv4
+      remote_ip_prefix: 0.0.0.0/0
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.security_group_rules.default_ipv4.id | default('') is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the saved security group after all dependent rules and ports are absent
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: security_group
+    student_hybrid_api_slot: primary
+    student_hybrid_api_collection_path: /security-groups
+    student_hybrid_api_envelope: security_group
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      name: "{{ student_state.hybrid.m11.api.resources.security_group.primary.name }}"
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.security_group.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Detach the tenant subnet from the qrouter through Neutron's action endpoint
+  ansible.builtin.include_tasks: hybrid-m11-api-remove-router-interface.yml
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.router_interface.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Clear the external gateway by router ID and verify Neutron removed its generated port
+  ansible.builtin.include_tasks: hybrid-m11-api-clear-router-gateway.yml
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.router.primary.id is match('^[0-9a-f-]{36}$')
+    - student_state.hybrid.m11.api.resources.router_gateway_port.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the saved router ID after its interface and gateway are removed
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: router
+    student_hybrid_api_slot: primary
+    student_hybrid_api_collection_path: /routers
+    student_hybrid_api_envelope: router
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      name: "{{ student_state.hybrid.m11.api.resources.router.primary.name }}"
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.router.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the saved tenant subnet
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: tenant_subnet
+    student_hybrid_api_slot: primary
+    student_hybrid_api_collection_path: /subnets
+    student_hybrid_api_envelope: subnet
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      name: "{{ student_state.hybrid.m11.api.resources.tenant_subnet.primary.name }}"
+      network_id: "{{ student_state.hybrid.m11.api.resources.tenant_network.primary.id }}"
+      subnetpool_id: "{{ student_state.hybrid.m11.api.resources.tenant_subnetpool.primary.id }}"
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.tenant_subnet.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the saved external subnet
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: external_subnet
+    student_hybrid_api_slot: primary
+    student_hybrid_api_collection_path: /subnets
+    student_hybrid_api_envelope: subnet
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      name: "{{ student_state.hybrid.m11.api.resources.external_subnet.primary.name }}"
+      network_id: "{{ student_state.hybrid.m11.api.resources.external_network.primary.id }}"
+      subnetpool_id: "{{ student_state.hybrid.m11.api.resources.external_subnetpool.primary.id }}"
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.external_subnet.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the saved tenant network
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: tenant_network
+    student_hybrid_api_slot: primary
+    student_hybrid_api_collection_path: /networks
+    student_hybrid_api_envelope: network
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      name: "{{ student_state.hybrid.m11.api.resources.tenant_network.primary.name }}"
+      provider:network_type: local
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.tenant_network.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the saved external provider network
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: external_network
+    student_hybrid_api_slot: primary
+    student_hybrid_api_collection_path: /networks
+    student_hybrid_api_envelope: network
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      name: "{{ student_state.hybrid.m11.api.resources.external_network.primary.name }}"
+      provider:network_type: flat
+      provider:physical_network: m11public
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.external_network.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the saved tenant subnet pool after its subnet is absent
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: tenant_subnetpool
+    student_hybrid_api_slot: primary
+    student_hybrid_api_collection_path: /subnetpools
+    student_hybrid_api_envelope: subnetpool
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      name: "{{ student_state.hybrid.m11.api.resources.tenant_subnetpool.primary.name }}"
+      address_scope_id: "{{ student_state.hybrid.m11.api.resources.address_scope.primary.id }}"
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.tenant_subnetpool.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the saved external subnet pool after its subnet is absent
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: external_subnetpool
+    student_hybrid_api_slot: primary
+    student_hybrid_api_collection_path: /subnetpools
+    student_hybrid_api_envelope: subnetpool
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      name: "{{ student_state.hybrid.m11.api.resources.external_subnetpool.primary.name }}"
+      address_scope_id: "{{ student_state.hybrid.m11.api.resources.address_scope.primary.id }}"
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.external_subnetpool.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true
+
+- name: Delete the saved address scope after both pools are absent
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: address_scope
+    student_hybrid_api_slot: primary
+    student_hybrid_api_collection_path: /address-scopes
+    student_hybrid_api_envelope: address_scope
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      name: "{{ student_state.hybrid.m11.api.resources.address_scope.primary.name }}"
+      ip_version: 4
+      shared: false
+  when:
+    - student_hybrid_api_remove_phase == 'resources'
+    - student_state.hybrid.m11.api.resources.address_scope.primary.id is match('^[0-9a-f-]{36}$')
+  no_log: true

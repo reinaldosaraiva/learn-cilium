@@ -1,0 +1,81 @@
+---
+- name: Exercise the production QMP-directory and pre-boot identity guards
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    student_hybrid_test_dir: "{{ lookup('env', 'P010_HYBRID_TEST_DIR') }}"
+    student_state_file: "{{ student_hybrid_test_dir }}/state.json"
+    student_uid: "{{ lookup('env', 'P010_HYBRID_TEST_UID') | int }}"
+    student_hybrid_boot_guard_case: "{{ lookup('env', 'P010_HYBRID_BOOT_GUARD_CASE') }}"
+    student_hybrid_guest_name: ubuntu
+    student_state:
+      hybrid:
+        qmp_dir:
+          path: "{{ student_hybrid_test_dir }}/qmp"
+          device: 0
+          inode: 0
+    student_hybrid_guest:
+      pidfile: "{{ student_hybrid_test_dir }}/qemu/ubuntu.pid"
+      qmp_path: "{{ student_hybrid_test_dir }}/qmp/u.qmp"
+      overlay_path: "{{ student_hybrid_test_dir }}/images/ubuntu-overlay.qcow2"
+      overlay_device: 0
+      overlay_inode: 0
+  tasks:
+    - name: Create private fake QEMU directories
+      ansible.builtin.file:
+        path: "{{ student_hybrid_test_dir }}/{{ item }}"
+        state: directory
+        owner: "{{ student_uid }}"
+        mode: '0700'
+      loop: [qemu, images]
+
+    - name: Create and persist the production private QMP directory
+      ansible.builtin.include_tasks: ../tasks/hybrid-prepare-qmp-dir.yml
+
+    - name: Create one owned overlay stand-in
+      ansible.builtin.file:
+        path: "{{ student_hybrid_guest.overlay_path }}"
+        state: touch
+        owner: "{{ student_uid }}"
+        mode: '0600'
+
+    - name: Inspect the test overlay without following symlinks
+      ansible.builtin.stat:
+        path: "{{ student_hybrid_guest.overlay_path }}"
+        follow: false
+      register: student_hybrid_test_overlay
+      no_log: true
+
+    - name: Save the exact owned overlay identity
+      ansible.builtin.set_fact:
+        student_hybrid_guest: "{{ student_hybrid_guest | combine({'overlay_device': student_hybrid_test_overlay.stat.dev, 'overlay_inode': student_hybrid_test_overlay.stat.inode}) }}"
+      no_log: true
+
+    - name: Replace the recorded inode only in the negative test fact
+      ansible.builtin.set_fact:
+        student_hybrid_guest: "{{ student_hybrid_guest | combine({'overlay_inode': student_hybrid_guest.overlay_inode | int + 1}) }}"
+      when: student_hybrid_boot_guard_case == 'replacement'
+      no_log: true
+
+    - name: Replace the saved QMP directory identity only in the negative fact
+      ansible.builtin.set_fact:
+        student_state: "{{ student_state | combine({'hybrid': {'qmp_dir': {'inode': student_state.hybrid.qmp_dir.inode | int + 1}}}, recursive=true) }}"
+      when: student_hybrid_boot_guard_case == 'qmp-replacement'
+      no_log: true
+
+    - name: Plant a pre-existing QMP path only for the collision control
+      ansible.builtin.file:
+        path: "{{ student_hybrid_guest.qmp_path }}"
+        state: touch
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      when: student_hybrid_boot_guard_case == 'socket-present'
+
+    - name: Change the expected owner only in the negative test fact
+      ansible.builtin.set_fact:
+        student_uid: "{{ student_uid | int + 1 }}"
+      when: student_hybrid_boot_guard_case == 'owner'
+      no_log: true
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-validate-boot-paths.yml

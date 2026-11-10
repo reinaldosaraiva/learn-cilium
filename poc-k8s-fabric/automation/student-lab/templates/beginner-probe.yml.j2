@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: relay-dns-and-http
+  namespace: {{ student_canary_namespace }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 120
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: probe
+          image: busybox:1.36.1
+          command:
+            - sh
+            - -c
+            - >-
+              set -eu;
+              nslookup hubble-relay.kube-system.svc.cluster.local;
+              body="$(wget -qO- http://http-canary.{{ student_canary_namespace }}.svc.cluster.local:8080/)";
+              test "$body" = student-canary-ok;
+              printf '%s\n' student-canary-ok
+          resources:
+            requests: { cpu: 5m, memory: 8Mi }
+            limits: { cpu: 100m, memory: 32Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true

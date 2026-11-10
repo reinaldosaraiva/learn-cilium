@@ -1,0 +1,122 @@
+---
+- name: Resolve border-role node names from the active profile
+  ansible.builtin.set_fact:
+    student_hybrid_border_profile_keys: >-
+      {{ (student_profile.fabric_nodes | default([])) | select('search', '-border1$') | list }}
+  no_log: true
+
+- name: Require exactly one border node in the active profile
+  ansible.builtin.assert:
+    that:
+      - student_profile.fabric_nodes is defined
+      - student_profile.fabric_nodes is sequence
+      - student_profile.fabric_nodes is not string
+      - student_profile.fabric_nodes is not mapping
+      - student_hybrid_border_profile_keys | length == 1
+    fail_msg: "O perfil atual precisa indicar exatamente um nó -border1."
+  no_log: true
+
+- name: Save the exact profile-owned border node key
+  ansible.builtin.set_fact:
+    student_hybrid_border_key: "{{ student_hybrid_border_profile_keys | first }}"
+  no_log: true
+
+- name: Require the profile border key to have a saved node ID
+  ansible.builtin.assert:
+    that:
+      - student_state.fabric_node_ids is mapping
+      - student_hybrid_border_key in (student_state.fabric_node_ids | default({}))
+    fail_msg: "O nó -border1 do perfil atual não tem ID salvo nesta execução."
+  no_log: true
+
+- name: Save the profile border's exact container ID
+  ansible.builtin.set_fact:
+    student_hybrid_border_id: "{{ student_state.fabric_node_ids[student_hybrid_border_key] }}"
+  no_log: true
+
+- name: Require a well-formed saved border container ID
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_border_id is match('^[0-9a-f]{64}$')
+    fail_msg: "O ID salvo do border do perfil é inválido; não será localizado nem adotado por nome."
+  no_log: true
+
+- name: Inspect only the saved border container ID
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - inspect
+      - >-
+        --format={{ '{{' }}.Id{{ '}}' }}|{{ '{{' }}.State.Pid{{ '}}' }}|{{ '{{' }}index .Config.Labels "p010-student-owner"{{ '}}' }}
+      - "{{ student_hybrid_border_id }}"
+  register: student_hybrid_border_inspect
+  changed_when: false
+  become: true
+  no_log: true
+
+- name: Parse the saved border process coordinates
+  ansible.builtin.set_fact:
+    student_hybrid_border_fields: "{{ student_hybrid_border_inspect.stdout.split('|') }}"
+  no_log: true
+
+- name: Read the exact border PID owner and network namespace identity
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: "{{ item.endswith('/ns/net') }}"
+  register: student_hybrid_border_capture_stats
+  loop:
+    - "/proc/{{ student_hybrid_border_fields[1] }}/"
+    - "/proc/{{ student_hybrid_border_fields[1] }}/ns/net"
+  become: true
+  no_log: true
+
+- name: Read the exact border PID start time
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/awk
+      - '{ sub(/^.*\) /, ""); print $20 }'
+      - "/proc/{{ student_hybrid_border_fields[1] }}/stat"
+  register: student_hybrid_border_capture_starttime
+  changed_when: false
+  become: true
+  no_log: true
+
+- name: Require the ID label and process identity to match this run
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_border_inspect.rc == 0
+      - student_hybrid_border_fields | length == 3
+      - student_hybrid_border_fields[0] == student_hybrid_border_id
+      - student_hybrid_border_fields[1] | int > 1
+      - student_hybrid_border_fields[2] == student_state.owner_token
+      - student_hybrid_border_capture_stats.results[0].stat.isdir | default(false)
+      - student_hybrid_border_capture_stats.results[1].stat.exists | default(false)
+      - student_hybrid_border_capture_starttime.rc == 0
+      - student_hybrid_border_capture_starttime.stdout | trim is match('^[0-9]+$')
+      - student_hybrid_border_capture_starttime.stdout | trim | int > 0
+      - student_hybrid_border_capture_stats.results[1].stat.inode | int > 0
+    fail_msg: "O ID, token de ownership, processo ou namespace do border são inconclusivos."
+  no_log: true
+
+- name: Persist the original border identity before entering its network namespace
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'network': {'border': {
+        'container_id': student_hybrid_border_fields[0],
+        'pid': student_hybrid_border_fields[1] | int,
+        'starttime': student_hybrid_border_capture_starttime.stdout | trim | int,
+        'uid': student_hybrid_border_capture_stats.results[0].stat.uid | int,
+        'netns_device': student_hybrid_border_capture_stats.results[1].stat.dev | int,
+        'netns_inode': student_hybrid_border_capture_stats.results[1].stat.inode | int
+      }}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Checkpoint the original border container and process identities
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true

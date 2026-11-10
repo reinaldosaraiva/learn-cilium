@@ -1,0 +1,59 @@
+---
+- name: Exercise the full saved-resource DELETE reconciliation after a local HTTP 200
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    student_uid: "{{ ansible_user_uid | int }}"
+    student_state_file: "{{ lookup('env', 'P010_HYBRID_API_TEST_SCRATCH') }}/reconcile-delete-state.json"
+    resource_id: 11111111-2222-4333-8444-555555555555
+    student_state:
+      status: partial
+      run_id: 20261029-0123456789abcdef0123456789abcdef
+      hybrid:
+        m11:
+          api:
+            neutron_endpoint: "http://127.0.0.1:{{ lookup('env', 'P010_FAKE_NEUTRON_PORT') }}"
+            pending:
+              method: DELETE
+              resource: tenant_network:primary
+              path: "/networks/{{ resource_id }}"
+              collection_path: /networks
+              envelope: network
+              expected: {name: p010-hyb-tenant-network}
+              run_id: 20261029-0123456789abcdef0123456789abcdef
+            resources:
+              tenant_network:
+                primary:
+                  id: "{{ resource_id }}"
+                  name: p010-hyb-tenant-network
+              bgp_speaker:
+                primary:
+                  id: 22222222-3333-4444-8555-666666666666
+            agent_ids:
+              bgp: 33333333-4444-4555-8666-777777777777
+  tasks:
+    - name: Set the in-memory token used only by the fake loopback response
+      ansible.builtin.set_fact:
+        student_hybrid_api_token: local-test-token
+        student_hybrid_api_mode: remove-resources
+
+    - name: Persist the uncertain DELETE before starting reconciliation
+      ansible.builtin.copy:
+        dest: "{{ student_state_file }}"
+        content: "{{ student_state | to_nice_json }}\n"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-reconcile-delete.yml
+
+    - name: Reload the durable state after the GET 200 branch clears the intent
+      ansible.builtin.set_fact:
+        student_state: "{{ lookup('file', student_state_file) | from_json }}"
+
+    - name: Require the snapshot to survive all post-checkpoint conditions and retain the existing resource ID
+      ansible.builtin.assert:
+        that:
+          - student_state.hybrid.m11.api.pending == {}
+          - student_state.hybrid.m11.api.resources.tenant_network.primary.id == resource_id
+          - lookup('file', lookup('env', 'P010_FAKE_NEUTRON_CALLS_FILE')).strip() == 'GET /networks/' ~ resource_id

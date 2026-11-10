@@ -1,0 +1,635 @@
+---
+- name: Require a fresh API inventory before provisioning this run
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.api.pending | length == 0
+      - student_state.hybrid.m11.api.project_id is match('^[0-9a-f]{32}$')
+      - student_state.hybrid.m11.api.resources.address_scope.primary.id == ''
+      - student_state.hybrid.m11.api.resources.external_network.primary.id == ''
+      - student_state.hybrid.m11.api.resources.tenant_network.primary.id == ''
+    fail_msg: "O provisionamento exige estado vazio e nenhuma intenção API pendente."
+  no_log: true
+
+- name: Build unique run-owned Neutron object names
+  ansible.builtin.set_fact:
+    student_hybrid_api_names:
+      scope: "p010-{{ student_state.run_id }}-scope"
+      external_pool: "p010-{{ student_state.run_id }}-ext-pool"
+      tenant_pool: "p010-{{ student_state.run_id }}-tenant-pool"
+      external_network: "p010-{{ student_state.run_id }}-external"
+      tenant_network: "p010-{{ student_state.run_id }}-tenant"
+      external_subnet: "p010-{{ student_state.run_id }}-ext-subnet"
+      tenant_subnet: "p010-{{ student_state.run_id }}-tenant-subnet"
+      router: "p010-{{ student_state.run_id }}-router"
+      security_group: "p010-{{ student_state.run_id }}-security"
+      cirros_port: "p010-{{ student_state.run_id }}-cirros-port"
+      bgp_speaker: "p010-{{ student_state.run_id }}-speaker"
+      bgp_peer: "p010-{{ student_state.run_id }}-peer"
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: /extensions
+
+- name: Require the API extensions used by provider networks, router, ports, policy, and NDR
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_response.json.extensions is sequence
+      - student_hybrid_api_required_extensions | difference(student_hybrid_api_found_extensions) | length == 0
+    fail_msg: "A appliance não publicou todas as extensões Neutron/NDR requeridas."
+  vars:
+    student_hybrid_api_required_extensions: [address-scope, subnet_allocation, provider, binding, port-security, router, ext-gw-mode, bgp, bgp_dragent_scheduler]
+    student_hybrid_api_found_extensions: "{{ student_hybrid_api_response.json.extensions | map(attribute='alias') | list }}"
+  no_log: true
+
+- name: Read live Neutron agents and their actual host bindings
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: /agents
+
+- name: Select exactly one active instance of each required agent type
+  ansible.builtin.set_fact:
+    student_hybrid_api_agents:
+      ovs: "{{ student_hybrid_api_response.json.agents | selectattr('agent_type', 'equalto', 'Open vSwitch agent') | list }}"
+      dhcp: "{{ student_hybrid_api_response.json.agents | selectattr('agent_type', 'equalto', 'DHCP agent') | list }}"
+      l3: "{{ student_hybrid_api_response.json.agents | selectattr('agent_type', 'equalto', 'L3 agent') | list }}"
+      bgp: "{{ student_hybrid_api_response.json.agents | selectattr('agent_type', 'equalto', 'BGP dynamic routing agent') | list }}"
+  no_log: true
+
+- name: Require every selected agent to be alive, enabled, and unambiguous
+  ansible.builtin.assert:
+    that:
+      - item.value | length == 1
+      - item.value[0].id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - item.value[0].alive | bool
+      - item.value[0].admin_state_up | bool
+      - item.value[0].host | length > 0
+    fail_msg: "Agente Neutron necessário não está vivo, habilitado ou tem host ambíguo."
+  loop: "{{ student_hybrid_api_agents | dict2items }}"
+  no_log: true
+
+- name: Save the exact agent IDs and OVS host used for this appliance
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'m11': {'api': {'agent_ids': {
+        'ovs': student_hybrid_api_agents.ovs[0].id,
+        'dhcp': student_hybrid_api_agents.dhcp[0].id,
+        'l3': student_hybrid_api_agents.l3[0].id,
+        'bgp': student_hybrid_api_agents.bgp[0].id,
+        'ovs_host': student_hybrid_api_agents.ovs[0].host
+      }, 'extensions': student_hybrid_api_required_extensions}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  vars:
+    student_hybrid_api_required_extensions: [address-scope, subnet_allocation, provider, binding, port-security, router, ext-gw-mode, bgp, bgp_dragent_scheduler]
+  no_log: true
+
+- name: Persist agent and extension readiness before creating Neutron objects
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Create one private address scope for the two M11 pools
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: address_scope
+    student_hybrid_api_slot: primary
+    student_hybrid_api_path: /address-scopes
+    student_hybrid_api_envelope: address_scope
+    student_hybrid_api_body:
+      name: "{{ student_hybrid_api_names.scope }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      ip_version: 4
+      shared: false
+    student_hybrid_api_expected: "{{ student_hybrid_api_body }}"
+
+- name: Create the external provider subnet pool in the shared address scope
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: external_subnetpool
+    student_hybrid_api_slot: primary
+    student_hybrid_api_path: /subnetpools
+    student_hybrid_api_envelope: subnetpool
+    student_hybrid_api_body:
+      name: "{{ student_hybrid_api_names.external_pool }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      prefixes: ["{{ student_state.hybrid.m11.network.provider_cidr }}"]
+      min_prefixlen: 29
+      default_prefixlen: 29
+      max_prefixlen: 29
+      address_scope_id: "{{ student_state.hybrid.m11.api.resources.address_scope.primary.id }}"
+      shared: false
+      is_default: false
+    student_hybrid_api_expected: "{{ student_hybrid_api_body }}"
+
+- name: Create the tenant subnet pool in the same address scope
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: tenant_subnetpool
+    student_hybrid_api_slot: primary
+    student_hybrid_api_path: /subnetpools
+    student_hybrid_api_envelope: subnetpool
+    student_hybrid_api_body:
+      name: "{{ student_hybrid_api_names.tenant_pool }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      prefixes: ["{{ student_state.hybrid.m11.network.tenant_cidr }}"]
+      min_prefixlen: 24
+      default_prefixlen: 24
+      max_prefixlen: 24
+      address_scope_id: "{{ student_state.hybrid.m11.api.resources.address_scope.primary.id }}"
+      shared: false
+      is_default: false
+    student_hybrid_api_expected: "{{ student_hybrid_api_body }}"
+
+- name: Require both pools to reference the one recorded address scope
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.api.resources.external_subnetpool.primary.address_scope_id == student_state.hybrid.m11.api.resources.address_scope.primary.id
+      - student_state.hybrid.m11.api.resources.tenant_subnetpool.primary.address_scope_id == student_state.hybrid.m11.api.resources.address_scope.primary.id
+      - student_state.hybrid.m11.api.resources.external_subnetpool.primary.prefixes == [student_state.hybrid.m11.network.provider_cidr]
+      - student_state.hybrid.m11.api.resources.tenant_subnetpool.primary.prefixes == [student_state.hybrid.m11.network.tenant_cidr]
+    fail_msg: "Os pools criados não são disjuntos e ligados ao escopo M11 comum."
+  no_log: true
+
+- name: Create the flat external Neutron network on m11public
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: external_network
+    student_hybrid_api_slot: primary
+    student_hybrid_api_path: /networks
+    student_hybrid_api_envelope: network
+    student_hybrid_api_body:
+      name: "{{ student_hybrid_api_names.external_network }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      admin_state_up: true
+      shared: false
+      router:external: true
+      provider:network_type: flat
+      provider:physical_network: m11public
+    student_hybrid_api_expected: "{{ student_hybrid_api_body }}"
+
+- name: Create the private local tenant network with port security
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: tenant_network
+    student_hybrid_api_slot: primary
+    student_hybrid_api_path: /networks
+    student_hybrid_api_envelope: network
+    student_hybrid_api_body:
+      name: "{{ student_hybrid_api_names.tenant_network }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      admin_state_up: true
+      shared: false
+      provider:network_type: local
+      port_security_enabled: true
+    student_hybrid_api_expected: "{{ student_hybrid_api_body }}"
+
+- name: Create the border-facing subnet and reserve the qrouter provider address
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: external_subnet
+    student_hybrid_api_slot: primary
+    student_hybrid_api_path: /subnets
+    student_hybrid_api_envelope: subnet
+    student_hybrid_api_body:
+      name: "{{ student_hybrid_api_names.external_subnet }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      network_id: "{{ student_state.hybrid.m11.api.resources.external_network.primary.id }}"
+      subnetpool_id: "{{ student_state.hybrid.m11.api.resources.external_subnetpool.primary.id }}"
+      ip_version: 4
+      prefixlen: 29
+      gateway_ip: "{{ student_state.hybrid.m11.network.provider_border_ip }}"
+      enable_dhcp: false
+      allocation_pools:
+        - start: "{{ student_state.hybrid.m11.network.provider_allocation_pool[0] }}"
+          end: "{{ student_state.hybrid.m11.network.provider_allocation_pool[1] }}"
+    student_hybrid_api_expected:
+      name: "{{ student_hybrid_api_names.external_subnet }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      network_id: "{{ student_state.hybrid.m11.api.resources.external_network.primary.id }}"
+      subnetpool_id: "{{ student_state.hybrid.m11.api.resources.external_subnetpool.primary.id }}"
+      cidr: "{{ student_state.hybrid.m11.network.provider_cidr }}"
+      ip_version: 4
+      gateway_ip: "{{ student_state.hybrid.m11.network.provider_border_ip }}"
+      enable_dhcp: false
+
+- name: Create the tenant subnet with Neutron DHCP and the reserved qrouter gateway
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: tenant_subnet
+    student_hybrid_api_slot: primary
+    student_hybrid_api_path: /subnets
+    student_hybrid_api_envelope: subnet
+    student_hybrid_api_body:
+      name: "{{ student_hybrid_api_names.tenant_subnet }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      network_id: "{{ student_state.hybrid.m11.api.resources.tenant_network.primary.id }}"
+      subnetpool_id: "{{ student_state.hybrid.m11.api.resources.tenant_subnetpool.primary.id }}"
+      ip_version: 4
+      prefixlen: 24
+      gateway_ip: "{{ student_state.hybrid.m11.network.tenant_gateway }}"
+      enable_dhcp: true
+    student_hybrid_api_expected:
+      name: "{{ student_hybrid_api_names.tenant_subnet }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      network_id: "{{ student_state.hybrid.m11.api.resources.tenant_network.primary.id }}"
+      subnetpool_id: "{{ student_state.hybrid.m11.api.resources.tenant_subnetpool.primary.id }}"
+      cidr: "{{ student_state.hybrid.m11.network.tenant_cidr }}"
+      ip_version: 4
+      gateway_ip: "{{ student_state.hybrid.m11.network.tenant_gateway }}"
+      enable_dhcp: true
+
+- name: Create the qrouter without SNAT and with the exact external fixed address
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: router
+    student_hybrid_api_slot: primary
+    student_hybrid_api_path: /routers
+    student_hybrid_api_envelope: router
+    student_hybrid_api_body:
+      name: "{{ student_hybrid_api_names.router }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      admin_state_up: true
+      external_gateway_info:
+        network_id: "{{ student_state.hybrid.m11.api.resources.external_network.primary.id }}"
+        enable_snat: false
+        external_fixed_ips:
+          - subnet_id: "{{ student_state.hybrid.m11.api.resources.external_subnet.primary.id }}"
+            ip_address: "{{ student_state.hybrid.m11.network.provider_router_ip }}"
+    student_hybrid_api_expected:
+      name: "{{ student_hybrid_api_names.router }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      admin_state_up: true
+
+- name: Require the saved router to have explicit SNAT disabled and the provider gateway fixed IP
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.api.resources.router.primary.id is match('^[0-9a-f-]{36}$')
+      - student_hybrid_api_body.external_gateway_info.enable_snat == false
+      - student_hybrid_api_body.external_gateway_info.external_fixed_ips[0].ip_address == student_state.hybrid.m11.network.provider_router_ip
+    fail_msg: "A configuração da rota externa do qrouter não mantém o next-hop reservado sem SNAT."
+  vars:
+    student_hybrid_api_body:
+      external_gateway_info:
+        network_id: "{{ student_state.hybrid.m11.api.resources.external_network.primary.id }}"
+        enable_snat: false
+        external_fixed_ips:
+          - subnet_id: "{{ student_state.hybrid.m11.api.resources.external_subnet.primary.id }}"
+            ip_address: "{{ student_state.hybrid.m11.network.provider_router_ip }}"
+  no_log: true
+
+- name: Add the tenant subnet as a qrouter interface and save the returned port ID
+  ansible.builtin.include_tasks: hybrid-m11-api-put.yml
+  vars:
+    student_hybrid_api_path: "/routers/{{ student_state.hybrid.m11.api.resources.router.primary.id }}/add_router_interface"
+    student_hybrid_api_link_key: router_interface
+    student_hybrid_api_body:
+      subnet_id: "{{ student_state.hybrid.m11.api.resources.tenant_subnet.primary.id }}"
+
+- name: Require and checkpoint the router interface's exact port ID
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_put_response.json.port_id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_hybrid_api_put_response.json.subnet_id == student_state.hybrid.m11.api.resources.tenant_subnet.primary.id
+    fail_msg: "A API não identificou a porta real da interface do qrouter."
+  no_log: true
+
+- name: Save the owned router interface port ID and endpoint relationships
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      hybrid:
+        m11:
+          api:
+            resources:
+              router_interface:
+                primary:
+                  id: "{{ student_hybrid_api_put_response.json.port_id }}"
+                  name: "{{ student_hybrid_api_names.router }}-interface"
+                  project_id: "{{ student_hybrid_api_project_id }}"
+                  router_id: "{{ student_state.hybrid.m11.api.resources.router.primary.id }}"
+                  subnet_id: "{{ student_state.hybrid.m11.api.resources.tenant_subnet.primary.id }}"
+            links:
+              router_interface: true
+
+- name: Resolve the actual qrouter external gateway port by router ID and owner type
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "/ports?device_id={{ student_state.hybrid.m11.api.resources.router.primary.id }}&device_owner=network%3Arouter_gateway"
+
+- name: Require exactly one provider gateway port with the reserved fixed address
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_response.json.ports | length == 1
+      - student_hybrid_api_gateway_port.device_id == student_state.hybrid.m11.api.resources.router.primary.id
+      - student_hybrid_api_gateway_port.device_owner == 'network:router_gateway'
+      - student_hybrid_api_gateway_port.network_id == student_state.hybrid.m11.api.resources.external_network.primary.id
+      - student_hybrid_api_gateway_fixed_ips | length == 1
+      - student_hybrid_api_gateway_fixed_ips[0].subnet_id == student_state.hybrid.m11.api.resources.external_subnet.primary.id
+      - student_hybrid_api_gateway_fixed_ips[0].ip_address == student_state.hybrid.m11.network.provider_router_ip
+    fail_msg: "A porta do qrouter não usa a rede/subnet e o next-hop provider reservados."
+  vars:
+    student_hybrid_api_gateway_port: "{{ student_hybrid_api_response.json.ports[0] }}"
+    student_hybrid_api_gateway_fixed_ips: "{{ student_hybrid_api_gateway_port.fixed_ips | selectattr('subnet_id', 'equalto', student_state.hybrid.m11.api.resources.external_subnet.primary.id) | list }}"
+  no_log: true
+
+- name: Save only the qrouter gateway port ID and its verified address
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      hybrid:
+        m11:
+          api:
+            resources:
+              router_gateway_port:
+                primary:
+                  id: "{{ student_hybrid_api_response.json.ports[0].id }}"
+                  name: "{{ student_hybrid_api_names.router }}-gateway"
+                  router_id: "{{ student_state.hybrid.m11.api.resources.router.primary.id }}"
+                  network_id: "{{ student_state.hybrid.m11.api.resources.external_network.primary.id }}"
+                  subnet_id: "{{ student_state.hybrid.m11.api.resources.external_subnet.primary.id }}"
+                  ip_address: "{{ student_state.hybrid.m11.network.provider_router_ip }}"
+            links:
+              router_gateway: true
+
+- name: Create the owned Neutron security group
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: security_group
+    student_hybrid_api_slot: primary
+    student_hybrid_api_path: /security-groups
+    student_hybrid_api_envelope: security_group
+    student_hybrid_api_body:
+      name: "{{ student_hybrid_api_names.security_group }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      description: "P010 run {{ student_state.run_id }}"
+    student_hybrid_api_expected: "{{ student_hybrid_api_body }}"
+
+- name: Read only rules attached to this newly created security group
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "/security-group-rules?security_group_id={{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+
+- name: Classify only rules returned for the freshly created security group
+  ansible.builtin.set_fact:
+    student_hybrid_api_rules: "{{ student_hybrid_api_response.json.security_group_rules }}"
+    student_hybrid_api_default_egress: >-
+      {{ student_hybrid_api_response.json.security_group_rules
+         | selectattr('direction', 'equalto', 'egress')
+         | selectattr('remote_ip_prefix', 'defined')
+         | selectattr('remote_ip_prefix', 'in', ['0.0.0.0/0', '::/0']) | list }}
+    student_hybrid_api_unexpected_rules: >-
+      {{ student_hybrid_api_response.json.security_group_rules
+         | rejectattr('direction', 'equalto', 'egress')
+         | rejectattr('remote_ip_prefix', 'defined') | list }}
+  no_log: true
+
+- name: Require only Neutron's standard broad default egress rules before replacing them
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_default_egress | length in [1, 2]
+      - student_hybrid_api_unexpected_rules | length == 0
+      - student_hybrid_api_default_egress | map(attribute='id') | unique | list | length == student_hybrid_api_default_egress | length
+    fail_msg: "O grupo recém-criado contém regra inesperada; nenhuma política ampla será removida."
+  no_log: true
+
+- name: Save each default egress rule ID before deleting it from the fresh group
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'m11': {'api': {'resources': {'security_group_rules': {
+        ('default_ipv4' if item.ethertype == 'IPv4' else 'default_ipv6'): {
+          'id': item.id, 'tenant_id': item.tenant_id, 'project_id': student_hybrid_api_project_id,
+          'security_group_id': item.security_group_id, 'direction': item.direction,
+          'ethertype': item.ethertype, 'remote_ip_prefix': item.remote_ip_prefix
+        }}}}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  loop: "{{ student_hybrid_api_default_egress }}"
+  no_log: true
+
+- name: Persist default rule identities before removing any rule
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  when: student_hybrid_api_default_egress | length > 0
+  no_log: true
+
+- name: Delete the identified default egress rules without name-based lookup
+  ansible.builtin.include_tasks: hybrid-m11-api-delete.yml
+  vars:
+    student_hybrid_api_resource_key: security_group_rules
+    student_hybrid_api_slot: "{{ 'default_ipv4' if item.ethertype == 'IPv4' else 'default_ipv6' }}"
+    student_hybrid_api_collection_path: /security-group-rules
+    student_hybrid_api_envelope: security_group_rule
+    student_hybrid_api_delete_expected:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+      direction: egress
+      ethertype: "{{ item.ethertype }}"
+      remote_ip_prefix: "{{ item.remote_ip_prefix }}"
+  loop: "{{ student_hybrid_api_default_egress }}"
+  no_log: true
+
+- name: Create the explicit ICMP ingress rule from the Cilium pod CIDR
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: security_group_rules
+    student_hybrid_api_slot: ingress_icmp
+    student_hybrid_api_path: /security-group-rules
+    student_hybrid_api_envelope: security_group_rule
+    student_hybrid_api_body:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+      direction: ingress
+      ethertype: IPv4
+      protocol: icmp
+      remote_ip_prefix: "{{ student_profile.hybrid_network.pod_cidr }}"
+    student_hybrid_api_expected: "{{ student_hybrid_api_body }}"
+
+- name: Create the explicit CirrOS SSH ingress rule from the Cilium pod CIDR
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: security_group_rules
+    student_hybrid_api_slot: ingress_tcp
+    student_hybrid_api_path: /security-group-rules
+    student_hybrid_api_envelope: security_group_rule
+    student_hybrid_api_body:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+      direction: ingress
+      ethertype: IPv4
+      protocol: tcp
+      port_range_min: "{{ student_profile.hybrid_m11.cirros_probe_tcp_port }}"
+      port_range_max: "{{ student_profile.hybrid_m11.cirros_probe_tcp_port }}"
+      remote_ip_prefix: "{{ student_profile.hybrid_network.pod_cidr }}"
+    student_hybrid_api_expected: "{{ student_hybrid_api_body }}"
+
+- name: Create the explicit ICMP egress rule to the Cilium pod CIDR
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: security_group_rules
+    student_hybrid_api_slot: egress_icmp
+    student_hybrid_api_path: /security-group-rules
+    student_hybrid_api_envelope: security_group_rule
+    student_hybrid_api_body:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+      direction: egress
+      ethertype: IPv4
+      protocol: icmp
+      remote_ip_prefix: "{{ student_profile.hybrid_network.pod_cidr }}"
+    student_hybrid_api_expected: "{{ student_hybrid_api_body }}"
+
+- name: Create the explicit TCP egress rule to the declared tenant probe port
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: security_group_rules
+    student_hybrid_api_slot: egress_tcp
+    student_hybrid_api_path: /security-group-rules
+    student_hybrid_api_envelope: security_group_rule
+    student_hybrid_api_body:
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+      direction: egress
+      ethertype: IPv4
+      protocol: tcp
+      port_range_min: 8080
+      port_range_max: 8080
+      remote_ip_prefix: "{{ student_profile.hybrid_network.pod_cidr }}"
+    student_hybrid_api_expected: "{{ student_hybrid_api_body }}"
+
+- name: Create the CirrOS tenant port with a saved MAC and live OVS host binding
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: cirros_port
+    student_hybrid_api_slot: primary
+    student_hybrid_api_path: /ports
+    student_hybrid_api_envelope: port
+    student_hybrid_api_body:
+      name: "{{ student_hybrid_api_names.cirros_port }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      network_id: "{{ student_state.hybrid.m11.api.resources.tenant_network.primary.id }}"
+      admin_state_up: true
+      mac_address: "{{ student_state.hybrid.guests.cirros.tenant_mac }}"
+      fixed_ips:
+        - subnet_id: "{{ student_state.hybrid.m11.api.resources.tenant_subnet.primary.id }}"
+      security_groups:
+        - "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+      port_security_enabled: true
+      allowed_address_pairs: []
+      binding:host_id: "{{ student_state.hybrid.m11.api.agent_ids.ovs_host }}"
+      binding:vnic_type: normal
+      device_id: "{{ student_state.hybrid.guests.cirros.uuid }}"
+      device_owner: ''
+    student_hybrid_api_expected:
+      name: "{{ student_hybrid_api_names.cirros_port }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      network_id: "{{ student_state.hybrid.m11.api.resources.tenant_network.primary.id }}"
+      mac_address: "{{ student_state.hybrid.guests.cirros.tenant_mac }}"
+      security_groups:
+        - "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+      port_security_enabled: true
+      allowed_address_pairs: []
+      binding:host_id: "{{ student_state.hybrid.m11.api.agent_ids.ovs_host }}"
+      binding:vnic_type: normal
+      device_id: "{{ student_state.hybrid.guests.cirros.uuid }}"
+      device_owner: ''
+    student_hybrid_api_record_fields: ['fixed_ips']
+
+- name: Require and persist the one real fixed IPv4 returned for the CirrOS port
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips | length == 1
+      - student_hybrid_cirros_fixed_ip.subnet_id == student_state.hybrid.m11.api.resources.tenant_subnet.primary.id
+      - student_hybrid_cirros_fixed_ip.ip_address is match('^198\\.18\\.49\\.[0-9]{1,3}$')
+    fail_msg: "Port Neutron não recebeu o IP tenant reservado; binding OVS será verificado após o attach próprio."
+  vars:
+    student_hybrid_cirros_fixed_ip: "{{ student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0] }}"
+  no_log: true
+
+- name: Create the local-only BGP speaker which advertises tenant networks
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: bgp_speaker
+    student_hybrid_api_slot: primary
+    student_hybrid_api_path: /bgp-speakers
+    student_hybrid_api_envelope: bgp_speaker
+    student_hybrid_api_body:
+      name: "{{ student_hybrid_api_names.bgp_speaker }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      local_as: "{{ student_state.hybrid.m11.network.speaker_asn }}"
+      ip_version: 4
+      advertise_tenant_networks: true
+      advertise_floating_ip_host_routes: false
+    student_hybrid_api_expected: "{{ student_hybrid_api_body }}"
+
+- name: Create the private border peer without password-based BGP authentication
+  ansible.builtin.include_tasks: hybrid-m11-api-post.yml
+  vars:
+    student_hybrid_api_resource_key: bgp_peer
+    student_hybrid_api_slot: primary
+    student_hybrid_api_path: /bgp-peers
+    student_hybrid_api_envelope: bgp_peer
+    student_hybrid_api_body:
+      name: "{{ student_hybrid_api_names.bgp_peer }}"
+      tenant_id: "{{ student_hybrid_api_project_id }}"
+      peer_ip: "{{ student_state.hybrid.m11.network.provider_border_ip }}"
+      remote_as: "{{ student_state.hybrid.m11.network.border_asn }}"
+      auth_type: none
+    student_hybrid_api_expected: "{{ student_hybrid_api_body }}"
+
+- name: Link the peer and external gateway network to the one speaker
+  ansible.builtin.include_tasks: hybrid-m11-api-put.yml
+  vars:
+    student_hybrid_api_link_key: bgp_peer
+    student_hybrid_api_path: "/bgp-speakers/{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}/add_bgp_peer"
+    student_hybrid_api_body:
+      bgp_peer_id: "{{ student_state.hybrid.m11.api.resources.bgp_peer.primary.id }}"
+
+- name: Link the provider gateway network to the same speaker
+  ansible.builtin.include_tasks: hybrid-m11-api-put.yml
+  vars:
+    student_hybrid_api_link_key: bgp_gateway_network
+    student_hybrid_api_path: "/bgp-speakers/{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}/add_gateway_network"
+    student_hybrid_api_body:
+      network_id: "{{ student_state.hybrid.m11.api.resources.external_network.primary.id }}"
+
+- ansible.builtin.include_tasks: hybrid-m11-api-schedule.yml
+
+- name: Read the NDR instance list and require the exact scheduled speaker
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "/agents/{{ student_state.hybrid.m11.api.agent_ids.bgp }}/bgp-drinstances"
+
+- name: Verify the announced tenant route and qrouter next-hop through NDR
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "/bgp-speakers/{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}/get_advertised_routes"
+
+- name: Require exactly the declared tenant prefix with the qrouter external IP next-hop
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_response.json.advertised_routes | length == 1
+      - student_hybrid_api_response.json.advertised_routes[0].destination == student_state.hybrid.m11.network.tenant_cidr
+      - student_hybrid_api_response.json.advertised_routes[0].next_hop == student_state.hybrid.m11.network.provider_router_ip
+    fail_msg: "NDR não anunciou apenas a rede tenant por meio do next-hop externo real do qrouter."
+  no_log: true
+
+- name: Save tenant and provider Neutron IDs for the legacy read-only state projection
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'m11': {'phase': 'api-ready', 'verification': {'phase': 'api-ready', 'gates': {
+        'project': true, 'agents': true, 'address_scope': true, 'provider_network': true,
+        'tenant_network': true, 'router_no_snat': true, 'security_group': true,
+        'port_binding': false, 'ndr_route': true
+      }}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Persist the complete Neutron API inventory before guest wiring
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true

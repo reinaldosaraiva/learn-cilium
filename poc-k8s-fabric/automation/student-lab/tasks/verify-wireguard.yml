@@ -1,0 +1,146 @@
+---
+- name: Read routing and WireGuard settings rendered into Cilium configuration
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - configmap
+      - cilium-config
+      - --namespace
+      - kube-system
+      - -o
+      - "jsonpath={{ '{.data.' ~ item.key ~ '}' }}"
+  become: true
+  register: student_wireguard_config
+  changed_when: false
+  loop:
+    - { key: routing-mode }
+    - { key: tunnel-protocol }
+    - { key: enable-wireguard }
+    - { key: encrypt-node }
+
+- name: Require the selected datapath mode and encryption flags
+  ansible.builtin.assert:
+    that:
+      - student_wireguard_config.results[0].stdout == student_exercise_config.routing_mode
+      - student_wireguard_config.results[1].stdout == (student_exercise_config.tunnel_protocol | default('vxlan'))
+      - student_wireguard_config.results[2].stdout == ('true' if student_effective_wireguard_mode in ['W1', 'W2'] else '')
+      - student_wireguard_config.results[3].stdout == ('true' if student_effective_wireguard_mode == 'W2' else '')
+    fail_msg: "Cilium não está configurado com o modo nativo/VXLAN e a matriz WG escolhida antes da instalação."
+
+- name: Read agent placement on every expected kind node
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - pods
+      - --namespace
+      - kube-system
+      - --selector
+      - k8s-app=cilium
+      - -o
+      - 'jsonpath={range .items[*]}{.spec.nodeName} {.status.phase}{"\n"}{end}'
+  become: true
+  register: student_wireguard_agents
+  changed_when: false
+
+- name: Require one ready Cilium agent on each declared kind node
+  ansible.builtin.assert:
+    that:
+      - student_wireguard_agents.stdout_lines | length == student_profile.kind_nodes | length
+      - student_wireguard_agents.stdout_lines | select('search', ' Running$') | list | length == student_profile.kind_nodes | length
+      - student_wireguard_agents.stdout_lines | map('regex_replace', ' Running$', '') | sort == student_profile.kind_nodes | sort
+    fail_msg: "Agentes Cilium ou sua distribuição entre os nós diferem da topologia declarada."
+
+- name: Inspect WireGuard interface presence on each kind node
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - exec
+      - "{{ item }}"
+      - ip
+      - link
+      - show
+      - dev
+      - cilium_wg0
+  become: true
+  register: student_wireguard_interfaces
+  changed_when: false
+  failed_when: false
+  loop: "{{ student_profile.kind_nodes }}"
+
+- name: Require the WireGuard interface to match W0, W1, or W2
+  ansible.builtin.assert:
+    that:
+      - >-
+        (student_effective_wireguard_mode == 'W0' and
+         student_wireguard_interfaces.results | selectattr('rc', 'equalto', 1) | selectattr('stderr', 'equalto', 'Device "cilium_wg0" does not exist.') | selectattr('stdout', 'equalto', '') | list | length == student_profile.kind_nodes | length) or
+        (student_effective_wireguard_mode in ['W1', 'W2'] and
+         student_wireguard_interfaces.results | selectattr('rc', 'equalto', 0) | selectattr('stdout', 'search', 'cilium_wg0') | list | length == student_profile.kind_nodes | length)
+    fail_msg: "A presença de cilium_wg0 não corresponde à criptografia selecionada."
+
+- name: Inspect the VXLAN interface on each kind node
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - exec
+      - "{{ item }}"
+      - ip
+      - link
+      - show
+      - dev
+      - cilium_vxlan
+  become: true
+  register: student_vxlan_interfaces
+  changed_when: false
+  failed_when: false
+  loop: "{{ student_profile.kind_nodes }}"
+
+- name: Require the VXLAN interface only for the selected tunnel datapath
+  ansible.builtin.assert:
+    that:
+      - >-
+        (student_exercise_config.routing_mode == 'tunnel' and
+         student_vxlan_interfaces.results | selectattr('rc', 'equalto', 0) | selectattr('stdout', 'search', 'cilium_vxlan') | list | length == student_profile.kind_nodes | length) or
+        (student_exercise_config.routing_mode == 'native' and
+         student_vxlan_interfaces.results | selectattr('rc', 'equalto', 1) | selectattr('stderr', 'equalto', 'Device "cilium_vxlan" does not exist.') | selectattr('stdout', 'equalto', '') | list | length == student_profile.kind_nodes | length)
+    fail_msg: "A interface cilium_vxlan não corresponde ao modo native/VXLAN selecionado."
+
+- name: Read the HTTP application placement for the WireGuard ingress exercise
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - pods
+      - --namespace
+      - p003-gateway
+      - --selector
+      - app=http-echo
+      - -o
+      - 'jsonpath={range .items[*]}{.spec.nodeName} {.status.phase}{"\n"}{end}'
+  become: true
+  register: student_wireguard_app_pods
+  changed_when: false
+
+- name: Require exactly one ready HTTP application on the known ingress worker
+  ansible.builtin.assert:
+    that:
+      - student_wireguard_app_pods.stdout_lines | length == 1
+      - student_wireguard_app_pods.stdout_lines[0] == student_profile.kind_nodes[1] ~ ' Running'
+    fail_msg: "A aplicação HTTP não está fixada em um único worker conhecido para o cenário WireGuard."

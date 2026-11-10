@@ -1,0 +1,8 @@
+---
+- name: Keep stored-state paths separate from the requested run paths
+  ansible.builtin.set_fact:
+    student_state_run_id: "{{ student_state.run_id if student_has_state else '' }}"
+    student_state_run_dir: "{{ student_state_dir }}/runs/{{ student_state.run_id if student_has_state else '' }}"
+    student_run_id: >-
+      {{ student_state.run_id if student_has_state and (student_state.status in ['preparing', 'partial', 'up'] or student_action in ['status', 'down']) else student_new_run_id }}
+    student_run_dir: "{{ student_state_dir }}/runs/{{ student_state.run_id if student_has_state and (student_state.status in ['preparing', 'partial', 'up'] or student_action in ['status', 'down']) else student_new_run_id }}"

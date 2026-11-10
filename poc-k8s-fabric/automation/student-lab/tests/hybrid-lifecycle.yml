@@ -1,0 +1,286 @@
+---
+- name: Exercise the hybrid reservation and cleanup lifecycle in a private temporary directory
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - "{{ playbook_dir }}/../vars.yml"
+  vars:
+    student_repo_root: "{{ lookup('env', 'P010_HYBRID_TEST_REPO_ROOT') }}"
+    student_state_dir: "{{ lookup('env', 'P010_HYBRID_TEST_DIR') }}"
+    student_state_file: "{{ student_state_dir }}/state.json"
+    student_state_run_dir: "{{ student_state_dir }}/runs/{{ student_run_id }}"
+    student_run_id: 20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    student_run_dir: "{{ student_state_dir }}/runs/{{ student_run_id }}"
+    student_uid: "{{ lookup('env', 'P010_HYBRID_TEST_UID') | int }}"
+    student_profile_name: hibrido
+    student_profile: "{{ student_profiles.hibrido }}"
+    student_tool_dir: "{{ lookup('env', 'P010_HYBRID_TEST_TOOL_DIR') }}"
+    student_action: down
+    student_new_run_id: "{{ student_run_id }}"
+    student_new_owner_token: 123e4567-e89b-42d3-a456-426614174000
+    student_profile_fingerprint: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    student_effective_exercise: ''
+    student_effective_wireguard_mode: ''
+    student_has_state: false
+    student_state: {}
+    student_docker_bin: "{{ lookup('env', 'P010_HYBRID_TEST_DOCKER_BIN') }}"
+    student_docker_object_names_file: "{{ student_state_dir }}/docker-allowed-object-names"
+    student_docker_network_names_file: "{{ student_state_dir }}/docker-allowed-network-names"
+    student_kind_cluster_name_file: "{{ student_state_dir }}/kind-allowed-cluster-name"
+    ansible_become: false
+    student_kubeconfig: "{{ student_run_dir }}/kubeconfig"
+    student_env_file: "{{ student_state_dir }}/lab-env.sh"
+    student_topology_file: "{{ student_run_dir }}/topology.clab.yml"
+    student_owner_token_file: "{{ student_run_dir }}/owner-token"
+    student_hybrid_uuid_bin: "{{ lookup('env', 'P010_HYBRID_TEST_UUID_BIN') | default('/usr/bin/cat', true) }}"
+  tasks:
+    - name: Require the local Docker boundary fake from the lifecycle harness
+      ansible.builtin.assert:
+        that:
+          - student_docker_bin | length > 0
+        fail_msg: "O fixture precisa receber seu fake local; Docker do host não será usado."
+
+    - name: Inspect every path used to fingerprint the hybrid profile
+      ansible.builtin.stat:
+        path: "{{ student_repo_root }}/{{ item }}"
+        follow: false
+      loop: "{{ student_profile.fingerprint_paths }}"
+      register: student_hybrid_fingerprint_stats
+
+    - name: Require every hybrid fingerprint input to exist as a regular file
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists | default(false)
+          - item.stat.isreg | default(false)
+          - not (item.stat.islnk | default(false))
+        fail_msg: "Entrada do fingerprint híbrido ausente ou não regular: {{ item.item }}"
+      loop: "{{ student_hybrid_fingerprint_stats.results }}"
+
+    - name: Write the exact profile object names allowed by the Docker boundary fake
+      ansible.builtin.copy:
+        dest: "{{ student_docker_object_names_file }}"
+        content: |-
+          {% for name in (student_profile.kind_nodes + student_profile.fabric_nodes) | unique %}
+          {{ name }}
+          {% endfor %}
+        mode: '0600'
+
+    - name: Write the exact profile network name allowed by the Docker boundary fake
+      ansible.builtin.copy:
+        dest: "{{ student_docker_network_names_file }}"
+        content: "{{ student_profile.topology_network | default('', true) }}"
+        mode: '0600'
+
+    - name: Write the exact profile Kind cluster name allowed by the local read-only fake
+      ansible.builtin.copy:
+        dest: "{{ student_kind_cluster_name_file }}"
+        content: "{{ student_profile.kind_name }}"
+        mode: '0600'
+
+    - name: Prepare a real schema-three reservation using the production task
+      ansible.builtin.include_tasks: ../tasks/prepare-run.yml
+
+    - name: Validate the newly persisted hybrid schema and reserved paths
+      ansible.builtin.include_tasks: ../tasks/validate-hybrid-state.yml
+
+    - name: Set the real authenticated API checkpoint
+      ansible.builtin.set_fact:
+        student_state: "{{ student_state | combine({'hybrid': {'m11': {'phase': 'api-authenticated'}}}, recursive=true) }}"
+
+    - name: Revalidate the authenticated API checkpoint through the production schema guard
+      ansible.builtin.include_tasks: ../tasks/validate-hybrid-state.yml
+
+    - name: Set the real API cleanup checkpoint
+      ansible.builtin.set_fact:
+        student_state: "{{ student_state | combine({'hybrid': {'m11': {'phase': 'api-removing'}}}, recursive=true) }}"
+
+    - name: Revalidate the API cleanup checkpoint through the production schema guard
+      ansible.builtin.include_tasks: ../tasks/validate-hybrid-state.yml
+
+    - name: Restore the reserved phase after the finite phase-enum controls
+      ansible.builtin.set_fact:
+        student_state: "{{ student_state | combine({'hybrid': {'m11': {'phase': 'reserved'}}}, recursive=true) }}"
+
+    - name: Set a test-only resolver fixture for rendering the isolated seed
+      ansible.builtin.set_fact:
+        student_state: "{{ student_state | combine({'hybrid': {'network': {'management_dns': ['192.0.2.53']} }}, recursive=true) }}"
+
+    - name: Export configured hybrid CIDRs for the Bash overlap check
+      ansible.builtin.copy:
+        dest: "{{ student_state_dir }}/hybrid-cidrs.json"
+        content: "{{ student_profile.hybrid_network | to_json }}\n"
+        mode: '0600'
+
+    - name: Create deterministic test-only public key template data
+      ansible.builtin.set_fact:
+        student_hybrid_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF000000000000000000000000000000000000000 test-key
+        student_hybrid_guest: "{{ student_state.hybrid.guests.ubuntu }}"
+
+    - name: Render Ubuntu cloud-init metadata
+      ansible.builtin.template:
+        src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hybrid-ubuntu-meta-data.yml.j2"
+        dest: "{{ student_state_dir }}/ubuntu-meta-data"
+        mode: '0600'
+
+    - name: Set synthetic host-key inputs for the local cloud-init render test
+      ansible.builtin.set_fact:
+        student_hybrid_ubuntu_host_private: |-
+          -----BEGIN OPENSSH PRIVATE KEY-----
+          synthetic-test-only-key-material
+          -----END OPENSSH PRIVATE KEY-----
+        student_hybrid_ubuntu_host_public: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF111111111111111111111111111111111111111 synthetic-host
+
+    - name: Render Ubuntu cloud-init user data
+      ansible.builtin.template:
+        src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hybrid-ubuntu-user-data.yml.j2"
+        dest: "{{ student_state_dir }}/ubuntu-user-data"
+        mode: '0600'
+      no_log: true
+
+    - name: Render Ubuntu's explicit management, external, and tenant NIC policy
+      ansible.builtin.template:
+        src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hybrid-ubuntu-network-config.yml.j2"
+        dest: "{{ student_state_dir }}/ubuntu-network-config.yml"
+        mode: '0600'
+
+    - name: Render the CirrOS management-only static dhcpcd configuration
+      ansible.builtin.copy:
+        src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hybrid-cirros-dhcpcd.conf"
+        dest: "{{ student_state_dir }}/cirros-dhcpcd.conf"
+        mode: '0600'
+
+    - name: Switch to the reserved CirrOS guest and render its NoCloud metadata
+      ansible.builtin.set_fact:
+        student_hybrid_guest: "{{ student_state.hybrid.guests.cirros }}"
+
+    - name: Render CirrOS NoCloud metadata
+      ansible.builtin.template:
+        src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hybrid-cirros-meta-data.json.j2"
+        dest: "{{ student_state_dir }}/cirros-meta-data.json"
+        mode: '0600'
+
+    - name: Verify the rendered cloud-init YAML and CirrOS JSON
+      ansible.builtin.assert:
+        that:
+          - (lookup('file', student_state_dir ~ '/ubuntu-meta-data') | from_yaml)['instance-id'] == student_state.hybrid.guests.ubuntu.uuid
+          - (lookup('file', student_state_dir ~ '/ubuntu-user-data') | from_yaml).ssh_pwauth == false
+          - (lookup('file', student_state_dir ~ '/ubuntu-user-data') | from_yaml).ssh_keys.ed25519_public == 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF111111111111111111111111111111111111111'
+          - (lookup('file', student_state_dir ~ '/ubuntu-user-data') | from_yaml).ssh_keys.ed25519_private is search('synthetic-test-only-key-material')
+          - (lookup('file', student_state_dir ~ '/ubuntu-network-config.yml') | from_yaml).version | int == 2
+          - (lookup('file', student_state_dir ~ '/ubuntu-network-config.yml') | from_yaml).ethernets.management.addresses == ['10.0.2.15/24']
+          - (lookup('file', student_state_dir ~ '/ubuntu-network-config.yml') | from_yaml).ethernets.management.nameservers.addresses == ['192.0.2.53']
+          - (lookup('file', student_state_dir ~ '/ubuntu-network-config.yml') | from_yaml).ethernets.external.dhcp4 == false
+          - (lookup('file', student_state_dir ~ '/ubuntu-network-config.yml') | from_yaml).ethernets.tenant.dhcp4 == false
+          - (lookup('file', student_state_dir ~ '/ubuntu-network-config.yml') | from_yaml).ethernets.tenant.dhcp6 == false
+          - "'dhcp4-overrides' not in (lookup('file', student_state_dir ~ '/ubuntu-network-config.yml') | from_yaml).ethernets.tenant"
+          - "'nogateway' in (lookup('file', student_state_dir ~ '/cirros-dhcpcd.conf') | split('\n'))"
+          - "'noipv6' in (lookup('file', student_state_dir ~ '/cirros-dhcpcd.conf') | split('\n'))"
+          - "'static ip_address=10.0.2.15/24' in (lookup('file', student_state_dir ~ '/cirros-dhcpcd.conf') | split('\n'))"
+          - ((lookup('file', student_state_dir ~ '/ubuntu-user-data') | from_yaml).users | select('mapping') | selectattr('name', 'equalto', 'stack') | first).ssh_authorized_keys[0] == student_hybrid_public_key
+          - (lookup('file', student_state_dir ~ '/cirros-meta-data.json') | from_json)['instance-id'] == student_state.hybrid.guests.cirros.uuid
+          - (lookup('file', student_state_dir ~ '/cirros-meta-data.json') | from_json)['public-keys'][0] == student_hybrid_public_key
+          - lookup('file', student_repo_root ~ '/poc-k8s-fabric/automation/student-lab/templates/hybrid-cirros-dropbear') is search('DROPBEAR_ARGS="-s -w -r /etc/p010-hibrido/ssh/host_ed25519.dropbear"')
+          - lookup('file', student_repo_root ~ '/poc-k8s-fabric/automation/student-lab/templates/hybrid-cirros-dropbear') is search('mv .*temp_key.*native_key')
+        fail_msg: "Render de seed híbrido diverge das garantias de ID/chave/SSH."
+
+    - name: Create the private test image directory
+      ansible.builtin.file:
+        path: "{{ student_run_dir }}/images"
+        state: directory
+        owner: "{{ student_uid }}"
+        mode: '0700'
+
+    - name: Create regular pinned-image stand-ins for the identity regression check
+      ansible.builtin.file:
+        path: "{{ item.value.path }}"
+        state: touch
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      loop: "{{ student_state.hybrid.sources | dict2items }}"
+
+    - name: Read the pinned-image inode identities for this local harness
+      ansible.builtin.stat:
+        path: "{{ item.value.path }}"
+        follow: false
+      register: student_hybrid_test_source_stats
+      loop: "{{ student_state.hybrid.sources | dict2items }}"
+      no_log: true
+
+    - name: Record the actual test image identities before cleanup validation
+      ansible.builtin.set_fact:
+        student_state: >-
+          {{ student_state | combine(
+            {'hybrid': {'sources': {item.item.key: {
+              'device': item.stat.dev,
+              'inode': item.stat.inode
+            }}}},
+            recursive=true
+          ) }}
+      loop: "{{ student_hybrid_test_source_stats.results }}"
+      no_log: true
+
+    - name: Corrupt one saved image inode only for its negative control
+      ansible.builtin.set_fact:
+        student_state: >-
+          {{ student_state | combine(
+            {'hybrid': {'sources': {'ubuntu': {
+              'inode': student_state.hybrid.sources.ubuntu.inode | int + 1
+            }}}},
+            recursive=true
+          ) }}
+      when: lookup('env', 'P010_HYBRID_TEST_NEGATIVE') == 'image-replacement'
+
+    - name: Create an unrecorded overlay only for the negative identity test
+      ansible.builtin.file:
+        path: "{{ student_run_dir }}/images"
+        state: directory
+        mode: '0700'
+      when: lookup('env', 'P010_HYBRID_TEST_NEGATIVE') == 'unrecorded-overlay'
+
+    - name: Create an unrecorded overlay only for the negative identity test
+      ansible.builtin.file:
+        path: "{{ student_state.hybrid.guests.ubuntu.overlay_path }}"
+        state: touch
+        mode: '0600'
+      when: lookup('env', 'P010_HYBRID_TEST_NEGATIVE') == 'unrecorded-overlay'
+
+    - name: Inject a named host link only into the negative test fact
+      ansible.builtin.set_fact:
+        student_state: "{{ student_state | combine({'hybrid': {'network': {'bridge': {'name': 'p10hbr0', 'alias': 'p010:test'}}}}, recursive=true) }}"
+      when: lookup('env', 'P010_HYBRID_TEST_NEGATIVE') == 'unexpected-network-identity'
+
+    - name: Refuse unrecorded/replaced resources during the identity check
+      ansible.builtin.include_tasks: ../tasks/hybrid-identities.yml
+
+    - name: Cleanup the reserved run and all recorded assets
+      ansible.builtin.include_tasks: ../tasks/hybrid-down.yml
+      when: lookup('env', 'P010_HYBRID_TEST_NEGATIVE') == ''
+
+    - name: Read the completed state before the repeated-down check
+      ansible.builtin.slurp:
+        src: "{{ student_state_file }}"
+      register: student_hybrid_down_state_before_repeat
+      no_log: true
+      when: lookup('env', 'P010_HYBRID_TEST_NEGATIVE') == ''
+
+    - name: Repeat cleanup as a no-op after the state is down
+      ansible.builtin.include_tasks: ../tasks/hybrid-down.yml
+      when: lookup('env', 'P010_HYBRID_TEST_NEGATIVE') == ''
+
+    - name: Require repeated cleanup to preserve the durable state bytes
+      ansible.builtin.slurp:
+        src: "{{ student_state_file }}"
+      register: student_hybrid_down_state_after_repeat
+      no_log: true
+      when: lookup('env', 'P010_HYBRID_TEST_NEGATIVE') == ''
+
+    - name: Confirm cleanup ended down and the second call did not rewrite state
+      ansible.builtin.assert:
+        that:
+          - student_state.status == 'down'
+          - student_state.hybrid.phase == 'removed'
+          - student_hybrid_down_state_before_repeat.content == student_hybrid_down_state_after_repeat.content
+        fail_msg: "Cleanup híbrido repetido não foi idempotente."
+      no_log: true
+      when: lookup('env', 'P010_HYBRID_TEST_NEGATIVE') == ''

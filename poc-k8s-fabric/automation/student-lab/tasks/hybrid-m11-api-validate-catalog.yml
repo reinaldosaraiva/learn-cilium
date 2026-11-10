@@ -1,0 +1,29 @@
+---
+- name: Require one private identity endpoint and one private Neutron endpoint
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_identity_catalog | length == 1
+      - student_hybrid_api_network_catalog | length == 1
+      - student_hybrid_api_identity_catalog[0].url | urlsplit('scheme') == 'http'
+      - student_hybrid_api_identity_catalog[0].url | urlsplit('hostname') == '10.0.2.15'
+      - student_hybrid_api_identity_catalog[0].url | urlsplit('username') in [none, '']
+      - student_hybrid_api_identity_catalog[0].url | urlsplit('password') in [none, '']
+      - student_hybrid_api_identity_catalog[0].url | urlsplit('query') == ''
+      - student_hybrid_api_identity_catalog[0].url | urlsplit('fragment') == ''
+      - student_hybrid_api_identity_catalog[0].url | regex_replace('/+$', '') == student_state.hybrid.m11.api.auth_url | regex_replace('/auth/tokens$', '')
+      - student_hybrid_api_network_catalog[0].url | urlsplit('scheme') == 'http'
+      - student_hybrid_api_network_catalog[0].url | urlsplit('hostname') == '10.0.2.15'
+      - student_hybrid_api_network_catalog[0].url | urlsplit('username') in [none, '']
+      - student_hybrid_api_network_catalog[0].url | urlsplit('password') in [none, '']
+      - student_hybrid_api_network_catalog[0].url | urlsplit('query') == ''
+      - student_hybrid_api_network_catalog[0].url | urlsplit('fragment') == ''
+      - (student_hybrid_api_network_catalog[0].url | urlsplit('port') is none) or ((student_hybrid_api_network_catalog[0].url | urlsplit('port') | int) >= 1 and (student_hybrid_api_network_catalog[0].url | urlsplit('port') | int) <= 65535)
+      - (student_hybrid_api_identity_catalog[0].url | urlsplit('port') is none) or ((student_hybrid_api_identity_catalog[0].url | urlsplit('port') | int) >= 1 and (student_hybrid_api_identity_catalog[0].url | urlsplit('port') | int) <= 65535)
+    fail_msg: "A identidade ou endpoint Neutron não pertence à appliance desta execução."
+  no_log: true
+
+- name: Keep the validated catalog URLs without adding an assumed API path
+  ansible.builtin.set_fact:
+    student_hybrid_api_identity_endpoint: "{{ student_hybrid_api_identity_catalog[0].url | regex_replace('/+$', '') }}"
+    student_hybrid_api_network_catalog_url: "{{ student_hybrid_api_network_catalog[0].url }}"
+  no_log: true

@@ -1,0 +1,434 @@
+---
+- ansible.builtin.include_tasks: validate-owner-token.yml
+
+- name: Require complete ownership IDs before normal use of an up cluster
+  ansible.builtin.assert:
+    that:
+      - student_state.kind_node_ids.keys() | list | sort == student_profile.kind_nodes | sort
+      - student_state.fabric_node_ids.keys() | list | sort == student_profile.fabric_nodes | sort
+      - (student_profile.topology_network is none and student_state.network_ids | length == 0) or (student_profile.topology_network in student_state.network_ids)
+    fail_msg: "Estado não contém os IDs reais de todos os recursos esperados; use lab-down para remoção segura."
+  when:
+    - student_action in ['up', 'env', 'verify', 'session'] or (student_action == 'status' and student_state.status == 'up')
+    - student_state.status == 'up'
+
+- name: Inspect kind resources named by the profile
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - inspect
+      - "{{ item }}"
+  become: true
+  register: student_current_kind_ids
+  changed_when: false
+  failed_when: false
+  no_log: true
+  loop: "{{ student_profile.kind_nodes }}"
+  when: student_has_state and student_state.status != 'down'
+
+- name: Refuse unknown or replaced kind containers
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0 or (student_action == 'down' and item.rc == 1 and item.stdout in ['', '[]'] and item.stderr | trim in student_docker_not_found_messages)
+      - item.rc != 0 or ((item.stdout | from_json | first).Id | length == 64 and student_state.kind_node_ids[item.item] is defined and (item.stdout | from_json | first).Id == student_state.kind_node_ids[item.item])
+    fail_msg: >-
+      {% if item.rc == 0 %}
+      Container {{ item.item }} existe, mas não corresponde ao ID salvo; não será adotado nem removido.
+      {% else %}
+      Não foi possível confirmar a identidade ou a ausência exata do container {{ item.item }} (Docker rc={{ item.rc }}); operação interrompida sem inferir colisão.
+      {% endif %}
+  loop: "{{ student_current_kind_ids.results | default([]) }}"
+  no_log: true
+  vars:
+    student_docker_not_found_messages:
+      - "Error: No such object: {{ item.item }}"
+      - "error: no such object: {{ item.item }}"
+
+- name: Require current Kind Docker cluster labels and token mounts
+  ansible.builtin.assert:
+    that:
+      - (item.stdout | from_json | first).Config.Labels[student_kind_cluster_label_key] == student_profile.kind_name
+      - ((item.stdout | from_json | first).Mounts | selectattr(student_mount_source_key, student_equalto_test, student_owner_token_file) | selectattr(student_mount_destination_key, student_equalto_test, student_owner_mount_path) | selectattr(student_mount_rw_key, student_equalto_test, false) | list | length) == 1
+    fail_msg: "Container {{ item.item }} não corresponde ao cluster e token readonly desta execução."
+  loop: "{{ student_current_kind_ids.results | default([]) }}"
+  when: item.rc == 0
+  no_log: true
+  vars:
+    student_kind_cluster_label_key: io.x-k8s.kind.cluster
+    student_mount_source_key: Source
+    student_mount_destination_key: Destination
+    student_mount_rw_key: RW
+    student_equalto_test: equalto
+    student_owner_mount_path: /etc/p010-student/owner-token
+
+- name: Resolve every saved kind ID back to its exact container name
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - inspect
+      - "{{ item.value }}"
+  become: true
+  register: student_saved_kind_identities
+  changed_when: false
+  failed_when: false
+  no_log: true
+  loop: "{{ student_state.kind_node_ids | dict2items }}"
+  when: student_has_state and student_state.status != 'down'
+
+- name: Refuse a saved kind ID that now names another Docker object
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0 or (student_action == 'down' and item.rc == 1 and item.stdout in ['', '[]'] and item.stderr | trim in student_docker_not_found_messages)
+      - item.rc != 0 or ((item.stdout | from_json | first).Id == item.item.value and item.item.key in (item.stdout | from_json | first).Name)
+    fail_msg: >-
+      {% if item.rc == 0 %}
+      ID salvo para {{ item.item.key }} agora pertence a outro container; cleanup interrompido.
+      {% else %}
+      Não foi possível confirmar a identidade ou a ausência exata do ID salvo para {{ item.item.key }} (Docker rc={{ item.rc }}); cleanup interrompido sem inferir substituição.
+      {% endif %}
+  loop: "{{ student_saved_kind_identities.results | default([]) }}"
+  no_log: true
+  vars:
+    student_docker_not_found_messages:
+      - "Error: No such object: {{ item.item.value }}"
+      - "error: no such object: {{ item.item.value }}"
+
+- name: Inspect fabric resources named by the profile
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - inspect
+      - "{{ item }}"
+  become: true
+  register: student_current_fabric_ids
+  changed_when: false
+  failed_when: false
+  no_log: true
+  loop: "{{ student_profile.fabric_nodes }}"
+  when: student_has_state and student_state.status != 'down'
+
+- name: Refuse unknown or replaced fabric containers
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0 or (student_action == 'down' and item.rc == 1 and item.stdout in ['', '[]'] and item.stderr | trim in student_docker_not_found_messages)
+      - item.rc != 0 or ((item.stdout | from_json | first).Id | length == 64 and student_state.fabric_node_ids[item.item] is defined and (item.stdout | from_json | first).Id == student_state.fabric_node_ids[item.item])
+      - item.rc != 0 or (item.stdout | from_json | first).Config.Labels[student_owner_label_key] == student_state.owner_token
+    fail_msg: >-
+      {% if item.rc == 0 %}
+      Container {{ item.item }} existe, mas não corresponde ao ID salvo; não será adotado nem removido.
+      {% else %}
+      Não foi possível confirmar a identidade ou a ausência exata do container {{ item.item }} (Docker rc={{ item.rc }}); operação interrompida sem inferir colisão.
+      {% endif %}
+  loop: "{{ student_current_fabric_ids.results | default([]) }}"
+  vars:
+    student_owner_label_key: p010-student-owner
+    student_docker_not_found_messages:
+      - "Error: No such object: {{ item.item }}"
+      - "error: no such object: {{ item.item }}"
+  no_log: true
+
+- name: Resolve every saved fabric ID back to its exact container name
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - inspect
+      - "{{ item.value }}"
+  become: true
+  register: student_saved_fabric_identities
+  changed_when: false
+  failed_when: false
+  no_log: true
+  loop: "{{ student_state.fabric_node_ids | dict2items }}"
+  when: student_has_state and student_state.status != 'down'
+
+- name: Refuse a saved fabric ID that now names another Docker object
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0 or (student_action == 'down' and item.rc == 1 and item.stdout in ['', '[]'] and item.stderr | trim in student_docker_not_found_messages)
+      - item.rc != 0 or ((item.stdout | from_json | first).Id == item.item.value and item.item.key in (item.stdout | from_json | first).Name)
+    fail_msg: >-
+      {% if item.rc == 0 %}
+      ID salvo para {{ item.item.key }} agora pertence a outro container; cleanup interrompido.
+      {% else %}
+      Não foi possível confirmar a identidade ou a ausência exata do ID salvo para {{ item.item.key }} (Docker rc={{ item.rc }}); cleanup interrompido sem inferir substituição.
+      {% endif %}
+  loop: "{{ student_saved_fabric_identities.results | default([]) }}"
+  no_log: true
+  vars:
+    student_docker_not_found_messages:
+      - "Error: No such object: {{ item.item.value }}"
+      - "error: no such object: {{ item.item.value }}"
+
+- name: Inspect the management network named by the profile
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - network
+      - inspect
+      - "{{ student_profile.topology_network }}"
+  become: true
+  register: student_current_network_id
+  changed_when: false
+  failed_when: false
+  no_log: true
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - student_profile.topology_network is not none
+  tags: [student-identity-network]
+
+- name: Refuse unknown or replaced management network
+  ansible.builtin.assert:
+    that:
+      - student_current_network_id.rc == 0 or (student_action == 'down' and student_current_network_id.rc == 1 and student_current_network_id.stdout in ['', '[]'] and student_current_network_id.stderr | trim == student_network_not_found_message)
+      - student_current_network_id.rc != 0 or (student_profile.topology_network in student_state.network_ids and (student_current_network_id.stdout | from_json | first).Id == student_state.network_ids[student_profile.topology_network])
+    fail_msg: "Rede {{ student_profile.topology_network }} não corresponde ao ID salvo; não será adotada nem removida."
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - student_profile.topology_network is not none
+  no_log: true
+  vars:
+    student_network_not_found_message: "Error response from daemon: network {{ student_profile.topology_network }} not found"
+  tags: [student-identity-network]
+
+- name: Require the current management network owner label and subnet
+  ansible.builtin.assert:
+    that:
+      - student_network_containerlab_label_key in (student_current_network_id.stdout | from_json | first).Labels
+      - (student_current_network_id.stdout | from_json | first).Labels[student_owner_label_key] == student_state.owner_token
+      - ((student_current_network_id.stdout | from_json | first).IPAM.Config | selectattr(student_ipam_subnet_key, student_equalto_test, student_profile.topology_subnet) | list | length) == 1
+    fail_msg: "Rede {{ student_profile.topology_network }} não tem o token, subnet ou origem containerlab desta execução."
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - student_profile.topology_network is not none
+    - student_current_network_id.rc == 0
+  no_log: true
+  vars:
+    student_network_containerlab_label_key: containerlab
+    student_owner_label_key: p010-student-owner
+    student_ipam_subnet_key: Subnet
+    student_equalto_test: equalto
+  tags: [student-identity-network]
+
+- name: Inspect kind cluster names with the pinned private binary
+  ansible.builtin.command:
+    argv: ["{{ student_tool_dir }}/kind", get, clusters]
+  become: true
+  environment:
+    DOCKER_HOST: unix:///var/run/docker.sock
+  register: student_current_kind_clusters
+  changed_when: false
+  failed_when: false
+  when: student_has_state and student_state.status != 'down'
+
+- name: Require cluster names and IDs to agree with the recorded state
+  ansible.builtin.assert:
+    that:
+      - student_action == 'down' or student_profile.kind_name in student_current_kind_clusters.stdout_lines
+      - student_profile.kind_name not in student_current_kind_clusters.stdout_lines or student_state.kind_node_ids.keys() | list | sort == student_profile.kind_nodes | sort
+    fail_msg: >-
+      {% if student_current_kind_clusters.rc != 0 %}
+      Não foi possível consultar os clusters kind (rc={{ student_current_kind_clusters.rc }}); identidade inconclusiva e operação interrompida.
+      {% elif student_profile.kind_name not in student_current_kind_clusters.stdout_lines %}
+      Cluster kind {{ student_profile.kind_name }} está ausente do resultado da consulta; operação interrompida.
+      {% else %}
+      Cluster kind {{ student_profile.kind_name }} não tem IDs privados completos; operação interrompida.
+      {% endif %}
+  when: student_has_state and student_state.status != 'down'
+
+- name: Inspect exact kind node names in the recorded cluster
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kind"
+      - get
+      - nodes
+      - --name
+      - "{{ student_profile.kind_name }}"
+  become: true
+  environment:
+    DOCKER_HOST: unix:///var/run/docker.sock
+  register: student_current_kind_nodes
+  changed_when: false
+  failed_when: false
+  when: student_has_state and student_state.status != 'down'
+
+- name: Refuse extra, missing, or unknown kind nodes before any action
+  ansible.builtin.assert:
+    that:
+      - student_action == 'down' or (student_current_kind_nodes.rc == 0 and student_current_kind_nodes.stdout_lines | map('regex_replace', '^node/', '') | list | sort == student_profile.kind_nodes | sort)
+      - student_action != 'down' or student_current_kind_nodes.rc != 0 or student_current_kind_nodes.stdout_lines | map('regex_replace', '^node/', '') | list | difference(student_profile.kind_nodes) | length == 0
+    fail_msg: >-
+      {% if student_current_kind_nodes.rc != 0 %}
+      Não foi possível consultar os nós kind (rc={{ student_current_kind_nodes.rc }}); não vou inferir divergência nem alterar a execução.
+      {% else %}
+      Nós kind diferem do conjunto registrado; não vou usar nem remover a execução.
+      {% endif %}
+  when: student_has_state and student_state.status != 'down'
+
+- name: Inspect the saved kubeconfig without following symlinks
+  ansible.builtin.stat:
+    path: "{{ student_state.kubeconfig }}"
+    follow: false
+  register: student_kubeconfig_stat
+  when:
+    - student_action in ['up', 'status', 'env', 'verify', 'down', 'session']
+    - student_state.status == 'up'
+
+- name: Hash the saved kubeconfig for identity comparison
+  ansible.builtin.command:
+    argv: [sha256sum, "{{ student_state.kubeconfig }}"]
+  register: student_kubeconfig_hash
+  changed_when: false
+  when:
+    - student_action in ['up', 'status', 'env', 'verify', 'down', 'session']
+    - student_state.status == 'up'
+
+- name: Refuse a changed kubeconfig before using or removing the recorded cluster
+  ansible.builtin.assert:
+    that:
+      - not (student_kubeconfig_stat.stat.islnk | default(false))
+      - student_action == 'down' or student_kubeconfig_stat.stat.isreg | default(false)
+      - student_action == 'down' or student_kubeconfig_stat.stat.uid | int == student_uid
+      - student_action == 'down' or student_kubeconfig_stat.stat.mode == '0600'
+      - (student_action == 'down' and not (student_kubeconfig_stat.stat.exists | default(false))) or student_kubeconfig_hash.stdout.split()[0] == student_state.kubeconfig_sha256
+    fail_msg: "Kubeconfig ausente, inseguro ou divergente do estado salvo."
+  when:
+    - student_action in ['up', 'status', 'env', 'verify', 'down', 'session']
+    - student_state.status == 'up'
+
+- name: Read the current context from the isolated kubeconfig
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - config
+      - current-context
+  become: true
+  register: student_live_context
+  changed_when: false
+  failed_when: false
+  when:
+    - student_has_state
+    - student_state.status == 'up'
+    - student_action != 'down' or student_kubeconfig_stat.stat.exists | default(false)
+
+- name: Require the recorded context for every active operation
+  ansible.builtin.assert:
+    that:
+      - student_live_context.rc == 0
+      - student_live_context.stdout == student_state.context
+      - student_state.context == student_profile.context
+    fail_msg: "Contexto Kubernetes divergiu do registro privado; nenhum comando será direcionado a outro cluster."
+  when:
+    - student_has_state
+    - student_state.status == 'up'
+    - student_action != 'down' or student_kubeconfig_stat.stat.exists | default(false)
+
+- name: Read every Kubernetes node name from the recorded cluster
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - nodes
+      - -o
+      - 'jsonpath={range .items[*]}{.metadata.name}{"\n"}{end}'
+  become: true
+  register: student_live_kind_nodes
+  changed_when: false
+  failed_when: false
+  when:
+    - student_has_state
+    - student_state.status == 'up'
+    - student_action != 'down' or student_kubeconfig_stat.stat.exists | default(false)
+
+- name: Require the complete expected Kubernetes node set
+  ansible.builtin.assert:
+    that:
+      - student_live_kind_nodes.rc == 0 or student_action == 'down'
+      - student_live_kind_nodes.rc != 0 or (student_live_kind_nodes.stdout_lines | sort == student_profile.kind_nodes | sort)
+    fail_msg: "O cluster Kubernetes contém nós ausentes ou não registrados; nenhuma identidade será adotada."
+  when:
+    - student_has_state
+    - student_state.status == 'up'
+    - student_action != 'down' or student_kubeconfig_stat.stat.exists | default(false)
+
+- name: Require Kubernetes owner labels to match the saved token when an API config exists
+  ansible.builtin.include_tasks: validate-kube-owner.yml
+  when:
+    - student_has_state
+    - student_state.status == 'up'
+    - student_action != 'down' or student_kubeconfig_stat.stat.exists | default(false)
+
+- name: Read the live API server through the recorded context
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - config
+      - view
+      - --minify
+      - -o
+      - 'jsonpath={.clusters[0].cluster.server}'
+  become: true
+  register: student_live_api_server
+  changed_when: false
+  failed_when: false
+  when:
+    - student_has_state
+    - student_state.status == 'up'
+    - student_action != 'down' or student_kubeconfig_stat.stat.exists | default(false)
+
+- name: Read the live kube-system UID through the recorded context
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - namespace
+      - kube-system
+      - -o
+      - 'jsonpath={.metadata.uid}'
+  become: true
+  register: student_live_cluster_uid
+  changed_when: false
+  failed_when: false
+  when:
+    - student_has_state
+    - student_state.status == 'up'
+    - student_action != 'down' or student_kubeconfig_stat.stat.exists | default(false)
+
+- name: Require API server and UID to match the saved identity
+  ansible.builtin.assert:
+    that:
+      - student_action == 'down' or student_live_api_server.rc == 0
+      - student_action == 'down' or student_live_cluster_uid.rc == 0
+      - student_live_api_server.rc != 0 or student_live_api_server.stdout == student_state.api_server
+      - student_live_cluster_uid.rc != 0 or student_live_cluster_uid.stdout == student_state.cluster_uid
+    fail_msg: "UID kube-system ou endpoint API divergiu do estado salvo."
+  when:
+    - student_has_state
+    - student_state.status == 'up'
+    - student_action != 'down' or student_kubeconfig_stat.stat.exists | default(false)

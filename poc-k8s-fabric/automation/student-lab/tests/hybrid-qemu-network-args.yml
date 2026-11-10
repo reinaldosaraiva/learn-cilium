@@ -1,0 +1,55 @@
+---
+- name: Check the two frozen QEMU network argument sets without starting QEMU
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    student_uid: 1000
+    student_run_id: 20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    student_hybrid_guest_name: ubuntu
+    student_hybrid_guest:
+      host_port: 42422
+      management_mac: '52:54:00:10:11:01'
+      external_mac: '52:54:00:10:11:02'
+      tenant_mac: '52:54:00:10:11:03'
+    student_state:
+      hybrid:
+        network:
+          tap:
+            name: p10tabcdef01
+          tenant_socket:
+            path: /tmp/p10q-1000-20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/t.sock
+  tasks:
+    - ansible.builtin.include_tasks: ../tasks/hybrid-qemu-network-args.yml
+
+    - name: Require Ubuntu management, TAP, and stream-server arguments to be explicit
+      ansible.builtin.assert:
+        that:
+          - "'user,id=management,ipv6=off,hostfwd=tcp:127.0.0.1:42422-10.0.2.15:22' in student_hybrid_qemu_network_args"
+          - "'tap,id=external,ifname=p10tabcdef01,script=no,downscript=no' in student_hybrid_qemu_network_args"
+          - "'stream,id=tenant,server=on,addr.type=unix,addr.path=/tmp/p10q-1000-20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/t.sock' in student_hybrid_qemu_network_args"
+          - "student_hybrid_qemu_network_args | select('search', 'addr=0x2') | list | length == 1"
+          - "student_hybrid_qemu_network_args | select('search', 'addr=0x3') | list | length == 1"
+          - "student_hybrid_qemu_network_args | select('search', 'addr=0x4') | list | length == 1"
+          - "'reconnect=' not in (student_hybrid_qemu_network_args | join(' '))"
+          - "student_state.hybrid.network.tenant_socket.path | length <= 107"
+
+    - name: Select CirrOS' independent management identity and client role
+      ansible.builtin.set_fact:
+        student_hybrid_guest_name: cirros
+        student_hybrid_guest:
+          host_port: 42423
+          management_mac: '52:54:00:10:12:01'
+          tenant_mac: '52:54:00:10:12:02'
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-qemu-network-args.yml
+
+    - name: Require CirrOS loopback management and reconnect-free stream client arguments
+      ansible.builtin.assert:
+        that:
+          - "'user,id=management,ipv6=off,restrict=on,hostfwd=tcp:127.0.0.1:42423-10.0.2.15:22' in student_hybrid_qemu_network_args"
+          - "'stream,id=tenant,server=off,addr.type=unix,addr.path=/tmp/p10q-1000-20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/t.sock' in student_hybrid_qemu_network_args"
+          - "student_hybrid_qemu_network_args | select('search', 'netdev=external') | list | length == 0"
+          - "student_hybrid_qemu_network_args | select('search', 'addr=0x2') | list | length == 1"
+          - "student_hybrid_qemu_network_args | select('search', 'addr=0x3') | list | length == 1"
+          - "'reconnect=' not in (student_hybrid_qemu_network_args | join(' '))"

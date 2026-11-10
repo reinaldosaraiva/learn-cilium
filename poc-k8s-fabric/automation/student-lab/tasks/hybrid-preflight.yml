@@ -1,0 +1,88 @@
+---
+- name: Inspect KVM metadata without changing host permissions
+  ansible.builtin.stat:
+    path: /dev/kvm
+    follow: false
+  register: student_hybrid_kvm
+
+- name: Read the explicit kvm group used by the unprivileged QEMU process
+  ansible.builtin.command:
+    argv: [getent, group, kvm]
+  register: student_hybrid_kvm_group
+  changed_when: false
+  failed_when: false
+
+- name: Read the invoking user's primary group ID
+  ansible.builtin.command:
+    argv: [id, -g]
+  register: student_hybrid_primary_gid
+  changed_when: false
+
+- name: Check that the host can query DNS before preparing any guest
+  ansible.builtin.command:
+    argv: ["{{ student_hybrid_dig_bin | default('/usr/bin/dig') }}", -v]
+  register: student_hybrid_dig_prerequisite
+  changed_when: false
+  failed_when: false
+
+- name: Inspect the namespace and privilege-drop tools
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  register: student_hybrid_privilege_tools
+  loop: [/usr/bin/nsenter, /usr/bin/setpriv, /usr/bin/python3, /usr/bin/ss]
+
+- name: Derive the explicit supplementary groups for QEMU
+  ansible.builtin.set_fact:
+    student_hybrid_kvm_gid: "{{ student_hybrid_kvm_group.stdout.split(':')[2] | int }}"
+    student_hybrid_qemu_gid: "{{ student_hybrid_primary_gid.stdout | trim | int }}"
+    student_hybrid_qemu_groups: "{{ [student_hybrid_primary_gid.stdout | trim | int, student_hybrid_kvm_group.stdout.split(':')[2] | int] | unique | sort }}"
+    student_hybrid_qmp_dir_path: "/tmp/p10q-{{ student_uid }}-{{ student_run_id }}"
+  when: student_hybrid_kvm_group.rc == 0 and student_hybrid_primary_gid.rc == 0
+
+- name: Inspect the shared temporary directory without changing it
+  ansible.builtin.stat:
+    path: /tmp
+    follow: false
+  register: student_hybrid_tmp_stat
+
+- name: Check the candidate per-run QMP directory before any resource changes
+  ansible.builtin.stat:
+    path: "{{ student_hybrid_qmp_dir_path }}"
+    follow: false
+  register: student_hybrid_qmp_dir_candidate
+  when:
+    - student_hybrid_qmp_dir_path is defined
+    - not (student_has_state and student_state.status in ['preparing', 'partial', 'up'])
+
+- name: Require safe prerequisites and a short, unused AF_UNIX path
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_kvm.stat.ischr | default(false)
+      - student_hybrid_kvm.stat.gr_name == 'kvm'
+      - student_hybrid_kvm.stat.mode is match('^0[0-7][67][0-7]$')
+      - student_hybrid_kvm_group.rc == 0
+      - student_hybrid_kvm_group.stdout.split(':') | length >= 4
+      - student_hybrid_primary_gid.rc == 0
+      - student_hybrid_primary_gid.stdout | trim is match('^[0-9]+$')
+      - student_hybrid_dig_prerequisite.rc == 0
+      - student_hybrid_privilege_tools.results | length == 4
+      - student_hybrid_privilege_tools.results | selectattr('stat.isreg', 'defined') | selectattr('stat.executable') | list | length == 4
+      - student_hybrid_tmp_stat.stat.isdir | default(false)
+      - student_hybrid_tmp_stat.stat.uid | int == 0
+      - student_hybrid_tmp_stat.stat.mode == '1777'
+      - student_hybrid_qmp_dir_path is defined
+      - (student_hybrid_qmp_dir_path ~ '/u.qmp') | length <= 107
+      - (student_hybrid_qmp_dir_path ~ '/c.qmp') | length <= 107
+      - (student_hybrid_qmp_dir_candidate is not defined) or not (student_hybrid_qmp_dir_candidate.stat.exists | default(false))
+    fail_msg: >-
+      KVM precisa pertencer ao grupo kvm com leitura/escrita por grupo, e nsenter/setpriv/python3/ss devem existir.
+      A consulta direta dentro do namespace exige dig instalado no host antes de qualquer efeito do laboratório.
+      QEMU usará UID/GID explícitos com o GID kvm suplementar; nenhuma permissão global será alterada.
+      O caminho AF_UNIX deve caber no limite Linux e ainda não existir.
+
+- name: Report the read-only hybrid prerequisite check
+  ansible.builtin.debug:
+    msg: >-
+      KVM, setpriv, nsenter e o caminho QMP foram verificados sem alteração do host.
+      O processo QEMU usará o UID do aluno, GID primário {{ student_hybrid_qemu_gid }} e grupos {{ student_hybrid_qemu_groups }}.

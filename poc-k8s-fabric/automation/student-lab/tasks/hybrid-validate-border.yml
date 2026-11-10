@@ -1,0 +1,96 @@
+---
+- name: Require a fully reserved border process identity before entering its namespace
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.network.border.container_id is match('^[0-9a-f]{64}$')
+      - student_state.hybrid.network.border.pid | int > 1
+      - student_state.hybrid.network.border.starttime | int > 0
+      - student_state.hybrid.network.border.uid | int >= 0
+      - student_state.hybrid.network.border.netns_device | int > 0
+      - student_state.hybrid.network.border.netns_inode | int > 0
+    fail_msg: "Identidade durável do border incompleta; QEMU não será iniciado ou adotado."
+  no_log: true
+
+- name: Resolve the exact saved border container and host PID
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - inspect
+      - "--format={{ '{{' }}.Id{{ '}}' }}|{{ '{{' }}.State.Pid{{ '}}' }}"
+      - "{{ student_state.hybrid.network.border.container_id }}"
+  register: student_hybrid_border_container
+  changed_when: false
+  become: true
+  environment:
+    DOCKER_HOST: unix:///var/run/docker.sock
+  no_log: true
+
+- name: Read the saved border process directory
+  ansible.builtin.stat:
+    path: "/proc/{{ student_state.hybrid.network.border.pid }}"
+    follow: false
+  register: student_hybrid_border_process
+  become: true
+  no_log: true
+
+- name: Read the saved border network namespace identity
+  ansible.builtin.stat:
+    path: "/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+    follow: true
+  register: student_hybrid_border_netns
+  become: true
+  no_log: true
+
+- name: Read the saved border process start time
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/awk
+      - '{ sub(/^.*\) /, ""); print $20 }'
+      - "/proc/{{ student_state.hybrid.network.border.pid }}/stat"
+  register: student_hybrid_border_starttime
+  changed_when: false
+  failed_when: false
+  become: true
+  no_log: true
+
+- name: Require the saved border ID, PID, start time, owner, and namespace to match
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_border_container.rc == 0
+      - student_hybrid_border_container.stdout == student_state.hybrid.network.border.container_id ~ '|' ~ (student_state.hybrid.network.border.pid | string)
+      - student_hybrid_border_process.stat.isdir | default(false)
+      - student_hybrid_border_process.stat.uid | int == student_state.hybrid.network.border.uid | int
+      - student_hybrid_border_netns.stat.exists | default(false)
+      - student_hybrid_border_netns.stat.dev | int == student_state.hybrid.network.border.netns_device | int
+      - student_hybrid_border_netns.stat.inode | int == student_state.hybrid.network.border.netns_inode | int
+      - student_hybrid_border_starttime.rc == 0
+      - student_hybrid_border_starttime.stdout | trim == (student_state.hybrid.network.border.starttime | string)
+    fail_msg: "O border salvo foi removido, reiniciado ou diverge; QEMU não usará outro namespace."
+  no_log: true
+
+- name: Check management port collisions inside the saved border namespace
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ss_bin | default('/usr/bin/ss') }}"
+      - -Hln
+      - "sport = :{{ item }}"
+  register: student_hybrid_namespace_ports
+  changed_when: false
+  failed_when: false
+  become: true
+  loop: "{{ student_hybrid_ports_to_check | default([42422, 42423]) }}"
+  no_log: true
+
+- name: Require management ports to be unused in that border namespace
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - item.stdout | trim == ''
+    fail_msg: "Porta de gerenciamento {{ item.item }} está ocupada ou a consulta ao namespace falhou."
+  loop: "{{ student_hybrid_namespace_ports.results }}"
+  no_log: true

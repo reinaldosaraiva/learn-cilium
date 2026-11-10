@@ -1,0 +1,34 @@
+---
+- name: Expose only durable C0 evidence references for a cleaned hybrid run
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    student_has_state: true
+    student_profile_name: hibrido
+    student_state:
+      profile: hibrido
+      status: down
+      run_id: p010-c0-status-test
+      hybrid:
+        m11:
+          verification:
+            gates:
+              c0_binding_evidence:
+                path: /private/state/run/m11-evidence/c0-binding.json
+                sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+              c0_dora_evidence:
+                path: /private/state/run/m11-evidence/c0-dora.json
+                sha256: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  tasks:
+    - ansible.builtin.include_tasks: ../tasks/status.yml
+
+    - ansible.builtin.assert:
+        that:
+          - student_status_down_report.msg.profile == 'hibrido'
+          - student_status_down_report.msg.status == 'down'
+          - student_status_down_report.msg.run_id == student_state.run_id
+          - student_status_down_report.msg.c0_binding_evidence_path == student_state.hybrid.m11.verification.gates.c0_binding_evidence.path
+          - student_status_down_report.msg.c0_binding_evidence_sha256 == student_state.hybrid.m11.verification.gates.c0_binding_evidence.sha256
+          - student_status_down_report.msg.c0_dora_evidence_path == student_state.hybrid.m11.verification.gates.c0_dora_evidence.path
+          - student_status_down_report.msg.c0_dora_evidence_sha256 == student_state.hybrid.m11.verification.gates.c0_dora_evidence.sha256

@@ -1,0 +1,54 @@
+set -eu
+umask 077
+exec 3>&1 4>&2
+exec >/dev/null 2>&1
+bridge={{ student_state.hybrid.m11.verification.gates.ovs_attach.bridge_name | quote }}
+iface={{ student_state.hybrid.m11.verification.gates.ovs_attach.interface_name | quote }}
+expected_guest_mac={{ student_state.hybrid.m11.verification.gates.ovs_attach.guest_interface_mac | quote }}
+expected_port_id={{ student_state.hybrid.m11.verification.gates.ovs_attach.neutron_port_id | quote }}
+expected_attached_mac={{ student_state.hybrid.m11.verification.gates.ovs_attach.attached_mac | quote }}
+expected_bridge_uuid={{ student_state.hybrid.m11.verification.gates.ovs_attach.bridge_uuid | quote }}
+expected_port_uuid={{ student_state.hybrid.m11.verification.gates.ovs_attach.port_uuid | quote }}
+expected_interface_uuid={{ student_state.hybrid.m11.verification.gates.ovs_attach.interface_uuid | quote }}
+expected_ifindex={{ student_state.hybrid.m11.verification.gates.ovs_attach.ifindex | string | quote }}
+expected_ofport={{ student_state.hybrid.m11.verification.gates.ovs_attach.ofport | string | quote }}
+config=/etc/neutron/plugins/ml2/ml2_conf.ini
+iface_names="$(sudo -n ovs-vsctl --timeout=10 --format=bare --data=bare --no-heading --columns=name list Interface)"
+port_names="$(sudo -n ovs-vsctl --timeout=10 --format=bare --data=bare --no-heading --columns=name list Port)"
+iface_present=0
+port_present=0
+printf '%s\n' "$iface_names" | grep -Fxq "$iface" && iface_present=1 || true
+printf '%s\n' "$port_names" | grep -Fxq "$iface" && port_present=1 || true
+if [ "$iface_present" -eq 0 ] && [ "$port_present" -eq 0 ]; then
+  printf 'P010_OVS_DETACH=absent\n' >&3
+  exit 0
+fi
+[ "$iface_present" -eq 1 ] && [ "$port_present" -eq 1 ]
+[ "$(cat "/sys/class/net/$iface/address" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$expected_guest_mac" | tr '[:upper:]' '[:lower:]')" ]
+[ "$(cat "/sys/class/net/$iface/ifindex")" = "$expected_ifindex" ]
+[ -z "$(ip -o -4 address show dev "$iface")" ]
+[ "$(sudo -n crudini --get "$config" securitygroup enable_security_group)" = True ]
+[ "$(sudo -n crudini --get "$config" securitygroup firewall_driver)" = openvswitch ]
+[ "$(sudo -n crudini --get "$config" ovs bridge_mappings)" = m11public:br-ex ]
+sudo -n ovs-vsctl --timeout=10 br-exists "$bridge"
+actual_bridge_uuid="$(sudo -n ovs-vsctl --timeout=10 get Bridge "$bridge" _uuid | tr -d '"')"
+actual_port_uuid="$(sudo -n ovs-vsctl --timeout=10 get Port "$iface" _uuid | tr -d '"')"
+actual_interface_uuid="$(sudo -n ovs-vsctl --timeout=10 get Interface "$iface" _uuid | tr -d '"')"
+actual_bridge="$(sudo -n ovs-vsctl --timeout=10 port-to-br "$iface")"
+actual_port_id="$(sudo -n ovs-vsctl --timeout=10 get Interface "$iface" external_ids:iface-id | tr -d '"')"
+actual_attached_mac="$(sudo -n ovs-vsctl --timeout=10 get Interface "$iface" external_ids:attached-mac | tr -d '"')"
+actual_ofport="$(sudo -n ovs-vsctl --timeout=10 get Interface "$iface" ofport | tr -d '"')"
+[ "$actual_bridge_uuid" = "$expected_bridge_uuid" ]
+[ "$actual_port_uuid" = "$expected_port_uuid" ]
+[ "$actual_interface_uuid" = "$expected_interface_uuid" ]
+[ "$actual_bridge" = "$bridge" ]
+[ "$actual_port_id" = "$expected_port_id" ]
+[ "$actual_ofport" = "$expected_ofport" ]
+[ "$(printf '%s' "$actual_attached_mac" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$expected_attached_mac" | tr '[:upper:]' '[:lower:]')" ]
+[ "$(printf '%s' "$actual_attached_mac" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "$expected_guest_mac" | tr '[:upper:]' '[:lower:]')" ]
+sudo -n ovs-vsctl --timeout=10 del-port "$bridge" "$iface"
+iface_names="$(sudo -n ovs-vsctl --timeout=10 --format=bare --data=bare --no-heading --columns=name list Interface)"
+port_names="$(sudo -n ovs-vsctl --timeout=10 --format=bare --data=bare --no-heading --columns=name list Port)"
+if printf '%s\n' "$iface_names" | grep -Fxq "$iface"; then exit 1; fi
+if printf '%s\n' "$port_names" | grep -Fxq "$iface"; then exit 1; fi
+printf 'P010_OVS_DETACH=absent\n' >&3

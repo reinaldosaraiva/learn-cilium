@@ -1,0 +1,45 @@
+---
+- name: Report that no student lab has been recorded
+  ansible.builtin.debug:
+    msg: "Nenhuma execução student-lab está registrada para {{ student_profile_name }}."
+  when: not student_has_state
+
+- name: Report retained C0 evidence references for the last cleaned hybrid run
+  ansible.builtin.debug:
+    msg:
+      profile: "{{ student_state.profile }}"
+      status: "{{ student_state.status }}"
+      run_id: "{{ student_state.run_id }}"
+      c0_binding_evidence_path: "{{ student_state.hybrid.m11.verification.gates.c0_binding_evidence.path | default('') }}"
+      c0_binding_evidence_sha256: "{{ student_state.hybrid.m11.verification.gates.c0_binding_evidence.sha256 | default('') }}"
+      c0_dora_evidence_path: "{{ student_state.hybrid.m11.verification.gates.c0_dora_evidence.path | default('') }}"
+      c0_dora_evidence_sha256: "{{ student_state.hybrid.m11.verification.gates.c0_dora_evidence.sha256 | default('') }}"
+  when: student_has_state and student_state.status == 'down'
+  register: student_status_down_report
+
+- name: Report the active private lab without secrets
+  ansible.builtin.debug:
+    msg:
+      profile: "{{ student_state.profile }}"
+      status: "{{ student_state.status }}"
+      phase: "{{ student_state.phase }}"
+      run_id: "{{ student_state.run_id }}"
+      exercise: "{{ student_state.exercise }}"
+      wireguard_mode: "{{ student_state.wireguard_mode }}"
+      session_id: "{{ student_state.exercise_session.id | default('') }}"
+      session_namespace: "{{ student_state.exercise_session.namespace | default('') }}"
+      owner_uid: "{{ student_state.owner_uid }}"
+      kind_nodes_recorded: "{{ student_state.kind_node_ids | length }}"
+      fabric_nodes_recorded: "{{ student_state.fabric_node_ids | length }}"
+      networks_recorded: "{{ student_state.network_ids | length }}"
+      hybrid_phase: "{{ student_state.hybrid.phase | default('') }}"
+      m11_phase: "{{ student_state.hybrid.m11.phase | default('') }}"
+      c0_binding_evidence_path: "{{ student_state.hybrid.m11.verification.gates.c0_binding_evidence.path | default('') }}"
+      c0_binding_evidence_sha256: "{{ student_state.hybrid.m11.verification.gates.c0_binding_evidence.sha256 | default('') }}"
+      c0_dora_evidence_path: "{{ student_state.hybrid.m11.verification.gates.c0_dora_evidence.path | default('') }}"
+      c0_dora_evidence_sha256: "{{ student_state.hybrid.m11.verification.gates.c0_dora_evidence.sha256 | default('') }}"
+      hybrid_guest_processes_recorded: "{{ student_state.hybrid.guests | default({}) | dict2items | selectattr('value.pid', 'gt', 1) | list | length }}"
+      helm_revision: "{{ student_state.helm_revision }}"
+      updated_utc: "{{ student_state.updated_utc }}"
+      limitations: "{{ student_profiles[student_state.profile].limitations | default([]) }}"
+  when: student_has_state and student_state.status != 'down'

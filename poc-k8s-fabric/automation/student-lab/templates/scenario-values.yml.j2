@@ -1,0 +1,34 @@
+{% if student_exercise_config.ipam | default('') in ['m24', 'm32'] %}
+ipv4NativeRoutingCIDR: 10.248.0.0/13
+k8s:
+  requireIPv4PodCIDR: false
+ipam:
+  mode: multi-pool
+  multiPoolPreAllocation: "default=8,p003-m24=8{% if student_exercise_config.ipam == 'm32' %},p003-m32=8{% endif %}"
+  operator:
+    autoCreateCiliumPodIPPools:
+      default:
+        ipv4:
+          cidrs: [10.251.0.0/16]
+          maskSize: 24
+      p003-m24:
+        ipv4:
+          cidrs: [10.250.0.0/16]
+          maskSize: 24
+{% if student_exercise_config.ipam == 'm32' %}
+      p003-m32:
+        ipv4:
+          cidrs: [10.252.0.0/16]
+          maskSize: 32
+{% endif %}
+{% elif student_exercise_config.routing_mode | default('') %}
+routingMode: {{ student_exercise_config.routing_mode }}
+{% if student_exercise_config.tunnel_protocol | default('') %}
+tunnelProtocol: {{ student_exercise_config.tunnel_protocol }}
+autoDirectNodeRoutes: false
+{% endif %}
+encryption:
+  enabled: {{ 'true' if student_effective_wireguard_mode in ['W1', 'W2'] else 'false' }}
+  type: wireguard
+  nodeEncryption: {{ 'true' if student_effective_wireguard_mode == 'W2' else 'false' }}
+{% endif %}

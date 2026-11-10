@@ -1,0 +1,66 @@
+---
+- name: Exercise the Neutron rule inventory check with local response fixtures
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    project_id: 11111111-1111-4111-8111-111111111111
+    rule_ids:
+      egress_icmp: 22222222-2222-4222-8222-222222222221
+      egress_tcp: 22222222-2222-4222-8222-222222222222
+      ingress_icmp: 22222222-2222-4222-8222-222222222223
+      ingress_tcp: 22222222-2222-4222-8222-222222222224
+  tasks:
+    - name: Provide a saved policy with already-deleted default rule identities
+      ansible.builtin.set_fact:
+        student_state:
+          hybrid:
+            m11:
+              api:
+                project_id: "{{ project_id }}"
+                resources:
+                  security_group_rules:
+                    egress_icmp: {id: "{{ rule_ids.egress_icmp }}"}
+                    egress_tcp: {id: "{{ rule_ids.egress_tcp }}"}
+                    ingress_icmp: {id: "{{ rule_ids.ingress_icmp }}"}
+                    ingress_tcp: {id: "{{ rule_ids.ingress_tcp }}"}
+                    default_ipv4: {id: 33333333-3333-4333-8333-333333333331}
+                    default_ipv6: {id: 33333333-3333-4333-8333-333333333332}
+        student_hybrid_api_response:
+          json:
+            security_group_rules:
+              - {id: "{{ rule_ids.egress_icmp }}", tenant_id: "{{ project_id }}"}
+              - {id: "{{ rule_ids.egress_tcp }}", tenant_id: "{{ project_id }}"}
+              - {id: "{{ rule_ids.ingress_icmp }}", tenant_id: "{{ project_id }}"}
+              - {id: "{{ rule_ids.ingress_tcp }}", tenant_id: "{{ project_id }}"}
+
+    - name: Accept the exact four expected rules while old default IDs remain in state
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-verify-rules.yml
+
+    - name: Reject an unrelated broad egress rule even when expected rules still exist
+      block:
+        - ansible.builtin.set_fact:
+            student_hybrid_api_response:
+              json:
+                security_group_rules: "{{ student_hybrid_api_response.json.security_group_rules + [{'id': '33333333-3333-4333-8333-333333333339', 'tenant_id': project_id, 'direction': 'egress', 'remote_ip_prefix': '0.0.0.0/0'}] }}"
+        - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-verify-rules.yml
+        - ansible.builtin.fail:
+            msg: "The rule inventory accepted an extra broad rule."
+      rescue:
+        - ansible.builtin.assert:
+            that:
+              - ansible_failed_task.name == 'Require exactly the four recorded pod-CIDR rules and no default egress rules'
+
+    - name: Reject a missing recorded rule
+      block:
+        - ansible.builtin.set_fact:
+            student_hybrid_api_response:
+              json:
+                security_group_rules: "{{ student_hybrid_api_response.json.security_group_rules[:3] }}"
+        - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-verify-rules.yml
+        - ansible.builtin.fail:
+            msg: "The rule inventory accepted a missing recorded rule."
+      rescue:
+        - ansible.builtin.assert:
+            that:
+              - ansible_failed_task.name == 'Require exactly the four recorded pod-CIDR rules and no default egress rules'

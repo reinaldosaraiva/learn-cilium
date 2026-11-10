@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ student_canary_namespace }}
+  labels:
+    app.kubernetes.io/managed-by: p010-student-lab
+    p010-student-owner: {{ student_state.owner_token }}
+  annotations:
+    p010-student-owner-token: {{ student_state.owner_token }}

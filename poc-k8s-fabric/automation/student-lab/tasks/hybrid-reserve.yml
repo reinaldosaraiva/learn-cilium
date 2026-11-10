@@ -1,0 +1,208 @@
+---
+- name: Require the reserved guest identities to be valid and distinct
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_uuid_results.results | length == 2
+      - student_hybrid_uuid_results.results[0].stdout | trim is match('^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+      - student_hybrid_uuid_results.results[1].stdout | trim is match('^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+      - student_hybrid_uuid_results.results[0].stdout | trim != student_hybrid_uuid_results.results[1].stdout | trim
+    fail_msg: "Não foi possível reservar identidades distintas para os guests híbridos; nenhum guest será iniciado."
+
+- name: Add the versioned hybrid lifecycle record before package or guest changes
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'schema': 3, 'hybrid': student_hybrid_reserved_state}, recursive=true) }}"
+  vars:
+    student_hybrid_reserved_state:
+      schema: 4
+      phase: reserved
+      source_revisions: "{{ student_hybrid_source_revisions }}"
+      qmp_dir:
+        path: "/tmp/p10q-{{ student_uid }}-{{ student_run_id }}"
+        device: 0
+        inode: 0
+      sources:
+        ubuntu:
+          path: "{{ student_run_dir }}/images/ubuntu-24.04-server-cloudimg-amd64.img"
+          sha256: "{{ student_hybrid_sources.ubuntu.checksum }}"
+          device: 0
+          inode: 0
+        cirros:
+          path: "{{ student_run_dir }}/images/cirros-0.6.3-x86_64-disk.img"
+          sha256: "{{ student_hybrid_sources.cirros.checksum }}"
+          device: 0
+          inode: 0
+      guests:
+        ubuntu:
+          uuid: "{{ student_hybrid_uuid_results.results[0].stdout | trim }}"
+          pid: 0
+          starttime: 0
+          netns_device: 0
+          netns_inode: 0
+          pidfile: "{{ student_run_dir }}/qemu/ubuntu.pid"
+          pidfile_device: 0
+          pidfile_inode: 0
+          qmp_path: "/tmp/p10q-{{ student_uid }}-{{ student_run_id }}/u.qmp"
+          qmp_device: 0
+          qmp_inode: 0
+          overlay_path: "{{ student_run_dir }}/images/ubuntu-overlay.qcow2"
+          overlay_device: 0
+          overlay_inode: 0
+          seed_dir: "{{ student_run_dir }}/seed/ubuntu"
+          seed_dir_device: 0
+          seed_dir_inode: 0
+          seed_path: "{{ student_run_dir }}/images/ubuntu-seed.iso"
+          seed_device: 0
+          seed_inode: 0
+          ssh_private_key: "{{ student_run_dir }}/keys/hybrid-ed25519"
+          ssh_device: 0
+          ssh_inode: 0
+          ssh_public_device: 0
+          ssh_public_inode: 0
+          host_port: 42422
+          management_mac: '52:54:00:10:11:01'
+          external_mac: '52:54:00:10:11:02'
+          tenant_mac: '52:54:00:10:11:03'
+        cirros:
+          uuid: "{{ student_hybrid_uuid_results.results[1].stdout | trim }}"
+          pid: 0
+          starttime: 0
+          netns_device: 0
+          netns_inode: 0
+          pidfile: "{{ student_run_dir }}/qemu/cirros.pid"
+          pidfile_device: 0
+          pidfile_inode: 0
+          qmp_path: "/tmp/p10q-{{ student_uid }}-{{ student_run_id }}/c.qmp"
+          qmp_device: 0
+          qmp_inode: 0
+          overlay_path: "{{ student_run_dir }}/images/cirros-overlay.qcow2"
+          overlay_device: 0
+          overlay_inode: 0
+          seed_dir: "{{ student_run_dir }}/seed/cirros"
+          seed_dir_device: 0
+          seed_dir_inode: 0
+          seed_path: "{{ student_run_dir }}/images/cirros-seed.iso"
+          seed_device: 0
+          seed_inode: 0
+          ssh_private_key: "{{ student_run_dir }}/keys/hybrid-ed25519"
+          ssh_device: 0
+          ssh_inode: 0
+          ssh_public_device: 0
+          ssh_public_inode: 0
+          host_port: 42423
+          management_mac: '52:54:00:10:12:01'
+          tenant_mac: '52:54:00:10:12:02'
+      network:
+        border: {container_id: '', pid: 0, starttime: 0, uid: 0, netns_device: 0, netns_inode: 0}
+        management_dns: []
+        bridge: {name: '', alias: '', ifindex: 0}
+        tap:
+          name: "p10t{{ student_hybrid_uuid_results.results[0].stdout | trim | replace('-', '') | truncate(8, true, '') }}"
+          alias: ''
+          reserved_alias: "p010-hyb-{{ student_uid }}-{{ student_run_id }}"
+          ifindex: 0
+          create_phase: reserved
+        tenant_socket:
+          path: "/tmp/p10q-{{ student_uid }}-{{ student_run_id }}/t.sock"
+          device: 0
+          inode: 0
+      neutron:
+        network_id: ''
+        subnet_id: ''
+        router_id: ''
+        ubuntu_tenant_port_id: ''
+        cirros_tenant_port_id: ''
+        external_port_id: ''
+      m11:
+        schema: 2
+        phase: reserved
+        network:
+          provider_cidr: "{{ student_profile.hybrid_m11.provider_cidr }}"
+          provider_border_ip: "{{ student_profile.hybrid_m11.provider_border_ip }}"
+          provider_speaker_ip: "{{ student_profile.hybrid_m11.provider_speaker_ip }}"
+          provider_router_ip: "{{ student_profile.hybrid_m11.provider_router_ip }}"
+          provider_allocation_pool: "{{ student_profile.hybrid_m11.provider_allocation_pool }}"
+          provider_interface: "{{ student_profile.hybrid_m11.provider_interface }}"
+          tenant_cidr: "{{ student_profile.hybrid_m11.tenant_cidr }}"
+          tenant_gateway: "{{ student_profile.hybrid_m11.tenant_gateway }}"
+          speaker_asn: "{{ student_profile.hybrid_m11.speaker_asn }}"
+          border_asn: 0
+        credentials:
+          path: "{{ student_run_dir }}/keys/devstack-credentials.json"
+          device: 0
+          inode: 0
+        devstack:
+          checkout_path: /home/stack/devstack
+          revision: "{{ student_profile.hybrid_m11.devstack_revision }}"
+          config_path: "{{ student_run_dir }}/keys/local.conf"
+          config_device: 0
+          config_inode: 0
+          phase: reserved
+          stack_rc: 0
+          versions: {}
+        ssh:
+          known_hosts_path: "{{ student_run_dir }}/keys/known_hosts"
+          known_hosts_device: 0
+          known_hosts_inode: 0
+          host_keys:
+            ubuntu:
+              alias: "p010-{{ student_run_id }}-{{ student_hybrid_uuid_results.results[0].stdout | trim }}-ubuntu"
+              private_path: "{{ student_run_dir }}/keys/ubuntu-host-ed25519"
+              private_device: 0
+              private_inode: 0
+              public_path: "{{ student_run_dir }}/keys/ubuntu-host-ed25519.pub"
+              public_device: 0
+              public_inode: 0
+              fingerprint: ''
+            cirros:
+              alias: "p010-{{ student_run_id }}-{{ student_hybrid_uuid_results.results[1].stdout | trim }}-cirros"
+              private_path: "{{ student_run_dir }}/keys/cirros-host-ed25519"
+              private_device: 0
+              private_inode: 0
+              public_path: "{{ student_run_dir }}/keys/cirros-host-ed25519.pub"
+              public_device: 0
+              public_inode: 0
+              fingerprint: ''
+        api:
+          auth_url: "{{ student_profile.hybrid_m11.identity_auth_url }}"
+          identity_endpoint: ''
+          neutron_endpoint: ''
+          project_id: ''
+          user_id: ''
+          agent_ids: {}
+          extensions: []
+          pending: {}
+          links: {}
+          resources:
+            address_scope: {primary: {id: '', name: ''}}
+            external_subnetpool: {primary: {id: '', name: ''}}
+            tenant_subnetpool: {primary: {id: '', name: ''}}
+            external_network: {primary: {id: '', name: ''}}
+            tenant_network: {primary: {id: '', name: ''}}
+            external_subnet: {primary: {id: '', name: ''}}
+            tenant_subnet: {primary: {id: '', name: ''}}
+            router: {primary: {id: '', name: ''}}
+            router_interface: {primary: {id: '', name: ''}}
+            router_gateway_port: {primary: {id: '', name: ''}}
+            security_group: {primary: {id: '', name: ''}}
+            security_group_rules: {}
+            cirros_port: {primary: {id: '', name: ''}}
+            bgp_speaker: {primary: {id: '', name: ''}}
+            bgp_peer: {primary: {id: '', name: ''}}
+            drinstance: {primary: {id: '', name: ''}}
+        frr:
+          private_config_path: "{{ student_run_dir }}/frr/p003-frr.conf"
+          config_device: 0
+          config_inode: 0
+          config_sha256: ''
+          tap_address_installed: false
+          tap_address_phase: reserved
+        cilium:
+          values_path: "{{ student_run_dir }}/cilium-hybrid-values.yml"
+          values_device: 0
+          values_inode: 0
+          values_sha256: ''
+          pod_ip_masq_exemption: "{{ student_profile.hybrid_m11.tenant_cidr }}"
+        verification:
+          phase: pending
+          gates: {}
+

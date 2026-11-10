@@ -1,0 +1,91 @@
+---
+- name: Read the declared pools advertised by the selected IPAM scenario
+  ansible.builtin.set_fact:
+    student_ipam_frr_pool_documents: >-
+      {{ (lookup('file', student_repo_root ~ '/poc-k8s-fabric/studies/p003/cases/s010/01-m24-setup.yaml')
+          | from_yaml_all | list
+          | selectattr('kind', 'defined')
+          | selectattr('kind', 'equalto', 'CiliumPodIPPool') | list)
+         + (((lookup('file', student_repo_root ~ '/poc-k8s-fabric/studies/p003/cases/s010/06-m32-setup.yaml')
+              | from_yaml_all | list
+              | selectattr('kind', 'defined')
+              | selectattr('kind', 'equalto', 'CiliumPodIPPool') | list))
+            if student_exercise_config.ipam == 'm32' else []) }}
+
+- name: Derive the only pool ranges permitted by the private FRR copy
+  ansible.builtin.set_fact:
+    student_ipam_frr_pool_cidrs: >-
+      {{ student_ipam_frr_pool_documents
+         | map(attribute='spec.ipv4.cidrs') | flatten | unique | list }}
+    student_ipam_frr_source_file: "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/configs/frr/p003-frr.conf"
+    student_ipam_frr_private_file: "{{ student_run_dir }}/p003-frr-ipam.conf"
+
+- name: Require only the reviewed default and selected IPAM pool ranges
+  ansible.builtin.assert:
+    that:
+      - student_ipam_frr_pool_cidrs | sort == (['10.250.0.0/16', '10.251.0.0/16'] if student_exercise_config.ipam == 'm24' else ['10.250.0.0/16', '10.251.0.0/16', '10.252.0.0/16'])
+    fail_msg: "Os CIDRs S010 mudaram; não vou ampliar o filtro FRR automaticamente."
+
+- name: Copy the versioned border configuration into private runtime state
+  ansible.builtin.copy:
+    src: "{{ student_ipam_frr_source_file }}"
+    dest: "{{ student_ipam_frr_private_file }}"
+    remote_src: true
+    owner: "{{ student_uid }}"
+    mode: '0644'
+
+- name: Build exact prefix-list permits for every precreated IPAM pool
+  ansible.builtin.set_fact:
+    student_ipam_frr_pool_rules: >-
+      {{ student_ipam_frr_pool_rules | default([])
+         + ['ip prefix-list PL-FROM-FABRIC seq '
+            ~ (50 + student_ipam_pool_index * 10)
+            ~ ' permit ' ~ item ~ ' le 32'] }}
+  loop: "{{ student_ipam_frr_pool_cidrs }}"
+  loop_control:
+    index_var: student_ipam_pool_index
+
+- name: Add only the declared pool ranges to the private inbound prefix list
+  ansible.builtin.blockinfile:
+    path: "{{ student_ipam_frr_private_file }}"
+    owner: "{{ student_uid }}"
+    mode: '0644'
+    insertafter: '^ip prefix-list PL-FROM-FABRIC seq 40 permit 10\.1\.0\.0/16 le 32$'
+    marker: "! {mark} P010 IPAM POOL PERMITS"
+    block: "{{ student_ipam_frr_pool_rules | join('\n') }}"
+
+- name: Require the resolved private topology to reference the versioned border path once
+  ansible.builtin.assert:
+    that:
+      - lookup('file', student_topology_file) is search(student_ipam_frr_source_file | regex_escape)
+    fail_msg: "A topologia privada não aponta para o asset FRR esperado."
+
+- name: Rebind only the private topology's FRR configuration to its private copy
+  ansible.builtin.replace:
+    path: "{{ student_topology_file }}"
+    regexp: "{{ student_ipam_frr_source_file | regex_escape }}"
+    replace: "{{ student_ipam_frr_private_file }}"
+
+- name: Read the private filter and topology copies for a complete-path assertion
+  ansible.builtin.set_fact:
+    student_ipam_frr_config_text: "{{ lookup('file', student_ipam_frr_private_file) }}"
+    student_ipam_frr_topology_text: "{{ lookup('file', student_topology_file) }}"
+
+- name: Require the exact pool rules and complete FRR inbound filter path
+  ansible.builtin.assert:
+    that:
+      - item in student_ipam_frr_config_text.splitlines()
+      - student_ipam_frr_config_text is search('(?m)^route-map RM-FROM-FABRIC permit 10$')
+      - student_ipam_frr_config_text is search('(?m)^ match ip address prefix-list PL-FROM-FABRIC$')
+      - student_ipam_frr_config_text is search('(?m)^  neighbor 10\.254\.0\.0 route-map RM-FROM-FABRIC in$')
+      - >-
+        student_ipam_frr_config_text is not search(
+          '(?m)^ip prefix-list PL-FROM-FABRIC seq [0-9]+ permit '
+          ~ '(0\.0\.0\.0/0|10\.0\.0\.0/8|10\.248\.0\.0/13|10\.248\.0\.0/14)(\s|$)'
+        )
+      - student_ipam_frr_private_file in student_ipam_frr_topology_text
+      - student_ipam_frr_source_file not in student_ipam_frr_topology_text
+    fail_msg: "A cópia FRR não limita as rotas ao caminho e pools IPAM revisados."
+  loop: "{{ student_ipam_frr_pool_rules }}"
+  loop_control:
+    label: "{{ item }}"

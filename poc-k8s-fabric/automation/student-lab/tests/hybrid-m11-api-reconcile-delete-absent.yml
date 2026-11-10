@@ -1,0 +1,137 @@
+---
+- name: Reconcile a confirmed absent CRUD resource with exact dynamic state keys
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - ../vars.yml
+  vars:
+    student_repo_root: "{{ lookup('env', 'P010_HYBRID_TEST_REPO_ROOT') }}"
+    student_state_dir: "{{ lookup('env', 'P010_HYBRID_TEST_DIR') }}"
+    student_state_file: "{{ student_state_dir }}/state.json"
+    student_run_id: 20261030-0123456789abcdef0123456789abcdef
+    student_state_run_dir: "{{ student_state_dir }}/runs/{{ student_run_id }}"
+    student_run_dir: "{{ student_state_dir }}/runs/{{ student_run_id }}"
+    student_uid: "{{ lookup('env', 'P010_HYBRID_TEST_UID') | int }}"
+    student_profile_name: hibrido
+    student_profile: "{{ student_profiles.hibrido }}"
+    student_action: up
+    student_new_run_id: "{{ student_run_id }}"
+    student_new_owner_token: 123e4567-e89b-42d3-a456-426614174000
+    student_profile_fingerprint: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    student_effective_exercise: ''
+    student_effective_wireguard_mode: ''
+    student_has_state: false
+    student_state: {}
+    student_kubeconfig: "{{ student_run_dir }}/kubeconfig"
+    student_env_file: "{{ student_state_dir }}/lab-env.sh"
+    student_topology_file: "{{ student_run_dir }}/topology.clab.yml"
+    student_owner_token_file: "{{ student_run_dir }}/owner-token"
+    student_hybrid_uuid_bin: "{{ lookup('env', 'P010_HYBRID_TEST_UUID_BIN') }}"
+    query_error_case: "{{ lookup('env', 'P010_HYBRID_API_QUERY_ERROR') | default('', true) == '1' }}"
+    resource_id: 11111111-2222-4333-8444-555555555555
+    other_id: 22222222-3333-4444-8555-666666666666
+  tasks:
+    - name: Prepare a real schema-four hybrid reservation for the durable state check
+      ansible.builtin.include_tasks: ../tasks/prepare-run.yml
+      when: not query_error_case
+
+    - name: Restore the exact pre-reconciliation state for the query-error control
+      ansible.builtin.set_fact:
+        student_state: "{{ lookup('file', student_state_dir ~ '/before-reconcile.json') | from_json }}"
+      when: query_error_case
+
+    - name: Keep the synthetic token only in the local verification process
+      ansible.builtin.set_fact:
+        student_hybrid_api_token: local-test-token
+        student_hybrid_api_mode: remove-resources
+      no_log: true
+
+    - name: Add the uncertain DELETE intent to the production reservation
+      ansible.builtin.set_fact:
+        student_state: >-
+          {{ student_state | combine({
+            'status': 'partial',
+            'phase': 'hybrid-api-delete-pending',
+            'hybrid': {
+              'phase': 'partial',
+              'm11': {
+                'phase': 'api-removing',
+                'api': {
+                  'neutron_endpoint': 'http://127.0.0.1:' ~ lookup('env', 'P010_FAKE_NEUTRON_PORT'),
+                  'pending': {
+                    'method': 'DELETE',
+                    'resource': 'tenant_network:primary',
+                    'path': '/networks/' ~ resource_id,
+                    'collection_path': '/networks',
+                    'envelope': 'network',
+                    'expected': {'name': 'p010-hyb-tenant-network'},
+                    'run_id': student_state.run_id
+                  },
+                  'resources': {
+                    'tenant_network': {'primary': {'id': resource_id, 'name': 'p010-hyb-tenant-network'}},
+                    'bgp_speaker': {'primary': {'id': other_id, 'name': 'unrelated-owned-speaker'}}
+                  }
+                }
+              }
+            }
+          }, recursive=true) }}
+      when: not query_error_case
+      no_log: true
+
+    - name: Persist the exact intent and full resource map before the authenticated read
+      ansible.builtin.copy:
+        dest: "{{ student_state_file }}"
+        content: "{{ student_state | to_nice_json }}\n"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      when: not query_error_case
+
+    - name: Preserve an immutable test copy of the intent for the 503 control
+      ansible.builtin.copy:
+        src: "{{ student_state_file }}"
+        dest: "{{ student_state_dir }}/before-reconcile.json"
+        remote_src: true
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      when: not query_error_case
+
+    - name: Restore the pre-reconciliation checkpoint before the 503 control
+      ansible.builtin.copy:
+        dest: "{{ student_state_file }}"
+        content: "{{ student_state | to_nice_json }}\n"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      when: query_error_case
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-reconcile-delete.yml
+
+    - name: Reload the durable API state after reconciling the 404
+      ansible.builtin.set_fact:
+        student_state: "{{ lookup('file', student_state_file) | from_json }}"
+      when: not query_error_case
+
+    - name: Require exact key removal and preservation of unrelated IDs
+      ansible.builtin.assert:
+        that:
+          - student_state.hybrid.m11.api.pending == {}
+          - student_state.hybrid.m11.api.resources.keys() | list | sort == ['address_scope', 'bgp_peer', 'bgp_speaker', 'cirros_port', 'drinstance', 'external_network', 'external_subnet', 'external_subnetpool', 'router', 'router_gateway_port', 'router_interface', 'security_group', 'security_group_rules', 'tenant_network', 'tenant_subnet', 'tenant_subnetpool']
+          - student_state.hybrid.m11.api.resources.tenant_network.keys() | list == ['primary']
+          - student_state.hybrid.m11.api.resources.tenant_network.primary.id == ''
+          - student_state.hybrid.m11.api.resources.tenant_network.primary.name == 'p010-hyb-tenant-network'
+          - student_state.hybrid.m11.api.resources.bgp_speaker.primary.id == other_id
+        fail_msg: "404 deve limpar apenas o ID salvo no mapa de recurso sem criar chaves de template."
+      when: not query_error_case
+
+    - name: Require the durable state validator to accept the exact resource-map schema
+      ansible.builtin.assert:
+        that:
+          - student_state.hybrid.m11.api.resources.keys() | list | sort == ['address_scope', 'bgp_peer', 'bgp_speaker', 'cirros_port', 'drinstance', 'external_network', 'external_subnet', 'external_subnetpool', 'router', 'router_gateway_port', 'router_interface', 'security_group', 'security_group_rules', 'tenant_network', 'tenant_subnet', 'tenant_subnetpool']
+          - student_state.hybrid.m11.api.resources.tenant_network.primary.id == ''
+          - student_state.hybrid.m11.api.resources.bgp_speaker.primary.id == other_id
+        fail_msg: "Checkpoint 404 deve continuar dentro do schema de recursos híbridos persistido."
+      when: not query_error_case
+
+    - name: Validate the actual durable state with the production schema validator
+      ansible.builtin.include_tasks: ../tasks/validate-hybrid-state.yml
+      when: not query_error_case

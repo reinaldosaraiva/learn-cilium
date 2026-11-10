@@ -1,0 +1,111 @@
+---
+- name: Render the exact bounded DHCP observer finish request
+  ansible.builtin.set_fact:
+    student_hybrid_m11_dhcp_finish_script: |-
+      set -eu
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      capture={{ student_state.hybrid.m11.verification.gates.dhcp_capture.path | quote }}
+      result={{ student_state.hybrid.m11.verification.gates.dhcp_capture.result_path | quote }}
+      launcher_pid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.pid | string | quote }}
+      launcher_start={{ student_state.hybrid.m11.verification.gates.dhcp_capture.starttime | string | quote }}
+      launcher_uid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.process_uid | string | quote }}
+      tcpdump_pid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_pid | string | quote }}
+      tcpdump_start={{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_starttime | string | quote }}
+      tcpdump_uid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_uid | string | quote }}
+      expected_netns={{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_netns | quote }}
+      expected_capture={{ ((student_state.hybrid.m11.verification.gates.dhcp_capture.device | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.inode | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.owner_uid | string) ~ '|600') | quote }}
+      expected_result={{ ((student_state.hybrid.m11.verification.gates.dhcp_capture.result_device | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.result_inode | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.result_owner_uid | string) ~ '|600') | quote }}
+      [ -f "$capture" ] && [ ! -L "$capture" ]
+      [ -f "$result" ] && [ ! -L "$result" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$capture")" = "$expected_capture" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$result")" = "$expected_result" ]
+      finished=0
+      for attempt in $(seq 1 50); do
+        if grep -q '^P010_DHCP_EXIT_RC=' "$result"; then finished=1; break; fi
+        sleep 0.1
+      done
+      if [ "$finished" = 0 ] && [ -e "/proc/$tcpdump_pid/stat" ]; then
+        actual_start="$(sudo -n /usr/bin/awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/$tcpdump_pid/stat")"
+        [ "$actual_start" = "$tcpdump_start" ]
+        [ "$(sudo -n /usr/bin/stat -c '%u' "/proc/$tcpdump_pid")" = "$tcpdump_uid" ]
+        actual_netns="$(sudo -n /usr/bin/readlink "/proc/$tcpdump_pid/ns/net")"
+        [ "$actual_netns" = "$expected_netns" ]
+        tcpdump_cmd="$(sudo -n /usr/bin/cat "/proc/$tcpdump_pid/cmdline" | tr '\000' ' ')"
+        case "$tcpdump_cmd" in
+          "/usr/sbin/tcpdump -n -e -vv -l -c 32 -i tenant0 udp and (port 67 or port 68)"*) ;;
+          *) exit 81 ;;
+        esac
+        launcher_start_now="$(sudo -n /usr/bin/awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/$launcher_pid/stat")"
+        [ "$launcher_start_now" = "$launcher_start" ]
+        [ "$(sudo -n /usr/bin/stat -c '%u' "/proc/$launcher_pid")" = "$launcher_uid" ]
+        printf 'P010_DHCP_STOP_REQUESTED_UTC=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >>"$result"
+        sudo -n /usr/bin/kill -INT "$tcpdump_pid"
+      fi
+      for attempt in $(seq 1 30); do
+        grep -q '^P010_DHCP_EXIT_RC=' "$result" && break
+        sleep 1
+      done
+      grep -q '^P010_DHCP_EXIT_RC=' "$result"
+      rc="$(sed -n 's/^P010_DHCP_EXIT_RC=//p' "$result")"
+      case "$rc" in
+        0) ;;
+        130) grep -q '^P010_DHCP_STOP_REQUESTED_UTC=20' "$result" ;;
+        *) exit 82 ;;
+      esac
+      completed_utc="$(sed -n 's/^P010_DHCP_COMPLETED_UTC=//p' "$result")"
+      printf '%s\n' "$completed_utc" | grep -Eq '^20[0-9]{2}-[0-9]{2}-[0-9]{2}T'
+      captured_count="$(sed -n 's/^\([0-9][0-9]*\) packets captured$/\1/p' "$capture")"
+      [ -n "$captured_count" ] && [ "$captured_count" -le 32 ]
+      grep -Eq '^[0-9]+ packets dropped by kernel$' "$capture"
+      if grep -Eq '^P010_DHCP_STOP_REQUESTED_UTC=20' "$result"; then stop_requested=1; else stop_requested=0; fi
+      printf 'P010_DHCP_FINISH_RC=%s\n' "$rc" >&3
+      printf 'P010_DHCP_FINISH_UTC=%s\n' "$completed_utc" >&3
+      printf 'P010_DHCP_STOP_REQUESTED=%s\n' "$stop_requested" >&3
+      printf 'P010_DHCP_FINISH_CAPTURED_COUNT=%s\n' "$captured_count" >&3
+  no_log: true
+
+- name: Stop the saved tcpdump child after the guest reports its Neutron lease
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: ubuntu
+    student_hybrid_ssh_remote_command: bash -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_dhcp_finish_script }}"
+
+- name: Require a completed bounded DHCP capture with an explicit command status
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_ssh_result.stdout_lines | select('match', '^P010_DHCP_FINISH_RC=(0|130)$') | list | length == 1
+      - student_hybrid_ssh_result.stdout_lines | select('match', '^P010_DHCP_FINISH_UTC=20[0-9]{2}-') | list | length == 1
+      - student_hybrid_ssh_result.stdout_lines | select('match', '^P010_DHCP_STOP_REQUESTED=[01]$') | list | length == 1
+      - student_hybrid_ssh_result.stdout_lines | select('match', '^P010_DHCP_FINISH_CAPTURED_COUNT=[1-9][0-9]*$') | list | length == 1
+    fail_msg: "O observador DHCP não terminou com status/UTC válidos; estado parcial conserva a identidade para cleanup."
+  no_log: true
+
+- name: Retain the completed observer status markers
+  ansible.builtin.include_tasks: hybrid-m11-parse-markers.yml
+  vars:
+    student_hybrid_m11_marker_prefix: P010_DHCP_FINISH_
+    student_hybrid_m11_marker_lines: "{{ student_hybrid_ssh_result.stdout_lines }}"
+
+- name: Checkpoint that the observer completed before parsing DORA
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'m11': {'verification': {'gates': {
+        'dhcp_capture': student_state.hybrid.m11.verification.gates.dhcp_capture | combine({
+          'phase': 'captured',
+          'capture_rc': student_hybrid_m11_parsed_markers.RC | int,
+          'completed_utc': student_hybrid_m11_parsed_markers.UTC,
+          'captured_count': student_hybrid_m11_parsed_markers.CAPTURED_COUNT | int,
+          'stop_requested': student_hybrid_ssh_result.stdout_lines | select('equalto', 'P010_DHCP_STOP_REQUESTED=1') | list | length == 1
+        }, recursive=false)
+      }}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Persist the completed capture status for DORA parsing and later cleanup
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true

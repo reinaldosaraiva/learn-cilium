@@ -1,0 +1,64 @@
+---
+- name: Exercise TAP create/checkpoint/delete helpers with a fake namespace command
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    student_uid: "{{ lookup('env', 'P010_HYBRID_TEST_UID') | int }}"
+    student_run_id: 20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    student_state_file: "{{ lookup('env', 'P010_HYBRID_TAP_STATE_FILE') }}"
+    student_hybrid_tap_checkpoint_file: "{{ lookup('env', 'P010_HYBRID_TAP_CHECKPOINT_FILE') }}"
+    student_hybrid_become: false
+    student_hybrid_nsenter_bin: "{{ lookup('env', 'P010_HYBRID_FAKE_NSENTER') }}"
+    student_hybrid_ip_bin: "{{ lookup('env', 'P010_HYBRID_FAKE_IP') }}"
+    student_hybrid_test_tap_case: "{{ lookup('env', 'P010_HYBRID_TAP_LIFECYCLE_CASE') }}"
+    student_state:
+      schema: 3
+      profile: hibrido
+      status: preparing
+      phase: preparing
+      run_id: 20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      hybrid:
+        schema: 3
+        phase: reserved
+        network:
+          border:
+            pid: 12345
+          tap:
+            name: p10tabcdef01
+            alias: ''
+            reserved_alias: "p010-hyb-{{ lookup('env', 'P010_HYBRID_TEST_UID') }}-20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ifindex: 0
+  tasks:
+    - name: Refuse duplicate namespace interfaces before creating a TAP
+      ansible.builtin.assert:
+        that:
+          - student_state.hybrid.network.tap.ifindex == 0
+      when: student_hybrid_test_tap_case != 'collision'
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-create-tap-in-border.yml
+
+    - name: Snapshot the state immediately after TAP preparation for the local check
+      ansible.builtin.copy:
+        dest: "{{ student_hybrid_tap_checkpoint_file }}"
+        content: "{{ student_state | to_nice_json }}\n"
+        mode: '0600'
+      when: student_hybrid_test_tap_case in ['positive', 'replacement']
+
+    - name: Replace the interface record only for the cleanup identity negative control
+      ansible.builtin.copy:
+        dest: "{{ lookup('env', 'P010_HYBRID_FAKE_IP_JSON') }}"
+        content: >-
+          [{"ifindex": 46, "ifname": "p10tabcdef01", "ifalias": "{{ student_state.hybrid.network.tap.alias }}", "linkinfo": {"info_kind": "tun", "info_data": {"type": "tap"}}}]
+        mode: '0600'
+      when: student_hybrid_test_tap_case == 'replacement'
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-delete-tap-in-border.yml
+
+    - name: Require fake kernel inventory to be empty after the positive cleanup
+      ansible.builtin.assert:
+        that:
+          - lookup('file', lookup('env', 'P010_HYBRID_FAKE_IP_JSON')) | from_json | length == 0
+          - student_state.hybrid.network.tap.ifindex | int > 0
+          - student_state.hybrid.network.tap.alias == student_state.hybrid.network.tap.reserved_alias
+      when: student_hybrid_test_tap_case == 'positive'

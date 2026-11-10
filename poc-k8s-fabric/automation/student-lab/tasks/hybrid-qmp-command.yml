@@ -1,0 +1,58 @@
+---
+- name: Run the identity-bound QMP helper for one saved guest
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/python3
+      - "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/hybrid_qmp.py"
+      - "{{ student_hybrid_qmp_action }}"
+      - --identity
+      - '-'
+    stdin: >-
+      {{ {
+        'schema': 1,
+        'guest': {
+          'name': student_hybrid_qmp_guest_name,
+          'uuid': student_state.hybrid.guests[student_hybrid_qmp_guest_name].uuid,
+          'process': {
+            'pid': student_state.hybrid.guests[student_hybrid_qmp_guest_name].pid | int,
+            'starttime': student_state.hybrid.guests[student_hybrid_qmp_guest_name].starttime | int,
+            'uid': student_uid | int,
+            'netns': {
+              'device': student_state.hybrid.guests[student_hybrid_qmp_guest_name].netns_device | int,
+              'inode': student_state.hybrid.guests[student_hybrid_qmp_guest_name].netns_inode | int
+            }
+          },
+          'pidfile': {
+            'path': student_state.hybrid.guests[student_hybrid_qmp_guest_name].pidfile,
+            'device': student_state.hybrid.guests[student_hybrid_qmp_guest_name].pidfile_device | int,
+            'inode': student_state.hybrid.guests[student_hybrid_qmp_guest_name].pidfile_inode | int
+          },
+          'qmp_dir': {
+            'path': student_state.hybrid.qmp_dir.path,
+            'device': student_state.hybrid.qmp_dir.device | int,
+            'inode': student_state.hybrid.qmp_dir.inode | int
+          },
+          'qmp': {
+            'path': student_state.hybrid.guests[student_hybrid_qmp_guest_name].qmp_path,
+            'device': student_state.hybrid.guests[student_hybrid_qmp_guest_name].qmp_device | int,
+            'inode': student_state.hybrid.guests[student_hybrid_qmp_guest_name].qmp_inode | int
+          }
+        },
+        'border': {
+          'container_id': student_state.hybrid.network.border.container_id,
+          'process': {
+            'pid': student_state.hybrid.network.border.pid | int,
+            'starttime': student_state.hybrid.network.border.starttime | int,
+            'uid': student_state.hybrid.network.border.uid | int,
+            'netns': {
+              'device': student_state.hybrid.network.border.netns_device | int,
+              'inode': student_state.hybrid.network.border.netns_inode | int
+            }
+          }
+        }
+      } | to_json }}
+    stdin_add_newline: false
+  register: student_hybrid_qmp_action_result
+  changed_when: student_hybrid_qmp_action == 'quit'
+  become: true
+  no_log: true
