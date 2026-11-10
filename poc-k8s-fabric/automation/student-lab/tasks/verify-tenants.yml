@@ -271,6 +271,7 @@
 - name: Collect the Cilium monitor outputs after the cross-tenant probes
   ansible.builtin.async_status:
     jid: "{{ item.ansible_job_id }}"
+  become: true
   register: student_tenant_monitor_results
   failed_when: false
   until: student_tenant_monitor_results.finished | default(false)
