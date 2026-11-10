@@ -446,7 +446,7 @@ ausência terem sido confirmadas.
 
 **Figura 4 – E01 confere identidade e condições prévias antes de criar a namespace**
 
-![Quatro etapas próprias: 1 mesma cópia de revisão; 2 preflight de capacidade e colisões; 3 up, status e verify de identidade; 4 lab-session reserva LAB_RUN_ID, lab-env carrega valores locais e a namespace continua ausente antes da criação explícita. Qualquer erro, consulta inconclusiva ou gate recusado leva a PARAR e preservar o estado.](diagramas/ebpf-cilium-iniciantes/figura-07-e01-gates.png)
+![Quatro etapas próprias: 1 mesmo clone Git do repositório; 2 preflight de capacidade e colisões; 3 up, status e verify de identidade; 4 lab-session registra LAB_RUN_ID, lab-env carrega valores locais e a namespace continua ausente antes da criação explícita. Qualquer erro, consulta inconclusiva ou gate recusado leva a PARAR e preservar o estado.](diagramas/ebpf-cilium-iniciantes/figura-07-e01-gates.png)
 
 Fonte: elaboração própria (2026), com base em (Kubernetes Authors, 2026) e no processo de admissão definido para este laboratório.
 Nota: as condições são verificações prévias; a figura não registra nem certifica um ambiente executado.
