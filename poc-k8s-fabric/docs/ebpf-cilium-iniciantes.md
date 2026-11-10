@@ -10,7 +10,7 @@ Começamos por três perguntas: onde um comando roda, por onde uma conexão pass
 
 Os dois modos usam uma só rodada, uma namespace e o mesmo recibo. Não é preciso dominar Bash nem entender a função `record` para usar os exercícios. Depois da limpeza, as soluções interpretam o recibo já preenchido; não iniciam outra rodada. Antes de cada exercício, estude a figura e anote uma previsão. “Esperado — ILUSTRATIVO” descreve um resultado possível. “NOT_RUN — ainda não executado” marca os campos do aluno ainda vazios. As caixas “Saída real” mostram o que o laboratório imprimiu na execução de referência desta edição.
 
-**Execução de referência:** esta edição foi executada de ponta a ponta, de E01 a E06, em 10 de novembro de 2026, em uma VM Ubuntu 24.04.5 limpa com 4 vCPU e 8 GiB de RAM; todos os exercícios passaram. As caixas “Saída real” vêm dessa execução, com os comandos e os manifests deste livro. Depois dela, o texto foi revisado para registrar as saídas e para que um erro ao carregar `lab-env` não feche o Terminal A. Run-id, UIDs, porta do API server, endereços IP, nomes de Pods e horários mudam a cada rodada; as caixas os mostram abreviados com `…` ou os marcam como variáveis. Execute os comandos na sua VM e preencha os campos NOT_RUN com a sua própria saída. Cilium stable 1.20.4 é uma referência documental; o perfil instala Cilium e Hubble 1.20.2. As saídas de rodadas anteriores, feitas em outro ambiente, foram substituídas por estas.
+**Execução de referência:** esta edição foi executada de ponta a ponta, de E01 a E06, em 10 de novembro de 2026, em uma VM Ubuntu 24.04.5 limpa com 4 vCPU e 8 GiB de RAM; todos os exercícios passaram. As caixas “Saída real” vêm dessa execução. A rodada usou o clone na revisão `292a656`, cujo livro versionado ainda era uma edição anterior; os comandos executados foram os da edição que estava sendo escrita naquele dia, e os manifests são os do clone. O hash do livro impresso em E01.7 e em E06.1 é o do arquivo daquele clone, não o do texto executado. Depois dela, o texto foi revisado para registrar as saídas e para que um erro ao carregar `lab-env` não feche o Terminal A. Run-id, UIDs, porta do API server, endereços IP, nomes de Pods e horários mudam a cada rodada; as caixas os mostram abreviados com `…` ou os marcam como variáveis. Execute os comandos na sua VM e preencha os campos NOT_RUN com a sua própria saída. Cilium stable 1.20.4 é uma referência documental; o perfil instala Cilium e Hubble 1.20.2. As saídas de rodadas anteriores, feitas em outro ambiente, foram substituídas por estas.
 
 ~~~{=latex}
 \makeatletter
@@ -56,10 +56,10 @@ Uma **máquina virtual** inclui um sistema operacional convidado e seu próprio 
 
 **Figura 1 – Linux separa processo, kernel, contêiner e lugar de execução**
 
-![O computador pessoal contém uma VM Linux autorizada com terminal, Bash, cliente kubectl e kernel Linux da VM. Uma caixa separada representa o API server que recebe a chamada. No nó Linux do cluster, o Pod frontend contém o processo curl executado depois de --; namespaces isolam uma visão e cgroups organizam recursos. A seta liga a chamada da VM ao processo remoto, que usa o kernel do nó.](diagramas/ebpf-cilium-iniciantes/figura-04-linux-contextos.png)
+![A sua VM Ubuntu própria (rotulada na imagem como computador pessoal e VM Linux autorizada) contém terminal, Bash, cliente kubectl e kernel Linux da VM. Uma caixa separada representa o API server que recebe a chamada. No nó Linux do cluster, o Pod frontend contém o processo curl executado depois de --; namespaces isolam uma visão e cgroups organizam recursos. A seta liga a chamada da VM ao processo remoto, que usa o kernel do nó.](diagramas/ebpf-cilium-iniciantes/figura-04-linux-contextos.png)
 
 Fonte: elaboração própria (2026), com base em (Linux man-pages project, 2026), (Kubernetes Authors, 2026) e no roteiro E01.\
-Nota: é um modelo didático, não um diagrama de um cluster medido.
+Nota: é um modelo didático, não um diagrama de um cluster medido. Na imagem, “computador pessoal” e “VM Linux autorizada” representam a sua própria VM Ubuntu, onde você roda os comandos; não há outra máquina nem acesso remoto a receber autorização.
 
 ```{=latex}
 \FloatBarrier
@@ -320,7 +320,7 @@ Os seis exercícios formam um percurso; cada etapa deixa uma evidência para a s
 
 **Terminais e lugares de execução**
 
-- **Terminal A · VM Ubuntu:** mantenha aberta a mesma sessão, variáveis, atalho k e recibo de E01 a E06. Se for fechada, siga a recuperação de E01; `lab-env` não restaura UID da namespace, recibo nem funções Bash. Os blocos de exercício terminam com `exit 1` quando um guarda detecta divergência: o shell fecha de propósito, para que nada seja criado ou apagado depois dela, e a recuperação de E01 se aplica. Já o carregamento de `lab-env` usa um padrão que não fecha o terminal (ver E01.3).
+- **Terminal A · VM Ubuntu:** mantenha aberta a mesma sessão, variáveis, atalho k e recibo de E01 a E06. Se for fechada, siga a recuperação “Se o Terminal A for perdido”, ao fim de E01.8; `lab-env` não restaura UID da namespace, recibo nem funções Bash. Os blocos de exercício terminam com `exit 1` quando um guarda detecta divergência: o shell em que rodam fecha de propósito, para que nada seja criado ou apagado depois dela. Por isso, antes de E01.4, abra um `bash` aninhado (ver E01.4) e execute os blocos nele: o `exit 1` fecha só esse `bash` e devolve você ao shell externo, sem perder a janela nem a mensagem. Já o carregamento de `lab-env` usa um padrão que não fecha o terminal (ver E01.3).
 - **Terminal B · VM Ubuntu:** sessão temporária para o port-forward de E03. Recarregue o mesmo `lab-env`; encerre o encaminhamento com Ctrl-C depois de E05.
 - **POD · execução remota:** quando a linha usa `kubectl exec ... --`, kubectl é chamado em A, mas o comando depois de `--` roda no contêiner indicado. Não cole esses comandos no host pessoal.
 
@@ -373,74 +373,11 @@ Esta revisão reúne E01–E02 para confirmar a identidade e comparar as rotas p
 
 ## E01 — Reconhecer o ambiente e preparar a rodada
 
-### Se o Terminal A for perdido
-
-Um shell novo não herda as variáveis locais, o recibo nem as funções `k` e
-`record`. `lab-env` recarrega somente as atribuições privadas do perfil. Não
-deduza UID ou run-id, não edite `state.json` e não adote uma namespace pelo
-nome. Se o Terminal B ainda mantém o port-forward, encerre-o com Ctrl-C antes
-de limpar a infraestrutura.
-
-Se E06 já terminou e confirmou que a namespace foi removida, mantenha o cluster
-ativo. Em um Terminal A novo, confirme o perfil e o cluster, crie uma nova
-sessão de prática e carregue as atribuições:
-
-~~~bash
-make --no-print-directory lab-status LAB=iniciantes
-make --no-print-directory lab-verify LAB=iniciantes
-make --no-print-directory lab-session LAB=iniciantes
-lab_env="$(make --no-print-directory lab-env LAB=iniciantes)" \
-  && eval "$lab_env" \
-  || { echo "lab-env falhou; veja a mensagem acima"; false; }
-unset lab_env
-~~~
-
-Se `lab-env` falhar, o padrão `|| { ...; false; }` imprime o aviso e devolve
-erro sem fechar o Terminal A; não o troque por `exit`.
-
-Depois, refaça E01.4 para criar um recibo novo para o `LAB_RUN_ID` novo e
-redefinir as funções locais. Não repita preflight nem up sobre o cluster que
-permaneceu ativo. Se `lab-session` recusar porque a namespace anterior ainda
-existe, pare e use o caminho de reinício abaixo.
-
-Se a rodada ainda não chegou à limpeza E06, ou a ausência da namespace não foi
-confirmada, não tente reconstruir o UID/recibo perdido. Confira o estado
-próprio, encerre somente essa infraestrutura pelos alvos guardados e confirme
-que ficou `down`:
-
-~~~bash
-make --no-print-directory lab-status LAB=iniciantes
-make --no-print-directory lab-down LAB=iniciantes
-make --no-print-directory lab-status LAB=iniciantes
-~~~
-
-Se status, ownership ou down falhar, ou o estado continuar incerto, pare e
-preserve a saída; não remova a namespace ou o cluster manualmente. Quando o
-status confirmar `down`, comece uma rodada nova com todos os gates, sessão e
-ambiente. Em seguida, refaça E01.4 para produzir um recibo novo:
-
-~~~bash
-make --no-print-directory lab-preflight LAB=iniciantes
-make --no-print-directory lab-up LAB=iniciantes
-make --no-print-directory lab-status LAB=iniciantes
-make --no-print-directory lab-verify LAB=iniciantes
-make --no-print-directory lab-session LAB=iniciantes
-lab_env="$(make --no-print-directory lab-env LAB=iniciantes)" \
-  && eval "$lab_env" \
-  || { echo "lab-env falhou; veja a mensagem acima"; false; }
-unset lab_env
-~~~
-
-`lab-down` valida novamente a identidade antes de limpar; uma falha de consulta
-ou de ownership não é prova de ausência. O novo percurso E01 começa pelas
-verificações e cria outra namespace somente depois de sua identidade e
-ausência terem sido confirmadas.
-
 ### Antes de começar
 
 **Objetivo:** preparar uma execução própria, confirmar a identidade do cluster e dos arquivos e só então criar a namespace isolada da rodada.
 
-**Pré-requisitos:** VM Ubuntu 24.04 amd64 própria e limpa, conta não-root com sudo, acesso à Internet e o clone do repositório obtido no Passo 0, que traz este livro, os manifests, os Makefiles e automation/student-lab da mesma árvore. Os alvos públicos preparam Ansible Core 2.19.3 em venv privada e as ferramentas pinadas do perfil; não instale outra versão de Ansible por fora. Execute lab-env somente depois de lab-up, lab-status e lab-verify concluírem com rc=0. O livro não pede kubeconfig, senha, UID ou confirmação de outra pessoa.
+**Pré-requisitos:** VM Ubuntu 24.04 amd64 própria e limpa, conta não-root com sudo, acesso à Internet e o clone do repositório obtido no Passo 0, que traz este livro, os manifests, os Makefiles e automation/student-lab da mesma árvore. Os alvos públicos preparam Ansible Core 2.19.3 em venv privada e as ferramentas do perfil, com versões fixas; não instale outra versão de Ansible por fora. Execute lab-env somente depois de lab-up, lab-status e lab-verify concluírem com rc=0. O livro não pede kubeconfig, senha, UID ou confirmação de outra pessoa.
 
 ### Cenário e figura
 
@@ -515,7 +452,7 @@ make --no-print-directory lab-verify LAB=iniciantes
 
 A rodada de referência (10/11/2026) usou uma VM limpa com 4 vCPU, 8 GiB de RAM e 40 GiB de disco, e o `lab-up` levou 4 min 20 s. O perfil configura 4 CPUs e 25 GiB de disco, recomenda 8 GiB de RAM e estima o pico de memória em 2560 MiB; o gate exige `MemAvailable` de 6656 MiB (2560 MiB mais 4096 MiB). A RAM total é a única configuração testada, não um mínimo garantido.
 Uma falha ou status inconclusivo encerra o exercício; preserve a saída para
-diagnóstico e não edite o estado privado. Se o preflight informar que o state já está up, pare: use lab-status e lab-verify para identificar o estado próprio; não repita preflight sobre a infraestrutura ativa. Só encerre com lab-down quando a identidade for sua e confira down antes de iniciar uma nova subida.
+diagnóstico e não edite o estado privado. Se o preflight informar que o estado (`state`) já está `up`, pare: use lab-status e lab-verify para identificar o estado próprio; não repita preflight sobre a infraestrutura ativa. Só encerre com lab-down quando a identidade for sua e confira down antes de iniciar uma nova subida.
 
 **E01.3 · Terminal A · VM Ubuntu — Crie a sessão e carregue o ambiente**
 
@@ -549,6 +486,8 @@ também os hashes efetivos. Não imprima nem copie o conteúdo do kubeconfig.
 ~~~{=latex}
 \hypertarget{p010-e01-4-preparacao}{}
 ~~~
+
+Antes de executar o apêndice, digite `bash` no Terminal A e pressione Enter. Isso abre um `bash` aninhado, que herda as variáveis `LAB_*` (o `lab-env` as exporta). Os blocos de E01.5 a E06 terminam com `exit 1` quando um guarda detecta divergência; no `bash` aninhado, esse `exit 1` fecha só o aninhado e devolve você ao shell externo, onde a mensagem de parada continua visível, em vez de fechar o terminal inteiro. Quando isso acontecer, o shell externo ainda tem as variáveis `LAB_*`, mas não tem `k`, `record` nem `LAB_RECEIPT`. Não rode o apêndice outra vez (ele recusa um run-id que já tem recibo); leia o motivo da parada e siga “Se o Terminal A for perdido”, ao fim de E01.8. Se as variáveis `LAB_*` também sumirem, recarregue-as com o bloco de `lab-env` de E01.3, sem repetir `lab-session`. Esse comportamento com `bash` aninhado não foi exercitado em shell interativo: a rodada de 10/11/2026 executou os blocos com `bash -c`.
 
 Faça esta preparação uma vez na mesma sessão Bash que seguirá até E06. O apêndice verifica as atribuições locais de `lab-env`, cria um recibo privado e define atalhos explícitos. Não chama o API server nem cria a namespace. Abra o apêndice, execute o bloco completo e volte pelo link de retorno.
 
@@ -686,6 +625,73 @@ printf 'namespace=%s uid=%s run-id=%s exit_code=0\n' \
 
 Os valores LAB_NS e LAB_RUN_ID foram limitados a caracteres seguros no passo 4 para que o shell os possa inserir no YAML. Registre a revisão, UTC e UID retornado. O recibo foi criado antes da primeira chamada ao API server e permanece local com permissão restrita.
 
+### Se o Terminal A for perdido
+
+Esta seção só serve depois que a rodada começou. Se o Terminal A for fechado
+por engano, use-a; ela não faz parte do caminho normal de E01.
+
+Um shell novo não herda as variáveis locais, o recibo nem as funções `k` e
+`record`. `lab-env` recarrega somente as atribuições privadas do perfil. Não
+deduza UID ou run-id, não edite `state.json` e não adote uma namespace pelo
+nome. Se o Terminal B ainda mantém o port-forward, encerre-o com Ctrl-C antes
+de limpar a infraestrutura.
+
+Se E06 já terminou e confirmou que a namespace foi removida, mantenha o cluster
+ativo. Em um Terminal A novo, confirme o perfil e o cluster, crie uma nova
+sessão de prática e carregue as atribuições:
+
+~~~bash
+make --no-print-directory lab-status LAB=iniciantes
+make --no-print-directory lab-verify LAB=iniciantes
+make --no-print-directory lab-session LAB=iniciantes
+lab_env="$(make --no-print-directory lab-env LAB=iniciantes)" \
+  && eval "$lab_env" \
+  || { echo "lab-env falhou; veja a mensagem acima"; false; }
+unset lab_env
+~~~
+
+Se `lab-env` falhar, o padrão `|| { ...; false; }` imprime o aviso e devolve
+erro sem fechar o Terminal A; não o troque por `exit`. Os blocos desta seção
+não foram executados em VM limpa na rodada de 10/11/2026.
+
+Depois, refaça E01.4 para criar um recibo novo para o `LAB_RUN_ID` novo e
+redefinir as funções locais. Não repita preflight nem up sobre o cluster que
+permaneceu ativo. Se `lab-session` recusar porque a namespace anterior ainda
+existe, pare e use o caminho de reinício abaixo.
+
+Se a rodada ainda não chegou à limpeza E06, ou a ausência da namespace não foi
+confirmada, não tente reconstruir o UID/recibo perdido. Confira o estado
+próprio, encerre somente essa infraestrutura pelos alvos guardados e confirme
+que ficou `down`:
+
+~~~bash
+make --no-print-directory lab-status LAB=iniciantes
+make --no-print-directory lab-down LAB=iniciantes
+make --no-print-directory lab-status LAB=iniciantes
+~~~
+
+Se status, verificação de propriedade (quem criou o recurso) ou down falhar, ou o estado continuar incerto, pare e
+preserve a saída; não remova a namespace ou o cluster manualmente. Quando o
+status confirmar `down`, comece uma rodada nova com todos os gates, sessão e
+ambiente. Em seguida, refaça E01.4 para produzir um recibo novo:
+
+~~~bash
+make --no-print-directory lab-preflight LAB=iniciantes
+make --no-print-directory lab-up LAB=iniciantes
+make --no-print-directory lab-status LAB=iniciantes
+make --no-print-directory lab-verify LAB=iniciantes
+make --no-print-directory lab-session LAB=iniciantes
+lab_env="$(make --no-print-directory lab-env LAB=iniciantes)" \
+  && eval "$lab_env" \
+  || { echo "lab-env falhou; veja a mensagem acima"; false; }
+unset lab_env
+~~~
+
+`lab-down` valida novamente a identidade antes de limpar; uma falha de consulta
+ou de verificação de propriedade não é prova de ausência. O novo percurso E01 começa pelas
+verificações e cria outra namespace somente depois de sua identidade e
+ausência terem sido confirmadas.
+
 ### Confira e registre
 
 **Esperado — ILUSTRATIVO:** os gates próprios passam; identidade consultada confere; a namespace desta rodada ainda não existe; a criação retorna UID e label de run-id.
@@ -749,7 +755,7 @@ O hash do livro muda a cada edição do arquivo e o `HEAD` muda a cada commit; p
 
 ### Interprete
 
-Uma identidade consistente reduz o risco de atuar no cluster errado; os gates de capacidade e ownership limitam a execução; a namespace nova delimita objetos namespaced. Esses sinais não provam ausência de toda política externa.
+Uma identidade consistente reduz o risco de atuar no cluster errado; os gates de capacidade e de propriedade (quem criou o recurso) limitam a execução; a namespace nova delimita objetos namespaced. Esses sinais não provam ausência de toda política externa.
 
 ### Se falhar
 
@@ -1246,7 +1252,7 @@ Terminal A anota horário e gera pedidos. Terminal B mantém somente o port-forw
 ![Linha do tempo com T0 UTC, T+request e T+2 min. Terminal A anota UTC, faz pedidos manuais e consulta Hubble; Terminal B mantém o port-forward ao Relay em 127.0.0.1:4245, e Ctrl-C encerra essa janela. A faixa inferior reúne UTC e namespace, origem e destino, protocolo e verdict; um aviso registra que payload completo e audit log do API server não são mostrados.](diagramas/ebpf-cilium-iniciantes/figura-09-e03-hubble.png)
 
 Fonte: elaboração própria (2026), com base em (Cilium Authors, 2026).
-Nota: Hubble é telemetria de fluxo; campos e retenção dependem da versão e configuração instaladas. Abra primeiro o port-forward no Terminal B; a figura não é um resultado executado.
+Nota: Hubble é telemetria de fluxo; campos e retenção dependem da versão e configuração instaladas. Abra primeiro o port-forward no Terminal B; a figura não é um resultado executado. O rótulo da imagem “TLS verificado ou plaintext loopback autorizado” descreve as duas formas possíveis de conexão; neste livro o cliente usa somente o plaintext em loopback `127.0.0.1:4245`, sem TLS.
 
 ```{=latex}
 \FloatBarrier
@@ -2016,7 +2022,7 @@ Readiness é uma pergunta local sobre a probe do Pod; selector e EndpointSlice d
 
 Se a probe backend falhar, pare: não é apenas uma falha de selector. Se a EndpointSlice ainda tiver destino, compare label, selector, Service e condição do endpoint. Se a chamada não falhar, preserve essa observação e registre o erro e pare; pode existir outro Service ou resolução diferente. Se a restauração não devolver o destino, confira somente o YAML saudável e a probe do Pod, registre o resultado como inconclusivo e encerre a prática sem ampliar a limpeza.
 
-Se a sessão for interrompida depois de uma mutação, não retome com base no estado parcial. Preserve a saída, o erro e o recibo e pare e preserve o estado. Antes de qualquer restauração, reconfira nos registros originais o contexto, o API server, os UIDs do cluster e da namespace e o run-id. Se qualquer identidade estiver ausente, divergente ou desconhecida, não altere o ambiente. Com a identidade confirmada, siga somente a restauração do Service saudável e os controles previstos em E05.5. Não use trap automático, retomada por suposição, rollout restart, remoção ampla ou force.
+Se a sessão for interrompida depois de uma mutação, não retome com base no estado parcial. Preserve a saída, o erro e o recibo e pare. Antes de qualquer restauração, reconfira nos registros originais o contexto, o API server, os UIDs do cluster e da namespace e o run-id. Se qualquer identidade estiver ausente, divergente ou desconhecida, não altere o ambiente. Com a identidade confirmada, siga somente a restauração do Service saudável e os controles previstos em E05.5. Não use trap automático, retomada por suposição, rollout restart, remoção ampla ou force.
 
 ### Critério para seguir
 
@@ -2123,7 +2129,7 @@ NAME                         ARCH    OS
 p010-student-control-plane   amd64   Debian GNU/Linux 12 (bookworm)
 ~~~
 
-Os três Pods rodam no mesmo nó, o único do perfil. Esta execução não demonstra tráfego entre nós nem portabilidade ARM. O hash do livro coletado em E06.1 é o do arquivo executado; o do seu clone será outro se o livro tiver mudado.
+Os três Pods rodam no mesmo nó, o único do perfil. Esta execução não demonstra tráfego entre nós nem portabilidade ARM. O hash do livro coletado em E06.1 é o do arquivo presente no clone `292a656`, não o do texto que foi executado naquele dia; o do seu clone será outro se o livro tiver mudado.
 
 **E06.2 · Terminal A · VM Linux — Separe esperado, observado e conclusão**
 
@@ -2218,6 +2224,8 @@ Depois de registrar a remoção da namespace, mantenha a conferência por identi
 
 **Opção A — manter o cluster para outra rodada**
 
+Esta opção não foi executada em VM limpa na rodada de 10/11/2026; a rodada seguiu pela Opção B.
+
 Antes de criar outra sessão, conclua a rodada no **recibo antigo**. Esta opção só se aplica depois de E06.5 confirmar a remoção da namespace e de `lab-status`/`lab-verify` confirmarem que a infraestrutura permanece `up` e saudável. Em E06.6, registre a decisão e a hora no recibo atual antes de chamar `lab-session`:
 
 ~~~bash
@@ -2233,7 +2241,7 @@ record 'E06.6 opção A · namespace removida, infraestrutura mantida' \
 unset lab_env
 ~~~
 
-A nova sessão cria um `LAB_RUN_ID`. Volte ao E01.4 e execute a preparação do Apêndice A para criar um **recibo novo** para esse identificador e redefinir `k`/`record`. Depois siga E01.5–E01.8: confira identidade do cluster, confirme a ausência da namespace nova e só então crie-a. Não reutilize o UID, recibo ou funções da rodada encerrada. Como o cluster permaneceu ativo, não execute `lab-preflight` nem `lab-up`. Se `lab-session`, status, verify ou a consulta de ausência falhar, pare e preserve o estado.
+A nova sessão cria um `LAB_RUN_ID`. Abra um `bash` aninhado novo, como em E01.4, volte ao E01.4 e execute a preparação do Apêndice A para criar um **recibo novo** para esse identificador e redefinir `k`/`record`. Depois siga E01.5–E01.8: confira identidade do cluster, confirme a ausência da namespace nova e só então crie-a. Não reutilize o UID, recibo ou funções da rodada encerrada. Como o cluster permaneceu ativo, não execute `lab-preflight` nem `lab-up`. Se `lab-session`, status, verify ou a consulta de ausência falhar, pare e preserve o estado.
 
 **Opção B — encerrar a infraestrutura**
 
@@ -2293,7 +2301,7 @@ O recibo local é uma nota produzida pelo participante; ele ajuda outra pessoa a
 
 ### Se falhar
 
-Se a identidade, UID ou label divergir, não apague e preserve o estado e pare. Se o wait exceder o tempo, não force nem remova finalizers. Se não conseguir confirmar ausência, registre resultado inconclusivo. Se o recibo contiver credencial, não o distribua; peça orientação para tratamento seguro.
+Se a identidade, UID ou label divergir, não apague e preserve o estado e pare. Se o wait exceder o tempo, não force nem remova finalizers. Se não conseguir confirmar ausência, registre resultado inconclusivo. Se o recibo contiver credencial, não o distribua; se a credencial for real, avise quem administra o serviço a que ela dá acesso, para que seja trocada, e compartilhe só uma cópia sem ela.
 
 ### Critério de conclusão
 

@@ -329,7 +329,7 @@ tenants, em geral sobre VXLAN \\
 \begin{quadro}[!htbp]
 \caption{Códigos do projeto usados no guia}
 \footnotesize
-\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.807\hsize}X|>{\raggedright\arraybackslash\hsize=1.194\hsize}X|>{\raggedright\arraybackslash\hsize=0.999\hsize}X|}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.754\hsize}X|>{\raggedright\arraybackslash\hsize=1.313\hsize}X|>{\raggedright\arraybackslash\hsize=0.933\hsize}X|}
 \hline
 \textbf{Código} & \textbf{Significado} & \textbf{Exemplo} \\
 \hline
@@ -354,7 +354,8 @@ letras e número (\texttt{M01}, \texttt{K02}, \texttt{X05},
 \hline
 \texttt{INV-{}\allowbreak{}Po\allowbreak{}C-{}\allowbreak{}01}--\texttt{INV-{}\allowbreak{}Po\allowbreak{}C-{}\allowbreak{}06} & critérios de aceite para uma prova de conceito do INV & Módulo 13.4 \\
 \hline
-\texttt{L1}--\texttt{L8} & lições operacionais & Apêndice A \\
+\texttt{L1}--\texttt{L8} & lições operacionais numeradas do projeto; citadas no texto quando
+relevantes, como a \texttt{L4} no Módulo 4 & Módulo 4 \\
 \hline
 \end{tabularx}
 \fonte{elaborado pelo autor (2026).}
@@ -508,7 +509,7 @@ comandos seguintes na raiz do clone, no Terminal A.
 
 Não é necessário usar SSH para entrar em outra VM nem receber kubeconfig, UID,
 porta ou senha de instrutor. lab-preflight inspeciona dependências, capacidade
-e colisões; os alvos públicos preparam os pacotes e ferramentas pinados do
+e colisões; os alvos públicos preparam os pacotes e ferramentas, com versões fixas, do
 perfil, incluindo Ansible Core 2.19.3 em uma venv privada. Não instale outra
 versão de Ansible por fora. O sistema pode solicitar a senha do sudo no
 terminal; não a inclua em argumentos, variáveis ou recibos.
@@ -541,7 +542,9 @@ atalhos ou usar \texttt{kubectl}, \texttt{cilium} e \texttt{hubble}. \texttt{fun
 \texttt{lab-{}\allowbreak{}session}; o alvo gera os caminhos, contexto e UID próprios do perfil. Se
 \texttt{lab-{}\allowbreak{}env} falhar, o padrão \texttt{\textbar{}\allowbreak{}\textbar{}\allowbreak{} \{ .\allowbreak{}.\allowbreak{}.\allowbreak{}; false; \}} imprime o aviso e devolve erro
 sem fechar o seu terminal; leia a mensagem acima dele e não substitua o padrão
-por \texttt{exit}, que encerraria o Terminal A.
+por \texttt{exit}, que encerraria o Terminal A. A sintaxe desse padrão foi conferida,
+mas a rodada de 10/11/2026 carregou o \texttt{lab-{}\allowbreak{}env} a partir de um arquivo com
+\texttt{source}; o padrão em si não foi exercitado em VM limpa.
 
 Para uma prática de plataforma, escolha o valor antes de iniciar:
 
@@ -573,7 +576,14 @@ lab_env="$(make --no-print-directory lab-env LAB=plataforma)" \
   && eval "$lab_env" \
   || { echo "lab-env falhou; veja a mensagem acima"; false; }
 unset lab_env
+ks() { kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
+C2="sudo docker exec clab-p003-gw-fabric-client"
 \end{verbatim}
+
+As duas últimas linhas definem os atalhos usados de M6 a M10: \texttt{ks} chama
+\texttt{kubectl} com o kubeconfig e o contexto do perfil, e \texttt{\$C2} executa comandos no
+cliente do fabric de \texttt{plataforma}. Sem elas os comandos dos módulos falham com
+\texttt{command not found}.
 
 Use \texttt{EXERCISE} e \texttt{WG} somente nas chamadas a \texttt{lab-{}\allowbreak{}preflight} e \texttt{lab-{}\allowbreak{}up}.
 Depois da subida, \texttt{lab-{}\allowbreak{}status}, \texttt{lab-{}\allowbreak{}verify}, \texttt{lab-{}\allowbreak{}env} e \texttt{lab-{}\allowbreak{}down} recebem
@@ -582,17 +592,20 @@ cenário ou alternar entre perfis, encerre o perfil atual com
 \texttt{lab-{}\allowbreak{}down LAB=\allowbreak{}\textless{}perfil-{}\allowbreak{}atual\textgreater{}} e confirme \texttt{lab-{}\allowbreak{}status LAB=\allowbreak{}\textless{}perfil-{}\allowbreak{}atual\textgreater{}} antes
 de iniciar o próximo. Um perfil ativo não recebe novo preflight; consulte
 status/verify e carregue \texttt{lab-{}\allowbreak{}env} no shell atual. Se lab-preflight retornar
-rc=2 informando que o state já está up, pare e confira esse estado com status e
+rc=2 informando que o estado (\texttt{state}) já está \texttt{up}, pare e confira esse estado com status e
 verify; não repita preflight sobre a infraestrutura ativa. Só use lab-down
 quando a identidade persistida for sua, confirme down e então inicie uma nova
 admissão. Nunca limpe recursos por nome.
 
 Se \texttt{lab-{}\allowbreak{}up} falhar no meio da subida, o laboratório fica em estado parcial. De
-propósito, \texttt{lab-{}\allowbreak{}env} e \texttt{lab-{}\allowbreak{}verify} recusam esse estado imediatamente: não há
+propósito, \texttt{lab-{}\allowbreak{}env} e \texttt{lab-{}\allowbreak{}verify} recusam esse estado imediatamente (a
+recusa imediata do \texttt{lab-{}\allowbreak{}verify} veio de uma correção posterior à última falha
+da rodada de 10/11 e não foi exercitada em VM limpa): não há
 kubeconfig confiável para carregar nem o que verificar. Rode
-\texttt{make -{}\allowbreak{}-{}\allowbreak{}no-{}\allowbreak{}print-{}\allowbreak{}directory lab-{}\allowbreak{}status LAB=\allowbreak{}plataforma} para ver por que a subida
-parou e \texttt{make -{}\allowbreak{}-{}\allowbreak{}no-{}\allowbreak{}print-{}\allowbreak{}directory lab-{}\allowbreak{}down LAB=\allowbreak{}plataforma} antes de tentar de
-novo. Não monte \texttt{LAB\_\allowbreak{}KUBECONFIG} ou \texttt{LAB\_\allowbreak{}CONTEXT} à mão para contornar a recusa.
+\texttt{make -{}\allowbreak{}-{}\allowbreak{}no-{}\allowbreak{}print-{}\allowbreak{}directory lab-{}\allowbreak{}status LAB=\allowbreak{}plataforma}, que mostra apenas o
+estado \texttt{"status":\allowbreak{} "partial"}: a causa da parada está na saída do próprio
+\texttt{lab-{}\allowbreak{}up}, que você deve guardar. Depois rode
+\texttt{make -{}\allowbreak{}-{}\allowbreak{}no-{}\allowbreak{}print-{}\allowbreak{}directory lab-{}\allowbreak{}down LAB=\allowbreak{}plataforma} antes de tentar de novo. Não monte \texttt{LAB\_\allowbreak{}KUBECONFIG} ou \texttt{LAB\_\allowbreak{}CONTEXT} à mão para contornar a recusa.
 
 O \texttt{lab-{}\allowbreak{}preflight} recusa a subida quando a memória disponível medida no
 momento (\texttt{Mem\allowbreak{}Available}) fica abaixo do pico estimado do perfil mais uma
@@ -604,7 +617,7 @@ checagem recusar.
 \begin{quadro}[!htbp]
 \caption{Requisitos de admissão e validação em VM limpa, por perfil}
 \footnotesize
-\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.527\hsize}X|>{\raggedright\arraybackslash\hsize=0.899\hsize}X|>{\raggedright\arraybackslash\hsize=1.101\hsize}X|>{\raggedright\arraybackslash\hsize=1.473\hsize}X|}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.434\hsize}X|>{\raggedright\arraybackslash\hsize=0.740\hsize}X|>{\raggedright\arraybackslash\hsize=0.907\hsize}X|>{\raggedright\arraybackslash\hsize=1.919\hsize}X|}
 \hline
 \textbf{Perfil} & \textbf{Recursos com que passou} & \textbf{Gate do \texttt{lab-{}\allowbreak{}preflight}} & \textbf{Validação em VM limpa (10/11/2026)} \\
 \hline
@@ -613,10 +626,15 @@ iniciantes & 4 vCPU, 8 GiB RAM, 40 GiB disco & MemAvailable 6656 MiB; 4 vCPU; 25
 \texttt{rc=\allowbreak{}0}; E01--E06 \\
 \hline
 fundamentos & 8 vCPU, 24 GiB RAM, 80 GiB disco & MemAvailable 10240 MiB; 8 vCPU; 40 GiB livres & validado só com 24 GiB (com 16 GiB o gate recusou);
-\texttt{lab-{}\allowbreak{}up} em 7 min 57 s; M1--M5 \\
+\texttt{lab-{}\allowbreak{}up} em 7 min 57 s na rodada de 10/11 (6 min
+45 s na F07); M1--M5 \\
 \hline
-plataforma & 8 vCPU, 24 GiB RAM, 80 GiB disco & MemAvailable 10240 MiB; 8 vCPU; 40 GiB livres & validado: os 7 cenários e W0, W1, W2; \texttt{lab-{}\allowbreak{}up} de
-284 a 326 s (o primeiro, 7 min 30 s); M6--M10 \\
+plataforma & 8 vCPU, 24 GiB RAM, 80 GiB disco & MemAvailable 10240 MiB; 8 vCPU; 40 GiB livres & validado: os 7 cenários e W0, W1, W2, mas \texttt{auth},
+\texttt{tenants} e \texttt{wireguard-{}\allowbreak{}vxlan} falharam no
+primeiro \texttt{lab-{}\allowbreak{}up} por defeitos da automação e
+passaram depois das correções do mesmo dia;
+\texttt{lab-{}\allowbreak{}up} de 284 a 326 s nas subidas que passaram
+(o primeiro, 7 min 30 s); M6--M10 \\
 \hline
 hibrido & não aplicável & MemAvailable 19456 MiB; 12 vCPU; 80 GiB livres;
 \texttt{/\allowbreak{}dev/\allowbreak{}kvm} & incompleto: \texttt{lab-{}\allowbreak{}up} recusa por desenho; o
@@ -627,16 +645,31 @@ preflight termina em
 \fonte{elaborado pelo autor (2026).}
 \end{quadro}
 
-Na rodada de \texttt{iniciantes} de 10/11/2026, o preflight imprimiu CPU 4/4 vCPU,
-RAM total 7940 MiB (recomendado 8192), \texttt{Mem\allowbreak{}Available} 7228 MiB, disco livre
-36436 MiB para 25600 MiB exigidos e \texttt{PRECHECK\_\allowbreak{}OK}. A observação F07, no Apêndice A,
-mediu uma única execução de \texttt{fundamentos} com 24 GiB e não mede o perfil
-\texttt{plataforma}. Este foi validado em outra rodada de 10/11/2026, em VM limpa com
+Os números do Quadro 5 para 10/11/2026 vêm da rodada em que o autor
+leu as saídas diretamente nos guests, mais as capturas das execuções; a
+rodada de \texttt{iniciantes} e a de \texttt{fundamentos} usaram o clone \texttt{292a656}, e a de
+\texttt{plataforma} começou em \texttt{ee3f882}. Em \texttt{iniciantes}, o preflight imprimiu CPU
+4/4 vCPU, RAM total 7940 MiB (recomendado 8192), \texttt{Mem\allowbreak{}Available} 7228 MiB, disco
+livre 36436 MiB para 25600 MiB exigidos e \texttt{PRECHECK\_\allowbreak{}OK}. Em \texttt{fundamentos}, o
+\texttt{lab-{}\allowbreak{}up} levou 7 min 57 s nessa rodada de 10/11; a F07, no Apêndice A, mediu
+6 min 45 s na primeira subida. São duas execuções distintas, e nenhuma das duas
+é um tempo garantido. A F07 mediu uma única execução de \texttt{fundamentos} com
+24 GiB e não mede o perfil \texttt{plataforma}. Este foi validado em outra rodada de
+10/11/2026, em VM limpa com
 8 vCPU, 24 GiB de RAM (\texttt{Mem\allowbreak{}Available} de 23129 MiB na entrada) e cerca de
 70 GiB de disco livre: \texttt{baseline}, \texttt{auth}, \texttt{wireguard-{}\allowbreak{}native},
 \texttt{wireguard-{}\allowbreak{}vxlan} (ambos com W0, W1 e W2), \texttt{tenants}, \texttt{ipam24} e \texttt{ipam32}
-subiram e passaram no \texttt{lab-{}\allowbreak{}verify}. Cada configuração é um caso observado, não
-o menor tamanho suportado.
+passaram no \texttt{lab-{}\allowbreak{}verify}, mas nem todos na primeira tentativa: \texttt{auth}, \texttt{tenants}
+e \texttt{wireguard-{}\allowbreak{}vxlan} falharam no primeiro \texttt{lab-{}\allowbreak{}up} por defeitos da automação e
+passaram depois das correções feitas no mesmo dia. Nenhum commit único rodou os
+sete cenários: o primeiro (\texttt{baseline}) rodou em \texttt{ee3f882} e os últimos em
+\texttt{8fd7d9a} e \texttt{3370326}. Cada configuração é um caso observado, não o menor
+tamanho suportado.
+
+O \texttt{lab-{}\allowbreak{}preflight} imprime como ``recomendado'' 24576 MiB para \texttt{fundamentos} e
+\texttt{plataforma}. Uma VM de 24 GiB mostra cerca de 24030 MiB de RAM total, abaixo
+desse número, e ainda assim passou: o que recusa a subida é o \texttt{Mem\allowbreak{}Available}, não
+o valor recomendado. Com 16 GiB o gate recusou (F06).
 
 No perfil iniciante, \texttt{lab-{}\allowbreak{}session} cria a identidade da prática, mas não cria a
 namespace. Capture apenas depois do status \texttt{up}, da verificação bem-sucedida e
@@ -658,20 +691,11 @@ terminal é a mesma durante a prática. \texttt{LAB\_\allowbreak{}RUN\_\allowbre
 da infraestrutura. \texttt{lab-{}\allowbreak{}session} só deve ser repetido depois da limpeza própria
 E06; não o execute no Terminal B.
 
-Defina aliases explícitos depois de carregar o ambiente, para que os blocos
-históricos usem a identidade criada nesta rodada:
-
-\begin{verbatim}
-k01() { kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
-ks()  { kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
-C1="sudo docker exec clab-poc-k8s-kind-client-ext"
-C2="sudo docker exec clab-p003-gw-fabric-client"
-\end{verbatim}
-
-\texttt{k01} serve ao perfil \texttt{fundamentos}; \texttt{ks} e \texttt{C2} aos exemplos de \texttt{plataforma};
-\texttt{C1} pertence ao perfil \texttt{fundamentos}. Não exporte nem reconstrua esses valores
-por conta própria. A saída gerada fixa o kubeconfig e o contexto. Em uma
-divergência de UID, API, cenário ou owner, interrompa o exercício e preserve o
+Os atalhos \texttt{k01}, \texttt{ks}, \texttt{C1} e \texttt{C2} pertencem aos perfis \texttt{fundamentos} e
+\texttt{plataforma}; o perfil \texttt{iniciantes} usa as variáveis geradas por \texttt{lab-{}\allowbreak{}env}
+diretamente, sem esses atalhos. Não exporte nem reconstrua esses valores por
+conta própria. A saída gerada fixa o kubeconfig e o contexto. Em uma divergência
+de UID, API, cenário ou proprietário, interrompa o exercício e preserve o
 estado para \texttt{lab-{}\allowbreak{}status}/\texttt{lab-{}\allowbreak{}down}; não tente outro contexto.
 
 \section*{Mapa dos laboratórios}\label{mapa-dos-laboratuxf3rios}
@@ -681,7 +705,10 @@ As Figuras 1 e 2 desta seção são históricas: mostram a arquitetura do host d
 instrutor nos estudos P001--P003, com nomes como \texttt{vm-{}\allowbreak{}cilium} e acesso por túnel
 SSH. Esse host e esse túnel não fazem parte do seu ambiente; você trabalha na
 sua própria VM Ubuntu, sem SSH para outra máquina. Leia as figuras só como
-desenho da topologia dos resultados publicados.
+desenho da topologia dos resultados publicados. O mesmo vale para a Figura 4
+(Mac com túnel SSH \texttt{localhost:\allowbreak{}18081}) e para a Figura 15 (\texttt{vm-{}\allowbreak{}cilium}): o
+acesso por \texttt{localhost:\allowbreak{}18081} não existe na sua VM, onde o \texttt{client-{}\allowbreak{}ext} fica
+dentro do próprio fabric.
 
 \begin{figure}[!htbp]
 \caption{Arquitetura histórica do host do instrutor; não é o ambiente do aluno}
@@ -988,7 +1015,9 @@ P001 (REQ-008 a REQ-010), execução histórica. A Figura 4 acompanha o caminho 
 requisição até a VIP.
 
 \begin{figure}[!htbp]
-\caption{Caminho da VIP e balanceamento}
+\caption{Caminho da VIP e balanceamento, no quadro do host do instrutor (Mac e
+túnel SSH \texttt{localhost:\allowbreak{}18081}); não é o ambiente do
+aluno}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m02-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -1107,11 +1136,11 @@ não execute mutações de link ou de container nesta edição.
 \begin{table}[!htbp]
 \caption{Efeito das falhas de fabric e de agente sobre a VIP anycast e o PodCIDR}
 \footnotesize
-\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash\hsize=0.942\hsize}X>{\raggedright\arraybackslash\hsize=1.008\hsize}X>{\raggedright\arraybackslash\hsize=1.149\hsize}X>{\raggedright\arraybackslash\hsize=0.901\hsize}X}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash\hsize=0.921\hsize}X>{\raggedright\arraybackslash\hsize=0.984\hsize}X>{\raggedright\arraybackslash\hsize=1.122\hsize}X>{\raggedright\arraybackslash\hsize=0.972\hsize}X}
 \toprule
 \textbf{Falha} & \textbf{VIP anycast} & \textbf{PodCIDR do rack afetado} & \textbf{Reconvergência} \\
 \midrule
-Restart do agent, GR ON & 0 falhas & sem blackhole & datapath BPF pinado sobrevive \\
+Restart do agent, GR ON & 0 falhas & sem blackhole & datapath BPF fixado no kernel sobrevive \\
 Restart do agent, GR OFF & 0 falhas (outros nós anunciam) & blackhole 10,6 s (P001) a 16,5 s (P002) & até o novo agent reanunciar \\
 Drain do nó & blip de 50 a 300 ms no início da evicção & pods evictados & GR irrelevante: a sessão não cai \\
 1 spine de 2 & 100\% OK em 28,7 mil amostras & n/a & BGP re-up 33 a 38 s \\
@@ -1546,7 +1575,22 @@ wait
 
 Com a policy de isolamento ativa, o \texttt{curl} de A para B deve esgotar o tempo
 (\texttt{http=\allowbreak{}000}). Se o monitor não listar nenhum drop, repita com o agente do nó do
-cliente A: o drop pode ser registrado no nó de origem.
+cliente A, que é o nó de origem do tráfego:
+
+\begin{verbatim}
+NODE_A="$(ks -n p003-tenant-a get pod -l app=p003-a-client \
+  -o jsonpath='{.items[0].spec.nodeName}')"
+AGENT_A="$(ks -n kube-system get pod -l k8s-app=cilium \
+  --field-selector "spec.nodeName=$NODE_A" -o name)"
+echo NODE_A=$NODE_A
+ks -n kube-system exec "$AGENT_A" -- \
+  timeout 20 cilium-dbg monitor -t drop --related-to 0 2>/dev/null | head -20 &
+sleep 2
+ks -n p003-tenant-a exec deploy/p003-a-client -- \
+  curl -sS --max-time 3 -o /dev/null -w 'A->B http=%{http_code}\n' \
+  http://p003-b-backend.p003-tenant-b.svc:8080/hostname
+wait
+\end{verbatim}
 
 Na rodada limpa de 10/11/2026 foi exatamente isso. O \texttt{ks get ciliumnetworkpolicies -{}\allowbreak{}A}
 listou as quatro policies (\texttt{p003-{}\allowbreak{}a-{}\allowbreak{}backend-{}\allowbreak{}policy}, \texttt{p003-{}\allowbreak{}a-{}\allowbreak{}client-{}\allowbreak{}policy},
@@ -1554,8 +1598,7 @@ listou as quatro policies (\texttt{p003-{}\allowbreak{}a-{}\allowbreak{}backend-
 \texttt{curl:\allowbreak{} (\allowbreak{}28) Connection timed out} e \texttt{A-{}\allowbreak{}\textgreater{}B http=\allowbreak{}000}; e o monitor do nó B não
 imprimiu nenhum drop. No agente do nó A (o nó do \texttt{p003-{}\allowbreak{}a-{}\allowbreak{}client}) apareceram
 três linhas de \texttt{Policy denied}. Aqui o drop foi registrado no nó do cliente, a
-origem do tráfego; ele costuma aparecer primeiro no nó A, e começar por ele
-poupa uma rodada. As identidades e IPs mudam a cada subida; um exemplo:
+origem do tráfego; se preferir, comece pelo bloco do nó A e poupe uma rodada. As identidades e IPs mudam a cada subida; um exemplo:
 
 \begin{verbatim}
 xx drop (Policy denied) flow 0x34c29b2f to endpoint 0, ifindex 16, file bpf_lxc.c:1663, , identity 185947->134971: 10.245.2.14:34608 -> 10.245.1.7:8080 tcp SYN
@@ -1639,15 +1682,21 @@ agente lê no \texttt{Config\allowbreak{}Map} \texttt{cilium-{}\allowbreak{}conf
 automação em \texttt{lab-{}\allowbreak{}verify}; se o segundo comando não imprimir isso, não conclua
 sobre \texttt{pre\allowbreak{}Allocate}.
 
-Na rodada limpa de 10/11/2026 o primeiro comando listou, em \texttt{ipam32}, três
-pools: \texttt{default} (\texttt{10.\allowbreak{}251.\allowbreak{}0.\allowbreak{}0/\allowbreak{}16}, máscara 24), \texttt{p003-{}\allowbreak{}m24} (\texttt{10.\allowbreak{}250.\allowbreak{}0.\allowbreak{}0/\allowbreak{}16},
-máscara 24) e \texttt{p003-{}\allowbreak{}m32} (\texttt{10.\allowbreak{}252.\allowbreak{}0.\allowbreak{}0/\allowbreak{}16}, máscara 32); em \texttt{ipam24} só os dois
-primeiros. O pool \texttt{default} existe nos dois cenários e não faz parte do estudo
-\texttt{/\allowbreak{}24} versus \texttt{/\allowbreak{}32}: ele serve aos pods que não pedem um pool. No terceiro
-comando, cada nó recebeu um \texttt{/\allowbreak{}24} de \texttt{default} (\texttt{10.\allowbreak{}251.\allowbreak{}N.\allowbreak{}0/\allowbreak{}24}) e um de
-\texttt{p003-{}\allowbreak{}m24} (\texttt{10.\allowbreak{}250.\allowbreak{}N.\allowbreak{}0/\allowbreak{}24}). No border, o \texttt{vtysh} imprime antes da tabela o
-aviso \texttt{Can\textquotesingle{}t open configuration file /\allowbreak{}etc/\allowbreak{}frr/\allowbreak{}vtysh.\allowbreak{}conf}; ele pode ser
-ignorado. Em \texttt{ipam24} o border listou 3 rotas \texttt{10.\allowbreak{}250.\allowbreak{}x.\allowbreak{}0/\allowbreak{}24}.
+Na rodada limpa de 10/11/2026 o primeiro comando não foi o \texttt{custom-{}\allowbreak{}columns}
+acima, e sim \texttt{ks get ciliumpodippools -{}\allowbreak{}o wide}, que imprime só \texttt{NAME} e \texttt{AGE}.
+Essa saída listou, em \texttt{ipam32}, três pools (\texttt{default}, \texttt{p003-{}\allowbreak{}m24} e \texttt{p003-{}\allowbreak{}m32})
+e, em \texttt{ipam24}, só os dois primeiros. Os CIDRs e a máscara não saíram dessa
+listagem: vêm do \texttt{lab-{}\allowbreak{}verify} da automação e dos valores do cenário
+(\texttt{default} em \texttt{10.\allowbreak{}251.\allowbreak{}0.\allowbreak{}0/\allowbreak{}16} e \texttt{p003-{}\allowbreak{}m24} em \texttt{10.\allowbreak{}250.\allowbreak{}0.\allowbreak{}0/\allowbreak{}16}, ambos com
+máscara 24; \texttt{p003-{}\allowbreak{}m32} em \texttt{10.\allowbreak{}252.\allowbreak{}0.\allowbreak{}0/\allowbreak{}16}, máscara 32). O \texttt{custom-{}\allowbreak{}columns} do
+primeiro comando e o \texttt{jsonpath} do \texttt{cilium-{}\allowbreak{}config} ainda não foram executados em
+uma VM limpa: usam os mesmos campos que a automação lê, mas confira a saída na
+sua rodada. O pool \texttt{default} existe nos dois cenários e não faz parte do estudo
+\texttt{/\allowbreak{}24} versus \texttt{/\allowbreak{}32}: ele serve aos pods que não pedem um pool. O terceiro
+comando, executado na rodada, mostrou um \texttt{/\allowbreak{}24} de \texttt{default} (\texttt{10.\allowbreak{}251.\allowbreak{}N.\allowbreak{}0/\allowbreak{}24})
+e um de \texttt{p003-{}\allowbreak{}m24} (\texttt{10.\allowbreak{}250.\allowbreak{}N.\allowbreak{}0/\allowbreak{}24}) por nó. No border, o \texttt{vtysh} imprime antes
+da tabela o aviso \texttt{Can\textquotesingle{}t open configuration file /\allowbreak{}etc/\allowbreak{}frr/\allowbreak{}vtysh.\allowbreak{}conf}; ele pode
+ser ignorado. Em \texttt{ipam24} o border listou 3 rotas \texttt{10.\allowbreak{}250.\allowbreak{}x.\allowbreak{}0/\allowbreak{}24}.
 
 \section{\texorpdfstring{O que muda entre \texttt{/\allowbreak{}24} e \texttt{/\allowbreak{}32}}{O que muda entre  e }}\label{o-que-muda-entre-24-e-32}
 
@@ -1850,7 +1899,9 @@ comparados. As medições e ressalvas estão no dossiê P004.}
 \end{quadro}
 
 \begin{figure}[!htbp]
-\caption{Planos de rede testados com pods e VMs}
+\caption{Planos de rede testados com pods e VMs; a citação da
+\texttt{vm-{}\allowbreak{}cilium} refere-se ao host do instrutor, não ao
+ambiente do aluno}
 \includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{diagramas/m13-whiteboard-entregavel.png}
 \fonte{elaborada pelo autor (2026).}
 \end{figure}
@@ -3208,8 +3259,8 @@ e condições implementadas para o perfil. Uma execução histórica não substi
 essas consultas. Capture \texttt{lab-{}\allowbreak{}env} antes de definir aliases ou usar as
 ferramentas do perfil. Não chame \texttt{lab-{}\allowbreak{}session} em \texttt{fundamentos}. O gate de
 \texttt{fundamentos} exige 8 vCPU, 40 GiB de disco livre e \texttt{Mem\allowbreak{}Available} de pelo menos
-10240 MiB. A única execução em VM limpa usou 8 vCPU, 24 GiB de RAM e 80 GiB de
-disco; é uma observação, não uma garantia. O caso F06, com 16 GiB de RAM total,
+10240 MiB. As duas execuções em VM limpa (F07 e a rodada de 10/11/2026) usaram
+8 vCPU, 24 GiB de RAM e 80 GiB de disco; são observações, não uma garantia. O caso F06, com 16 GiB de RAM total,
 foi recusado pelo gate por memória disponível abaixo de 10240 MiB; veja o
 registro em ``Fundamentos M1--M5: execução F07 observada'' e o Quadro 5.
 
@@ -3221,7 +3272,7 @@ M6--M10 usam um cenário por execução. \texttt{EXERCISE} e \texttt{WG} só se 
 recebem somente \texttt{LAB=\allowbreak{}plataforma}. Para trocar o cenário, primeiro use
 \texttt{lab-{}\allowbreak{}down LAB=\allowbreak{}plataforma} e confirme o estado final com \texttt{lab-{}\allowbreak{}status}. Se um
 \texttt{lab-{}\allowbreak{}up} falhar, o laboratório fica parcial: \texttt{lab-{}\allowbreak{}env} e \texttt{lab-{}\allowbreak{}verify} o recusam
-de propósito; use \texttt{lab-{}\allowbreak{}status} para ver o motivo e \texttt{lab-{}\allowbreak{}down} antes de repetir.
+de propósito; \texttt{lab-{}\allowbreak{}status} só mostra \texttt{partial}: o motivo está na saída do \texttt{lab-{}\allowbreak{}up}. Use \texttt{lab-{}\allowbreak{}down} antes de repetir.
 
 \begin{itemize}
 \tightlist
@@ -3246,7 +3297,14 @@ lab_env="$(make --no-print-directory lab-env LAB=plataforma)" \
   && eval "$lab_env" \
   || { echo "lab-env falhou; veja a mensagem acima"; false; }
 unset lab_env
+ks() { kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
+C2="sudo docker exec clab-p003-gw-fabric-client"
 \end{verbatim}
+
+As duas últimas linhas definem os atalhos usados de M6 a M10: \texttt{ks} chama
+\texttt{kubectl} com o kubeconfig e o contexto do perfil, e \texttt{\$C2} executa comandos no
+cliente do fabric de \texttt{plataforma}. Sem elas os comandos dos módulos falham com
+\texttt{command not found}.
 
 Para \texttt{wireguard-{}\allowbreak{}native} e \texttt{wireguard-{}\allowbreak{}vxlan}, forneça também um único \texttt{WG=\allowbreak{}W0},
 \texttt{WG=\allowbreak{}W1} ou \texttt{WG=\allowbreak{}W2} às chamadas de preflight e up. Depois de carregar o
@@ -3346,8 +3404,9 @@ um piso de memória.
 A coleta inicial dos comandos do exercício terminou \texttt{rc=\allowbreak{}0} entre 04:33:43 e 04:37:35 UTC e reteve
 estes nove códigos de curl: E02 API/direto 0/0; E03 API/direto 0/0; E04
 API/direto 0/28; E05 selector defeituoso/API restaurada/direto 22/0/28.
-O export não reteve os status HTTP exatos dessa execução; não atribua ao curl 22
-um \texttt{HTTP 502}. A verificação posterior da evidência falhou ao
+O export não reteve os status HTTP exatos dessa execução de 31/10; não atribua ao
+curl 22 dela um \texttt{HTTP 502} (na rodada de 10/11/2026 do livro de iniciantes, a E05 devolveu
+\texttt{rc=\allowbreak{}22} com um HTTP 502 registrado; veja a nota ao fim desta seção). A verificação posterior da evidência falhou ao
 localizar essas linhas de rc e ao interpretar a parada normal do port-forward
 (\texttt{rc=\allowbreak{}143}). O recibo original não ficou preservado separadamente; não o
 reconstrua. O fechamento da VM não demonstra execução do alvo público
@@ -3387,7 +3446,10 @@ E05 request direto rc=28
 \end{verbatim}
 
 O export não reteve status HTTP exatos nem uma amostra Hubble para essa VM:
-não chame curl 22 de HTTP 502 nem atribua a essa VM uma amostra de fluxo.
+não chame curl 22 de HTTP 502 nem atribua a essa VM uma amostra de fluxo. Isso
+vale para esta rodada de 31/10, cujo export não guardou o status. Em E05 do
+livro de iniciantes, na rodada de 10/11/2026, o \texttt{rc=\allowbreak{}22} veio acompanhado de uma
+resposta HTTP 502 registrada; compare cada caso com a sua própria captura.
 Timeout sozinho não prova policy. Nas duas
 sequências, o encaminhamento de porta foi encerrado por TERM
 (\texttt{rc=\allowbreak{}143}), em estado \texttt{STOPPED} e sem processos próprios restantes;
@@ -3401,7 +3463,8 @@ híbrido ou a edição documental executada.
 \addcontentsline{toc}{section}{Fundamentos M1--M5: execução F07 observada}
 
 F07 foi uma execução limpa e única do perfil \texttt{fundamentos} em uma VM Ubuntu
-24.04 amd64. O harness começou às 08:19:19.138 UTC e terminou às 08:31:49.152
+24.04 amd64; a rodada de 10/11/2026 (Quadro 5) é outra execução, com tempos
+próprios. O harness começou às 08:19:19.138 UTC e terminou às 08:31:49.152
 UTC (\texttt{rc=\allowbreak{}0}, 750,013 s). A VM do teste tinha 8 vCPU, 24 GiB de RAM e disco
 virtual de 80 GiB. Isso descreve um caso observado, não o menor tamanho
 suportado nem um SLA. A configuração documentada de \texttt{fundamentos} e
@@ -3481,11 +3544,11 @@ A fonte transferida foi verificada por manifesto de 342 membros
 (\texttt{46e64aeb668f}) difere do TAR original (\texttt{16da757da9d7}); a verificação por
 membros não é uma alegação de identidade byte a byte entre os dois arquivos.
 O SHA-256 \texttt{99eafe638026} identifica o recibo original remoto de 28.586 bytes,
-registrado como metadado. \texttt{receipt-{}\allowbreak{}export01.\allowbreak{}json} é uma projeção allowlisted e
-não tem esse hash nem reconstrói os bytes do recibo original. O novo texto deste
+registrado como metadado. \texttt{receipt-{}\allowbreak{}export01.\allowbreak{}json} é uma versão resumida do recibo, com só alguns campos
+permitidos, e não tem esse hash nem reconstrói os bytes do recibo original. O novo texto deste
 livro e seus arquivos TeX/PDF não foram os bytes usados na execução F07.
 
-A revisão independente aceitou o caso único de \texttt{fundamentos}; E05/G05 integral, plataforma, C1 real, C3 e híbrido continuam pendentes. Os recibos e manifestos dessa execução ficam no pacote interno de evidências do projeto e não fazem parte do que você recebe ao clonar o repositório.
+A revisão independente aceitou o caso único de \texttt{fundamentos} da F07. Ficaram sem aceite nessa execução o exercício E05, o gate G05 integral, o teste com cliente real e o perfil híbrido. O perfil \texttt{plataforma} não fez parte da F07; foi validado depois, em 10/11/2026 (Quadro 5). Os recibos e manifestos dessa execução ficam no pacote interno de evidências do projeto e não fazem parte do que você recebe ao clonar o repositório.
 
 \section*{Encerrar em ordem e preservar o estado}\label{encerrar-em-ordem-e-preservar-o-estado}
 \addcontentsline{toc}{section}{Encerrar em ordem e preservar o estado}
@@ -3498,7 +3561,7 @@ ou encerrar a infraestrutura. Para encerrar, pare o port-forward e execute
 \texttt{EXERCISE} nem \texttt{WG}; por exemplo, \texttt{make -{}\allowbreak{}-{}\allowbreak{}no-{}\allowbreak{}print-{}\allowbreak{}directory lab-{}\allowbreak{}down LAB=\allowbreak{}plataforma}.
 A automação consulta o cenário salvo. Repita \texttt{make -{}\allowbreak{}-{}\allowbreak{}no-{}\allowbreak{}print-{}\allowbreak{}directory lab-{}\allowbreak{}status LAB=\allowbreak{}plataforma}
 para conferir o estado final. A automação remove somente recursos
-de identidade persistida e recusa consulta ou ownership inconclusivos. Não use
+de identidade persistida e recusa consulta ou verificação de propriedade (quem criou o recurso) inconclusivos. Não use
 \texttt{docker stop}, \texttt{kind delete}, \texttt{clab destroy}, limpeza por nome ou alterações
 globais de host como atalho.
 

@@ -175,7 +175,7 @@ Fonte: elaborado pelo autor (2026).
 | **PASS** | sessão ou estudo concluído com todos os critérios atendidos | P005-S001 concluída com PASS |
 | `R3`, `R6` | regras invariantes do laboratório | `R6=0`: nenhuma rota BGP instalada na tabela `main` do kernel |
 | `INV-PoC-01`–`INV-PoC-06` | critérios de aceite para uma prova de conceito do INV | Módulo 13.4 |
-| `L1`–`L8` | lições operacionais | Apêndice A |
+| `L1`–`L8` | lições operacionais numeradas do projeto; citadas no texto quando relevantes, como a `L4` no Módulo 4 | Módulo 4 |
 
 Fonte: elaborado pelo autor (2026).
 
@@ -272,7 +272,7 @@ comandos seguintes na raiz do clone, no Terminal A.
 
 Não é necessário usar SSH para entrar em outra VM nem receber kubeconfig, UID,
 porta ou senha de instrutor. lab-preflight inspeciona dependências, capacidade
-e colisões; os alvos públicos preparam os pacotes e ferramentas pinados do
+e colisões; os alvos públicos preparam os pacotes e ferramentas, com versões fixas, do
 perfil, incluindo Ansible Core 2.19.3 em uma venv privada. Não instale outra
 versão de Ansible por fora. O sistema pode solicitar a senha do sudo no
 terminal; não a inclua em argumentos, variáveis ou recibos.
@@ -305,7 +305,9 @@ atalhos ou usar `kubectl`, `cilium` e `hubble`. `fundamentos` não usa
 `lab-session`; o alvo gera os caminhos, contexto e UID próprios do perfil. Se
 `lab-env` falhar, o padrão `|| { ...; false; }` imprime o aviso e devolve erro
 sem fechar o seu terminal; leia a mensagem acima dele e não substitua o padrão
-por `exit`, que encerraria o Terminal A.
+por `exit`, que encerraria o Terminal A. A sintaxe desse padrão foi conferida,
+mas a rodada de 10/11/2026 carregou o `lab-env` a partir de um arquivo com
+`source`; o padrão em si não foi exercitado em VM limpa.
 
 Para uma prática de plataforma, escolha o valor antes de iniciar:
 
@@ -328,7 +330,14 @@ lab_env="$(make --no-print-directory lab-env LAB=plataforma)" \
   && eval "$lab_env" \
   || { echo "lab-env falhou; veja a mensagem acima"; false; }
 unset lab_env
+ks() { kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
+C2="sudo docker exec clab-p003-gw-fabric-client"
 ~~~
+
+As duas últimas linhas definem os atalhos usados de M6 a M10: `ks` chama
+`kubectl` com o kubeconfig e o contexto do perfil, e `$C2` executa comandos no
+cliente do fabric de `plataforma`. Sem elas os comandos dos módulos falham com
+`command not found`.
 
 Use `EXERCISE` e `WG` somente nas chamadas a `lab-preflight` e `lab-up`.
 Depois da subida, `lab-status`, `lab-verify`, `lab-env` e `lab-down` recebem
@@ -337,17 +346,20 @@ cenário ou alternar entre perfis, encerre o perfil atual com
 `lab-down LAB=<perfil-atual>` e confirme `lab-status LAB=<perfil-atual>` antes
 de iniciar o próximo. Um perfil ativo não recebe novo preflight; consulte
 status/verify e carregue `lab-env` no shell atual. Se lab-preflight retornar
-rc=2 informando que o state já está up, pare e confira esse estado com status e
+rc=2 informando que o estado (`state`) já está `up`, pare e confira esse estado com status e
 verify; não repita preflight sobre a infraestrutura ativa. Só use lab-down
 quando a identidade persistida for sua, confirme down e então inicie uma nova
 admissão. Nunca limpe recursos por nome.
 
 Se `lab-up` falhar no meio da subida, o laboratório fica em estado parcial. De
-propósito, `lab-env` e `lab-verify` recusam esse estado imediatamente: não há
+propósito, `lab-env` e `lab-verify` recusam esse estado imediatamente (a
+recusa imediata do `lab-verify` veio de uma correção posterior à última falha
+da rodada de 10/11 e não foi exercitada em VM limpa): não há
 kubeconfig confiável para carregar nem o que verificar. Rode
-`make --no-print-directory lab-status LAB=plataforma` para ver por que a subida
-parou e `make --no-print-directory lab-down LAB=plataforma` antes de tentar de
-novo. Não monte `LAB_KUBECONFIG` ou `LAB_CONTEXT` à mão para contornar a recusa.
+`make --no-print-directory lab-status LAB=plataforma`, que mostra apenas o
+estado `"status": "partial"`: a causa da parada está na saída do próprio
+`lab-up`, que você deve guardar. Depois rode
+`make --no-print-directory lab-down LAB=plataforma` antes de tentar de novo. Não monte `LAB_KUBECONFIG` ou `LAB_CONTEXT` à mão para contornar a recusa.
 
 O `lab-preflight` recusa a subida quando a memória disponível medida no
 momento (`MemAvailable`) fica abaixo do pico estimado do perfil mais uma
@@ -361,22 +373,37 @@ checagem recusar.
 | Perfil | Recursos com que passou | Gate do `lab-preflight` | Validação em VM limpa (10/11/2026) |
 |---|---|---|---|
 | iniciantes | 4 vCPU, 8 GiB RAM, 40 GiB disco | MemAvailable 6656 MiB; 4 vCPU; 25 GiB livres | validado: `lab-up` em 4 min 20 s; `status`, `verify`, `session` e `env` com `rc=0`; E01–E06 |
-| fundamentos | 8 vCPU, 24 GiB RAM, 80 GiB disco | MemAvailable 10240 MiB; 8 vCPU; 40 GiB livres | validado só com 24 GiB (com 16 GiB o gate recusou); `lab-up` em 7 min 57 s; M1–M5 |
-| plataforma | 8 vCPU, 24 GiB RAM, 80 GiB disco | MemAvailable 10240 MiB; 8 vCPU; 40 GiB livres | validado: os 7 cenários e W0, W1, W2; `lab-up` de 284 a 326 s (o primeiro, 7 min 30 s); M6–M10 |
+| fundamentos | 8 vCPU, 24 GiB RAM, 80 GiB disco | MemAvailable 10240 MiB; 8 vCPU; 40 GiB livres | validado só com 24 GiB (com 16 GiB o gate recusou); `lab-up` em 7 min 57 s na rodada de 10/11 (6 min 45 s na F07); M1–M5 |
+| plataforma | 8 vCPU, 24 GiB RAM, 80 GiB disco | MemAvailable 10240 MiB; 8 vCPU; 40 GiB livres | validado: os 7 cenários e W0, W1, W2, mas `auth`, `tenants` e `wireguard-vxlan` falharam no primeiro `lab-up` por defeitos da automação e passaram depois das correções do mesmo dia; `lab-up` de 284 a 326 s nas subidas que passaram (o primeiro, 7 min 30 s); M6–M10 |
 | hibrido | não aplicável | MemAvailable 19456 MiB; 12 vCPU; 80 GiB livres; `/dev/kvm` | incompleto: `lab-up` recusa por desenho; o preflight termina em `PRECHECK_OK_CAPACITY_ONLY` |
 
 Fonte: elaborado pelo autor (2026).
 
-Na rodada de `iniciantes` de 10/11/2026, o preflight imprimiu CPU 4/4 vCPU,
-RAM total 7940 MiB (recomendado 8192), `MemAvailable` 7228 MiB, disco livre
-36436 MiB para 25600 MiB exigidos e `PRECHECK_OK`. A observação F07, no Apêndice A,
-mediu uma única execução de `fundamentos` com 24 GiB e não mede o perfil
-`plataforma`. Este foi validado em outra rodada de 10/11/2026, em VM limpa com
+Os números do Quadro 5 para 10/11/2026 vêm da rodada em que o autor
+leu as saídas diretamente nos guests, mais as capturas das execuções; a
+rodada de `iniciantes` e a de `fundamentos` usaram o clone `292a656`, e a de
+`plataforma` começou em `ee3f882`. Em `iniciantes`, o preflight imprimiu CPU
+4/4 vCPU, RAM total 7940 MiB (recomendado 8192), `MemAvailable` 7228 MiB, disco
+livre 36436 MiB para 25600 MiB exigidos e `PRECHECK_OK`. Em `fundamentos`, o
+`lab-up` levou 7 min 57 s nessa rodada de 10/11; a F07, no Apêndice A, mediu
+6 min 45 s na primeira subida. São duas execuções distintas, e nenhuma das duas
+é um tempo garantido. A F07 mediu uma única execução de `fundamentos` com
+24 GiB e não mede o perfil `plataforma`. Este foi validado em outra rodada de
+10/11/2026, em VM limpa com
 8 vCPU, 24 GiB de RAM (`MemAvailable` de 23129 MiB na entrada) e cerca de
 70 GiB de disco livre: `baseline`, `auth`, `wireguard-native`,
 `wireguard-vxlan` (ambos com W0, W1 e W2), `tenants`, `ipam24` e `ipam32`
-subiram e passaram no `lab-verify`. Cada configuração é um caso observado, não
-o menor tamanho suportado.
+passaram no `lab-verify`, mas nem todos na primeira tentativa: `auth`, `tenants`
+e `wireguard-vxlan` falharam no primeiro `lab-up` por defeitos da automação e
+passaram depois das correções feitas no mesmo dia. Nenhum commit único rodou os
+sete cenários: o primeiro (`baseline`) rodou em `ee3f882` e os últimos em
+`8fd7d9a` e `3370326`. Cada configuração é um caso observado, não o menor
+tamanho suportado.
+
+O `lab-preflight` imprime como "recomendado" 24576 MiB para `fundamentos` e
+`plataforma`. Uma VM de 24 GiB mostra cerca de 24030 MiB de RAM total, abaixo
+desse número, e ainda assim passou: o que recusa a subida é o `MemAvailable`, não
+o valor recomendado. Com 16 GiB o gate recusou (F06).
 
 No perfil iniciante, `lab-session` cria a identidade da prática, mas não cria a
 namespace. Capture apenas depois do status `up`, da verificação bem-sucedida e
@@ -398,20 +425,11 @@ terminal é a mesma durante a prática. `LAB_RUN_ID` é diferente do identificad
 da infraestrutura. `lab-session` só deve ser repetido depois da limpeza própria
 E06; não o execute no Terminal B.
 
-Defina aliases explícitos depois de carregar o ambiente, para que os blocos
-históricos usem a identidade criada nesta rodada:
-
-~~~bash
-k01() { kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
-ks()  { kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
-C1="sudo docker exec clab-poc-k8s-kind-client-ext"
-C2="sudo docker exec clab-p003-gw-fabric-client"
-~~~
-
-`k01` serve ao perfil `fundamentos`; `ks` e `C2` aos exemplos de `plataforma`;
-`C1` pertence ao perfil `fundamentos`. Não exporte nem reconstrua esses valores
-por conta própria. A saída gerada fixa o kubeconfig e o contexto. Em uma
-divergência de UID, API, cenário ou owner, interrompa o exercício e preserve o
+Os atalhos `k01`, `ks`, `C1` e `C2` pertencem aos perfis `fundamentos` e
+`plataforma`; o perfil `iniciantes` usa as variáveis geradas por `lab-env`
+diretamente, sem esses atalhos. Não exporte nem reconstrua esses valores por
+conta própria. A saída gerada fixa o kubeconfig e o contexto. Em uma divergência
+de UID, API, cenário ou proprietário, interrompa o exercício e preserve o
 estado para `lab-status`/`lab-down`; não tente outro contexto.
 
 ### Mapa dos laboratórios
@@ -420,7 +438,10 @@ As Figuras 1 e 2 desta seção são históricas: mostram a arquitetura do host d
 instrutor nos estudos P001–P003, com nomes como `vm-cilium` e acesso por túnel
 SSH. Esse host e esse túnel não fazem parte do seu ambiente; você trabalha na
 sua própria VM Ubuntu, sem SSH para outra máquina. Leia as figuras só como
-desenho da topologia dos resultados publicados.
+desenho da topologia dos resultados publicados. O mesmo vale para a Figura 4
+(Mac com túnel SSH `localhost:18081`) e para a Figura 15 (`vm-cilium`): o
+acesso por `localhost:18081` não existe na sua VM, onde o `client-ext` fica
+dentro do próprio fabric.
 
 **Figura 1 – Arquitetura histórica do host do instrutor; não é o ambiente do aluno**
 
@@ -667,7 +688,7 @@ Ambiente de prática: perfil próprio `LAB=fundamentos`. Origem dos resultados:
 P001 (REQ-008 a REQ-010), execução histórica. A Figura 4 acompanha o caminho da
 requisição até a VIP.
 
-**Figura 4 – Caminho da VIP e balanceamento**
+**Figura 4 – Caminho da VIP e balanceamento, no quadro do host do instrutor (Mac e túnel SSH `localhost:18081`); não é o ambiente do aluno**
 
 ![Caminho da VIP e balanceamento](diagramas/m02-whiteboard-entregavel.png)
 
@@ -790,7 +811,7 @@ não execute mutações de link ou de container nesta edição.
 
 | Falha | VIP anycast | PodCIDR do rack afetado | Reconvergência |
 |---|---|---|---|
-| Restart do agent, GR ON | 0 falhas | sem blackhole | datapath BPF pinado sobrevive |
+| Restart do agent, GR ON | 0 falhas | sem blackhole | datapath BPF fixado no kernel sobrevive |
 | Restart do agent, GR OFF | 0 falhas (outros nós anunciam) | blackhole 10,6 s (P001) a 16,5 s (P002) | até o novo agent reanunciar |
 | Drain do nó | blip de 50 a 300 ms no início da evicção | pods evictados | GR irrelevante: a sessão não cai |
 | 1 spine de 2 | 100% OK em 28,7 mil amostras | n/a | BGP re-up 33 a 38 s |
@@ -1151,7 +1172,22 @@ wait
 
 Com a policy de isolamento ativa, o `curl` de A para B deve esgotar o tempo
 (`http=000`). Se o monitor não listar nenhum drop, repita com o agente do nó do
-cliente A: o drop pode ser registrado no nó de origem.
+cliente A, que é o nó de origem do tráfego:
+
+~~~bash
+NODE_A="$(ks -n p003-tenant-a get pod -l app=p003-a-client \
+  -o jsonpath='{.items[0].spec.nodeName}')"
+AGENT_A="$(ks -n kube-system get pod -l k8s-app=cilium \
+  --field-selector "spec.nodeName=$NODE_A" -o name)"
+echo NODE_A=$NODE_A
+ks -n kube-system exec "$AGENT_A" -- \
+  timeout 20 cilium-dbg monitor -t drop --related-to 0 2>/dev/null | head -20 &
+sleep 2
+ks -n p003-tenant-a exec deploy/p003-a-client -- \
+  curl -sS --max-time 3 -o /dev/null -w 'A->B http=%{http_code}\n' \
+  http://p003-b-backend.p003-tenant-b.svc:8080/hostname
+wait
+~~~
 
 Na rodada limpa de 10/11/2026 foi exatamente isso. O `ks get ciliumnetworkpolicies -A`
 listou as quatro policies (`p003-a-backend-policy`, `p003-a-client-policy`,
@@ -1159,8 +1195,7 @@ listou as quatro policies (`p003-a-backend-policy`, `p003-a-client-policy`,
 `curl: (28) Connection timed out` e `A->B http=000`; e o monitor do nó B não
 imprimiu nenhum drop. No agente do nó A (o nó do `p003-a-client`) apareceram
 três linhas de `Policy denied`. Aqui o drop foi registrado no nó do cliente, a
-origem do tráfego; ele costuma aparecer primeiro no nó A, e começar por ele
-poupa uma rodada. As identidades e IPs mudam a cada subida; um exemplo:
+origem do tráfego; se preferir, comece pelo bloco do nó A e poupe uma rodada. As identidades e IPs mudam a cada subida; um exemplo:
 
 ~~~text
 xx drop (Policy denied) flow 0x34c29b2f to endpoint 0, ifindex 16, file bpf_lxc.c:1663, , identity 185947->134971: 10.245.2.14:34608 -> 10.245.1.7:8080 tcp SYN
@@ -1233,15 +1268,21 @@ agente lê no `ConfigMap` `cilium-config` (segundo comando), no formato
 automação em `lab-verify`; se o segundo comando não imprimir isso, não conclua
 sobre `preAllocate`.
 
-Na rodada limpa de 10/11/2026 o primeiro comando listou, em `ipam32`, três
-pools: `default` (`10.251.0.0/16`, máscara 24), `p003-m24` (`10.250.0.0/16`,
-máscara 24) e `p003-m32` (`10.252.0.0/16`, máscara 32); em `ipam24` só os dois
-primeiros. O pool `default` existe nos dois cenários e não faz parte do estudo
-`/24` versus `/32`: ele serve aos pods que não pedem um pool. No terceiro
-comando, cada nó recebeu um `/24` de `default` (`10.251.N.0/24`) e um de
-`p003-m24` (`10.250.N.0/24`). No border, o `vtysh` imprime antes da tabela o
-aviso `Can't open configuration file /etc/frr/vtysh.conf`; ele pode ser
-ignorado. Em `ipam24` o border listou 3 rotas `10.250.x.0/24`.
+Na rodada limpa de 10/11/2026 o primeiro comando não foi o `custom-columns`
+acima, e sim `ks get ciliumpodippools -o wide`, que imprime só `NAME` e `AGE`.
+Essa saída listou, em `ipam32`, três pools (`default`, `p003-m24` e `p003-m32`)
+e, em `ipam24`, só os dois primeiros. Os CIDRs e a máscara não saíram dessa
+listagem: vêm do `lab-verify` da automação e dos valores do cenário
+(`default` em `10.251.0.0/16` e `p003-m24` em `10.250.0.0/16`, ambos com
+máscara 24; `p003-m32` em `10.252.0.0/16`, máscara 32). O `custom-columns` do
+primeiro comando e o `jsonpath` do `cilium-config` ainda não foram executados em
+uma VM limpa: usam os mesmos campos que a automação lê, mas confira a saída na
+sua rodada. O pool `default` existe nos dois cenários e não faz parte do estudo
+`/24` versus `/32`: ele serve aos pods que não pedem um pool. O terceiro
+comando, executado na rodada, mostrou um `/24` de `default` (`10.251.N.0/24`)
+e um de `p003-m24` (`10.250.N.0/24`) por nó. No border, o `vtysh` imprime antes
+da tabela o aviso `Can't open configuration file /etc/frr/vtysh.conf`; ele pode
+ser ignorado. Em `ipam24` o border listou 3 rotas `10.250.x.0/24`.
 
 ### 10.2 O que muda entre `/24` e `/32`
 
@@ -1404,7 +1445,7 @@ Fonte: elaborado pelo autor (2026).
 
 Nota: cada linha descreve somente os casos testados. Os três planos foram ensaiados separadamente; resultados do Cilium A não demonstram o comportamento do Cilium B. A Figura 15 situa pods e VMs nos planos comparados. As medições e ressalvas estão no [dossiê P004](estudos/20-dci-estado-parcial.md).
 
-**Figura 15 – Planos de rede testados com pods e VMs**
+**Figura 15 – Planos de rede testados com pods e VMs; a citação da `vm-cilium` refere-se ao host do instrutor, não ao ambiente do aluno**
 
 ![Planos de rede testados com pods e VMs](diagramas/m13-whiteboard-entregavel.png)
 
@@ -2158,8 +2199,8 @@ e condições implementadas para o perfil. Uma execução histórica não substi
 essas consultas. Capture `lab-env` antes de definir aliases ou usar as
 ferramentas do perfil. Não chame `lab-session` em `fundamentos`. O gate de
 `fundamentos` exige 8 vCPU, 40 GiB de disco livre e `MemAvailable` de pelo menos
-10240 MiB. A única execução em VM limpa usou 8 vCPU, 24 GiB de RAM e 80 GiB de
-disco; é uma observação, não uma garantia. O caso F06, com 16 GiB de RAM total,
+10240 MiB. As duas execuções em VM limpa (F07 e a rodada de 10/11/2026) usaram
+8 vCPU, 24 GiB de RAM e 80 GiB de disco; são observações, não uma garantia. O caso F06, com 16 GiB de RAM total,
 foi recusado pelo gate por memória disponível abaixo de 10240 MiB; veja o
 registro em "Fundamentos M1–M5: execução F07 observada" e o Quadro 5.
 
@@ -2170,7 +2211,7 @@ M6–M10 usam um cenário por execução. `EXERCISE` e `WG` só se aplicam a
 recebem somente `LAB=plataforma`. Para trocar o cenário, primeiro use
 `lab-down LAB=plataforma` e confirme o estado final com `lab-status`. Se um
 `lab-up` falhar, o laboratório fica parcial: `lab-env` e `lab-verify` o recusam
-de propósito; use `lab-status` para ver o motivo e `lab-down` antes de repetir.
+de propósito; `lab-status` só mostra `partial`: o motivo está na saída do `lab-up`. Use `lab-down` antes de repetir.
 
 - **M6:** `LAB=plataforma EXERCISE=baseline`.
 - **M7:** `LAB=plataforma EXERCISE=auth`.
@@ -2187,7 +2228,14 @@ lab_env="$(make --no-print-directory lab-env LAB=plataforma)" \
   && eval "$lab_env" \
   || { echo "lab-env falhou; veja a mensagem acima"; false; }
 unset lab_env
+ks() { kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
+C2="sudo docker exec clab-p003-gw-fabric-client"
 ~~~
+
+As duas últimas linhas definem os atalhos usados de M6 a M10: `ks` chama
+`kubectl` com o kubeconfig e o contexto do perfil, e `$C2` executa comandos no
+cliente do fabric de `plataforma`. Sem elas os comandos dos módulos falham com
+`command not found`.
 
 Para `wireguard-native` e `wireguard-vxlan`, forneça também um único `WG=W0`,
 `WG=W1` ou `WG=W2` às chamadas de preflight e up. Depois de carregar o
@@ -2286,8 +2334,9 @@ um piso de memória.
 A coleta inicial dos comandos do exercício terminou `rc=0` entre 04:33:43 e 04:37:35 UTC e reteve
 estes nove códigos de curl: E02 API/direto 0/0; E03 API/direto 0/0; E04
 API/direto 0/28; E05 selector defeituoso/API restaurada/direto 22/0/28.
-O export não reteve os status HTTP exatos dessa execução; não atribua ao curl 22
-um `HTTP 502`. A verificação posterior da evidência falhou ao
+O export não reteve os status HTTP exatos dessa execução de 31/10; não atribua ao
+curl 22 dela um `HTTP 502` (na rodada de 10/11/2026 do livro de iniciantes, a E05 devolveu
+`rc=22` com um HTTP 502 registrado; veja a nota ao fim desta seção). A verificação posterior da evidência falhou ao
 localizar essas linhas de rc e ao interpretar a parada normal do port-forward
 (`rc=143`). O recibo original não ficou preservado separadamente; não o
 reconstrua. O fechamento da VM não demonstra execução do alvo público
@@ -2327,7 +2376,10 @@ E05 request direto rc=28
 ~~~
 
 O export não reteve status HTTP exatos nem uma amostra Hubble para essa VM:
-não chame curl 22 de HTTP 502 nem atribua a essa VM uma amostra de fluxo.
+não chame curl 22 de HTTP 502 nem atribua a essa VM uma amostra de fluxo. Isso
+vale para esta rodada de 31/10, cujo export não guardou o status. Em E05 do
+livro de iniciantes, na rodada de 10/11/2026, o `rc=22` veio acompanhado de uma
+resposta HTTP 502 registrada; compare cada caso com a sua própria captura.
 Timeout sozinho não prova policy. Nas duas
 sequências, o encaminhamento de porta foi encerrado por TERM
 (`rc=143`), em estado `STOPPED` e sem processos próprios restantes;
@@ -2340,7 +2392,8 @@ híbrido ou a edição documental executada.
 ### Fundamentos M1–M5: execução F07 observada
 
 F07 foi uma execução limpa e única do perfil `fundamentos` em uma VM Ubuntu
-24.04 amd64. O harness começou às 08:19:19.138 UTC e terminou às 08:31:49.152
+24.04 amd64; a rodada de 10/11/2026 (Quadro 5) é outra execução, com tempos
+próprios. O harness começou às 08:19:19.138 UTC e terminou às 08:31:49.152
 UTC (`rc=0`, 750,013 s). A VM do teste tinha 8 vCPU, 24 GiB de RAM e disco
 virtual de 80 GiB. Isso descreve um caso observado, não o menor tamanho
 suportado nem um SLA. A configuração documentada de `fundamentos` e
@@ -2409,11 +2462,11 @@ A fonte transferida foi verificada por manifesto de 342 membros
 (`46e64aeb668f`) difere do TAR original (`16da757da9d7`); a verificação por
 membros não é uma alegação de identidade byte a byte entre os dois arquivos.
 O SHA-256 `99eafe638026` identifica o recibo original remoto de 28.586 bytes,
-registrado como metadado. `receipt-export01.json` é uma projeção allowlisted e
-não tem esse hash nem reconstrói os bytes do recibo original. O novo texto deste
+registrado como metadado. `receipt-export01.json` é uma versão resumida do recibo, com só alguns campos
+permitidos, e não tem esse hash nem reconstrói os bytes do recibo original. O novo texto deste
 livro e seus arquivos TeX/PDF não foram os bytes usados na execução F07.
 
-A revisão independente aceitou o caso único de `fundamentos`; E05/G05 integral, plataforma, C1 real, C3 e híbrido continuam pendentes. Os recibos e manifestos dessa execução ficam no pacote interno de evidências do projeto e não fazem parte do que você recebe ao clonar o repositório.
+A revisão independente aceitou o caso único de `fundamentos` da F07. Ficaram sem aceite nessa execução o exercício E05, o gate G05 integral, o teste com cliente real e o perfil híbrido. O perfil `plataforma` não fez parte da F07; foi validado depois, em 10/11/2026 (Quadro 5). Os recibos e manifestos dessa execução ficam no pacote interno de evidências do projeto e não fazem parte do que você recebe ao clonar o repositório.
 
 ### Encerrar em ordem e preservar o estado
 
@@ -2425,7 +2478,7 @@ ou encerrar a infraestrutura. Para encerrar, pare o port-forward e execute
 `EXERCISE` nem `WG`; por exemplo, `make --no-print-directory lab-down LAB=plataforma`.
 A automação consulta o cenário salvo. Repita `make --no-print-directory lab-status LAB=plataforma`
 para conferir o estado final. A automação remove somente recursos
-de identidade persistida e recusa consulta ou ownership inconclusivos. Não use
+de identidade persistida e recusa consulta ou verificação de propriedade (quem criou o recurso) inconclusivos. Não use
 `docker stop`, `kind delete`, `clab destroy`, limpeza por nome ou alterações
 globais de host como atalho.
 

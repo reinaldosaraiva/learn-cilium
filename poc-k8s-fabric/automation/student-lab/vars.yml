@@ -127,7 +127,7 @@ student_profiles:
     cilium_values: poc-k8s-fabric/k8s/cilium/values-dualstack.yaml
     chart: poc-k8s-fabric/studies/p003/base/cilium-1.20.2.tgz
     min_cpus: 8
-    recommended_total_mib: 16384
+    recommended_total_mib: 24576
     estimated_peak_mib: 6144
     min_disk_mib: 40960
     min_established_peers: 3
@@ -239,7 +239,7 @@ student_profiles:
     cilium_values: poc-k8s-fabric/studies/p003/base/values-p003.yaml
     chart: poc-k8s-fabric/studies/p003/base/cilium-1.20.2.tgz
     min_cpus: 8
-    recommended_total_mib: 16384
+    recommended_total_mib: 24576
     estimated_peak_mib: 6144
     min_disk_mib: 40960
     min_established_peers: 3

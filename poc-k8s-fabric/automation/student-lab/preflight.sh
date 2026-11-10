@@ -23,7 +23,7 @@ case "${profile}" in
     readonly needs_ipv6=0
     ;;
   fundamentos)
-    readonly min_cpus=8 min_disk_mib=40960 recommended_mib=16384 peak_mib=6144
+    readonly min_cpus=8 min_disk_mib=40960 recommended_mib=24576 peak_mib=6144
     readonly kind_name=k01
     readonly kind_nodes=(k01-control-plane k01-worker k01-worker2)
     readonly fabric_nodes=(
@@ -35,7 +35,7 @@ case "${profile}" in
     readonly network_name=clab-poc-kind needs_ipv6=1
     ;;
   plataforma)
-    readonly min_cpus=8 min_disk_mib=40960 recommended_mib=16384 peak_mib=6144
+    readonly min_cpus=8 min_disk_mib=40960 recommended_mib=24576 peak_mib=6144
     readonly kind_name=p003-gw
     readonly kind_nodes=(p003-gw-control-plane p003-gw-worker p003-gw-worker2)
     readonly fabric_nodes=(
