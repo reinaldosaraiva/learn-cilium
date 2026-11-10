@@ -51,10 +51,10 @@ case "${profile}" in
     readonly kind_name=p010-hibrido
     readonly kind_nodes=(p010-hibrido-control-plane p010-hibrido-worker p010-hibrido-worker2)
     readonly fabric_nodes=(
-      clab-p010-hibrido-spine1 clab-p010-hibrido-spine2
-      clab-p010-hibrido-leaf1 clab-p010-hibrido-leaf2
-      clab-p010-hibrido-leaf3 clab-p010-hibrido-border1
-      clab-p010-hibrido-client
+      clab-p010-hibrido-fabric-spine1 clab-p010-hibrido-fabric-spine2
+      clab-p010-hibrido-fabric-leaf1 clab-p010-hibrido-fabric-leaf2
+      clab-p010-hibrido-fabric-leaf3 clab-p010-hibrido-fabric-border1
+      clab-p010-hibrido-fabric-client
     )
     readonly network_name=p010-hibrido-mgmt needs_ipv6=1
     ;;
@@ -219,4 +219,8 @@ else
   fi
 fi
 
+if [[ "${profile}" == hibrido ]]; then
+  printf 'PRECHECK_OK_CAPACITY_ONLY: capacidade e colisões conferidas; o perfil hibrido continua incompleto e lab-up LAB=hibrido recusa antes de qualquer alteração.\n'
+  exit 0
+fi
 printf 'PRECHECK_OK: nenhuma dependência ou infraestrutura foi alterada.\n'
