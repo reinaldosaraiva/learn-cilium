@@ -409,11 +409,11 @@ Antes de continuar, anote: quais identidades diferenciam a infraestrutura da rod
 
 **Passo 0 · Terminal A · VM Ubuntu — Instale git e make e clone o repositório**
 
-Parta de uma VM Ubuntu 24.04 amd64 limpa, com uma conta não-root com sudo e acesso à Internet. O repositório é público e já traz este livro, os manifests, os Makefiles e `automation/student-lab` da mesma árvore. Instale somente `git` e `make` e clone a branch desta edição:
+Parta de uma VM Ubuntu 24.04 amd64 limpa, com uma conta não-root com sudo e acesso à Internet. O repositório é público e já traz este livro, os manifests, os Makefiles e `automation/student-lab` da mesma árvore. Instale somente `git` e `make` e clone o repositório (o clone da branch `main` ou da branch indicada para esta edição traz todos os arquivos necessários):
 
 ~~~bash
 sudo apt-get update && sudo apt-get install -y git make
-git clone --branch docs/p010-s001-20261028 https://github.com/reinaldosaraiva/learn-cilium.git
+git clone https://github.com/reinaldosaraiva/learn-cilium.git
 cd learn-cilium
 pwd
 test -f Makefile && test -f poc-k8s-fabric/Makefile

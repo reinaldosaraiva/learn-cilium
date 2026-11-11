@@ -329,7 +329,7 @@ tenants, em geral sobre VXLAN \\
 \begin{quadro}[!htbp]
 \caption{Códigos do projeto usados no guia}
 \footnotesize
-\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.754\hsize}X|>{\raggedright\arraybackslash\hsize=1.313\hsize}X|>{\raggedright\arraybackslash\hsize=0.933\hsize}X|}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash\hsize=0.768\hsize}X|>{\raggedright\arraybackslash\hsize=1.281\hsize}X|>{\raggedright\arraybackslash\hsize=0.951\hsize}X|}
 \hline
 \textbf{Código} & \textbf{Significado} & \textbf{Exemplo} \\
 \hline
@@ -354,8 +354,8 @@ letras e número (\texttt{M01}, \texttt{K02}, \texttt{X05},
 \hline
 \texttt{INV-{}\allowbreak{}Po\allowbreak{}C-{}\allowbreak{}01}--\texttt{INV-{}\allowbreak{}Po\allowbreak{}C-{}\allowbreak{}06} & critérios de aceite para uma prova de conceito do INV & Módulo 13.4 \\
 \hline
-\texttt{L1}--\texttt{L8} & lições operacionais numeradas do projeto; citadas no texto quando
-relevantes, como a \texttt{L4} no Módulo 4 & Módulo 4 \\
+\texttt{L4} (e \texttt{L1}--\texttt{L8}) & lição operacional do projeto sobre medição de blackhole (e lições dos
+estudos históricos) & Módulo 4.1 \\
 \hline
 \end{tabularx}
 \fonte{elaborado pelo autor (2026).}
@@ -491,11 +491,11 @@ os mesmos nomes.
 \textbf{Passo 0 --- obter a cópia do repositório.} Parta de uma VM Ubuntu 24.04 amd64
 limpa, com uma conta não-root com sudo e acesso à Internet. O repositório é
 público e já traz o guia, os manifests, os Makefiles e \texttt{automation/\allowbreak{}student-{}\allowbreak{}lab}
-da mesma árvore. Instale somente \texttt{git} e \texttt{make} e clone a branch desta edição:
+da mesma árvore. Instale somente \texttt{git} e \texttt{make} e clone o repositório (o clone da branch \texttt{main} ou da branch desta edição traz todo o material necessário):
 
 \begin{verbatim}
 sudo apt-get update && sudo apt-get install -y git make
-git clone --branch docs/p010-s001-20261028 https://github.com/reinaldosaraiva/learn-cilium.git
+git clone https://github.com/reinaldosaraiva/learn-cilium.git
 cd learn-cilium
 pwd
 test -f Makefile && test -f poc-k8s-fabric/Makefile
@@ -592,7 +592,7 @@ cenário ou alternar entre perfis, encerre o perfil atual com
 \texttt{lab-{}\allowbreak{}down LAB=\allowbreak{}\textless{}perfil-{}\allowbreak{}atual\textgreater{}} e confirme \texttt{lab-{}\allowbreak{}status LAB=\allowbreak{}\textless{}perfil-{}\allowbreak{}atual\textgreater{}} antes
 de iniciar o próximo. Um perfil ativo não recebe novo preflight; consulte
 status/verify e carregue \texttt{lab-{}\allowbreak{}env} no shell atual. Se lab-preflight retornar
-rc=2 informando que o estado (\texttt{state}) já está \texttt{up}, pare e confira esse estado com status e
+rc=2 informando que o estado do laboratório já está ativo (\texttt{up}), pare e confira esse estado com status e
 verify; não repita preflight sobre a infraestrutura ativa. Só use lab-down
 quando a identidade persistida for sua, confirme down e então inicie uma nova
 admissão. Nunca limpe recursos por nome.
@@ -1025,7 +1025,8 @@ aluno}
 \section{Requisições a partir do client-ext}\label{requisiuxe7uxf5es-a-partir-do-client-ext}
 
 \begin{verbatim}
-k01 get svc echo-anycast echo-local -o wide
+k01 get svc echo-anycast echo-local \
+  -o custom-columns=NAME:.metadata.name,TYPE:.spec.type,EXTERNAL-IP:.status.loadBalancer.ingress[0].ip,ETP:.spec.externalTrafficPolicy
 for i in $(seq 1 20); do
   $C1 curl -fsS --max-time 5 http://10.201.255.10/hostname; echo
 done | sort | uniq -c
@@ -1034,7 +1035,7 @@ done | sort | uniq -c
 O código de saída desse pipeline é o do \texttt{uniq}, então uma falha do \texttt{curl} não
 aparece nele. Some as contagens da primeira coluna: o total deve ser 20.
 
-Esperado: \texttt{echo-{}\allowbreak{}anycast} com \texttt{10.\allowbreak{}201.\allowbreak{}255.\allowbreak{}10} e \texttt{external\allowbreak{}Traffic\allowbreak{}Policy:\allowbreak{} Cluster}; \texttt{echo-{}\allowbreak{}local} com \texttt{10.\allowbreak{}201.\allowbreak{}255.\allowbreak{}11} e \texttt{Local}. Vinte amostras não
+Esperado: \texttt{echo-{}\allowbreak{}anycast} com \texttt{10.\allowbreak{}201.\allowbreak{}255.\allowbreak{}10} e \texttt{external\allowbreak{}Traffic\allowbreak{}Policy:\allowbreak{} Cluster} (na coluna \texttt{ETP}); \texttt{echo-{}\allowbreak{}local} com \texttt{10.\allowbreak{}201.\allowbreak{}255.\allowbreak{}11} e \texttt{Local}. Vinte amostras não
 garantem que todos os seis backends apareçam: ECMP e Maglev (Eisenbud et al., 2016) usam hashing. A
 execução de referência registrou 20/20 HTTP 200 e seis pods distintos.
 
@@ -1090,8 +1091,7 @@ sudo docker exec clab-poc-k8s-kind-spine1 sr_cli \
   "show network-instance default route-table ipv6-unicast prefix fd14::a/128 detail"
 \end{verbatim}
 
-Esperado: cada nó com dois PodCIDRs (\texttt{10.\allowbreak{}244.\allowbreak{}x.\allowbreak{}0/\allowbreak{}24} e \texttt{fd13:\allowbreak{}0:\allowbreak{}0:\allowbreak{}x:\allowbreak{}:\allowbreak{}/\allowbreak{}64}), os
-três \texttt{/\allowbreak{}64} no spine e a VIP \texttt{fd14:\allowbreak{}:\allowbreak{}a/\allowbreak{}128} com dois próximos saltos. Uma única
+Esperado: cada nó com dois PodCIDRs (\texttt{10.\allowbreak{}244.\allowbreak{}x.\allowbreak{}0/\allowbreak{}24} e \texttt{fd13:\allowbreak{}0:\allowbreak{}0:\allowbreak{}x:\allowbreak{}:\allowbreak{}/\allowbreak{}64}) no primeiro comando; o anúncio das rotas IPv6 conferido em \texttt{cilium bgp routes advertised ipv6 unicast}; e no spine a VIP \texttt{fd14:\allowbreak{}:\allowbreak{}a/\allowbreak{}128} com dois próximos saltos (para consultar os três \texttt{/\allowbreak{}64} diretamente na tabela do spine, rode o comando sem o filtro de prefixo: \texttt{show network-{}\allowbreak{}instance default route-{}\allowbreak{}table ipv6-{}\allowbreak{}unicast}). Uma única
 sessão BGP transporta as duas famílias; a convergência do plano de controle
 vale para ambas.
 
@@ -3216,7 +3216,7 @@ o repositório público (passo 0):
 
 \begin{verbatim}
 sudo apt-get update && sudo apt-get install -y git make
-git clone --branch docs/p010-s001-20261028 https://github.com/reinaldosaraiva/learn-cilium.git
+git clone https://github.com/reinaldosaraiva/learn-cilium.git
 cd learn-cilium
 pwd
 test -f Makefile && test -f poc-k8s-fabric/Makefile
@@ -3397,7 +3397,7 @@ terminou \texttt{rc=\allowbreak{}0} entre 04:25:17 e 04:32:10 UTC. A segunda cha
 \texttt{make -{}\allowbreak{}-{}\allowbreak{}no-{}\allowbreak{}print-{}\allowbreak{}directory lab-{}\allowbreak{}up LAB=\allowbreak{}iniciantes} terminou \texttt{rc=\allowbreak{}0} entre
 04:32:12 e 04:33:42 UTC, com recap
 \texttt{ok=\allowbreak{}109 changed=\allowbreak{}4 unreachable=\allowbreak{}0 failed=\allowbreak{}0 skipped=\allowbreak{}40 rescued=\allowbreak{}0 ignored=\allowbreak{}0}.
-As identidades de state, nó/volume Docker e release/revisão Helm permaneceram
+As identidades de estado persistido, nó/volume Docker e release/revisão Helm permaneceram
 estáveis; \texttt{changed=\allowbreak{}4} não é \texttt{changed=\allowbreak{}0}. Essa única observação com 8 GiB não mede
 um piso de memória.
 
@@ -3423,7 +3423,7 @@ do perfil iniciante durou de 05:19:01 a 05:34:29 UTC e terminou \texttt{rc=\allo
 O bootstrap público agregado terminou \texttt{rc=\allowbreak{}0} entre 05:19:50 e 05:26:37;
 a segunda chamada \texttt{make -{}\allowbreak{}-{}\allowbreak{}no-{}\allowbreak{}print-{}\allowbreak{}directory lab-{}\allowbreak{}up LAB=\allowbreak{}iniciantes}
 terminou \texttt{rc=\allowbreak{}0} entre 05:26:39 e 05:28:08, recap
-\texttt{ok=\allowbreak{}109 changed=\allowbreak{}4 failed=\allowbreak{}0 skipped=\allowbreak{}40}. O state e as identidades de
+\texttt{ok=\allowbreak{}109 changed=\allowbreak{}4 failed=\allowbreak{}0 skipped=\allowbreak{}40}. O arquivo de estado e as identidades de
 nó/volume Docker e release/revisão Helm permaneceram estáveis; \texttt{changed=\allowbreak{}4}
 não é \texttt{changed=\allowbreak{}0}. A VM observada tinha 4 vCPU, 8 GiB de RAM e 48 GiB de
 disco, uma observação que não estabelece piso de memória nem capacidade para
@@ -3455,7 +3455,7 @@ sequências, o encaminhamento de porta foi encerrado por TERM
 (\texttt{rc=\allowbreak{}143}), em estado \texttt{STOPPED} e sem processos próprios restantes;
 isso não é um resultado de Hubble. O segundo lab-down público terminou
 \texttt{rc=\allowbreak{}0} entre 05:34:19 e 05:34:28, com
-\texttt{ok=\allowbreak{}25 changed=\allowbreak{}0 failed=\allowbreak{}0 skipped=\allowbreak{}33}, e deixou o state byte-idêntico.
+\texttt{ok=\allowbreak{}25 changed=\allowbreak{}0 failed=\allowbreak{}0 skipped=\allowbreak{}33}, e deixou o estado persistido byte-idêntico.
 Esta rodada concluiu o perfil iniciante; não valida fundamentos, plataforma,
 híbrido ou a edição documental executada.
 
@@ -3509,7 +3509,7 @@ A sequência observada foi:
 \item
   Segunda subida pública, com os mesmos seletores: 08:28:56.941--08:29:40.825
   UTC, \texttt{rc=\allowbreak{}0}; \texttt{ok=\allowbreak{}92 changed=\allowbreak{}0 unreachable=\allowbreak{}0 failed=\allowbreak{}0 skipped=\allowbreak{}22 rescued=\allowbreak{}0 ignored=\allowbreak{}0}.
-  As identidades de state, nós/volumes Docker e release/revisão Helm foram
+  As identidades de estado persistido, nós/volumes Docker e release/revisão Helm foram
   preservadas.
 \item
   Verificação após a segunda subida: 08:30:02.934--08:30:43.193 UTC, \texttt{rc=\allowbreak{}0};
@@ -3647,19 +3647,36 @@ experimentais; os dossiês abaixo detalham as medições e seus limites.
 
 \chapter{Diagnóstico curto de conectividade no laboratório próprio}\label{diagnuxf3stico-curto-de-conectividade-no-laboratuxf3rio-pruxf3prio}
 
-\textbf{Estado.} Roteiro proposto, não executado, para perfil próprio ativo; não altera gates. Cilium recomenda diagnóstico por camadas (Cilium, 2026); sua documentação cobre estado do agente e mapas locais (Cilium Authors, 2026j).
+\textbf{Estado.} Roteiro proposto, não executado, para perfil próprio ativo; não altera gates. O projeto Cilium recomenda conduzir o diagnóstico de rede por camadas (Cilium, 2026); sua documentação detalha a verificação do estado do agente e dos mapas eBPF locais (Cilium Authors, 2026j).
 
 \section*{Preparação}\label{preparauxe7uxe3o}
 \addcontentsline{toc}{section}{Preparação}
 
-Terminal A da VM Ubuntu 24.04 do perfil verificado, após \texttt{lab-{}\allowbreak{}status}, \texttt{lab-{}\allowbreak{}verify} e \texttt{lab-{}\allowbreak{}env}; preserve identidade/kubeconfig/contexto. Confirme GNU \texttt{timeout} e \texttt{kubectl -{}\allowbreak{}-{}\allowbreak{}request-{}\allowbreak{}timeout}; se faltarem ou falharem nos checks, pare e anote ``não medido'', sem instalar. \texttt{labread} limita cliente a 8 s (+2 s KILL) e request a 5 s. Use nomes desta rodada; não exponha credenciais/logs integrais.
+Execute os passos a seguir no \textbf{Terminal A} da VM Ubuntu 24.04 após carregar o ambiente com \texttt{lab-{}\allowbreak{}status}, \texttt{lab-{}\allowbreak{}verify} e \texttt{lab-{}\allowbreak{}env}. Preserve o arquivo de configuração do Kubernetes e o contexto da sessão ativa. Antes de prosseguir, confirme a disponibilidade do utilitário GNU \texttt{timeout} e a compatibilidade do \texttt{kubectl} com a opção \texttt{-{}\allowbreak{}-{}\allowbreak{}request-{}\allowbreak{}timeout}; se algum comando falhar ou a ferramenta não estiver instalada, interrompa a inspeção e anote como ``não medido'', sem instalar pacotes adicionais manualmente.
+
+A função auxiliar \texttt{labread} limita a execução local do cliente a 8 segundos (com sinal \texttt{KILL} após 2 segundos adicionais) e o tempo de resposta da API do cluster a 5 segundos, prevenindo travamentos no terminal. Preencha previamente as variáveis de inspeção com os nomes reais da sua rodada (veja o bloco de exemplo comentado) e evite expor credenciais ou despejar logs completos.
 
 \begin{verbatim}
+# 1. Conferência de utilitários de contenção de tempo
 timeout --version
 timeout --signal=TERM --kill-after=1s 4s kubectl --request-timeout=5s version --client
+
+# 2. Definição do contexto do cluster
 : "${LAB_KUBECONFIG:?lab-env do perfil verificado}"
 : "${LAB_CONTEXT:?lab-env do perfil verificado}"
-: "${DEST_NS:?namespace observado}"
+
+# Exemplo ilustrativo de atribuição para diagnosticar comunicação entre Pods:
+# DEST_NS="p010-iniciantes"
+# SRC_NS="p010-iniciantes"
+# SRC_POD="frontend-xxxx-yyyy"
+# DEST_POD="api-xxxx-yyyy"
+# SVC="api-service"
+# DNS_NAME="api-service.p010-iniciantes.svc.cluster.local"
+# DEST_PORT="8080"
+# DEST_URL="http://api-service.p010-iniciantes.svc.cluster.local:8080/healthz"
+
+# 3. Variáveis observadas na sua rodada atual
+: "${DEST_NS:?namespace de destino observado}"
 : "${DEST_POD:?Pod de destino observado}"
 : "${SRC_NS:?namespace do cliente existente}"
 : "${SRC_POD:?Pod cliente existente}"
@@ -3667,6 +3684,8 @@ timeout --signal=TERM --kill-after=1s 4s kubectl --request-timeout=5s version --
 : "${DNS_NAME:?nome DNS observado}"
 : "${DEST_PORT:?porta observada}"
 : "${DEST_URL:?URL HTTP observada}"
+
+# 4. Função de leitura protegida e inspeção de recursos
 labread() { timeout --signal=TERM --kill-after=2s 8s kubectl --request-timeout=5s --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
 labread get pod -n "$SRC_NS" "$SRC_POD" -o wide
 labread get pod -n "$DEST_NS" "$DEST_POD" -o jsonpath='{.metadata.labels}{"\n"}{range .status.conditions[*]}{.type}={.status}:{.reason}{" "}{end}{"\n"}{.spec.nodeName}{"\n"}'
@@ -3677,18 +3696,18 @@ labread get endpointslices -n "$DEST_NS" -l "kubernetes.io/service-name=$SVC" -o
 \section*{Leituras por camada}\label{leituras-por-camada}
 \addcontentsline{toc}{section}{Leituras por camada}
 
-Quadro 28: \texttt{status.\allowbreak{}conditions} informa \texttt{Pod\allowbreak{}Ready}; \texttt{READY} conta containers e pode divergir com readiness gates. Compare labels/selector e \texttt{ready} nos EndpointSlices; diferença é hipótese, não causa (Kubernetes Authors, 2026b).
+Conforme estruturado no Quadro 28, o campo \texttt{status.\allowbreak{}conditions} informa o estado real \texttt{Pod\allowbreak{}Ready}, ao passo que a coluna \texttt{READY} da saída padrão contabiliza apenas contêineres ativos e pode divergir caso existam readiness gates definidos. Compare os seletores e rótulos do Service com os destinos marcados como \texttt{ready} nos EndpointSlices; eventuais discrepâncias são hipóteses de diagnóstico, e não confirmação direta de causa raiz (Kubernetes Authors, 2026b).
 
-No Pod de origem, leia \texttt{/\allowbreak{}etc/\allowbreak{}resolv.\allowbreak{}conf} e estado do CoreDNS; qualquer log deve ser curto e redigido. Consulte DNS só se \texttt{timeout} compatível e \texttt{nslookup} já estiverem instalados; senão, ``não medido''. Configuração do Pod e resolvedor são distintas (Kubernetes Authors, 2026a). Não instale nem crie Pod.
+No Pod de origem, inspecione a configuração do arquivo \texttt{/\allowbreak{}etc/\allowbreak{}resolv.\allowbreak{}conf} e o estado do serviço CoreDNS. Qualquer registro coletado deve ser mantido curto e com dados sensíveis removidos. Realize consultas de resolução de nomes a partir do Pod apenas se ferramentas compatíveis como \texttt{timeout} e \texttt{nslookup} já estiverem instaladas na imagem; caso contrário, marque a verificação como ``não medido''. A configuração do resolvedor no Pod e o funcionamento do servidor DNS são elementos distintos da arquitetura (Kubernetes Authors, 2026a). Não instale pacotes nem crie Pods novos no cluster.
 
 \begin{verbatim}
 labread exec -n "$SRC_NS" "$SRC_POD" -- cat /etc/resolv.conf
-# Requer timeout e nslookup compatíveis já instalados no Pod:
+# Requer timeout e nslookup compatíveis já instalados na imagem do Pod:
 labread exec -n "$SRC_NS" "$SRC_POD" -- timeout 4s nslookup "$DNS_NAME"
 labread exec -n "$SRC_NS" "$SRC_POD" -- nc -vz -w 3 "$DNS_NAME" "$DEST_PORT"  # se nc existir; senão, não medido
 \end{verbatim}
 
-Timeout de \texttt{curl}/\texttt{nc} limita operação no Pod; \texttt{labread} limita cliente local, sem provar término remoto. Timeout é inconclusivo, não negação de rede. Registre código/destino/porta; \texttt{ping} não prova TCP/HTTP.
+Os limites de tempo de comandos como \texttt{curl} e \texttt{nc} controlam apenas a operação dentro do contêiner, enquanto a função \texttt{labread} limita o cliente local, sem garantir o encerramento do processo remoto. Um timeout indica ausência de resposta conclusiva, e não uma negação explícita da rede. Registre o código retornado, a tupla de destino e a porta observada; lembre-se de que testes com \texttt{ping} (ICMP) não atestam a entrega de protocolos TCP ou HTTP.
 
 \begin{quadro}[!htbp]
 \caption{Sintoma, inspeção e limite da evidência}
@@ -3716,7 +3735,7 @@ Suspeita no agente & Status/Hubble local & Não prova cobertura \\
 \section*{Agente e parada}\label{agente-e-parada}
 \addcontentsline{toc}{section}{Agente e parada}
 
-Selecione agente no nó do Pod de destino; não use \texttt{ds/\allowbreak{}cilium}. \texttt{-{}\allowbreak{}-{}\allowbreak{}last 20} limita contagem, não tempo/Pod. Atribua verdict só com UTC da requisição, timestamp do flow em UTC verificável, tupla real coincidente (origem/destino/protocolo/porta) e relógios comparáveis. Sem match, não há evidência; não combine \texttt{-{}\allowbreak{}-{}\allowbreak{}since}/\texttt{-{}\allowbreak{}-{}\allowbreak{}last} sem validar semântica.
+Identifique e selecione o agente Cilium em execução no mesmo nó onde reside o Pod de destino; evite referenciar \texttt{ds/\allowbreak{}cilium} genericamente. A opção \texttt{-{}\allowbreak{}-{}\allowbreak{}last 20} limita a quantidade de registros exibidos, sem filtrar por tempo ou por Pod específico. Atribua um veredito de política apenas se houver registro explícito contendo o horário da requisição em UTC, o timestamp verificado do fluxo, a tupla coincidente (origem, destino, protocolo e porta) e relógios comprovadamente sincronizados. Na ausência de correspondência exata, não há evidência concludente. Nunca combine filtros como \texttt{-{}\allowbreak{}-{}\allowbreak{}since} e \texttt{-{}\allowbreak{}-{}\allowbreak{}last} sem validar a semântica da versão do Hubble em uso.
 
 \begin{verbatim}
 : "${NODE:?nó observado do Pod de destino}"
@@ -3736,7 +3755,7 @@ labread get pods -n kube-system -l k8s-app=cilium --field-selector "spec.nodeNam
 labread exec -n kube-system "$SRC_AGENT_POD" -- hubble observe --last 20
 \end{verbatim}
 
-A amostra do agente de destino pode omitir egress no nó de origem. Consulte o agente de origem só se Pod/nó forem próprios e verificados, sob os mesmos limites; sem flow correlacionado, preserve a hipótese. Silêncio não é \texttt{allow}. Registre tupla, código, verdict, nó e contraevidência; remova identificadores. Se incerto, pare. \texttt{cilium connectivity test} cria recursos e exige outra rodada; não mude políticas, agentes, Helm ou \texttt{sysctl}, nem limpe por nome.
+A amostra de tráfego capturada pelo agente no nó de destino pode não registrar eventos de saída (\emph{egress}) ocorridos no nó de origem. Consulte o agente de origem somente quando o nó e o Pod forem comprovadamente do seu perfil e estiverem saudáveis. A ausência de registro no Hubble não equivale a uma liberação explícita de tráfego (\emph{silêncio não é allow}). Anote a tupla completa, o código de retorno, o veredito, o nó e as eventuais contraevidências observadas. Em caso de dúvida, interrompa a execução. O comando \texttt{cilium connectivity test} cria recursos efêmeros no cluster e demanda um procedimento separado; portanto, não modifique políticas de rede, agentes, parâmetros Helm ou variáveis de \texttt{sysctl} durante o diagnóstico.
 
 \end{apendicesenv}
 

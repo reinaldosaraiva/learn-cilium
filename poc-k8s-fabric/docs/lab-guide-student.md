@@ -175,7 +175,7 @@ Fonte: elaborado pelo autor (2026).
 | **PASS** | sessão ou estudo concluído com todos os critérios atendidos | P005-S001 concluída com PASS |
 | `R3`, `R6` | regras invariantes do laboratório | `R6=0`: nenhuma rota BGP instalada na tabela `main` do kernel |
 | `INV-PoC-01`–`INV-PoC-06` | critérios de aceite para uma prova de conceito do INV | Módulo 13.4 |
-| `L1`–`L8` | lições operacionais numeradas do projeto; citadas no texto quando relevantes, como a `L4` no Módulo 4 | Módulo 4 |
+| `L4` (e `L1`–`L8`) | lição operacional do projeto sobre medição de blackhole (e lições dos estudos históricos) | Módulo 4.1 |
 
 Fonte: elaborado pelo autor (2026).
 
@@ -254,11 +254,11 @@ os mesmos nomes.
 **Passo 0 — obter a cópia do repositório.** Parta de uma VM Ubuntu 24.04 amd64
 limpa, com uma conta não-root com sudo e acesso à Internet. O repositório é
 público e já traz o guia, os manifests, os Makefiles e `automation/student-lab`
-da mesma árvore. Instale somente `git` e `make` e clone a branch desta edição:
+da mesma árvore. Instale somente `git` e `make` e clone o repositório (o clone da branch `main` ou da branch desta edição traz todo o material necessário):
 
 ~~~bash
 sudo apt-get update && sudo apt-get install -y git make
-git clone --branch docs/p010-s001-20261028 https://github.com/reinaldosaraiva/learn-cilium.git
+git clone https://github.com/reinaldosaraiva/learn-cilium.git
 cd learn-cilium
 pwd
 test -f Makefile && test -f poc-k8s-fabric/Makefile
@@ -346,7 +346,7 @@ cenário ou alternar entre perfis, encerre o perfil atual com
 `lab-down LAB=<perfil-atual>` e confirme `lab-status LAB=<perfil-atual>` antes
 de iniciar o próximo. Um perfil ativo não recebe novo preflight; consulte
 status/verify e carregue `lab-env` no shell atual. Se lab-preflight retornar
-rc=2 informando que o estado (`state`) já está `up`, pare e confira esse estado com status e
+rc=2 informando que o estado do laboratório já está ativo (`up`), pare e confira esse estado com status e
 verify; não repita preflight sobre a infraestrutura ativa. Só use lab-down
 quando a identidade persistida for sua, confirme down e então inicie uma nova
 admissão. Nunca limpe recursos por nome.
@@ -697,7 +697,8 @@ Fonte: elaborada pelo autor (2026).
 ### 2.1 Requisições a partir do client-ext
 
 ~~~bash
-k01 get svc echo-anycast echo-local -o wide
+k01 get svc echo-anycast echo-local \
+  -o custom-columns=NAME:.metadata.name,TYPE:.spec.type,EXTERNAL-IP:.status.loadBalancer.ingress[0].ip,ETP:.spec.externalTrafficPolicy
 for i in $(seq 1 20); do
   $C1 curl -fsS --max-time 5 http://10.201.255.10/hostname; echo
 done | sort | uniq -c
@@ -707,7 +708,7 @@ O código de saída desse pipeline é o do `uniq`, então uma falha do `curl` n�
 aparece nele. Some as contagens da primeira coluna: o total deve ser 20.
 
 Esperado: `echo-anycast` com `10.201.255.10` e `externalTrafficPolicy:
-Cluster`; `echo-local` com `10.201.255.11` e `Local`. Vinte amostras não
+Cluster` (na coluna `ETP`); `echo-local` com `10.201.255.11` e `Local`. Vinte amostras não
 garantem que todos os seis backends apareçam: ECMP e Maglev (Eisenbud et al., 2016) usam hashing. A
 execução de referência registrou 20/20 HTTP 200 e seis pods distintos.
 
@@ -763,8 +764,7 @@ sudo docker exec clab-poc-k8s-kind-spine1 sr_cli \
   "show network-instance default route-table ipv6-unicast prefix fd14::a/128 detail"
 ~~~
 
-Esperado: cada nó com dois PodCIDRs (`10.244.x.0/24` e `fd13:0:0:x::/64`), os
-três `/64` no spine e a VIP `fd14::a/128` com dois próximos saltos. Uma única
+Esperado: cada nó com dois PodCIDRs (`10.244.x.0/24` e `fd13:0:0:x::/64`) no primeiro comando; o anúncio das rotas IPv6 conferido em `cilium bgp routes advertised ipv6 unicast`; e no spine a VIP `fd14::a/128` com dois próximos saltos (para consultar os três `/64` diretamente na tabela do spine, rode o comando sem o filtro de prefixo: `show network-instance default route-table ipv6-unicast`). Uma única
 sessão BGP transporta as duas famílias; a convergência do plano de controle
 vale para ambas.
 
@@ -2157,7 +2157,7 @@ o repositório público (passo 0):
 
 ~~~bash
 sudo apt-get update && sudo apt-get install -y git make
-git clone --branch docs/p010-s001-20261028 https://github.com/reinaldosaraiva/learn-cilium.git
+git clone https://github.com/reinaldosaraiva/learn-cilium.git
 cd learn-cilium
 pwd
 test -f Makefile && test -f poc-k8s-fabric/Makefile
@@ -2327,7 +2327,7 @@ terminou `rc=0` entre 04:25:17 e 04:32:10 UTC. A segunda chamada pública
 `make --no-print-directory lab-up LAB=iniciantes` terminou `rc=0` entre
 04:32:12 e 04:33:42 UTC, com recap
 `ok=109 changed=4 unreachable=0 failed=0 skipped=40 rescued=0 ignored=0`.
-As identidades de state, nó/volume Docker e release/revisão Helm permaneceram
+As identidades de estado persistido, nó/volume Docker e release/revisão Helm permaneceram
 estáveis; `changed=4` não é `changed=0`. Essa única observação com 8 GiB não mede
 um piso de memória.
 
@@ -2353,7 +2353,7 @@ do perfil iniciante durou de 05:19:01 a 05:34:29 UTC e terminou `rc=0`.
 O bootstrap público agregado terminou `rc=0` entre 05:19:50 e 05:26:37;
 a segunda chamada `make --no-print-directory lab-up LAB=iniciantes`
 terminou `rc=0` entre 05:26:39 e 05:28:08, recap
-`ok=109 changed=4 failed=0 skipped=40`. O state e as identidades de
+`ok=109 changed=4 failed=0 skipped=40`. O arquivo de estado e as identidades de
 nó/volume Docker e release/revisão Helm permaneceram estáveis; `changed=4`
 não é `changed=0`. A VM observada tinha 4 vCPU, 8 GiB de RAM e 48 GiB de
 disco, uma observação que não estabelece piso de memória nem capacidade para
@@ -2385,7 +2385,7 @@ sequências, o encaminhamento de porta foi encerrado por TERM
 (`rc=143`), em estado `STOPPED` e sem processos próprios restantes;
 isso não é um resultado de Hubble. O segundo lab-down público terminou
 `rc=0` entre 05:34:19 e 05:34:28, com
-`ok=25 changed=0 failed=0 skipped=33`, e deixou o state byte-idêntico.
+`ok=25 changed=0 failed=0 skipped=33`, e deixou o estado persistido byte-idêntico.
 Esta rodada concluiu o perfil iniciante; não valida fundamentos, plataforma,
 híbrido ou a edição documental executada.
 
@@ -2433,7 +2433,7 @@ A sequência observada foi:
   `ok=76 changed=0 unreachable=0 failed=0 skipped=28 rescued=0 ignored=0`.
 - Segunda subida pública, com os mesmos seletores: 08:28:56.941–08:29:40.825
   UTC, `rc=0`; `ok=92 changed=0 unreachable=0 failed=0 skipped=22 rescued=0 ignored=0`.
-  As identidades de state, nós/volumes Docker e release/revisão Helm foram
+  As identidades de estado persistido, nós/volumes Docker e release/revisão Helm foram
   preservadas.
 - Verificação após a segunda subida: 08:30:02.934–08:30:43.193 UTC, `rc=0`;
   `ok=76 changed=0 unreachable=0 failed=0 skipped=28 rescued=0 ignored=0`.
@@ -2533,18 +2533,35 @@ Os documentos abaixo detalham os estudos sintetizados neste guia e acompanham o 
 
 ## Apêndice C – Diagnóstico curto de conectividade no laboratório próprio
 
-**Estado.** Roteiro proposto, não executado, para perfil próprio ativo; não altera gates. Cilium recomenda diagnóstico por camadas (Cilium, 2026); sua documentação cobre estado do agente e mapas locais (Cilium Authors, 2026j).
+**Estado.** Roteiro proposto, não executado, para perfil próprio ativo; não altera gates. O projeto Cilium recomenda conduzir o diagnóstico de rede por camadas (Cilium, 2026); sua documentação detalha a verificação do estado do agente e dos mapas eBPF locais (Cilium Authors, 2026j).
 
 ### Preparação
 
-Terminal A da VM Ubuntu 24.04 do perfil verificado, após `lab-status`, `lab-verify` e `lab-env`; preserve identidade/kubeconfig/contexto. Confirme GNU `timeout` e `kubectl --request-timeout`; se faltarem ou falharem nos checks, pare e anote “não medido”, sem instalar. `labread` limita cliente a 8 s (+2 s KILL) e request a 5 s. Use nomes desta rodada; não exponha credenciais/logs integrais.
+Execute os passos a seguir no **Terminal A** da VM Ubuntu 24.04 após carregar o ambiente com `lab-status`, `lab-verify` e `lab-env`. Preserve o arquivo de configuração do Kubernetes e o contexto da sessão ativa. Antes de prosseguir, confirme a disponibilidade do utilitário GNU `timeout` e a compatibilidade do `kubectl` com a opção `--request-timeout`; se algum comando falhar ou a ferramenta não estiver instalada, interrompa a inspeção e anote como “não medido”, sem instalar pacotes adicionais manualmente.
+
+A função auxiliar `labread` limita a execução local do cliente a 8 segundos (com sinal `KILL` após 2 segundos adicionais) e o tempo de resposta da API do cluster a 5 segundos, prevenindo travamentos no terminal. Preencha previamente as variáveis de inspeção com os nomes reais da sua rodada (veja o bloco de exemplo comentado) e evite expor credenciais ou despejar logs completos.
 
 ~~~bash
+# 1. Conferência de utilitários de contenção de tempo
 timeout --version
 timeout --signal=TERM --kill-after=1s 4s kubectl --request-timeout=5s version --client
+
+# 2. Definição do contexto do cluster
 : "${LAB_KUBECONFIG:?lab-env do perfil verificado}"
 : "${LAB_CONTEXT:?lab-env do perfil verificado}"
-: "${DEST_NS:?namespace observado}"
+
+# Exemplo ilustrativo de atribuição para diagnosticar comunicação entre Pods:
+# DEST_NS="p010-iniciantes"
+# SRC_NS="p010-iniciantes"
+# SRC_POD="frontend-xxxx-yyyy"
+# DEST_POD="api-xxxx-yyyy"
+# SVC="api-service"
+# DNS_NAME="api-service.p010-iniciantes.svc.cluster.local"
+# DEST_PORT="8080"
+# DEST_URL="http://api-service.p010-iniciantes.svc.cluster.local:8080/healthz"
+
+# 3. Variáveis observadas na sua rodada atual
+: "${DEST_NS:?namespace de destino observado}"
 : "${DEST_POD:?Pod de destino observado}"
 : "${SRC_NS:?namespace do cliente existente}"
 : "${SRC_POD:?Pod cliente existente}"
@@ -2552,6 +2569,8 @@ timeout --signal=TERM --kill-after=1s 4s kubectl --request-timeout=5s version --
 : "${DNS_NAME:?nome DNS observado}"
 : "${DEST_PORT:?porta observada}"
 : "${DEST_URL:?URL HTTP observada}"
+
+# 4. Função de leitura protegida e inspeção de recursos
 labread() { timeout --signal=TERM --kill-after=2s 8s kubectl --request-timeout=5s --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" "$@"; }
 labread get pod -n "$SRC_NS" "$SRC_POD" -o wide
 labread get pod -n "$DEST_NS" "$DEST_POD" -o jsonpath='{.metadata.labels}{"\n"}{range .status.conditions[*]}{.type}={.status}:{.reason}{" "}{end}{"\n"}{.spec.nodeName}{"\n"}'
@@ -2561,18 +2580,18 @@ labread get endpointslices -n "$DEST_NS" -l "kubernetes.io/service-name=$SVC" -o
 
 ### Leituras por camada
 
-Quadro 28: `status.conditions` informa `PodReady`; `READY` conta containers e pode divergir com readiness gates. Compare labels/selector e `ready` nos EndpointSlices; diferença é hipótese, não causa (Kubernetes Authors, 2026b).
+Conforme estruturado no Quadro 28, o campo `status.conditions` informa o estado real `PodReady`, ao passo que a coluna `READY` da saída padrão contabiliza apenas contêineres ativos e pode divergir caso existam readiness gates definidos. Compare os seletores e rótulos do Service com os destinos marcados como `ready` nos EndpointSlices; eventuais discrepâncias são hipóteses de diagnóstico, e não confirmação direta de causa raiz (Kubernetes Authors, 2026b).
 
-No Pod de origem, leia `/etc/resolv.conf` e estado do CoreDNS; qualquer log deve ser curto e redigido. Consulte DNS só se `timeout` compatível e `nslookup` já estiverem instalados; senão, “não medido”. Configuração do Pod e resolvedor são distintas (Kubernetes Authors, 2026a). Não instale nem crie Pod.
+No Pod de origem, inspecione a configuração do arquivo `/etc/resolv.conf` e o estado do serviço CoreDNS. Qualquer registro coletado deve ser mantido curto e com dados sensíveis removidos. Realize consultas de resolução de nomes a partir do Pod apenas se ferramentas compatíveis como `timeout` e `nslookup` já estiverem instaladas na imagem; caso contrário, marque a verificação como “não medido”. A configuração do resolvedor no Pod e o funcionamento do servidor DNS são elementos distintos da arquitetura (Kubernetes Authors, 2026a). Não instale pacotes nem crie Pods novos no cluster.
 
 ~~~bash
 labread exec -n "$SRC_NS" "$SRC_POD" -- cat /etc/resolv.conf
-# Requer timeout e nslookup compatíveis já instalados no Pod:
+# Requer timeout e nslookup compatíveis já instalados na imagem do Pod:
 labread exec -n "$SRC_NS" "$SRC_POD" -- timeout 4s nslookup "$DNS_NAME"
 labread exec -n "$SRC_NS" "$SRC_POD" -- nc -vz -w 3 "$DNS_NAME" "$DEST_PORT"  # se nc existir; senão, não medido
 ~~~
 
-Timeout de `curl`/`nc` limita operação no Pod; `labread` limita cliente local, sem provar término remoto. Timeout é inconclusivo, não negação de rede. Registre código/destino/porta; `ping` não prova TCP/HTTP.
+Os limites de tempo de comandos como `curl` e `nc` controlam apenas a operação dentro do contêiner, enquanto a função `labread` limita o cliente local, sem garantir o encerramento do processo remoto. Um timeout indica ausência de resposta conclusiva, e não uma negação explícita da rede. Registre o código retornado, a tupla de destino e a porta observada; lembre-se de que testes com `ping` (ICMP) não atestam a entrega de protocolos TCP ou HTTP.
 
 **Quadro 28 – Sintoma, inspeção e limite da evidência**
 
@@ -2589,7 +2608,7 @@ Fonte: elaborado pelo autor (2026).
 
 ### Agente e parada
 
-Selecione agente no nó do Pod de destino; não use `ds/cilium`. `--last 20` limita contagem, não tempo/Pod. Atribua verdict só com UTC da requisição, timestamp do flow em UTC verificável, tupla real coincidente (origem/destino/protocolo/porta) e relógios comparáveis. Sem match, não há evidência; não combine `--since`/`--last` sem validar semântica.
+Identifique e selecione o agente Cilium em execução no mesmo nó onde reside o Pod de destino; evite referenciar `ds/cilium` genericamente. A opção `--last 20` limita a quantidade de registros exibidos, sem filtrar por tempo ou por Pod específico. Atribua um veredito de política apenas se houver registro explícito contendo o horário da requisição em UTC, o timestamp verificado do fluxo, a tupla coincidente (origem, destino, protocolo e porta) e relógios comprovadamente sincronizados. Na ausência de correspondência exata, não há evidência concludente. Nunca combine filtros como `--since` e `--last` sem validar a semântica da versão do Hubble em uso.
 
 ~~~bash
 : "${NODE:?nó observado do Pod de destino}"
@@ -2609,4 +2628,4 @@ labread get pods -n kube-system -l k8s-app=cilium --field-selector "spec.nodeNam
 labread exec -n kube-system "$SRC_AGENT_POD" -- hubble observe --last 20
 ~~~
 
-A amostra do agente de destino pode omitir egress no nó de origem. Consulte o agente de origem só se Pod/nó forem próprios e verificados, sob os mesmos limites; sem flow correlacionado, preserve a hipótese. Silêncio não é `allow`. Registre tupla, código, verdict, nó e contraevidência; remova identificadores. Se incerto, pare. `cilium connectivity test` cria recursos e exige outra rodada; não mude políticas, agentes, Helm ou `sysctl`, nem limpe por nome.
+A amostra de tráfego capturada pelo agente no nó de destino pode não registrar eventos de saída (*egress*) ocorridos no nó de origem. Consulte o agente de origem somente quando o nó e o Pod forem comprovadamente do seu perfil e estiverem saudáveis. A ausência de registro no Hubble não equivale a uma liberação explícita de tráfego (*silêncio não é allow*). Anote a tupla completa, o código de retorno, o veredito, o nó e as eventuais contraevidências observadas. Em caso de dúvida, interrompa a execução. O comando `cilium connectivity test` cria recursos efêmeros no cluster e demanda um procedimento separado; portanto, não modifique políticas de rede, agentes, parâmetros Helm ou variáveis de `sysctl` durante o diagnóstico.
