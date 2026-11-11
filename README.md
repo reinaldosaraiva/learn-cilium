@@ -18,7 +18,7 @@ leitura histórica, com seus limites identificados.
 O fluxo dos perfis próprios começa no livro correspondente. Em uma VM Ubuntu
 24.04 amd64 limpa, instale `git` e `make` (`sudo apt-get update && sudo apt-get
 install -y git make`), clone o repositório público com
-`git clone --branch docs/p010-s001-20261028 https://github.com/reinaldosaraiva/learn-cilium.git`,
+`git clone https://github.com/reinaldosaraiva/learn-cilium.git`,
 entre em `learn-cilium`, execute os gates e use a identidade gerada pelo
 laboratório. A cópia precisa ser um clone Git, porque `lab-env` lê o `HEAD`; o
 clone traz os livros, Makefiles, manifests e automação da mesma revisão. O
