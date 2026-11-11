@@ -1,0 +1,52 @@
+---
+- name: Ensure an uncertain TAP create cannot be converted to cleanup absence
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    student_hybrid_become: false
+    student_hybrid_nsenter_bin: "{{ lookup('env', 'P010_HYBRID_INTENT_NSENTER') }}"
+    student_hybrid_ip_bin: "{{ lookup('env', 'P010_HYBRID_INTENT_IP') }}"
+    student_hybrid_test_case: "{{ lookup('env', 'P010_HYBRID_INTENT_CASE') }}"
+    student_uid: "{{ lookup('env', 'P010_HYBRID_INTENT_UID') | int }}"
+    student_state_file: "{{ lookup('env', 'P010_HYBRID_INTENT_STATE') }}"
+  tasks:
+    - name: Prepare the durable partial state with an unconfirmed TAP create
+      ansible.builtin.set_fact:
+        student_state:
+          status: partial
+          phase: hybrid-tap-create-pending
+          profile: hibrido
+          hybrid:
+            network:
+              border: {pid: 12345}
+              tap:
+                name: p10tabcdef01
+                alias: ''
+                reserved_alias: "p010-hyb-{{ student_uid }}-20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                ifindex: 0
+                create_phase: creating
+
+    - name: Accept a query that proves both identities absent without changing state on its own
+      ansible.builtin.include_tasks: ../tasks/hybrid-query-tap-create-intent.yml
+      when: student_hybrid_test_case == 'absent'
+
+    - name: Require unresolved or inconclusive TAP outcomes to fail closed
+      block:
+        - ansible.builtin.include_tasks: ../tasks/hybrid-query-tap-create-intent.yml
+        - ansible.builtin.fail:
+            msg: "An unresolved or inconclusive TAP create was accepted as absent."
+      rescue:
+        - ansible.builtin.assert:
+            that:
+              - ansible_failed_task.name in ['Query the original border namespace for an unresolved TAP create', 'Require a successful query proving both reserved TAP identities absent']
+              - student_state.status == 'partial'
+              - student_state.hybrid.network.tap.create_phase == 'creating'
+      when: student_hybrid_test_case != 'absent'
+
+    - name: Confirm absent query leaves state pending until cleanup records it
+      ansible.builtin.assert:
+        that:
+          - student_state.status == 'partial'
+          - student_state.hybrid.network.tap.create_phase == 'creating'
+      when: student_hybrid_test_case == 'absent'

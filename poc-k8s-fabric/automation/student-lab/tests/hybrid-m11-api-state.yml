@@ -1,0 +1,107 @@
+---
+- name: Exercise private M11 API state transitions without network access
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    student_state_file: "{{ lookup('env', 'P010_HYBRID_API_TEST_SCRATCH') }}/api-state.json"
+    student_uid: "{{ ansible_user_uid | int }}"
+  tasks:
+    - name: Seed a partial API state with one uncertain POST and unrelated data
+      ansible.builtin.set_fact:
+        student_state:
+          status: partial
+          phase: api-post-pending
+          hybrid:
+            m11:
+              api:
+                pending:
+                  method: POST
+                  resource: tenant_network:primary
+                  run_id: 20261029-0123456789abcdef0123456789abcdef
+                resources:
+                  tenant_network:
+                    primary:
+                      id: ''
+                      name: private-run-name
+
+    - name: Supply an Ansible URI response using the canonical token result shape
+      ansible.builtin.set_fact:
+        student_hybrid_api_auth_response:
+          x_subject_token: canonical-fake-token
+          headers:
+            x-subject-token: header-shape-must-not-be-used
+          json:
+            token:
+              project: {id: '11111111111141118111111111111111'}
+              user: {id: '22222222222242228222222222222222'}
+              catalog: []
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-retain-auth.yml
+
+    - name: Require the canonical token field and safe identity fields
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_api_token == 'canonical-fake-token'
+          - student_hybrid_api_project_id == '11111111111141118111111111111111'
+          - student_hybrid_api_user_id == '22222222222242228222222222222222'
+
+    - name: Clear a confirmed POST through the durable API save helper
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-save.yml
+      vars:
+        student_hybrid_api_state_patch:
+          phase: api-post-confirmed
+          hybrid:
+            m11:
+              api:
+                pending: {}
+
+    - name: Require the explicit empty pending mapping to replace the old intent
+      ansible.builtin.assert:
+        that:
+          - student_state.hybrid.m11.api.pending == {}
+          - student_state.hybrid.m11.api.resources.tenant_network.primary.name == 'private-run-name'
+
+    - name: Store a positive agent response before the generic response variable changes
+      ansible.builtin.set_fact:
+        student_hybrid_api_response:
+          json:
+            agents:
+              - {id: ovs-agent, agent_type: Open vSwitch agent, alive: true, admin_state_up: true}
+              - {id: dhcp-agent, agent_type: DHCP agent, alive: true, admin_state_up: true}
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-store-agents.yml
+
+    - name: Reuse the generic response variable for security group rules
+      ansible.builtin.set_fact:
+        student_hybrid_api_response:
+          json:
+            security_group_rules: []
+
+    - name: Require agent identities to survive the next API response
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_api_verify_agents | map(attribute='id') | list == ['ovs-agent', 'dhcp-agent']
+          - student_hybrid_api_response.json.security_group_rules == []
+
+    - name: Seed an uncertain POST for the fail-closed cleanup path
+      ansible.builtin.set_fact:
+        student_state: >-
+          {{ student_state | combine({'hybrid': {'m11': {'api': {'pending': {
+            'method': 'POST', 'resource': 'tenant_network:primary',
+            'run_id': '20261029-0123456789abcdef0123456789abcdef'
+          }}}}}, recursive=true) }}
+
+    - name: Reject uncertain POST cleanup without querying or adopting by name
+      block:
+        - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-reconcile-post.yml
+      rescue:
+        - ansible.builtin.set_fact:
+            student_api_unknown_post_rejected: true
+
+    - name: Require uncertain POST to remain durably represented in memory
+      ansible.builtin.assert:
+        that:
+          - student_api_unknown_post_rejected | default(false)
+          - student_state.hybrid.m11.api.pending.method == 'POST'
+          - student_state.hybrid.m11.api.pending.resource == 'tenant_network:primary'

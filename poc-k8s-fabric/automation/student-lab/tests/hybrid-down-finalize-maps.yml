@@ -1,0 +1,108 @@
+---
+- name: Generate private down-state fixtures through the real finalizer
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - ../vars.yml
+  vars:
+    student_test_profile: "{{ lookup('env', 'P010_LAB_PROFILE') | default('hibrido', true) }}"
+    student_test_scratch: "{{ lookup('env', 'P010_HYBRID_API_TEST_SCRATCH') | default('/tmp', true) }}"
+    student_test_state_dir: "{{ lookup('env', 'P010_LAB_STATE_DIR') | default(student_test_scratch, true) }}"
+    student_test_run_id: 20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    student_state_file: "{{ student_test_scratch }}/generated-{{ student_test_profile }}.json"
+    student_test_legacy_finalizer: "{{ lookup('env', 'P010_DOWN_FINALIZER_TASKS') | default('', true) | length > 0 }}"
+  tasks:
+    - name: Validate the fixture profile
+      ansible.builtin.assert:
+        that:
+          - student_test_profile in student_profiles
+          - student_test_scratch | length > 0
+          - student_test_state_dir | length > 0
+
+    - name: Build a full schema-2 or schema-3 cleanup input
+      ansible.builtin.set_fact:
+        student_state:
+          schema: "{{ 3 if student_test_profile == 'hibrido' else 2 }}"
+          owner_uid: "{{ ansible_user_uid | int }}"
+          owner_token: 11111111-2222-4333-8444-555555555555
+          profile: "{{ student_test_profile }}"
+          run_id: "{{ student_test_run_id }}"
+          status: partial
+          phase: down-start
+          kind_name: "{{ student_profiles[student_test_profile].kind_name }}"
+          context: "{{ student_profiles[student_test_profile].context }}"
+          kubeconfig: "{{ student_test_state_dir }}/runs/{{ student_test_run_id }}/kubeconfig"
+          kubeconfig_sha256: ''
+          api_server: ''
+          cluster_uid: ''
+          kind_node_ids: {fixture-node: fixture-id}
+          fabric_node_ids: {fixture-fabric: fixture-id}
+          network_ids: {fixture-network: fixture-id}
+          profile_fingerprint: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          chart_sha256: ''
+          values_sha256: ''
+          topology_sha256: ''
+          topology_file: ''
+          helm_revision: 4
+          clab_up_log: "{{ student_test_state_dir }}/runs/{{ student_test_run_id }}/containerlab-up.log"
+          clab_down_log: "{{ student_test_state_dir }}/runs/{{ student_test_run_id }}/containerlab-down.log"
+          started_utc: '2026-10-29T19:00:00Z'
+          updated_utc: '2026-10-29T19:10:00Z'
+          exercise: "{{ 'baseline' if student_test_profile == 'plataforma' else '' }}"
+          wireguard_mode: ''
+          exercise_session: {}
+
+    - name: Preserve schema-3 guest and M11 resource records in the hybrid fixture
+      ansible.builtin.set_fact:
+        student_state: "{{ student_state | combine({'hybrid': {'phase': 'partial', 'guests': {'ubuntu': {'uuid': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}}, 'm11': {'phase': 'api-removing', 'api': {'resources': {'router': {'primary': {'id': '11111111-2222-4333-8444-555555555555'}}}}}}}, recursive=true) }}"
+      when: student_test_profile == 'hibrido'
+
+    - name: Run the selected real finalizer task
+      ansible.builtin.include_tasks: "{{ lookup('env', 'P010_DOWN_FINALIZER_TASKS') | default('../tasks/down-finalize-state.yml', true) }}"
+
+    - name: Persist and reload the finalized state with private permissions
+      block:
+        - ansible.builtin.copy:
+            dest: "{{ student_state_file }}"
+            content: "{{ student_state | to_nice_json }}\n"
+            mode: '0600'
+        - ansible.builtin.set_fact:
+            student_state: "{{ lookup('file', student_state_file) | from_json }}"
+        - ansible.builtin.stat:
+            path: "{{ student_state_file }}"
+          register: student_test_state_stat
+
+    - name: Require the expected non-hybrid finalizer schema
+      ansible.builtin.assert:
+        that:
+          - student_state.schema | int == 2
+          - student_state.status == 'down'
+          - student_state.phase == 'removed'
+          - student_state.helm_revision == 0
+          - student_state.kind_node_ids == {}
+          - student_state.fabric_node_ids == {}
+          - student_state.network_ids == {}
+          - student_test_legacy_finalizer or student_state.keys() | length == 29
+          - student_test_legacy_finalizer or 'hybrid' not in student_state
+          - not student_test_legacy_finalizer or student_state.keys() | length == 30
+          - not student_test_legacy_finalizer or student_state.hybrid == {}
+          - student_test_state_stat.stat.mode == '0600'
+      when: student_test_profile != 'hibrido'
+
+    - name: Require schema-3 finalization to preserve resource records and mark phases removed
+      ansible.builtin.assert:
+        that:
+          - student_state.schema | int == 3
+          - student_state.status == 'down'
+          - student_state.phase == 'removed'
+          - student_state.helm_revision == 0
+          - student_state.kind_node_ids == {}
+          - student_state.fabric_node_ids == {}
+          - student_state.network_ids == {}
+          - student_state.hybrid.phase == 'removed'
+          - student_state.hybrid.guests.ubuntu.uuid == 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+          - student_state.hybrid.m11.phase == 'removed'
+          - student_state.hybrid.m11.api.resources.router.primary.id == '11111111-2222-4333-8444-555555555555'
+          - student_test_state_stat.stat.mode == '0600'
+      when: student_test_profile == 'hibrido'

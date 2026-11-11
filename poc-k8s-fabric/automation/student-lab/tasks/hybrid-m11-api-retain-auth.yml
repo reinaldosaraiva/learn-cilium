@@ -1,0 +1,17 @@
+---
+- name: Retain the token and only the project and user identifiers in memory
+  ansible.builtin.set_fact:
+    student_hybrid_api_token: "{{ student_hybrid_api_auth_response.x_subject_token | default('') }}"
+    student_hybrid_api_project_id: "{{ student_hybrid_api_auth_response.json.token.project.id | default('') }}"
+    student_hybrid_api_user_id: "{{ student_hybrid_api_auth_response.json.token.user.id | default('') }}"
+    student_hybrid_api_network_catalog: >-
+      {{ student_hybrid_api_auth_response.json.token.catalog
+         | selectattr('type', 'equalto', 'network')
+         | map(attribute='endpoints') | flatten
+         | selectattr('interface', 'equalto', 'internal') | list }}
+    student_hybrid_api_identity_catalog: >-
+      {{ student_hybrid_api_auth_response.json.token.catalog
+         | selectattr('type', 'equalto', 'identity')
+         | map(attribute='endpoints') | flatten
+         | selectattr('interface', 'equalto', 'internal') | list }}
+  no_log: true

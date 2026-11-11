@@ -1,0 +1,144 @@
+---
+- name: Select the reserved guest record
+  ansible.builtin.set_fact:
+    student_hybrid_guest: "{{ student_state.hybrid.guests[student_hybrid_guest_name] }}"
+
+- ansible.builtin.include_tasks: hybrid-validate-border.yml
+  vars:
+    student_hybrid_ports_to_check: ["{{ student_hybrid_guest.host_port | int }}"]
+
+- ansible.builtin.include_tasks: hybrid-validate-tap.yml
+  when: student_hybrid_guest_name == 'ubuntu'
+
+- ansible.builtin.include_tasks: hybrid-validate-boot-paths.yml
+
+- ansible.builtin.include_tasks: hybrid-qemu-network-args.yml
+
+- name: Start the guest in the saved border namespace with explicit unprivileged IDs
+  ansible.builtin.command:
+    argv: >-
+      {{ [student_hybrid_nsenter_bin | default('/usr/bin/nsenter'),
+          '--net=/proc/' ~ (student_state.hybrid.network.border.pid | string) ~ '/ns/net', '--',
+          '/usr/bin/setpriv', '--reuid=' ~ (student_uid | string),
+          '--regid=' ~ (student_hybrid_qemu_gid | string),
+          '--groups=' ~ (student_hybrid_qemu_groups | join(',')), '--',
+          student_hybrid_qemu_bin | default('/usr/bin/qemu-system-x86_64'),
+          '-machine', 'q35,accel=kvm', '-cpu', 'host',
+          '-m', ('8192' if student_hybrid_guest_name == 'ubuntu' else '512'),
+          '-smp', ('4' if student_hybrid_guest_name == 'ubuntu' else '1'),
+          '-name', 'p010-hibrido-' ~ student_hybrid_guest_name,
+          '-uuid', student_hybrid_guest.uuid, '-daemonize',
+          '-pidfile', student_hybrid_guest.pidfile,
+          '-qmp', 'unix:' ~ student_hybrid_guest.qmp_path ~ ',server=on,wait=off',
+          '-display', 'none', '-serial', 'file:' ~ student_run_dir ~ '/qemu/' ~ student_hybrid_guest_name ~ '.serial.log',
+          '-drive', 'file=' ~ student_hybrid_guest.overlay_path ~ ',if=virtio,format=qcow2,cache=none',
+          '-drive', 'file=' ~ student_hybrid_guest.seed_path ~ ',media=cdrom,readonly=on']
+         + student_hybrid_qemu_network_args }}
+  register: student_hybrid_qemu_start
+  changed_when: true
+  become: true
+  no_log: true
+
+- name: Wait for the QMP socket path to appear
+  ansible.builtin.wait_for:
+    path: "{{ student_hybrid_guest.qmp_path }}"
+    state: started
+    timeout: 30
+
+- name: Inspect the QEMU PID file and QMP socket without following links
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  register: student_hybrid_qemu_identity_stats
+  loop:
+    - "{{ student_hybrid_guest.pidfile }}"
+    - "{{ student_hybrid_guest.qmp_path }}"
+  no_log: true
+
+- name: Read the daemon PID and its kernel start time
+  ansible.builtin.slurp:
+    src: "{{ student_hybrid_guest.pidfile }}"
+  register: student_hybrid_pidfile
+  no_log: true
+
+- name: Store the candidate QEMU PID for identity checks
+  ansible.builtin.set_fact:
+    student_hybrid_guest_pid: "{{ student_hybrid_pidfile.content | b64decode | trim | int }}"
+  no_log: true
+
+- name: Read the QEMU process start time using the PID reserved by the pidfile
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/awk
+      - '{ sub(/^.*\) /, ""); print $20 }'
+      - "/proc/{{ student_hybrid_guest_pid }}/stat"
+  register: student_hybrid_process_starttime
+  changed_when: false
+  no_log: true
+
+- name: Inspect the QEMU network namespace and process owner
+  ansible.builtin.stat:
+    path: "/proc/{{ student_hybrid_guest_pid }}/ns/net"
+    follow: true
+  register: student_hybrid_guest_netns
+  no_log: true
+
+- name: Inspect the QEMU process owner without following proc links
+  ansible.builtin.stat:
+    path: "/proc/{{ student_hybrid_guest_pid }}"
+    follow: false
+  register: student_hybrid_guest_process
+  no_log: true
+
+- name: Confirm QEMU argv includes the reserved UUID and QMP path
+  ansible.builtin.command:
+    argv: [grep, -aF, --, "{{ item }}", "/proc/{{ student_hybrid_guest_pid }}/cmdline"]
+  register: student_hybrid_process_argv_checks
+  changed_when: false
+  failed_when: false
+  loop:
+    - "{{ student_hybrid_guest.uuid }}"
+    - "{{ student_hybrid_guest.qmp_path }}"
+  no_log: true
+
+- name: Require exact QEMU PID, start time, command line, pidfile and QMP identities
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_guest_pid | int > 1
+      - student_hybrid_process_starttime.rc == 0
+      - student_hybrid_process_starttime.stdout | trim is match('^[0-9]+$')
+      - student_hybrid_guest_netns.stat.exists | default(false)
+      - student_hybrid_guest_process.stat.isdir | default(false)
+      - student_hybrid_guest_process.stat.uid | int == student_uid
+      - student_hybrid_guest_netns.stat.dev | int == student_state.hybrid.network.border.netns_device | int
+      - student_hybrid_guest_netns.stat.inode | int == student_state.hybrid.network.border.netns_inode | int
+      - student_hybrid_qemu_identity_stats.results[0].stat.isreg | default(false)
+      - not (student_hybrid_qemu_identity_stats.results[0].stat.islnk | default(false))
+      - student_hybrid_qemu_identity_stats.results[0].stat.uid | int == student_uid
+      - student_hybrid_qemu_identity_stats.results[0].stat.inode | int > 0
+      - student_hybrid_qemu_identity_stats.results[1].stat.issock | default(false)
+      - not (student_hybrid_qemu_identity_stats.results[1].stat.islnk | default(false))
+      - student_hybrid_qemu_identity_stats.results[1].stat.uid | int == student_uid
+      - student_hybrid_qemu_identity_stats.results[1].stat.inode | int > 0
+      - student_hybrid_process_argv_checks.results | selectattr('rc', 'equalto', 0) | list | length == 2
+    fail_msg: "Não foi possível provar a identidade do guest {{ student_hybrid_guest_name }}; ele não será declarado pronto."
+  no_log: true
+
+- name: Persist the QEMU process identity immediately after launch
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'hybrid': {'phase': 'guests-booting', 'guests': {student_hybrid_guest_name: {'pid': student_hybrid_guest_pid | int, 'starttime': student_hybrid_process_starttime.stdout | trim | int, 'netns_device': student_hybrid_guest_netns.stat.dev, 'netns_inode': student_hybrid_guest_netns.stat.inode, 'pidfile_device': student_hybrid_qemu_identity_stats.results[0].stat.dev, 'pidfile_inode': student_hybrid_qemu_identity_stats.results[0].stat.inode, 'qmp_device': student_hybrid_qemu_identity_stats.results[1].stat.dev, 'qmp_inode': student_hybrid_qemu_identity_stats.results[1].stat.inode}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+  no_log: true
+
+- name: Persist this guest's QEMU identity before starting the next guest
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Verify QMP greeting, capabilities, and UUID on the newly booted connection
+  ansible.builtin.include_tasks: hybrid-qmp-command.yml
+  vars:
+    student_hybrid_qmp_action: verify
+    student_hybrid_qmp_guest_name: "{{ student_hybrid_guest_name }}"

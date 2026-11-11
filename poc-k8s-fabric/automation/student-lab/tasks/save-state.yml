@@ -1,0 +1,303 @@
+---
+- ansible.builtin.include_tasks: validate-owner-token.yml
+
+- name: Preserve previously recorded resource IDs while inspecting partial resources
+  ansible.builtin.set_fact:
+    student_kind_node_ids: "{{ student_state.kind_node_ids | default({}) }}"
+    student_fabric_node_ids: "{{ student_state.fabric_node_ids | default({}) }}"
+    student_network_ids: "{{ student_state.network_ids | default({}) }}"
+
+- name: Inspect expected Kind nodes by exact name and ID
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - inspect
+      - "{{ item }}"
+  become: true
+  register: student_kind_inspect_results
+  changed_when: false
+  failed_when: false
+  no_log: true
+  loop: "{{ student_profile.kind_nodes }}"
+
+- name: Distinguish an absent Kind node from a Docker inspection failure
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.rc == 0 or
+        (item.rc == 1 and item.stdout in ['', '[]'] and
+         item.stderr | trim in student_docker_not_found_messages)
+    fail_msg: "Docker não conseguiu provar presença/ausência de um nó Kind; state não será atualizado."
+  loop: "{{ student_kind_inspect_results.results }}"
+  no_log: true
+  vars:
+    student_docker_not_found_messages:
+      - "Error: No such object: {{ item.item }}"
+      - "error: no such object: {{ item.item }}"
+
+- name: Prove every present Kind node has the recorded cluster and read-only token mount
+  ansible.builtin.assert:
+    that:
+      - "(item.stdout | from_json | first).Id | length == 64"
+      - "item.item in (item.stdout | from_json | first).Name"
+      - "(item.stdout | from_json | first).Config.Labels[student_kind_cluster_label_key] == student_profile.kind_name"
+      - "((item.stdout | from_json | first).Mounts | selectattr(student_mount_source_key, student_equalto_test, student_owner_token_file) | selectattr(student_mount_destination_key, student_equalto_test, student_owner_mount_path) | selectattr(student_mount_rw_key, student_equalto_test, false) | list | length) == 1"
+      - "student_state.kind_node_ids[item.item] is not defined or student_state.kind_node_ids[item.item] == (item.stdout | from_json | first).Id"
+    fail_msg: >-
+      Nó Kind presente sem prova de cluster, token readonly ou ID salvo;
+      não será adotado.
+  loop: "{{ student_kind_inspect_results.results }}"
+  when: item.rc == 0
+  no_log: true
+  vars:
+    student_kind_cluster_label_key: io.x-k8s.kind.cluster
+    student_mount_source_key: Source
+    student_mount_destination_key: Destination
+    student_mount_rw_key: RW
+    student_equalto_test: equalto
+    student_owner_mount_path: /etc/p010-student/owner-token
+
+- name: Record only Kind IDs proven by the private token mount and cluster label
+  ansible.builtin.set_fact:
+    student_kind_node_ids: "{{ student_kind_node_ids | combine({item.item: (item.stdout | from_json | first).Id}) }}"
+  loop: "{{ student_kind_inspect_results.results }}"
+  when: item.rc == 0
+  no_log: true
+
+- name: Inspect expected containerlab nodes by exact name and ID
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - inspect
+      - "{{ item }}"
+  become: true
+  register: student_fabric_inspect_results
+  changed_when: false
+  failed_when: false
+  no_log: true
+  loop: "{{ student_profile.fabric_nodes }}"
+  when: student_profile.fabric_nodes | length > 0
+
+- name: Distinguish an absent fabric node from a Docker inspection failure
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.rc == 0 or
+        (item.rc == 1 and item.stdout in ['', '[]'] and
+         item.stderr | trim in student_docker_not_found_messages)
+    fail_msg: >-
+      Docker não conseguiu provar presença/ausência de um nó containerlab;
+      state não será atualizado.
+  loop: "{{ student_fabric_inspect_results.results | default([]) }}"
+  no_log: true
+  vars:
+    student_docker_not_found_messages:
+      - "Error: No such object: {{ item.item }}"
+      - "error: no such object: {{ item.item }}"
+
+- name: Prove every present fabric node carries this run's owner label and ID
+  ansible.builtin.assert:
+    that:
+      - "(item.stdout | from_json | first).Id | length == 64"
+      - "item.item in (item.stdout | from_json | first).Name"
+      - "(item.stdout | from_json | first).Config.Labels[student_owner_label_key] == student_state.owner_token"
+      - "student_state.fabric_node_ids[item.item] is not defined or student_state.fabric_node_ids[item.item] == (item.stdout | from_json | first).Id"
+    fail_msg: >-
+      Nó containerlab presente sem o token ou ID desta execução;
+      não será adotado.
+  loop: "{{ student_fabric_inspect_results.results | default([]) }}"
+  when: item.rc == 0
+  no_log: true
+  vars:
+    student_owner_label_key: p010-student-owner
+
+- name: Record only fabric IDs proven by this run's owner label
+  ansible.builtin.set_fact:
+    student_fabric_node_ids: "{{ student_fabric_node_ids | combine({item.item: (item.stdout | from_json | first).Id}) }}"
+  loop: "{{ student_fabric_inspect_results.results | default([]) }}"
+  when: item.rc == 0
+  no_log: true
+
+- name: Inspect the profile management network by exact name and ID
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - network
+      - inspect
+      - "{{ student_profile.topology_network }}"
+  become: true
+  register: student_network_inspect_result
+  changed_when: false
+  failed_when: false
+  no_log: true
+  when: student_profile.topology_network is not none
+
+- name: Distinguish an absent network from a Docker inspection failure
+  ansible.builtin.assert:
+    that:
+      - >-
+        student_network_inspect_result.rc == 0 or
+        (student_network_inspect_result.rc == 1 and
+         student_network_inspect_result.stdout in ['', '[]'] and
+         student_network_inspect_result.stderr | trim == student_network_not_found_message)
+    fail_msg: >-
+      Docker não conseguiu provar presença/ausência da rede de gerenciamento;
+      state não será atualizado.
+  when: student_profile.topology_network is not none
+  no_log: true
+  vars:
+    student_network_not_found_message: "Error response from daemon: network {{ student_profile.topology_network }} not found"
+
+- name: Prove the management network label, subnet, successful create ID, and prior ID
+  ansible.builtin.assert:
+    that:
+      - "(student_network_inspect_result.stdout | from_json | first).Id | length == 64"
+      - "student_profile.topology_network in (student_network_inspect_result.stdout | from_json | first).Name"
+      - "student_network_containerlab_label_key in (student_network_inspect_result.stdout | from_json | first).Labels"
+      - "(student_network_inspect_result.stdout | from_json | first).Labels[student_owner_label_key] == student_state.owner_token"
+      - "((student_network_inspect_result.stdout | from_json | first).IPAM.Config | selectattr(student_ipam_subnet_key, student_equalto_test, student_profile.topology_subnet) | list | length) == 1"
+      - "student_network_create is not defined or student_network_create.rc != 0 or student_network_create.stdout == (student_network_inspect_result.stdout | from_json | first).Id"
+      - "student_state.network_ids[student_profile.topology_network] is not defined or student_state.network_ids[student_profile.topology_network] == (student_network_inspect_result.stdout | from_json | first).Id"
+    fail_msg: >-
+      Rede presente sem label, subnet, ID desta execução ou ID previamente
+      salvo; não será adotada.
+  when:
+    - student_profile.topology_network is not none
+    - student_network_inspect_result.rc == 0
+  no_log: true
+  vars:
+    student_network_containerlab_label_key: containerlab
+    student_owner_label_key: p010-student-owner
+    student_ipam_subnet_key: Subnet
+    student_equalto_test: equalto
+
+- name: Record only the management network ID proven by its owner label
+  ansible.builtin.set_fact:
+    student_network_ids: "{{ student_network_ids | combine({student_profile.topology_network: (student_network_inspect_result.stdout | from_json | first).Id}) }}"
+  when:
+    - student_profile.topology_network is not none
+    - student_network_inspect_result.rc == 0
+  no_log: true
+
+- name: Hash the private kubeconfig when present
+  ansible.builtin.command:
+    argv: [sha256sum, "{{ student_kubeconfig }}"]
+  register: student_kubeconfig_hash_result
+  changed_when: false
+  failed_when: false
+  when: student_kubeconfig is defined
+
+- name: Read the API server with the saved kubeconfig and explicit context
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - config
+      - view
+      - --minify
+      - -o
+      - 'jsonpath={.clusters[0].cluster.server}'
+  become: true
+  register: student_api_server_result
+  changed_when: false
+  failed_when: false
+  when: student_kubeconfig is defined
+
+- name: Read the real kube-system UID with the saved kubeconfig and context
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - namespace
+      - kube-system
+      - -o
+      - 'jsonpath={.metadata.uid}'
+  become: true
+  register: student_cluster_uid_result
+  changed_when: false
+  failed_when: false
+  when: student_kubeconfig is defined
+
+- name: Read the Cilium Helm revision without changing the release
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/helm"
+      - --kubeconfig
+      - "{{ student_kubeconfig }}"
+      - --kube-context
+      - "{{ student_profile.context }}"
+      - history
+      - cilium
+      - --namespace
+      - kube-system
+      - --output
+      - json
+  become: true
+  register: student_helm_history_result
+  changed_when: false
+  failed_when: false
+  when: student_kubeconfig is defined
+
+- name: Read the actual chart and values hashes
+  ansible.builtin.command:
+    argv: [sha256sum, "{{ item }}"]
+  register: student_chart_values_hash_results
+  changed_when: false
+  failed_when: false
+  loop: "{{ [student_repo_root ~ '/' ~ student_profile.chart] + ([student_values_file] if student_values_file is defined else []) }}"
+
+- name: Read the private topology hash when present
+  ansible.builtin.command:
+    argv: [sha256sum, "{{ student_topology_file }}"]
+  register: student_topology_hash_result
+  changed_when: false
+  failed_when: false
+  when: student_profile.topology_source is not none
+
+- name: Refuse changed cluster identity for an existing run
+  ansible.builtin.assert:
+    that:
+      - student_state.cluster_uid == '' or student_cluster_uid_result.rc != 0 or student_state.cluster_uid == student_cluster_uid_result.stdout
+      - student_state.api_server == '' or student_api_server_result.rc != 0 or student_state.api_server == student_api_server_result.stdout
+      - student_state.kubeconfig_sha256 == '' or student_kubeconfig_hash_result.rc != 0 or student_state.kubeconfig_sha256 == student_kubeconfig_hash_result.stdout.split()[0]
+    fail_msg: "UID, endpoint API ou kubeconfig divergiu do estado registrado; nenhuma adoção automática será feita."
+  when: student_has_state and student_state.status in ['preparing', 'partial', 'up']
+
+- name: Assemble the safe state record from proven resource IDs
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({
+      'kind_node_ids': student_kind_node_ids,
+      'fabric_node_ids': student_fabric_node_ids,
+      'network_ids': student_network_ids,
+      'kubeconfig_sha256': (student_kubeconfig_hash_result.stdout.split()[0] if student_kubeconfig_hash_result.rc | default(1) == 0 else student_state.kubeconfig_sha256),
+      'api_server': (student_api_server_result.stdout if student_api_server_result.rc | default(1) == 0 else student_state.api_server),
+      'cluster_uid': (student_cluster_uid_result.stdout if student_cluster_uid_result.rc | default(1) == 0 else student_state.cluster_uid),
+      'chart_sha256': (student_chart_values_hash_results.results[0].stdout.split()[0] if student_chart_values_hash_results.results[0].rc == 0 else student_state.chart_sha256),
+      'values_sha256': (student_chart_values_hash_results.results[1].stdout.split()[0] if student_chart_values_hash_results.results | length > 1 and student_chart_values_hash_results.results[1].rc == 0 else student_state.values_sha256),
+      'topology_sha256': (student_topology_hash_result.stdout.split()[0] if student_topology_hash_result.rc | default(1) == 0 else student_state.topology_sha256),
+      'topology_file': (student_topology_file if student_profile.topology_source is not none else ''),
+      'helm_revision': ((student_helm_history_result.stdout | from_json | map(attribute='revision') | map('int') | max) if student_helm_history_result.rc | default(1) == 0 and student_helm_history_result.stdout | trim | length > 0 else student_state.helm_revision | int),
+      'status': student_save_status,
+      'phase': student_save_phase,
+      'updated_utc': ansible_date_time.iso8601
+    }, recursive=true) }}"
+
+- name: Persist state as private JSON data
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'

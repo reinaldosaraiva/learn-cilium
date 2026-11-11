@@ -1,0 +1,19 @@
+---
+- ansible.builtin.include_tasks: hybrid-read-dns.yml
+
+- ansible.builtin.include_tasks: hybrid-validate-border.yml
+  vars:
+    student_hybrid_ports_to_check: [42422, 42423]
+
+- ansible.builtin.include_tasks: hybrid-probe-dns.yml
+
+- name: Keep the exact DNS inputs in the versioned hybrid state
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'hybrid': {'network': {'management_dns': student_hybrid_dns_upstreams}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+
+- name: Persist the discovered DNS inputs before any guest package or image work
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'

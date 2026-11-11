@@ -1,0 +1,62 @@
+---
+- name: Read links only inside the selected original hybrid network namespace
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_hybrid_network_namespace_pid | default(student_state.hybrid.network.border.pid) }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - -j
+      - -d
+      - link
+      - show
+  register: student_hybrid_tap_link_query
+  changed_when: false
+  become: "{{ student_hybrid_become | default(true) }}"
+  no_log: true
+
+- name: Require absence or exact saved name/index/alias/type for the TAP
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_tap_link_query.rc == 0
+      - student_hybrid_tap_matches | length <= 1
+      - student_hybrid_tap_reserved_alias_matches | length <= 1
+      - >-
+        (student_state.hybrid.network.tap.ifindex | int == 0 and
+         student_hybrid_tap_matches | length == 0 and
+         student_hybrid_tap_reserved_alias_matches | length == 0 and
+         student_state.hybrid.network.tap.alias == '')
+        or
+        (student_state.hybrid.network.tap.ifindex | int > 0 and
+         student_hybrid_tap_matches | length == 1 and
+         student_hybrid_tap_matches[0].ifindex | int == student_state.hybrid.network.tap.ifindex | int and
+         student_hybrid_tap_matches[0].linkinfo.info_kind == 'tun' and
+         student_hybrid_tap_matches[0].linkinfo.info_data.type == 'tap' and
+         ((student_state.hybrid.network.tap.alias == '' and student_state.phase == 'hybrid-tap-created' and
+           (student_hybrid_tap_matches[0].ifalias | default('')) in ['', student_state.hybrid.network.tap.reserved_alias]) or
+          student_hybrid_tap_matches[0].ifalias | default('') == student_state.hybrid.network.tap.alias) and
+         ((student_state.hybrid.network.tap.alias == '' and
+           (student_hybrid_tap_reserved_alias_matches | length) in [0, 1] and
+           (student_hybrid_tap_reserved_alias_matches | length == 0 or
+            student_hybrid_tap_reserved_alias_matches[0].ifname == student_state.hybrid.network.tap.name)) or
+          (student_state.hybrid.network.tap.alias == student_state.hybrid.network.tap.reserved_alias and
+           student_hybrid_tap_reserved_alias_matches | length == 1 and
+           student_hybrid_tap_reserved_alias_matches[0].ifname == student_state.hybrid.network.tap.name)))
+        or
+        (student_hybrid_tap_allow_absent | default(false) and
+         student_hybrid_tap_matches | length == 0 and
+         student_hybrid_tap_reserved_alias_matches | length == 0)
+    fail_msg: "A consulta da TAP foi inconclusiva ou nome/ifindex/ifalias/tipo divergiu; nenhum recurso será adotado."
+  vars:
+    student_hybrid_links_json: "{{ student_hybrid_tap_link_query.stdout | from_json }}"
+    student_hybrid_tap_matches: >-
+      {{ student_hybrid_links_json
+         | selectattr('ifname', 'equalto', student_state.hybrid.network.tap.name)
+         | list }}
+    student_hybrid_tap_reserved_alias_matches: >-
+      {{ student_hybrid_links_json
+         | selectattr('ifalias', 'defined')
+         | selectattr('ifalias', 'equalto', student_state.hybrid.network.tap.reserved_alias)
+         | rejectattr('ifalias', 'equalto', '')
+         | list }}
+  no_log: true

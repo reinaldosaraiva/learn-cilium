@@ -1,0 +1,54 @@
+---
+- name: Render the production DORA reader from one identified capture
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    capture_path: "{{ lookup('env', 'P010_HYBRID_DORA_CAPTURE') }}"
+    result_path: "{{ lookup('env', 'P010_HYBRID_DORA_RESULT') }}"
+    capture_stat: "{{ lookup('env', 'P010_HYBRID_DORA_CAPTURE_STAT') }}"
+    result_stat: "{{ lookup('env', 'P010_HYBRID_DORA_RESULT_STAT') }}"
+    student_state:
+      hybrid:
+        m11:
+          verification:
+            gates:
+              dhcp_capture:
+                path: "{{ capture_path }}"
+                result_path: "{{ result_path }}"
+                client_mac: '02:00:00:00:00:02'
+                address: 198.18.49.4
+                gateway: 198.18.49.1
+                server_ip: 198.18.49.2
+                server_mac: '02:00:00:00:00:01'
+                device: "{{ capture_stat.split('|')[0] | int }}"
+                inode: "{{ capture_stat.split('|')[1] | int }}"
+                owner_uid: "{{ capture_stat.split('|')[2] | int }}"
+                result_device: "{{ result_stat.split('|')[0] | int }}"
+                result_inode: "{{ result_stat.split('|')[1] | int }}"
+                result_owner_uid: "{{ result_stat.split('|')[2] | int }}"
+                pid: 321
+                starttime: 111111
+                process_uid: 0
+                netns: 'net:[4026531840]'
+                ifindex: 5
+                tcpdump_pid: 322
+                tcpdump_starttime: 222222
+                tcpdump_uid: 0
+                tcpdump_netns: 'net:[4026531840]'
+                supervisor_pid: 320
+                supervisor_starttime: 333333
+                supervisor_uid: 501
+                capture_rc: "{{ lookup('env', 'P010_HYBRID_DORA_CAPTURE_RC') | int }}"
+                captured_count: "{{ lookup('env', 'P010_HYBRID_DORA_COUNT') | int }}"
+                started_utc: '2026-10-30T12:00:00Z'
+                completed_utc: '2026-10-30T12:00:01Z'
+                stop_requested: "{{ lookup('env', 'P010_HYBRID_DORA_STOP_REQUESTED') | bool }}"
+  tasks:
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-build-dora-script.yml
+
+    - name: Write the rendered production script to the isolated test path
+      ansible.builtin.copy:
+        dest: "{{ lookup('env', 'P010_HYBRID_DORA_SCRIPT') }}"
+        content: "{{ student_hybrid_m11_dora_script }}\n"
+        mode: '0600'

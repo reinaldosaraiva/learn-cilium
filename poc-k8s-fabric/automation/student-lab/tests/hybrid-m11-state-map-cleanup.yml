@@ -1,0 +1,181 @@
+---
+- name: Exercise exact M11 capture map replacement without opening historical C1 evidence
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    student_uid: "{{ ansible_user_uid | int }}"
+    student_state_file: "{{ lookup('env', 'P010_HYBRID_API_TEST_SCRATCH') }}/capture-state.json"
+    student_hybrid_m11_capture_cleanup_complete: true
+    student_hybrid_m11_absent_traffic_capture:
+      phase: absent
+      path: ''
+      pid: 0
+      starttime: 0
+      process_uid: 0
+      file_uid: 0
+      device: 0
+      inode: 0
+      mode: ''
+    student_hybrid_m11_absent_dhcp_capture:
+      phase: absent
+      path: ''
+      result_path: ''
+      client_mac: ''
+      address: ''
+      gateway: ''
+      server_ip: ''
+      server_mac: ''
+      pid: 0
+      starttime: 0
+      process_uid: 0
+      netns: ''
+      ifindex: 0
+      tcpdump_pid: 0
+      tcpdump_starttime: 0
+      tcpdump_uid: 0
+      tcpdump_netns: ''
+      supervisor_pid: 0
+      supervisor_starttime: 0
+      supervisor_uid: 0
+      owner_uid: 0
+      device: 0
+      inode: 0
+      result_device: 0
+      result_inode: 0
+      result_owner_uid: 0
+      started_utc: ''
+      completed_utc: ''
+      capture_rc: -1
+      captured_count: 0
+      stop_requested: false
+      xid: ''
+    student_hybrid_m11_unrelated_gate:
+      keep: true
+    student_state:
+      status: partial
+      profile: hibrido
+      run_id: 20261029-0123456789abcdef0123456789abcdef
+      hybrid:
+        guests:
+          ubuntu:
+            uuid: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+            tenant_mac: '52:54:00:11:22:33'
+        m11:
+          api:
+            resources:
+              cirros_port:
+                primary:
+                  id: 11111111-2222-4333-8444-555555555555
+                  mac_address: 'fa:16:3e:aa:bb:cc'
+          verification:
+            gates:
+              unrelated: {keep: true}
+              positive:
+                c1:
+                  schema: 1
+                  check_id: c1-cleanup01
+                  phase: verified
+                  previous_receipt: {}
+                  receipt:
+                    path: "{{ student_state_file }}.missing-c1-receipt"
+                    sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+                    device: 1
+                    inode: 2
+                    owner_uid: "{{ student_uid }}"
+                    mode: '0600'
+              c1_capture_active:
+                schema: 1
+                check_id: c1-cleanup01
+                phase: capturing
+                observers:
+                  - {key: stale-observer, pid: 4321, starttime: 9876}
+              ovs_attach:
+                phase: attaching
+                bridge_name: stale-bridge
+                interface_name: stale-interface
+                stale_field: must-disappear
+              traffic_capture:
+                phase: capturing
+                path: /tmp/recorded-origin.pcap
+                pid: 1234
+                starttime: 4321
+                process_uid: 1000
+                file_uid: 1000
+                device: 2049
+                inode: 998877
+                mode: '600'
+                stale_field: must-disappear
+              dhcp_capture:
+                phase: verified
+                path: /tmp/recorded-dhcp.log
+                client_mac: 02:00:00:00:00:02
+                address: 198.18.49.3
+                gateway: 198.18.49.1
+                server_ip: 198.18.49.1
+                pid: 2345
+                starttime: 5432
+                process_uid: 1000
+                owner_uid: 1000
+                device: 2049
+                inode: 887766
+                xid: '00000001'
+                stale_field: must-disappear
+  tasks:
+    - name: Persist the fixture identities as a partial run
+      ansible.builtin.copy:
+        dest: "{{ student_state_file }}"
+        content: "{{ student_state | to_nice_json }}\n"
+        mode: '0600'
+
+    - name: Clear and reload captures through the production helper
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-clear-captures.yml
+
+    - name: Require both maps to be exactly absent and unrelated gate state retained
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_m11_capture_cleanup_needed | bool
+          - student_state.hybrid.m11.verification.gates.traffic_capture == student_hybrid_m11_absent_traffic_capture
+          - student_state.hybrid.m11.verification.gates.dhcp_capture == student_hybrid_m11_absent_dhcp_capture
+          - "student_state.hybrid.m11.verification.gates.c1_capture_active == {'schema': 1, 'check_id': '', 'phase': 'absent', 'observers': []}"
+          - student_state.hybrid.m11.verification.gates.positive.c1.receipt.path == student_state_file ~ '.missing-c1-receipt'
+          - student_state.hybrid.m11.verification.gates.unrelated == student_hybrid_m11_unrelated_gate
+
+    - name: Require the same exact maps after a second disk reload
+      ansible.builtin.set_fact:
+        student_state: "{{ lookup('file', student_state_file) | from_json }}"
+
+    - ansible.builtin.assert:
+        that:
+          - student_state.hybrid.m11.verification.gates.traffic_capture.stale_field is not defined
+          - student_state.hybrid.m11.verification.gates.dhcp_capture.stale_field is not defined
+          - student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'absent'
+          - student_state.hybrid.m11.verification.gates.positive.c1.phase == 'verified'
+          - student_state.hybrid.m11.verification.gates.unrelated.keep | bool
+
+    - name: Supply the exact attached Neutron and OVS identity record
+      ansible.builtin.set_fact:
+        student_hybrid_m11_ovs_attachment_record:
+          phase: attached
+          bridge_name: br-int
+          interface_name: tenant0
+          guest_uuid: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+          neutron_port_id: 11111111-2222-4333-8444-555555555555
+          attached_mac: 'fa:16:3e:aa:bb:cc'
+          guest_interface_mac: '52:54:00:11:22:33'
+          bridge_uuid: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
+          port_uuid: cccccccc-cccc-4ccc-8ccc-cccccccccccc
+          interface_uuid: dddddddd-dddd-4ddd-8ddd-dddddddddddd
+          ifindex: 45
+          ofport: 17
+
+    - name: Replace and reload the OVS attachment map through the production helper
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-save-ovs-attachment.yml
+
+    - name: Require stale attachment keys to disappear after durable replacement
+      ansible.builtin.assert:
+        that:
+          - student_state.hybrid.m11.verification.gates.ovs_attach == student_hybrid_m11_ovs_attachment_record
+          - student_state.hybrid.m11.verification.gates.traffic_capture == student_hybrid_m11_absent_traffic_capture
+          - student_state.hybrid.m11.verification.gates.dhcp_capture == student_hybrid_m11_absent_dhcp_capture
+          - student_state.hybrid.m11.verification.gates.unrelated == student_hybrid_m11_unrelated_gate

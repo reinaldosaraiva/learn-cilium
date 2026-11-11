@@ -1,0 +1,125 @@
+---
+- name: Read the per-run API credentials only from the private file
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.m11.credentials.path }}"
+    follow: false
+  register: student_hybrid_api_credentials_stat
+  no_log: true
+
+- name: Require the original private credential file identity
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_credentials_stat.stat.isreg | default(false)
+      - not (student_hybrid_api_credentials_stat.stat.islnk | default(false))
+      - student_hybrid_api_credentials_stat.stat.uid | int == student_uid | int
+      - student_hybrid_api_credentials_stat.stat.mode == '0600'
+      - student_hybrid_api_credentials_stat.stat.dev | int == student_state.hybrid.m11.credentials.device | int
+      - student_hybrid_api_credentials_stat.stat.inode | int == student_state.hybrid.m11.credentials.inode | int
+    fail_msg: "O arquivo de credenciais não corresponde à identidade privada registrada."
+  no_log: true
+
+- name: Read the per-run API credentials only from the private file
+  ansible.builtin.slurp:
+    src: "{{ student_state.hybrid.m11.credentials.path }}"
+  register: student_hybrid_api_credentials_file
+  no_log: true
+
+- name: Keep the credential object only in the protected Ansible process
+  ansible.builtin.set_fact:
+    student_hybrid_api_credentials: "{{ (student_hybrid_api_credentials_file.content | b64decode | from_json).student_hybrid_api_credentials }}"
+  no_log: true
+
+- name: Require the expected private credential fields without reporting their values
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_credentials.keys() | list | sort == ['password', 'project_domain_name', 'project_name', 'user_domain_name', 'username']
+      - student_hybrid_api_credentials.password | length >= 32
+      - student_hybrid_api_credentials.username == 'admin'
+      - student_hybrid_api_credentials.project_name == 'admin'
+    fail_msg: "Credenciais privadas ou intenção API pendente não permitem uma nova sessão autenticada."
+  no_log: true
+
+- name: Request a scoped Keystone token from the validated Ubuntu guest
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.auth_url }}"
+    method: POST
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+    body_format: json
+    body:
+      auth:
+        identity:
+          methods: [password]
+          password:
+            user:
+              name: "{{ student_hybrid_api_credentials.username }}"
+              domain: {name: "{{ student_hybrid_api_credentials.user_domain_name }}"}
+              password: "{{ student_hybrid_api_credentials.password }}"
+        scope:
+          project:
+            name: "{{ student_hybrid_api_credentials.project_name }}"
+            domain: {name: "{{ student_hybrid_api_credentials.project_domain_name }}"}
+    return_content: true
+    status_code: [201]
+    timeout: 15
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_auth_response
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-m11-api-retain-auth.yml
+
+- name: Require the authenticated project and capture its internal service endpoints
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_token | length >= 16
+      - student_hybrid_api_project_id is match('^[0-9a-f]{32}$')
+      - student_hybrid_api_user_id is match('^[0-9a-f]{32}$')
+      - student_state.hybrid.m11.api.project_id in ['', student_hybrid_api_project_id]
+      - student_state.hybrid.m11.api.user_id in ['', student_hybrid_api_user_id]
+    fail_msg: "A resposta Keystone não contém as identidades privadas esperadas."
+  no_log: true
+
+- name: Validate and normalize catalog endpoints owned by the Ubuntu guest
+  ansible.builtin.include_tasks: hybrid-m11-api-validate-catalog.yml
+
+- name: Discover Neutron's version link at its catalog-provided endpoint
+  ansible.builtin.uri:
+    url: "{{ student_hybrid_api_network_catalog_url }}"
+    method: GET
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+    return_content: true
+    status_code: [200]
+    timeout: 15
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_network_discovery
+  delegate_to: student_hybrid_ubuntu
+  changed_when: false
+  no_log: true
+
+- name: Require the Neutron version link to remain on this guest's catalog origin
+  ansible.builtin.include_tasks: hybrid-m11-api-validate-neutron-version.yml
+
+- name: Save only validated local API endpoints and non-secret identity IDs
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'m11': {'phase': 'api-authenticated', 'api': {
+        'identity_endpoint': student_hybrid_api_identity_endpoint,
+        'neutron_endpoint': student_hybrid_api_neutron_endpoint,
+        'project_id': student_hybrid_api_project_id,
+        'user_id': student_hybrid_api_user_id
+      }}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Persist the validated API endpoint and project identity
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true

@@ -1,0 +1,72 @@
+---
+- name: Inspect the saved private QMP directory before binding a socket
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.qmp_dir.path }}"
+    follow: false
+  register: student_hybrid_boot_qmp_dir
+  no_log: true
+
+- name: Require the QMP directory to match its saved identity
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_boot_qmp_dir.stat.isdir | default(false)
+      - not (student_hybrid_boot_qmp_dir.stat.islnk | default(false))
+      - student_hybrid_boot_qmp_dir.stat.uid | int == student_uid
+      - student_hybrid_boot_qmp_dir.stat.mode == '0700'
+      - student_state.hybrid.qmp_dir.device | int > 0
+      - student_state.hybrid.qmp_dir.inode | int > 0
+      - student_hybrid_boot_qmp_dir.stat.dev | int == student_state.hybrid.qmp_dir.device | int
+      - student_hybrid_boot_qmp_dir.stat.inode | int == student_state.hybrid.qmp_dir.inode | int
+    fail_msg: "Diretório QMP ausente ou substituído; guest não será iniciado."
+  no_log: true
+
+- name: Refuse pre-existing QEMU PID-file or QMP socket paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  register: student_hybrid_qemu_control_paths
+  loop:
+    - "{{ student_hybrid_guest.pidfile }}"
+    - "{{ student_hybrid_guest.qmp_path }}"
+  no_log: true
+
+- name: Require QEMU control paths to remain absent before launch
+  ansible.builtin.assert:
+    that:
+      - not (item.stat.exists | default(false))
+      - not (item.stat.islnk | default(false))
+    fail_msg: "Guest {{ student_hybrid_guest_name }} tem PID/QMP preexistente; nenhum recurso será adotado."
+  loop: "{{ student_hybrid_qemu_control_paths.results }}"
+  no_log: true
+
+- name: Inspect the overlay created and checkpointed by the asset phase
+  ansible.builtin.stat:
+    path: "{{ student_hybrid_guest.overlay_path }}"
+    follow: false
+  register: student_hybrid_boot_overlay
+  no_log: true
+
+- name: Require the boot overlay to match the saved private file identity
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_boot_overlay.stat.isreg | default(false)
+      - not (student_hybrid_boot_overlay.stat.islnk | default(false))
+      - student_hybrid_guest.overlay_device | int > 0
+      - student_hybrid_guest.overlay_inode | int > 0
+      - student_hybrid_boot_overlay.stat.dev | int == student_hybrid_guest.overlay_device | int
+      - student_hybrid_boot_overlay.stat.inode | int == student_hybrid_guest.overlay_inode | int
+      - student_hybrid_boot_overlay.stat.uid | int == student_uid
+    fail_msg: "Overlay de {{ student_hybrid_guest_name }} ausente ou divergente; boot recusado sem adoção."
+  no_log: true
+
+- name: Require Ubuntu's stream server path to remain absent before QEMU bind
+  ansible.builtin.include_tasks: hybrid-validate-tenant-socket.yml
+  when:
+    - student_state.hybrid.get('schema', 1) | int in [3, 4]
+    - student_hybrid_guest_name == 'ubuntu'
+
+- name: Require CirrOS to connect only to Ubuntu's recorded private stream listener
+  ansible.builtin.include_tasks: hybrid-validate-tenant-socket.yml
+  when:
+    - student_state.hybrid.get('schema', 1) | int in [3, 4]
+    - student_hybrid_guest_name == 'cirros'

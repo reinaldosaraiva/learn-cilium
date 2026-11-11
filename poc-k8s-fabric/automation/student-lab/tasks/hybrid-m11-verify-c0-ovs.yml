@@ -1,0 +1,35 @@
+---
+- name: Render the read-only OVS identity check for the saved Ubuntu guest
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c0_ovs_verify_script: >-
+      {{ lookup('template', student_repo_root ~ '/poc-k8s-fabric/automation/student-lab/templates/hybrid-m11-ovs-verify-c0.sh.j2') }}
+  no_log: true
+
+- name: Re-read the recorded OVS bridge and tenant0 attachment over pinned SSH
+  ansible.builtin.include_tasks: hybrid-m11-ssh.yml
+  vars:
+    student_hybrid_ssh_guest_name: ubuntu
+    student_hybrid_ssh_remote_command: bash -se
+    student_hybrid_ssh_stdin: "{{ student_hybrid_m11_c0_ovs_verify_script }}"
+
+- name: Parse the current OVS attachment markers
+  ansible.builtin.include_tasks: hybrid-m11-parse-markers.yml
+  vars:
+    student_hybrid_m11_marker_prefix: P010_C0_OVS_
+    student_hybrid_m11_marker_lines: "{{ student_hybrid_ssh_result.stdout_lines }}"
+
+- name: Require the current OVS attachment to match the saved run-owned record
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_ssh_result.rc | int == 0
+      - student_hybrid_m11_parsed_markers.BRIDGE == student_state.hybrid.m11.verification.gates.ovs_attach.bridge_name
+      - student_hybrid_m11_parsed_markers.BRIDGE_UUID == student_state.hybrid.m11.verification.gates.ovs_attach.bridge_uuid
+      - student_hybrid_m11_parsed_markers.PORT_UUID == student_state.hybrid.m11.verification.gates.ovs_attach.port_uuid
+      - student_hybrid_m11_parsed_markers.INTERFACE_UUID == student_state.hybrid.m11.verification.gates.ovs_attach.interface_uuid
+      - student_hybrid_m11_parsed_markers.IFINDEX | int == student_state.hybrid.m11.verification.gates.ovs_attach.ifindex | int
+      - student_hybrid_m11_parsed_markers.OFPORT | int == student_state.hybrid.m11.verification.gates.ovs_attach.ofport | int
+      - student_hybrid_m11_parsed_markers.IFACE_ID == student_state.hybrid.m11.api.resources.cirros_port.primary.id
+      - student_hybrid_m11_parsed_markers.ATTACHED_MAC | lower == student_state.hybrid.m11.api.resources.cirros_port.primary.mac_address | lower
+      - student_hybrid_m11_parsed_markers.GUEST_MAC | lower == student_state.hybrid.guests.ubuntu.tenant_mac | lower
+    fail_msg: "A leitura OVS atual divergiu do attach e da porta Neutron registrados nesta execução."
+  no_log: true

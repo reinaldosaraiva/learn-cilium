@@ -1,0 +1,89 @@
+---
+- name: Exercise production parsing of raw M11 stdout markers
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Parse raw OVS markers
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-parse-markers.yml
+      vars:
+        student_hybrid_m11_marker_prefix: P010_OVS_
+        student_hybrid_m11_marker_lines:
+          - 'P010_OVS_BRIDGE_UUID=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+          - 'P010_OVS_FILE=2049|10001|501|600'
+          - 'ordinary Ansible output'
+
+    - ansible.builtin.assert:
+        that:
+          - student_hybrid_m11_parsed_markers.BRIDGE_UUID == 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+          - student_hybrid_m11_parsed_markers.FILE == '2049|10001|501|600'
+          - "'ordinary' not in student_hybrid_m11_parsed_markers"
+
+    - name: Parse raw DHCP identity markers
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-parse-markers.yml
+      vars:
+        student_hybrid_m11_marker_prefix: P010_DHCP_
+        student_hybrid_m11_marker_lines:
+          - 'P010_DHCP_PID=321'
+          - 'P010_DHCP_FILE=2049|10002|501|600'
+
+    - ansible.builtin.assert:
+        that:
+          - student_hybrid_m11_parsed_markers.PID == '321'
+          - student_hybrid_m11_parsed_markers.FILE == '2049|10002|501|600'
+
+    - name: Parse raw DHCP exchange markers
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-parse-markers.yml
+      vars:
+        student_hybrid_m11_marker_prefix: P010_DORA_
+        student_hybrid_m11_marker_lines:
+          - 'P010_DORA_XID=0x1234abcd'
+          - 'P010_DORA_ADDRESS=198.18.49.4'
+
+    - ansible.builtin.assert:
+        that:
+          - student_hybrid_m11_parsed_markers.XID == '0x1234abcd'
+          - student_hybrid_m11_parsed_markers.ADDRESS == '198.18.49.4'
+
+    - name: Parse raw origin-capture markers with a pipe-delimited stat value
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-parse-markers.yml
+      vars:
+        student_hybrid_m11_marker_prefix: P010_ORIGIN_CAPTURE_
+        student_hybrid_m11_marker_lines:
+          - 'P010_ORIGIN_CAPTURE_PATH=/tmp/capture.pcap'
+          - 'P010_ORIGIN_CAPTURE_FILE=2049|10003|501|600'
+
+    - ansible.builtin.assert:
+        that:
+          - student_hybrid_m11_parsed_markers.PATH == '/tmp/capture.pcap'
+          - student_hybrid_m11_parsed_markers.FILE == '2049|10003|501|600'
+
+    - name: Parse raw DevStack revision markers
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-parse-markers.yml
+      vars:
+        student_hybrid_m11_marker_prefix: P010_
+        student_hybrid_m11_marker_lines:
+          - 'P010_DEVSTACK_HEAD=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          - 'P010_NEUTRON_HEAD=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+
+    - ansible.builtin.assert:
+        that:
+          - student_hybrid_m11_parsed_markers.DEVSTACK_HEAD == 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          - student_hybrid_m11_parsed_markers.NEUTRON_HEAD == 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+
+    - name: Detect duplicate DHCP identity markers as an unsafe producer output
+      block:
+        - ansible.builtin.include_tasks: ../tasks/hybrid-m11-parse-markers.yml
+          vars:
+            student_hybrid_m11_marker_prefix: P010_DHCP_
+            student_hybrid_m11_marker_lines:
+              - 'P010_DHCP_XID=0x12345678'
+              - 'P010_DHCP_XID=0x87654321'
+      rescue:
+        - ansible.builtin.set_fact:
+            student_hybrid_m11_duplicate_marker_rejected: true
+
+    - ansible.builtin.assert:
+        that:
+          - student_hybrid_m11_duplicate_marker_rejected | default(false) | bool
+        fail_msg: "O parser aceitou marcador DHCP duplicado e poderia sobrescrever a identidade observada."

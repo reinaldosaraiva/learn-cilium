@@ -1,0 +1,222 @@
+---
+- name: Require the run-owned key directory to remain private before host key generation
+  ansible.builtin.stat:
+    path: "{{ student_run_dir }}/keys"
+    follow: false
+  register: student_hybrid_m11_key_dir
+  no_log: true
+
+- name: Validate the private key directory identity and permissions
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_key_dir.stat.isdir | default(false)
+      - not (student_hybrid_m11_key_dir.stat.islnk | default(false))
+      - student_hybrid_m11_key_dir.stat.uid | int == student_uid
+      - student_hybrid_m11_key_dir.stat.mode == '0700'
+      - student_hybrid_m11_key_dir.stat.inode | int > 0
+    fail_msg: "Diretório das host keys não é privado ou não pertence à execução atual."
+  no_log: true
+
+- name: Inspect both reserved host key paths before generating fresh Ed25519 keys
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  register: student_hybrid_m11_hostkey_before
+  loop:
+    - "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.private_path }}"
+    - "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.public_path }}"
+    - "{{ student_state.hybrid.m11.ssh.host_keys.cirros.private_path }}"
+    - "{{ student_state.hybrid.m11.ssh.host_keys.cirros.public_path }}"
+    - "{{ student_state.hybrid.m11.ssh.known_hosts_path }}"
+  no_log: true
+
+- name: Refuse any pre-existing host key or known_hosts file
+  ansible.builtin.assert:
+    that:
+      - not (item.stat.exists | default(false))
+      - not (item.stat.islnk | default(false))
+    fail_msg: "Uma identidade de host SSH já existe sem reserva desta execução."
+  loop: "{{ student_hybrid_m11_hostkey_before.results }}"
+  no_log: true
+
+- name: Generate distinct Ubuntu and CirrOS Ed25519 host keys before boot
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_ssh_keygen_bin | default('/usr/bin/ssh-keygen') }}"
+      - -q
+      - -t
+      - ed25519
+      - -N
+      - ''
+      - -C
+      - "p010-{{ student_run_id }}-{{ item.key }}"
+      - -f
+      - "{{ item.value.private_path }}"
+  register: student_hybrid_m11_hostkey_generation
+  changed_when: true
+  loop: "{{ student_state.hybrid.m11.ssh.host_keys | dict2items }}"
+  no_log: true
+
+- name: Set host key files to private owner-only permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  loop:
+    - "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.private_path }}"
+    - "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.public_path }}"
+    - "{{ student_state.hybrid.m11.ssh.host_keys.cirros.private_path }}"
+    - "{{ student_state.hybrid.m11.ssh.host_keys.cirros.public_path }}"
+  no_log: true
+
+- name: Read both public keys without exposing them in task output
+  ansible.builtin.slurp:
+    src: "{{ item.value.public_path }}"
+  register: student_hybrid_m11_hostkey_publics
+  loop: "{{ student_state.hybrid.m11.ssh.host_keys | dict2items }}"
+  no_log: true
+
+- name: Derive each host public key from its private key for pair validation
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_ssh_keygen_bin | default('/usr/bin/ssh-keygen') }}"
+      - -y
+      - -f
+      - "{{ item.value.private_path }}"
+  register: student_hybrid_m11_hostkey_derived
+  changed_when: false
+  loop: "{{ student_state.hybrid.m11.ssh.host_keys | dict2items }}"
+  no_log: true
+
+- name: Require distinct Ed25519 pairs and matching public fingerprints
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_hostkey_publics.results | length == 2
+      - student_hybrid_m11_hostkey_derived.results | length == 2
+      - (student_hybrid_m11_hostkey_publics.results[0].content | b64decode | trim).split()[0] == 'ssh-ed25519'
+      - (student_hybrid_m11_hostkey_publics.results[1].content | b64decode | trim).split()[0] == 'ssh-ed25519'
+      - student_hybrid_m11_hostkey_derived.results[0].stdout.split()[:2] == (student_hybrid_m11_hostkey_publics.results[0].content | b64decode | trim).split()[:2]
+      - student_hybrid_m11_hostkey_derived.results[1].stdout.split()[:2] == (student_hybrid_m11_hostkey_publics.results[1].content | b64decode | trim).split()[:2]
+      - student_hybrid_m11_hostkey_publics.results[0].content != student_hybrid_m11_hostkey_publics.results[1].content
+    fail_msg: "As duas host keys SSH não são pares Ed25519 distintos e verificáveis."
+  no_log: true
+
+- name: Read public key fingerprints for the private ownership record
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_ssh_keygen_bin | default('/usr/bin/ssh-keygen') }}"
+      - -l
+      - -E
+      - sha256
+      - -f
+      - "{{ item.value.public_path }}"
+  register: student_hybrid_m11_hostkey_fingerprints
+  changed_when: false
+  loop: "{{ student_state.hybrid.m11.ssh.host_keys | dict2items }}"
+  no_log: true
+
+- name: Inspect host key file identities without following links
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  register: student_hybrid_m11_hostkey_stats
+  loop:
+    - "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.private_path }}"
+    - "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.public_path }}"
+    - "{{ student_state.hybrid.m11.ssh.host_keys.cirros.private_path }}"
+    - "{{ student_state.hybrid.m11.ssh.host_keys.cirros.public_path }}"
+  no_log: true
+
+- name: Require private regular key files and public regular files owned by the student
+  ansible.builtin.assert:
+    that:
+      - item.stat.isreg | default(false)
+      - not (item.stat.islnk | default(false))
+      - item.stat.uid | int == student_uid
+      - item.stat.mode == '0600'
+      - item.stat.inode | int > 0
+    fail_msg: "Arquivo de host key não é regular, privado ou está fora da execução do aluno."
+  loop: "{{ student_hybrid_m11_hostkey_stats.results }}"
+  no_log: true
+
+- name: Pin both generated public keys before either guest starts
+  ansible.builtin.copy:
+    dest: "{{ student_state.hybrid.m11.ssh.known_hosts_path }}"
+    content: |
+      {{ student_state.hybrid.m11.ssh.host_keys.ubuntu.alias }} {{ (student_hybrid_m11_hostkey_publics.results[0].content | b64decode | trim).split()[0] }} {{ (student_hybrid_m11_hostkey_publics.results[0].content | b64decode | trim).split()[1] }}
+      {{ student_state.hybrid.m11.ssh.host_keys.cirros.alias }} {{ (student_hybrid_m11_hostkey_publics.results[1].content | b64decode | trim).split()[0] }} {{ (student_hybrid_m11_hostkey_publics.results[1].content | b64decode | trim).split()[1] }}
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Inspect the pinned known_hosts file identity
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.m11.ssh.known_hosts_path }}"
+    follow: false
+  register: student_hybrid_m11_known_hosts_stat
+  no_log: true
+
+- name: Save host key identities and fingerprints before seed rendering
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'m11': {'ssh': {
+        'known_hosts_device': student_hybrid_m11_known_hosts_stat.stat.dev,
+        'known_hosts_inode': student_hybrid_m11_known_hosts_stat.stat.inode,
+        'host_keys': {
+          'ubuntu': student_state.hybrid.m11.ssh.host_keys.ubuntu | combine({
+            'private_device': student_hybrid_m11_hostkey_stats.results[0].stat.dev,
+            'private_inode': student_hybrid_m11_hostkey_stats.results[0].stat.inode,
+            'public_device': student_hybrid_m11_hostkey_stats.results[1].stat.dev,
+            'public_inode': student_hybrid_m11_hostkey_stats.results[1].stat.inode,
+            'fingerprint': student_hybrid_m11_hostkey_fingerprints.results[0].stdout.split()[1]
+          }),
+          'cirros': student_state.hybrid.m11.ssh.host_keys.cirros | combine({
+            'private_device': student_hybrid_m11_hostkey_stats.results[2].stat.dev,
+            'private_inode': student_hybrid_m11_hostkey_stats.results[2].stat.inode,
+            'public_device': student_hybrid_m11_hostkey_stats.results[3].stat.dev,
+            'public_inode': student_hybrid_m11_hostkey_stats.results[3].stat.inode,
+            'fingerprint': student_hybrid_m11_hostkey_fingerprints.results[1].stdout.split()[1]
+          })
+        }
+      }}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Require the known_hosts pin file to be private and stable
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_known_hosts_stat.stat.isreg | default(false)
+      - not (student_hybrid_m11_known_hosts_stat.stat.islnk | default(false))
+      - student_hybrid_m11_known_hosts_stat.stat.uid | int == student_uid
+      - student_hybrid_m11_known_hosts_stat.stat.mode == '0600'
+      - student_hybrid_m11_known_hosts_stat.stat.inode | int > 0
+      - student_state.hybrid.m11.ssh.host_keys.ubuntu.fingerprint != student_state.hybrid.m11.ssh.host_keys.cirros.fingerprint
+    fail_msg: "O arquivo private known_hosts não possui pins hostkey distintos e estáveis."
+  no_log: true
+
+- name: Read the Ubuntu host private key for its protected NoCloud user-data
+  ansible.builtin.slurp:
+    src: "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.private_path }}"
+  register: student_hybrid_m11_ubuntu_host_private
+  no_log: true
+
+- name: Read the CirrOS host private key for its protected NoCloud files
+  ansible.builtin.slurp:
+    src: "{{ student_state.hybrid.m11.ssh.host_keys.cirros.private_path }}"
+  register: student_hybrid_m11_cirros_host_private
+  no_log: true
+
+- name: Keep server private keys only in protected template inputs
+  ansible.builtin.set_fact:
+    student_hybrid_ubuntu_host_private: "{{ student_hybrid_m11_ubuntu_host_private.content | b64decode }}"
+    student_hybrid_cirros_host_private: "{{ student_hybrid_m11_cirros_host_private.content | b64decode }}"
+    student_hybrid_ubuntu_host_public: "{{ student_hybrid_m11_hostkey_publics.results[0].content | b64decode | trim }}"
+    student_hybrid_cirros_host_public: "{{ student_hybrid_m11_hostkey_publics.results[1].content | b64decode | trim }}"
+  no_log: true
+
+- name: Persist both hostkey pins before the guest boot begins
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true

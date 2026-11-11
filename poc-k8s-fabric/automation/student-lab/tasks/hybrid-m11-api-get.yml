@@ -1,0 +1,16 @@
+---
+- name: Query the Neutron endpoint validated from this guest's service catalog
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}{{ student_hybrid_api_path }}"
+    method: GET
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+    return_content: true
+    status_code: "{{ student_hybrid_api_status_codes | default([200]) }}"
+    timeout: 15
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_response
+  delegate_to: student_hybrid_ubuntu
+  no_log: true

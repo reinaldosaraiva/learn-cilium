@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180mm" height="162mm" viewBox="0 0 1400 1260" role="img" aria-labelledby="title desc">
+<title id="title">M11 híbrido planejado, ainda não executado</title>
+<desc id="desc">Arquitetura prevista, NOT_RUN. O Terminal A alcança os dois guests QEMU irmãos por SSH com hostkeys verificadas, loopback e SLIRP; esse plano de gestão é separado do tenant. No fluxo tenant, CirrOS usa DHCP Neutron e uma ligação stream Unix até Ubuntu tenant0; a porta entra em OVS br-int com Security Group, segue por qrouter e br-ex/external0, pela TAP no netns do border, FRR, fabric BGP, worker Cilium, CNP e Pod. Neutron NDR anuncia o prefixo tenant ao border FRR e o endereço externo do qrouter é o next-hop. Retorno, tráfego e controles não foram validados em runtime.</desc>
+<defs>
+  <marker id="arrow" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto">
+    <path d="M0,0 L14,7 L0,14 z" fill="#111827"/>
+  </marker>
+  <marker id="management" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto">
+    <path d="M0,0 L14,7 L0,14 z" fill="#1d4ed8"/>
+  </marker>
+</defs>
+<rect width="1400" height="1260" fill="#ffffff"/>
+<text x="45" y="58" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#111827">M11 · composição planejada · NOT_RUN</text>
+<text x="45" y="101" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">Gestão separada do tenant · sem bridge, rota, firewall ou sysctl global no host</text>
+
+<rect x="35" y="135" width="1330" height="1090" rx="22" fill="#fafafa" stroke="#111827" stroke-width="4"/>
+<text x="65" y="181" font-family="Arial, sans-serif" font-size="32" font-weight="700" fill="#111827">VM Ubuntu do aluno · dois guests QEMU irmãos</text>
+
+<rect x="70" y="215" width="350" height="160" rx="16" fill="#eff6ff" stroke="#1d4ed8" stroke-width="4"/>
+<text x="95" y="258" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">Terminal A</text>
+<text x="95" y="302" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">SSH hostkey fixada</text>
+<text x="95" y="342" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">loopback / SLIRP</text>
+
+<rect x="525" y="215" width="350" height="160" rx="16" fill="#ecfdf5" stroke="#047857" stroke-width="4"/>
+<text x="550" y="258" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">Ubuntu guest</text>
+<text x="550" y="302" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">DevStack / Neutron</text>
+<text x="550" y="342" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">tenant0 / external0</text>
+
+<rect x="980" y="215" width="350" height="160" rx="16" fill="#fff7ed" stroke="#9a3412" stroke-width="4"/>
+<text x="1005" y="258" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">CirrOS guest</text>
+<text x="1005" y="302" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">tenant NIC / DHCP</text>
+<text x="1005" y="342" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">sem rota/VLAN manuais</text>
+
+<path d="M420 270 L510 270" stroke="#1d4ed8" stroke-width="4" marker-end="url(#management)"/>
+<path d="M420 320 C600 405 800 405 970 320" fill="none" stroke="#1d4ed8" stroke-width="4" stroke-dasharray="12 9" marker-end="url(#management)"/>
+<text x="70" y="410" font-family="Arial, sans-serif" font-size="28" fill="#1d4ed8">gestão · SSH/SLIRP</text>
+
+<text x="70" y="458" font-family="Arial, sans-serif" font-size="31" font-weight="700" fill="#111827">Caminho tenant previsto · de CirrOS em direção ao Pod</text>
+
+<rect x="60" y="500" width="250" height="200" rx="14" fill="#fff7ed" stroke="#9a3412" stroke-width="4"/>
+<text x="82" y="545" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">CirrOS</text>
+<text x="82" y="585" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">NIC tenant</text>
+<text x="82" y="625" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">DHCP Discover</text>
+<text x="82" y="665" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">lease Neutron</text>
+
+<rect x="345" y="500" width="220" height="200" rx="14" fill="#f3e8ff" stroke="#6b21a8" stroke-width="4"/>
+<text x="367" y="545" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">stream Unix</text>
+<text x="367" y="595" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">guest link</text>
+<text x="367" y="635" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">tenant NICs</text>
+
+<rect x="600" y="500" width="220" height="200" rx="14" fill="#ecfdf5" stroke="#047857" stroke-width="4"/>
+<text x="622" y="545" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">Ubuntu</text>
+<text x="622" y="595" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">tenant0</text>
+<text x="622" y="635" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">Neutron port</text>
+
+<rect x="855" y="500" width="220" height="200" rx="14" fill="#eef2ff" stroke="#1d4ed8" stroke-width="4"/>
+<text x="877" y="545" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">br-int + SG</text>
+<text x="877" y="595" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">OVS port</text>
+<text x="877" y="635" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">Neutron owns</text>
+
+<rect x="1110" y="500" width="220" height="200" rx="14" fill="#fef2f2" stroke="#991b1b" stroke-width="4"/>
+<text x="1132" y="545" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">qrouter</text>
+<text x="1132" y="595" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">tenant gateway</text>
+<text x="1132" y="635" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">provider exit</text>
+
+<path d="M310 620 L335 620" stroke="#111827" stroke-width="4" marker-end="url(#arrow)"/>
+<path d="M565 620 L590 620" stroke="#111827" stroke-width="4" marker-end="url(#arrow)"/>
+<path d="M820 620 L845 620" stroke="#111827" stroke-width="4" marker-end="url(#arrow)"/>
+<path d="M1075 620 L1100 620" stroke="#111827" stroke-width="4" marker-end="url(#arrow)"/>
+
+<path d="M1220 700 L1220 790" stroke="#111827" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="70" y="778" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">External/provider path · volta pela linha inferior</text>
+
+<rect x="1080" y="810" width="220" height="190" rx="14" fill="#fef2f2" stroke="#991b1b" stroke-width="4"/>
+<text x="1102" y="855" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">br-ex</text>
+<text x="1102" y="905" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">external0</text>
+<text x="1102" y="945" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">Ubuntu NIC</text>
+
+<rect x="825" y="810" width="220" height="190" rx="14" fill="#f3e8ff" stroke="#6b21a8" stroke-width="4"/>
+<text x="847" y="855" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">TAP externa</text>
+<text x="847" y="905" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">border netns</text>
+<text x="847" y="945" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">not tenant NIC</text>
+
+<rect x="570" y="810" width="220" height="190" rx="14" fill="#fff7ed" stroke="#9a3412" stroke-width="4"/>
+<text x="592" y="855" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">border FRR</text>
+<text x="592" y="905" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">same netns</text>
+<text x="592" y="945" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">route from NDR</text>
+
+<rect x="315" y="810" width="220" height="190" rx="14" fill="#eef2ff" stroke="#1d4ed8" stroke-width="4"/>
+<text x="337" y="855" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">fabric BGP</text>
+<text x="337" y="905" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">tenant prefix</text>
+<text x="337" y="945" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">toward worker</text>
+
+<rect x="60" y="810" width="220" height="190" rx="14" fill="#ecfdf5" stroke="#047857" stroke-width="4"/>
+<text x="82" y="850" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">Cilium</text>
+<text x="82" y="884" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">worker</text>
+<text x="82" y="925" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">CNP</text>
+<text x="82" y="965" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">tenant Pod</text>
+
+<path d="M1080 905 L1055 905" stroke="#111827" stroke-width="4" marker-end="url(#arrow)"/>
+<path d="M825 905 L800 905" stroke="#111827" stroke-width="4" marker-end="url(#arrow)"/>
+<path d="M570 905 L545 905" stroke="#111827" stroke-width="4" marker-end="url(#arrow)"/>
+<path d="M315 905 L290 905" stroke="#111827" stroke-width="4" marker-end="url(#arrow)"/>
+
+<rect x="70" y="1035" width="1260" height="150" rx="14" fill="#f5f3ff" stroke="#6b21a8" stroke-width="3"/>
+<text x="95" y="1082" font-family="Arial, sans-serif" font-size="29" font-weight="700" fill="#4c1d95">Controle BGP · Neutron NDR anuncia o prefixo tenant ao border FRR.</text>
+<text x="95" y="1125" font-family="Arial, sans-serif" font-size="28" fill="#1f2937">Next-hop: endereço externo do qrouter. Retorno e tráfego ainda sem prova.</text>
+<text x="95" y="1167" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#7f1d1d">Planejado · NOT_RUN · sem VLAN ou rota manual nos guests.</text>
+</svg>

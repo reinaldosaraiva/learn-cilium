@@ -1,0 +1,19 @@
+---
+- name: Set the synthetic service catalog under test
+  ansible.builtin.set_fact:
+    student_hybrid_api_identity_catalog: "{{ item.identity_catalog }}"
+    student_hybrid_api_network_catalog: "{{ item.network_catalog }}"
+    student_hybrid_api_catalog_rejected: false
+
+- name: Require the production catalog validator to reject this unsafe endpoint
+  block:
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-validate-catalog.yml
+  rescue:
+    - ansible.builtin.set_fact:
+        student_hybrid_api_catalog_rejected: true
+
+- name: Confirm the invalid catalog was rejected
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_catalog_rejected | bool
+    fail_msg: "O validador aceitou catálogo inválido: {{ item.name }}"

@@ -1,0 +1,107 @@
+---
+- name: Require empty M11 Kubernetes intents before create-only request
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.schema | int == 4
+      - student_state.hybrid.m11.schema | int == 2
+      - student_state.hybrid.m11.verification.gates.k8s_pending | default({}) == {}
+      - student_state.hybrid.m11.verification.gates.k8s_delete_pending | default({}) == {}
+      - student_hybrid_m11_k8s_key not in (student_state.hybrid.m11.verification.gates.k8s_resources | default({}))
+    fail_msg: "Kubernetes create-only exige que nenhuma criação ou remoção anterior esteja incerta."
+  no_log: true
+
+- name: Checkpoint the run-owned Kubernetes object intent before create-only request
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'status': 'partial', 'phase': 'hybrid-k8s-object-pending',
+        'hybrid': {'phase': 'partial', 'm11': {'phase': 'cilium-configuring', 'verification': {
+          'phase': 'cilium-configuring', 'gates': {'k8s_pending': {
+            'key': student_hybrid_m11_k8s_key,
+            'kind': student_hybrid_m11_k8s_kind,
+            'name': student_hybrid_m11_k8s_name,
+            'namespace': student_hybrid_m11_k8s_namespace | default('')
+          }}
+        }}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Persist object intent before Kubernetes create
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Create the run-owned Kubernetes object without reconciling existing names
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - create
+      - -f
+      - "{{ student_hybrid_m11_k8s_manifest }}"
+      - -o
+      - json
+  become: true
+  register: student_hybrid_m11_k8s_created
+  changed_when: true
+  no_log: true
+
+- name: Validate the API-returned UID and exact run ownership labels
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_k8s_created.rc == 0
+      - student_hybrid_m11_k8s_created.stdout | from_json is mapping
+      - (student_hybrid_m11_k8s_created.stdout | from_json).kind == student_hybrid_m11_k8s_kind
+      - (student_hybrid_m11_k8s_created.stdout | from_json).metadata.name == student_hybrid_m11_k8s_name
+      - (student_hybrid_m11_k8s_created.stdout | from_json).metadata.uid is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - (student_hybrid_m11_k8s_created.stdout | from_json).metadata.labels['p010-student-owner'] == student_state.owner_token
+      - (student_hybrid_m11_k8s_created.stdout | from_json).metadata.labels['p010-student-run'] == student_state.run_id
+      - (student_hybrid_m11_k8s_created.stdout | from_json).metadata.namespace | default('') == student_hybrid_m11_k8s_namespace | default('')
+    fail_msg: "Kubernetes não retornou a identidade e os marcadores reservados desta execução."
+  no_log: true
+
+- name: Save the returned Kubernetes UID and updated object map in memory
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'phase': 'hybrid-k8s-object-created', 'hybrid': {'m11': {
+        'phase': 'cilium-configuring', 'verification': {'phase': 'cilium-configuring', 'gates': {
+          'k8s_resources': (student_state.hybrid.m11.verification.gates.k8s_resources | default({})) | combine({
+            student_hybrid_m11_k8s_key: {
+              'api_version': (student_hybrid_m11_k8s_created.stdout | from_json).apiVersion,
+              'kind': student_hybrid_m11_k8s_kind,
+              'name': student_hybrid_m11_k8s_name,
+              'namespace': student_hybrid_m11_k8s_namespace | default(''),
+              'uid': (student_hybrid_m11_k8s_created.stdout | from_json).metadata.uid
+            }
+          }), 'k8s_pending': {}}
+        }}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Clear only the create intent after replacing the exact nested pending map
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': student_state.hybrid | combine({
+        'm11': student_state.hybrid.m11 | combine({
+          'verification': student_state.hybrid.m11.verification | combine({
+            'gates': student_state.hybrid.m11.verification.gates | combine({'k8s_pending': {}}, recursive=false)
+          }, recursive=false)
+        }, recursive=false)
+      }, recursive=false)}, recursive=false) }}
+  no_log: true
+
+- name: Persist the created object's Kubernetes UID before the next resource effect
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Keep the in-memory object inventory in step with its durable checkpoint
+  ansible.builtin.set_fact:
+    student_state: "{{ lookup('file', student_state_file) | from_json }}"
+  no_log: true

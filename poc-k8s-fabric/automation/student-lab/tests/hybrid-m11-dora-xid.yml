@@ -1,0 +1,46 @@
+---
+- name: Exercise DHCP marker validation with tcpdump-style XIDs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    student_state:
+      hybrid:
+        guests:
+          cirros:
+            tenant_mac: '52:54:00:10:12:02'
+        m11:
+          api:
+            resources:
+              cirros_port:
+                primary:
+                  fixed_ips:
+                    - ip_address: 198.18.49.4
+          network:
+            tenant_gateway: 198.18.49.1
+          verification:
+            gates:
+              dhcp_server:
+                ip_address: 198.18.49.1
+    student_hybrid_m11_dora_fields:
+      XID: "{{ lookup('env', 'P010_HYBRID_DORA_XID') }}"
+      EXCHANGE: DISCOVER,OFFER,REQUEST,ACK
+      CLIENT_MAC: '52:54:00:10:12:02'
+      SERVER_IP: 198.18.49.1
+      SERVER_MAC: '02:00:00:00:00:01'
+      ADDRESS: 198.18.49.4
+      GATEWAY: 198.18.49.1
+      CAPTURE_RC: '0'
+  tasks:
+    - name: Validate markers and record an expected XID rejection
+      block:
+        - ansible.builtin.include_tasks: ../tasks/hybrid-m11-validate-dora.yml
+      rescue:
+        - ansible.builtin.set_fact:
+            student_hybrid_m11_dora_rejected: true
+
+    - name: Require eight hexadecimal digits and reject malformed values
+      ansible.builtin.assert:
+        that:
+          - (lookup('env', 'P010_HYBRID_DORA_EXPECT') == 'reject') == (student_hybrid_m11_dora_rejected | default(false) | bool)
+        fail_msg: "O XID deve aceitar oito dígitos hexadecimais e recusar caractere ou tamanho inválido."

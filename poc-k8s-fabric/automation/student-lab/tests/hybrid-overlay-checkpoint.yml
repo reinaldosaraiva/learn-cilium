@@ -1,0 +1,280 @@
+---
+- name: Exercise per-guest overlay checkpoints and qemu-img geometry
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - ../vars.yml
+  vars:
+    student_hybrid_test_dir: "{{ lookup('env', 'P010_HYBRID_TEST_DIR') }}"
+    student_run_dir: "{{ student_hybrid_test_dir }}/run"
+    student_state_file: "{{ student_hybrid_test_dir }}/state.json"
+    student_hybrid_disk_test_case: "{{ lookup('env', 'P010_HYBRID_QEMU_IMG_CASE') }}"
+    student_hybrid_sentinel_path: "{{ student_run_dir }}/images/unrelated.qcow2"
+    student_uid: "{{ lookup('env', 'P010_HYBRID_TEST_UID') | int }}"
+    student_hybrid_qemu_img_bin: "{{ lookup('env', 'P010_HYBRID_QEMU_IMG_BIN') }}"
+    student_state:
+      schema: 3
+      owner_uid: "{{ student_uid }}"
+      owner_token: 123e4567-e89b-42d3-a456-426614174000
+      profile: hibrido
+      run_id: 20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      status: partial
+      phase: hybrid-preparing
+      hybrid:
+        phase: assets-ready
+        sources:
+          ubuntu: {path: "{{ student_run_dir }}/images/ubuntu.img", sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, device: 0, inode: 0}
+          cirros: {path: "{{ student_run_dir }}/images/cirros.img", sha256: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, device: 0, inode: 0}
+        guests:
+          ubuntu: {overlay_path: "{{ student_run_dir }}/images/ubuntu-overlay.qcow2", overlay_device: 0, overlay_inode: 0}
+          cirros: {overlay_path: "{{ student_run_dir }}/images/cirros-overlay.qcow2", overlay_device: 0, overlay_inode: 0}
+  tasks:
+    - name: Create isolated source and output directories
+      ansible.builtin.file:
+        path: "{{ student_run_dir }}/images"
+        state: directory
+        owner: "{{ student_uid }}"
+        mode: '0700'
+
+    - name: Create fake base-image inputs
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: touch
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      loop:
+        - "{{ student_state.hybrid.sources.ubuntu.path }}"
+        - "{{ student_state.hybrid.sources.cirros.path }}"
+
+    - name: Create an unrelated file that exact cleanup must preserve
+      ansible.builtin.file:
+        path: "{{ student_hybrid_sentinel_path }}"
+        state: touch
+        owner: "{{ student_uid }}"
+        mode: '0600'
+
+    - name: Run both production overlay tasks in guest order
+      block:
+        - ansible.builtin.include_tasks: ../tasks/hybrid-create-overlay.yml
+          loop: [ubuntu, cirros]
+          loop_control:
+            loop_var: student_hybrid_overlay_guest_name
+
+      rescue:
+        - name: Read the durable state saved before geometry inspection failed
+          ansible.builtin.slurp:
+            src: "{{ student_state_file }}"
+          register: student_hybrid_overlay_checkpoint
+          no_log: true
+
+        - name: Decode the durable state only inside the private harness
+          ansible.builtin.set_fact:
+            student_hybrid_disk_state: "{{ student_hybrid_overlay_checkpoint.content | b64decode | from_json }}"
+          no_log: true
+
+        - name: Require the expected failure to preserve the first owned checkpoint
+          ansible.builtin.assert:
+            that:
+              - student_hybrid_disk_test_case != 'success'
+              - student_hybrid_disk_state.status == 'partial'
+              - student_hybrid_disk_state.hybrid.guests.ubuntu.overlay_inode | int > 0
+              - student_hybrid_disk_state.hybrid.guests.cirros.overlay_device | int == 0
+              - student_hybrid_disk_state.hybrid.guests.cirros.overlay_inode | int == 0
+              - >-
+                (student_hybrid_disk_test_case == 'second-create' and ansible_failed_result.rc | default(-1) | int == 77)
+                or
+                (student_hybrid_disk_test_case in ['info-rc', 'info-json', 'info-size', 'info-backing'] and
+                ansible_failed_task.name in ['Inspect the created overlay after its durable ownership checkpoint', 'Require qcow2 and the exact absolute backing image for this overlay'])
+            fail_msg: "A falha não preservou a identidade parcial esperada ou ocorreu depois de iniciar o próximo guest."
+          no_log: true
+
+        - name: Remove only the first overlay using its saved device and inode
+          ansible.builtin.include_tasks: ../tasks/hybrid-remove-path.yml
+          vars:
+            student_hybrid_remove_path: "{{ student_hybrid_disk_state.hybrid.guests.ubuntu.overlay_path }}"
+            student_hybrid_remove_device: "{{ student_hybrid_disk_state.hybrid.guests.ubuntu.overlay_device }}"
+            student_hybrid_remove_inode: "{{ student_hybrid_disk_state.hybrid.guests.ubuntu.overlay_inode }}"
+            student_hybrid_remove_kind: file
+
+        - name: Inspect whether the next guest was attempted after the failure
+          ansible.builtin.stat:
+            path: "{{ lookup('env', 'P010_HYBRID_QEMU_IMG_FAIL_MARKER') }}"
+            follow: false
+          register: student_hybrid_next_guest_attempt
+          no_log: true
+
+        - name: Require no next guest after an Ubuntu geometry failure
+          ansible.builtin.assert:
+            that:
+              - >-
+                (student_hybrid_disk_test_case == 'second-create' and student_hybrid_next_guest_attempt.stat.exists | default(false))
+                or
+                (student_hybrid_disk_test_case != 'second-create' and not (student_hybrid_next_guest_attempt.stat.exists | default(false)))
+          no_log: true
+
+    - name: Read the durable state after both overlays passed geometry inspection
+      ansible.builtin.slurp:
+        src: "{{ student_state_file }}"
+      register: student_hybrid_overlay_success_state
+      when: student_hybrid_disk_test_case == 'success'
+      no_log: true
+
+    - name: Decode the successful durable state only inside the private harness
+      ansible.builtin.set_fact:
+        student_hybrid_disk_state: "{{ student_hybrid_overlay_success_state.content | b64decode | from_json }}"
+      when: student_hybrid_disk_test_case == 'success'
+      no_log: true
+
+    - name: Require durable identities for both verified overlays
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_disk_state.hybrid.guests.ubuntu.overlay_inode | int > 0
+          - student_hybrid_disk_state.hybrid.guests.cirros.overlay_inode | int > 0
+      when: student_hybrid_disk_test_case == 'success'
+      no_log: true
+
+    - name: Remove each verified overlay by its saved identity after the success case
+      ansible.builtin.include_tasks: ../tasks/hybrid-remove-path.yml
+      loop: [ubuntu, cirros]
+      loop_control:
+        loop_var: student_hybrid_overlay_cleanup_guest
+      vars:
+        student_hybrid_remove_path: "{{ student_hybrid_disk_state.hybrid.guests[student_hybrid_overlay_cleanup_guest].overlay_path }}"
+        student_hybrid_remove_device: "{{ student_hybrid_disk_state.hybrid.guests[student_hybrid_overlay_cleanup_guest].overlay_device }}"
+        student_hybrid_remove_inode: "{{ student_hybrid_disk_state.hybrid.guests[student_hybrid_overlay_cleanup_guest].overlay_inode }}"
+        student_hybrid_remove_kind: file
+      when: student_hybrid_disk_test_case == 'success'
+
+    - name: Inspect both overlay paths and the unrelated sentinel after cleanup
+      ansible.builtin.stat:
+        path: "{{ item }}"
+        follow: false
+      register: student_hybrid_overlay_after_cleanup
+      loop:
+        - "{{ student_state.hybrid.guests.ubuntu.overlay_path }}"
+        - "{{ student_state.hybrid.guests.cirros.overlay_path }}"
+        - "{{ student_hybrid_sentinel_path }}"
+      no_log: true
+
+    - name: Require exact overlay cleanup and preservation of the unrelated file
+      ansible.builtin.assert:
+        that:
+          - not (student_hybrid_overlay_after_cleanup.results[0].stat.exists | default(false))
+          - not (student_hybrid_overlay_after_cleanup.results[1].stat.exists | default(false))
+          - student_hybrid_overlay_after_cleanup.results[2].stat.exists | default(false)
+      no_log: true
+
+- name: Exercise the rendered DevStack root-space guard with local fakes
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars.yml
+  vars:
+    student_hybrid_test_dir: "{{ lookup('env', 'P010_HYBRID_TEST_DIR') }}"
+    student_hybrid_test_checkout: "{{ lookup('env', 'P010_HYBRID_TEST_CHECKOUT') }}"
+    student_state:
+      hybrid:
+        guests:
+          ubuntu:
+            external_mac: '02:00:00:00:00:01'
+        m11:
+          network:
+            provider_interface: external0
+            provider_speaker_ip: 198.18.48.2
+          devstack:
+            checkout_path: "{{ student_hybrid_test_checkout }}"
+            revision: 1111111111111111111111111111111111111111
+    student_profile:
+      hybrid_m11:
+        neutron_revision: 2222222222222222222222222222222222222222
+        keystone_revision: 3333333333333333333333333333333333333333
+        requirements_revision: 4444444444444444444444444444444444444444
+        neutron_dynamic_routing_revision: 5555555555555555555555555555555555555555
+    student_hybrid_m11_local_conf_slurp:
+      content: Zml4dHVyZQ==
+    student_hybrid_disk_guard_cases:
+      - {name: below, df_case: below, expected_rc: 75, expected_marker: ''}
+      - {name: equal, df_case: equal, expected_rc: 99, expected_marker: 'P010_ROOT_FREE_BYTES=32212254720'}
+      - {name: above, df_case: above, expected_rc: 99, expected_marker: 'P010_ROOT_FREE_BYTES=32212254721'}
+      - {name: df-error, df_case: error, expected_rc: 73, expected_marker: ''}
+      - {name: invalid, df_case: invalid, expected_rc: 74, expected_marker: ''}
+      - {name: empty, df_case: empty, expected_rc: 74, expected_marker: ''}
+      - {name: oversized, df_case: oversized, expected_rc: 74, expected_marker: ''}
+  tasks:
+    - name: Include the production task file without applying the test tag to siblings
+      ansible.builtin.include_tasks: "{{ lookup('env', 'P010_HYBRID_DEVSTACK_TEST_TASK_FILE') }}"
+      tags:
+        - never
+        - p010_hybrid_disk_guard
+
+    - block:
+        - name: Run the production script prefix against local command fakes
+          ansible.builtin.command:
+            argv:
+              - /bin/bash
+              - -se
+            stdin: "{{ student_hybrid_m11_devstack_script }}"
+          environment:
+            PATH: "{{ lookup('env', 'P010_HYBRID_DISK_GUARD_BIN') }}:/usr/sbin:/usr/bin:/sbin:/bin"
+            P010_HYBRID_DISK_DF_CASE: "{{ item.df_case }}"
+            P010_HYBRID_DISK_APT_MARKER: "{{ student_hybrid_test_dir }}/{{ item.name }}-apt"
+            P010_HYBRID_DISK_GIT_MARKER: "{{ student_hybrid_test_dir }}/{{ item.name }}-git"
+            P010_HYBRID_DISK_STACK_MARKER: "{{ student_hybrid_test_dir }}/{{ item.name }}-stack"
+          loop: "{{ student_hybrid_disk_guard_cases }}"
+          register: student_hybrid_disk_guard_runs
+          changed_when: false
+          failed_when: false
+
+        - name: Require the bounded marker and expected guard result
+          ansible.builtin.assert:
+            that:
+              - item.rc | int == item.item.expected_rc
+              - >-
+                (item.item.expected_marker == '' and item.stdout_lines | default([]) | length == 0)
+                or item.stdout_lines == [item.item.expected_marker]
+          loop: "{{ student_hybrid_disk_guard_runs.results }}"
+          no_log: true
+
+        - name: Inspect apt markers for each space case
+          ansible.builtin.stat:
+            path: "{{ student_hybrid_test_dir }}/{{ item.name }}-apt"
+            follow: false
+          loop: "{{ student_hybrid_disk_guard_cases }}"
+          register: student_hybrid_disk_guard_apt_markers
+
+        - name: Require apt only after the exact threshold is accepted
+          ansible.builtin.assert:
+            that:
+              - item.stat.exists == (item.item.expected_rc == 99)
+          loop: "{{ student_hybrid_disk_guard_apt_markers.results }}"
+
+        - name: Inspect Git markers for each space case
+          ansible.builtin.stat:
+            path: "{{ student_hybrid_test_dir }}/{{ item.name }}-git"
+            follow: false
+          loop: "{{ student_hybrid_disk_guard_cases }}"
+          register: student_hybrid_disk_guard_git_markers
+
+        - name: Require no Git work before the root-space test stops
+          ansible.builtin.assert:
+            that:
+              - not (item.stat.exists | default(false))
+          loop: "{{ student_hybrid_disk_guard_git_markers.results }}"
+
+        - name: Inspect stack markers for each space case
+          ansible.builtin.stat:
+            path: "{{ student_hybrid_test_dir }}/{{ item.name }}-stack"
+            follow: false
+          loop: "{{ student_hybrid_disk_guard_cases }}"
+          register: student_hybrid_disk_guard_stack_markers
+
+        - name: Require no stack.sh before the root-space test stops
+          ansible.builtin.assert:
+            that:
+              - not (item.stat.exists | default(false))
+          loop: "{{ student_hybrid_disk_guard_stack_markers.results }}"
+      tags:
+        - never
+        - p010_hybrid_disk_guard

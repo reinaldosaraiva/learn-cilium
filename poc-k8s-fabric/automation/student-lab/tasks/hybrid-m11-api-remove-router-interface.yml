@@ -1,0 +1,93 @@
+---
+- name: Require the saved router interface port and no prior API intent
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.api.pending | length == 0
+      - student_state.hybrid.m11.api.resources.router_interface.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.links.router_interface | default(false) | bool
+    fail_msg: "A interface do qrouter não tem identidade suficiente para remoção segura."
+  no_log: true
+
+- name: Persist the router interface action before detaching the subnet
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      status: partial
+      phase: hybrid-api-router-interface-pending
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending:
+              method: PUT
+              resource: router_interface:primary
+              path: "/routers/{{ student_state.hybrid.m11.api.resources.router.primary.id }}/remove_router_interface"
+              port_path: "/ports/{{ student_state.hybrid.m11.api.resources.router_interface.primary.id }}"
+              envelope: port
+              body:
+                subnet_id: "{{ student_state.hybrid.m11.api.resources.tenant_subnet.primary.id }}"
+              run_id: "{{ student_state.run_id }}"
+  no_log: true
+
+- name: Detach only the saved tenant subnet from its saved router ID
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}/routers/{{ student_state.hybrid.m11.api.resources.router.primary.id }}/remove_router_interface"
+    method: PUT
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+      Content-Type: application/json
+    body_format: json
+    body:
+      subnet_id: "{{ student_state.hybrid.m11.api.resources.tenant_subnet.primary.id }}"
+    return_content: true
+    status_code: [200]
+    timeout: 20
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_router_interface_remove
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+
+- name: Confirm Neutron removed the one saved router interface port
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}/ports/{{ student_state.hybrid.m11.api.resources.router_interface.primary.id }}"
+    method: GET
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+    return_content: true
+    status_code: [200, 404]
+    timeout: 15
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_router_interface_confirm
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+
+- name: Require the old qrouter interface port to be absent
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_router_interface_confirm.status == 404
+      - student_hybrid_api_router_interface_remove.json.port_id | default(student_state.hybrid.m11.api.resources.router_interface.primary.id) == student_state.hybrid.m11.api.resources.router_interface.primary.id
+    fail_msg: "A remoção da interface não foi confirmada; IDs e intenção continuam persistidos."
+  no_log: true
+
+- name: Clear the router interface identity only after the exact port is absent
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-router-interface-removed
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending: {}
+            links:
+              router_interface: false
+            resources:
+              router_interface:
+                primary: "{{ student_state.hybrid.m11.api.resources.router_interface.primary | combine({'id': ''}) }}"
+  no_log: true

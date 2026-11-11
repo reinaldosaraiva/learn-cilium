@@ -1,0 +1,106 @@
+---
+- name: Require the scheduled relationship's original agent and speaker IDs
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.api.pending | length == 0
+      - student_state.hybrid.m11.api.links.drinstance.agent_id == student_state.hybrid.m11.api.agent_ids.bgp
+      - student_state.hybrid.m11.api.links.drinstance.speaker_id == student_state.hybrid.m11.api.resources.bgp_speaker.primary.id
+      - student_state.hybrid.m11.api.resources.drinstance.primary.id == ''
+    fail_msg: "A remoção NDR exige a relação registrada pelos IDs originais, sem UUID de instância."
+  no_log: true
+
+- name: Read only the recorded BGP agent's scheduler collection before cleanup
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "/agents/{{ student_state.hybrid.m11.api.agent_ids.bgp }}/bgp-drinstances"
+
+- name: Validate the current scheduler list against the recorded speaker identity
+  ansible.builtin.include_tasks: hybrid-m11-api-validate-scheduled.yml
+  vars:
+    student_hybrid_api_expected_speaker_id: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}"
+
+- name: Persist the exact two-ID scheduler deletion intent
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      status: partial
+      phase: hybrid-api-scheduler-delete-pending
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending:
+              method: DELETE
+              resource: relation:drinstance
+              path: "/agents/{{ student_state.hybrid.m11.api.agent_ids.bgp }}/bgp-drinstances/{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}"
+              collection_path: "/agents/{{ student_state.hybrid.m11.api.agent_ids.bgp }}/bgp-drinstances"
+              run_id: "{{ student_state.run_id }}"
+              agent_id: "{{ student_state.hybrid.m11.api.agent_ids.bgp }}"
+              speaker_id: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}"
+  when: student_hybrid_api_scheduled_speaker_ids | length == 1
+  no_log: true
+
+- name: Delete the scheduler member by the speaker ID from the saved relationship
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}/agents/{{ student_state.hybrid.m11.api.agent_ids.bgp }}/bgp-drinstances/{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}"
+    method: DELETE
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+    return_content: false
+    status_code: [204]
+    timeout: 20
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_unschedule_result
+  delegate_to: student_hybrid_ubuntu
+  when: student_hybrid_api_scheduled_speaker_ids | length == 1
+  no_log: true
+
+- name: Confirm the speaker disappeared from the original agent collection
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "/agents/{{ student_state.hybrid.m11.api.agent_ids.bgp }}/bgp-drinstances"
+  when: student_hybrid_api_scheduled_speaker_ids | length == 1
+
+- name: Validate the post-delete scheduler collection
+  ansible.builtin.include_tasks: hybrid-m11-api-validate-scheduled.yml
+  vars:
+    student_hybrid_api_expected_speaker_id: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}"
+  when: student_hybrid_api_scheduled_speaker_ids | length == 1
+
+- name: Require the exact relation to be absent before deleting its speaker
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_scheduled_speaker_ids | length == 0
+    fail_msg: "Neutron não confirmou a remoção do vínculo agent/speaker; estado parcial permanece."
+  when: student_hybrid_api_scheduled_speaker_ids | length == 1
+  no_log: true
+
+- name: Clear the saved scheduler relationship only after exact absence
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-scheduler-removed
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending: {}
+            links:
+              drinstance:
+                agent_id: ''
+                speaker_id: ''
+                method: ''
+                status: 0
+                envelope: bgp_speakers
+            resources:
+              drinstance:
+                primary:
+                  id: ''
+                  name: ''
+                  agent_id: ''
+                  speaker_id: ''
+  no_log: true

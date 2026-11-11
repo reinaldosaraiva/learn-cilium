@@ -1,0 +1,179 @@
+---
+- name: Build the bounded DHCP exchange reader for the saved capture
+  ansible.builtin.set_fact:
+    student_hybrid_m11_dora_script: |-
+      set -eu
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      capture={{ student_state.hybrid.m11.verification.gates.dhcp_capture.path | quote }}
+      result={{ student_state.hybrid.m11.verification.gates.dhcp_capture.result_path | quote }}
+      expected_mac={{ student_state.hybrid.m11.verification.gates.dhcp_capture.client_mac | quote }}
+      expected_ip={{ student_state.hybrid.m11.verification.gates.dhcp_capture.address | quote }}
+      expected_gateway={{ student_state.hybrid.m11.verification.gates.dhcp_capture.gateway | quote }}
+      expected_server={{ student_state.hybrid.m11.verification.gates.dhcp_capture.server_ip | quote }}
+      expected_server_mac={{ student_state.hybrid.m11.verification.gates.dhcp_capture.server_mac | quote }}
+      expected_capture={{ ((student_state.hybrid.m11.verification.gates.dhcp_capture.device | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.inode | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.owner_uid | string) ~ '|600') | quote }}
+      expected_result={{ ((student_state.hybrid.m11.verification.gates.dhcp_capture.result_device | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.result_inode | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.result_owner_uid | string) ~ '|600') | quote }}
+      expected_pid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.pid | string | quote }}
+      expected_start={{ student_state.hybrid.m11.verification.gates.dhcp_capture.starttime | string | quote }}
+      expected_uid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.process_uid | string | quote }}
+      expected_netns={{ student_state.hybrid.m11.verification.gates.dhcp_capture.netns | quote }}
+      expected_ifindex={{ student_state.hybrid.m11.verification.gates.dhcp_capture.ifindex | string | quote }}
+      expected_tcpdump_pid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_pid | string | quote }}
+      expected_tcpdump_start={{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_starttime | string | quote }}
+      expected_tcpdump_uid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_uid | string | quote }}
+      expected_tcpdump_netns={{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_netns | quote }}
+      expected_started={{ student_state.hybrid.m11.verification.gates.dhcp_capture.started_utc | quote }}
+      expected_completed={{ student_state.hybrid.m11.verification.gates.dhcp_capture.completed_utc | quote }}
+      expected_capture_rc={{ student_state.hybrid.m11.verification.gates.dhcp_capture.capture_rc | string | quote }}
+      expected_captured_count={{ student_state.hybrid.m11.verification.gates.dhcp_capture.captured_count | string | quote }}
+      [ -f "$capture" ] && [ ! -L "$capture" ]
+      [ -f "$result" ] && [ ! -L "$result" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$capture")" = "$expected_capture" ]
+      [ "$(stat -c '%d|%i|%u|%a' "$result")" = "$expected_result" ]
+      grep -Fxq 'P010_DHCP_READY=1' "$result"
+      capture_rc="$(sed -n 's/^P010_DHCP_EXIT_RC=//p' "$result")"
+      case "$capture_rc" in
+        0) ! grep -q '^P010_DHCP_STOP_REQUESTED_UTC=' "$result" ;;
+        130) grep -Eq '^P010_DHCP_STOP_REQUESTED_UTC=20[0-9]{2}-[0-9]{2}-[0-9]{2}T' "$result" ;;
+        *) exit 23 ;;
+      esac
+      [ "$capture_rc" = "$expected_capture_rc" ]
+      started_utc="$(sed -n 's/^P010_DHCP_STARTED_UTC=//p' "$result")"
+      completed_utc="$(sed -n 's/^P010_DHCP_COMPLETED_UTC=//p' "$result")"
+      [ "$started_utc" = "$expected_started" ]
+      [ "$completed_utc" = "$expected_completed" ]
+      [ "$(sed -n 's/^P010_DHCP_PID=//p' "$result")" = "$expected_pid" ]
+      [ "$(sed -n 's/^P010_DHCP_STARTTIME=//p' "$result")" = "$expected_start" ]
+      [ "$(sed -n 's/^P010_DHCP_UID=//p' "$result")" = "$expected_uid" ]
+      [ "$(sed -n 's/^P010_DHCP_NETNS=//p' "$result")" = "$expected_netns" ]
+      [ "$(sed -n 's/^P010_DHCP_IFINDEX=//p' "$result")" = "$expected_ifindex" ]
+      [ "$(sed -n 's/^P010_DHCP_TCPDUMP_PID=//p' "$result")" = "$expected_tcpdump_pid" ]
+      [ "$(sed -n 's/^P010_DHCP_TCPDUMP_STARTTIME=//p' "$result")" = "$expected_tcpdump_start" ]
+      [ "$(sed -n 's/^P010_DHCP_TCPDUMP_UID=//p' "$result")" = "$expected_tcpdump_uid" ]
+      [ "$(sed -n 's/^P010_DHCP_TCPDUMP_NETNS=//p' "$result")" = "$expected_tcpdump_netns" ]
+      grep -Eq '^P010_DHCP_STARTED_UTC=20[0-9]{2}-[0-9]{2}-[0-9]{2}T' "$result"
+      grep -Eq '^P010_DHCP_COMPLETED_UTC=20[0-9]{2}-[0-9]{2}-[0-9]{2}T' "$result"
+      captured_count="$(sed -n 's/^\([0-9][0-9]*\) packets captured$/\1/p' "$capture")"
+      [ -n "$captured_count" ] && [ "$captured_count" -gt 0 ] && [ "$captured_count" -le 32 ]
+      [ "$captured_count" = "$expected_captured_count" ]
+      received_count="$(sed -n 's/^\([0-9][0-9]*\) packets received by filter$/\1/p' "$capture")"
+      dropped_count="$(sed -n 's/^\([0-9][0-9]*\) packets dropped by kernel$/\1/p' "$capture")"
+      [ -n "$received_count" ] && [ -n "$dropped_count" ]
+      [ "$dropped_count" = 0 ]
+      packet_count="$(grep -c '^[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\.[0-9][0-9]* .*ethertype IPv4' "$capture")"
+      [ "$packet_count" -eq "$captured_count" ]
+      [ "$captured_count" -eq {{ student_state.hybrid.m11.verification.gates.dhcp_capture.captured_count | int }} ]
+      parsed="$(awk -v expected_mac="$expected_mac" -v expected_ip="$expected_ip" -v expected_gateway="$expected_gateway" -v expected_server="$expected_server" -v expected_server_mac="$expected_server_mac" '
+        function after(label, text, value) {
+          if (index(text, label) == 0) return ""
+          value = substr(text, index(text, label) + length(label))
+          sub(/^[[:space:]]*/, "", value)
+          sub(/[[:space:],].*$/, "", value)
+          return value
+        }
+        function consume(    xid, client, message, source, server, address, gateway, requested, pair, lines, n, i, value) {
+          if (!active) return
+          count++
+          xid = ""
+          client = ""
+          message = ""
+          source = ""
+          server = ""
+          address = ""
+          gateway = ""
+          requested = ""
+          if (match(block, /xid 0x[[:xdigit:]]+/)) xid = substr(block, RSTART + 4, RLENGTH - 4)
+          if (match(block, /[[:xdigit:]][[:xdigit:]:]+ > [[:xdigit:]][[:xdigit:]:]+/)) {
+            pair = substr(block, RSTART, RLENGTH)
+            sub(/[[:space:]]*>.*/, "", pair)
+            source = tolower(pair)
+          }
+          n = split(block, lines, "\n")
+          for (i = 1; i <= n; i++) {
+            if (index(lines[i], "Client-Ethernet-Address ")) {
+              value = lines[i]
+              sub(/^.*Client-Ethernet-Address[[:space:]]+/, "", value)
+              sub(/[[:space:],].*$/, "", value)
+              client = tolower(value)
+            }
+            if (index(lines[i], "DHCP-Message (53), length 1:")) {
+              value = lines[i]
+              sub(/^.*DHCP-Message \(53\), length 1:[[:space:]]*/, "", value)
+              sub(/[[:space:],].*$/, "", value)
+              message = toupper(value)
+            }
+            value = after("Server-ID (54), length 4:", lines[i])
+            if (value != "") server = value
+            value = after("Your-IP ", lines[i])
+            if (value != "") address = value
+            value = after("Default-Gateway (3), length 4:", lines[i])
+            if (value != "") gateway = value
+            value = after("Requested-IP (50), length 4:", lines[i])
+            if (value != "") requested = value
+          }
+          xid_at[count] = xid
+          client_at[count] = client
+          message_at[count] = message
+          source_at[count] = source
+          server_at[count] = server
+          address_at[count] = address
+          gateway_at[count] = gateway
+          requested_at[count] = requested
+          active = 0
+        }
+        /^[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\.[0-9][0-9]* .*ethertype IPv4/ {
+          consume()
+          block = $0
+          active = 1
+          next
+        }
+        active { block = block "\n" $0 }
+        END {
+          consume()
+          if (count < 4) exit 21
+          for (i = 1; i <= count; i++) {
+            if (message_at[i] != "DISCOVER" || client_at[i] != tolower(expected_mac) || source_at[i] != tolower(expected_mac) || xid_at[i] !~ /^0x[[:xdigit:]]+$/ || length(xid_at[i]) != 10) continue
+            for (j = i + 1; j <= count; j++) {
+              if (message_at[j] != "OFFER" || client_at[j] != tolower(expected_mac) || xid_at[j] != xid_at[i]) continue
+              if (server_at[j] != expected_server || source_at[j] != tolower(expected_server_mac) || address_at[j] != expected_ip || gateway_at[j] != expected_gateway) continue
+              for (k = j + 1; k <= count; k++) {
+                if (message_at[k] != "REQUEST" || client_at[k] != tolower(expected_mac) || source_at[k] != tolower(expected_mac) || xid_at[k] != xid_at[i]) continue
+                if (server_at[k] != expected_server || requested_at[k] != expected_ip) continue
+                for (l = k + 1; l <= count; l++) {
+                  if (message_at[l] != "ACK" || client_at[l] != tolower(expected_mac) || xid_at[l] != xid_at[i]) continue
+                  if (server_at[l] != expected_server || source_at[l] != tolower(expected_server_mac) || address_at[l] != expected_ip || gateway_at[l] != expected_gateway) continue
+                  offer_index = j
+                  request_index = k
+                  ack_index = l
+                  found = 1
+                  break
+                }
+                if (found) break
+              }
+              if (found) break
+            }
+            if (found) break
+          }
+          if (!found) exit 22
+          printf "XID=%s\nCLIENT_MAC=%s\nSERVER_IP=%s\nSERVER_MAC=%s\nADDRESS=%s\nGATEWAY=%s\nEXCHANGE=DISCOVER,OFFER,REQUEST,ACK\nPACKET_COUNT=%d\nEVENT_INDEXES=%d,%d,%d,%d\n", xid_at[i], client_at[i], server_at[ack_index], source_at[offer_index], address_at[ack_index], gateway_at[ack_index], count, i, offer_index, request_index, ack_index
+        }
+      ' "$capture")"
+      capture_sha256="$(sha256sum "$capture" | awk '{print $1}')"
+      capture_file="$(stat -c '%d|%i|%u|%a' "$capture")"
+      result_file="$(stat -c '%d|%i|%u|%a' "$result")"
+      raw_b64="$(base64 -w0 "$capture")"
+      printf '%s\n' "$parsed" | while IFS='=' read -r key value; do
+        [ -n "$key" ] && printf 'P010_DORA_%s=%s\n' "$key" "$value" >&3
+      done
+      printf 'P010_DORA_CAPTURE_RC=%s\n' "$capture_rc" >&3
+      printf 'P010_DORA_CAPTURED_COUNT=%s\n' "$captured_count" >&3
+      printf 'P010_DORA_RECEIVED_COUNT=%s\n' "$received_count" >&3
+      printf 'P010_DORA_DROPPED_COUNT=%s\n' "$dropped_count" >&3
+      printf 'P010_DORA_STARTED_UTC=%s\n' "$started_utc" >&3
+      printf 'P010_DORA_COMPLETED_UTC=%s\n' "$completed_utc" >&3
+      printf 'P010_DORA_CAPTURE_SHA256=%s\n' "$capture_sha256" >&3
+      printf 'P010_DORA_CAPTURE_FILE=%s\n' "$capture_file" >&3
+      printf 'P010_DORA_RESULT_FILE=%s\n' "$result_file" >&3
+      printf 'P010_DORA_RAW_B64=%s\n' "$raw_b64" >&3
+  no_log: true

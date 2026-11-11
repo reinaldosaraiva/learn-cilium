@@ -1,0 +1,94 @@
+- ansible.builtin.include_tasks: hybrid-validate-tap.yml
+  vars:
+    student_hybrid_tap_allow_absent: true
+    student_hybrid_network_namespace_pid: "{{ student_state.hybrid.network.border.pid }}"
+
+- name: Re-read the exact TAP candidate immediately before deletion
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - -j
+      - -d
+      - link
+      - show
+  register: student_hybrid_links_before_tap_remove
+  changed_when: false
+  become: "{{ student_hybrid_become | default(true) }}"
+  no_log: true
+
+- name: Select the recorded TAP entry from the parsed namespace inventory
+  ansible.builtin.set_fact:
+    student_hybrid_tap_delete_matches: >-
+      {{ student_hybrid_links_before_tap_remove.stdout | from_json
+         | selectattr('ifname', 'equalto', student_state.hybrid.network.tap.name)
+         | list }}
+  no_log: true
+
+- name: Require absence or the exact saved TAP identity before deletion
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_links_before_tap_remove.rc == 0
+      - student_hybrid_tap_delete_matches | length <= 1
+      - >-
+        (student_hybrid_tap_delete_matches | length == 0)
+        or
+        (student_hybrid_tap_delete_matches | length == 1 and
+         student_hybrid_tap_delete_matches[0].ifindex | int == student_state.hybrid.network.tap.ifindex | int and
+         ((student_hybrid_tap_delete_matches[0].ifalias | default('') == student_state.hybrid.network.tap.alias) or
+          (student_state.hybrid.network.tap.alias == '' and student_state.phase == 'hybrid-tap-created' and
+           student_hybrid_tap_delete_matches[0].ifalias | default('') in ['', student_state.hybrid.network.tap.reserved_alias])) and
+         student_hybrid_tap_delete_matches[0].linkinfo.info_kind == 'tun' and
+         student_hybrid_tap_delete_matches[0].linkinfo.info_data.type == 'tap')
+    fail_msg: "Cleanup não removeu a TAP porque nome, ifindex, ifalias ou tipo não corresponde ao salvo."
+  no_log: true
+
+- name: Delete only the interface whose saved identity was just confirmed
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - link
+      - del
+      - dev
+      - "{{ student_state.hybrid.network.tap.name }}"
+  when: student_hybrid_tap_delete_matches | length == 1
+  changed_when: true
+  become: "{{ student_hybrid_become | default(true) }}"
+  no_log: true
+
+- name: Confirm the saved TAP name and alias are absent after cleanup
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - "{{ student_hybrid_ip_bin | default('/usr/sbin/ip') }}"
+      - -j
+      - -d
+      - link
+      - show
+  register: student_hybrid_links_after_tap_remove
+  changed_when: false
+  become: "{{ student_hybrid_become | default(true) }}"
+  no_log: true
+
+- name: Require no interface to retain either reserved TAP identity
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_links_after_tap_remove.rc == 0
+      - >-
+        (student_hybrid_links_after_tap_remove.stdout | from_json
+         | selectattr('ifname', 'equalto', student_state.hybrid.network.tap.name)
+         | list | length) == 0
+      - >-
+        (student_hybrid_links_after_tap_remove.stdout | from_json
+         | selectattr('ifalias', 'defined')
+         | selectattr('ifalias', 'equalto', student_state.hybrid.network.tap.reserved_alias)
+         | list | length) == 0
+    fail_msg: "A TAP reservada ainda existe ou a consulta ao namespace não foi concluída."
+  no_log: true

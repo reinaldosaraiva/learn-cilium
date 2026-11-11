@@ -1,0 +1,68 @@
+---
+- name: Exercise the real private M11 FRR transformation in scratch
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - "{{ playbook_dir }}/../vars.yml"
+  vars:
+    student_repo_root: "{{ playbook_dir | regex_replace('/poc-k8s-fabric/automation/student-lab/tests$', '') }}"
+    student_test_dir: "{{ lookup('env', 'P010_HYBRID_API_TEST_SCRATCH') }}/frr-rebind"
+    student_run_dir: "{{ student_test_dir }}"
+    student_topology_file: "{{ student_run_dir }}/topology.yml"
+    student_state_file: "{{ student_run_dir }}/state.json"
+    student_uid: "{{ ansible_user_uid | int }}"
+    student_profile: "{{ student_profiles.hibrido }}"
+    student_state:
+      schema: 3
+      profile: hibrido
+      status: partial
+      owner_token: p010-test-owner-token
+      run_id: 20261029-0123456789abcdef0123456789abcdef
+      hybrid:
+        schema: 4
+        m11:
+          network:
+            tenant_cidr: 198.18.49.0/24
+            provider_speaker_ip: 198.18.48.2
+            speaker_asn: 64590
+          frr:
+            private_config_path: "{{ student_test_dir }}/frr/p010-hybrid-frr.conf"
+  pre_tasks:
+    - name: Create isolated scratch for the private topology and FRR file
+      ansible.builtin.file:
+        path: "{{ student_test_dir }}"
+        state: directory
+        mode: '0700'
+
+    - name: Copy the historical topology fixture into scratch only
+      ansible.builtin.copy:
+        src: "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/topo/p003-gw.clab.yml"
+        dest: "{{ student_topology_file }}"
+        remote_src: true
+        owner: "{{ student_uid }}"
+        mode: '0600'
+
+    - name: Resolve historical config paths in the private test copy
+      ansible.builtin.replace:
+        path: "{{ student_topology_file }}"
+        regexp: '\.\./configs/'
+        replace: "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/configs/"
+
+  tasks:
+    - name: Run the production private FRR preparation task
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-prepare-frr.yml
+
+    - name: Read the final private FRR topology copy
+      ansible.builtin.slurp:
+        src: "{{ student_topology_file }}"
+      register: student_test_topology
+
+    - name: Require one private reference and no historical source reference
+      ansible.builtin.assert:
+        that:
+          - (student_test_topology.content | b64decode | regex_findall(student_state.hybrid.m11.frr.private_config_path | regex_escape) | length) == 1
+          - student_test_topology.content | b64decode is not search('p003-frr\\.conf')
+          - student_state.hybrid.m11.frr.config_inode | int > 0
+          - student_state.hybrid.m11.frr.config_sha256 is match('^[0-9a-f]{64}$')
+        fail_msg: "A cópia privada do FRR não foi registrada uma única vez com a configuração final."

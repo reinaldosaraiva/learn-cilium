@@ -1,0 +1,152 @@
+---
+- name: Validate the original border process and namespace before local API work
+  ansible.builtin.include_tasks: hybrid-validate-border.yml
+  vars:
+    student_hybrid_ports_to_check: []
+
+- name: Verify the Ubuntu QEMU identity before local API work
+  ansible.builtin.include_tasks: hybrid-qmp-command.yml
+  vars:
+    student_hybrid_qmp_action: verify
+    student_hybrid_qmp_guest_name: ubuntu
+
+- name: Run the protected Ansible URI playbook only inside this border network namespace
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - /usr/bin/setpriv
+      - "--reuid={{ student_uid }}"
+      - "--regid={{ ansible_user_gid | int }}"
+      - --init-groups
+      - --
+      - "{{ ansible_playbook_python }}"
+      - -m
+      - ansible.cli.playbook
+      - -i
+      - localhost,
+      - -c
+      - local
+      - --syntax-check
+      - --extra-vars
+      - "{{ {'student_repo_root': student_repo_root, 'student_state_file': student_state_file, 'student_uid': student_uid | int, 'student_hybrid_api_mode': student_hybrid_api_mode, 'student_hybrid_m11_verify_existing': student_hybrid_m11_verify_existing | default(false) | bool} | to_json }}"
+      - "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/hybrid-m11-api-playbook.yml"
+  args:
+    chdir: "{{ student_repo_root }}"
+  environment:
+    HOME: "{{ ansible_env.HOME }}"
+    ANSIBLE_CONFIG: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/ansible.cfg"
+    ANSIBLE_NOCOLOR: '1'
+  changed_when: false
+  become: true
+  no_log: true
+
+- name: Mark the child checkpoint untrusted until its private file is reloaded and validated
+  ansible.builtin.set_fact:
+    student_hybrid_api_checkpoint_reload_failed: true
+  no_log: true
+
+- name: Invoke the selected API phase with only non-secret path and mode variables
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - /usr/bin/setpriv
+      - "--reuid={{ student_uid }}"
+      - "--regid={{ ansible_user_gid | int }}"
+      - --init-groups
+      - --
+      - "{{ ansible_playbook_python }}"
+      - -m
+      - ansible.cli.playbook
+      - -i
+      - localhost,
+      - -c
+      - local
+      - --extra-vars
+      - "{{ {'student_repo_root': student_repo_root, 'student_state_file': student_state_file, 'student_uid': student_uid | int, 'student_hybrid_api_mode': student_hybrid_api_mode, 'student_hybrid_m11_verify_existing': student_hybrid_m11_verify_existing | default(false) | bool} | to_json }}"
+      - "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/hybrid-m11-api-playbook.yml"
+  args:
+    chdir: "{{ student_repo_root }}"
+  environment:
+    HOME: "{{ ansible_env.HOME }}"
+    ANSIBLE_CONFIG: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/ansible.cfg"
+    ANSIBLE_NOCOLOR: '1'
+  register: student_hybrid_api_child_result
+  changed_when: student_hybrid_api_mode in ['provision', 'remove-routing', 'remove-resources']
+  failed_when: false
+  become: true
+  no_log: true
+
+- name: Retain the immutable API-run identity before reloading its checkpoint
+  ansible.builtin.set_fact:
+    student_hybrid_api_runner_identity:
+      schema: "{{ student_state.schema | int }}"
+      profile: "{{ student_state.profile }}"
+      run_id: "{{ student_state.run_id }}"
+      owner_uid: "{{ student_state.owner_uid | int }}"
+      border_container_id: "{{ student_state.hybrid.network.border.container_id }}"
+      border_pid: "{{ student_state.hybrid.network.border.pid | int }}"
+      border_starttime: "{{ student_state.hybrid.network.border.starttime | int }}"
+      ubuntu_uuid: "{{ student_state.hybrid.guests.ubuntu.uuid }}"
+  no_log: true
+
+- name: Inspect the exact private state file after the API child returns
+  ansible.builtin.stat:
+    path: "{{ student_state_file }}"
+    follow: false
+  register: student_hybrid_api_child_state_stat
+  no_log: true
+
+- name: Require a regular owner-only child checkpoint before reloading it
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_child_state_stat.stat.isreg | default(false)
+      - not (student_hybrid_api_child_state_stat.stat.islnk | default(false))
+      - student_hybrid_api_child_state_stat.stat.uid | int == student_uid | int
+      - student_hybrid_api_child_state_stat.stat.mode == '0600'
+    fail_msg: "A fase API deixou um checkpoint ausente ou sem a identidade privada exigida."
+  no_log: true
+
+- name: Read the checkpoint produced by the isolated API process
+  ansible.builtin.slurp:
+    src: "{{ student_state_file }}"
+  register: student_hybrid_api_child_state_content
+  no_log: true
+
+- name: Parse the private child checkpoint without reporting its contents
+  ansible.builtin.set_fact:
+    student_hybrid_api_child_state: "{{ student_hybrid_api_child_state_content.content | b64decode | from_json }}"
+  no_log: true
+
+- name: Require the child checkpoint to retain this run's owner and appliance identities
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_child_state.schema | int == student_hybrid_api_runner_identity.schema | int
+      - student_hybrid_api_child_state.profile == student_hybrid_api_runner_identity.profile
+      - student_hybrid_api_child_state.run_id == student_hybrid_api_runner_identity.run_id
+      - student_hybrid_api_child_state.owner_uid | int == student_hybrid_api_runner_identity.owner_uid | int
+      - student_hybrid_api_child_state.status in ['partial', 'up']
+      - student_hybrid_api_child_state.hybrid.schema | int == 4
+      - student_hybrid_api_child_state.hybrid.m11.schema | int == 2
+      - student_hybrid_api_child_state.hybrid.network.border.container_id == student_hybrid_api_runner_identity.border_container_id
+      - student_hybrid_api_child_state.hybrid.network.border.pid | int == student_hybrid_api_runner_identity.border_pid | int
+      - student_hybrid_api_child_state.hybrid.network.border.starttime | int == student_hybrid_api_runner_identity.border_starttime | int
+      - student_hybrid_api_child_state.hybrid.guests.ubuntu.uuid == student_hybrid_api_runner_identity.ubuntu_uuid
+    fail_msg: "O checkpoint API não corresponde à execução e às identidades previamente validadas."
+  no_log: true
+
+- name: Replace the parent state with the child's durable API checkpoint
+  ansible.builtin.set_fact:
+    student_state: "{{ student_hybrid_api_child_state }}"
+    student_hybrid_api_checkpoint_reload_failed: false
+  no_log: true
+
+- name: Propagate an API child failure after preserving its durable checkpoint
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_child_result.rc | int == 0
+    fail_msg: "A fase API não foi concluída; o checkpoint privado salvo pelo processo filho foi recarregado."
+  no_log: true

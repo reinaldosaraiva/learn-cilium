@@ -1,0 +1,24 @@
+---
+- name: Query this Neutron resource by its recorded ID
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "{{ item.collection }}/{{ student_state.hybrid.m11.api.resources[item.key][item.slot].id }}"
+
+- name: Keep the response object only in this protected verification process
+  ansible.builtin.set_fact:
+    student_hybrid_api_verify_object: "{{ student_hybrid_api_response.json[item.envelope] }}"
+  no_log: true
+
+- name: Require the exact recorded ID and expected ownership attributes
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_verify_object.id == student_state.hybrid.m11.api.resources[item.key][item.slot].id
+      - (student_hybrid_api_verify_object | combine(item.expected)) == student_hybrid_api_verify_object
+    fail_msg: "O recurso Neutron {{ item.key }} diverge do registro privado desta execução."
+  no_log: true
+
+- name: Retain the verified object only in memory for relationship checks
+  ansible.builtin.set_fact:
+    student_hybrid_api_verify_objects: >-
+      {{ student_hybrid_api_verify_objects | combine({item.key ~ ':' ~ item.slot: student_hybrid_api_verify_object}) }}
+  no_log: true

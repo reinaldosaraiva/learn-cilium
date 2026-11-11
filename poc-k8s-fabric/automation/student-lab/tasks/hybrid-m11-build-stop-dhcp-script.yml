@@ -1,0 +1,130 @@
+---
+- name: Render DHCP cleanup from durable process and file identities
+  ansible.builtin.set_fact:
+    student_hybrid_m11_stop_dhcp_script: |-
+      set -eu
+      exec 3>&1 4>&2
+      exec >/dev/null 2>&1
+      proc_root=/proc
+      capture={{ student_state.hybrid.m11.verification.gates.dhcp_capture.path | quote }}
+      result={{ student_state.hybrid.m11.verification.gates.dhcp_capture.result_path | quote }}
+      phase={{ student_state.hybrid.m11.verification.gates.dhcp_capture.phase | quote }}
+      launcher_pid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.pid | string | quote }}
+      launcher_start={{ student_state.hybrid.m11.verification.gates.dhcp_capture.starttime | string | quote }}
+      launcher_uid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.process_uid | string | quote }}
+      tcpdump_pid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_pid | string | quote }}
+      tcpdump_start={{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_starttime | string | quote }}
+      tcpdump_uid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_uid | string | quote }}
+      tcpdump_netns={{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_netns | quote }}
+      supervisor_pid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.supervisor_pid | string | quote }}
+      supervisor_start={{ student_state.hybrid.m11.verification.gates.dhcp_capture.supervisor_starttime | string | quote }}
+      supervisor_uid={{ student_state.hybrid.m11.verification.gates.dhcp_capture.supervisor_uid | string | quote }}
+      expected_capture={{ ((student_state.hybrid.m11.verification.gates.dhcp_capture.device | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.inode | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.owner_uid | string) ~ '|600') | quote }}
+      expected_result={{ ((student_state.hybrid.m11.verification.gates.dhcp_capture.result_device | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.result_inode | string) ~ '|' ~ (student_state.hybrid.m11.verification.gates.dhcp_capture.result_owner_uid | string) ~ '|600') | quote }}
+      case "$phase" in
+        absent) printf 'P010_M11_DHCP_CAPTURE=absent\n' >&3; exit 0 ;;
+        starting) ;;
+        capturing|captured|verified) ;;
+        *) exit 73 ;;
+      esac
+      [ "$capture" = "/tmp/p010-{{ student_state.run_id }}-dhcp.log" ]
+      [ "$result" = "/tmp/p010-{{ student_state.run_id }}-dhcp.result" ]
+
+      proc_start() {
+        proc_pid=$1
+        proc_stat="$proc_root/$proc_pid/stat"
+        if [ ! -e "$proc_stat" ]; then printf absent; return 0; fi
+        if proc_value="$(sudo -n /usr/bin/awk '{ sub(/^.*\) /, ""); print $20 }' "$proc_stat" 2>/dev/null)"; then
+          [ -n "$proc_value" ] || return 90
+          printf '%s' "$proc_value"
+          return 0
+        fi
+        if [ ! -e "$proc_stat" ]; then printf absent; return 0; fi
+        return 90
+      }
+
+      check_file() {
+        path=$1
+        expected=$2
+        if [ -e "$path" ] || [ -L "$path" ]; then
+          [ "$expected" != '0|0|0|600' ] || return 90
+          [ -f "$path" ] && [ ! -L "$path" ]
+          [ "$(stat -c '%d|%i|%u|%a' "$path")" = "$expected" ]
+          return 0
+        fi
+        case "$expected" in 0\|0\|0\|600) return 1 ;; *) return 0 ;; esac
+      }
+      file_state=0
+      if check_file "$result" "$expected_result"; then file_state=$((file_state + 1)); else rc=$?; [ "$rc" = 1 ] || exit "$rc"; fi
+      if check_file "$capture" "$expected_capture"; then file_state=$((file_state + 1)); else rc=$?; [ "$rc" = 1 ] || exit "$rc"; fi
+
+      if [ "$phase" = starting ]; then
+        if [ "$file_state" -gt 0 ] && { grep -q '^P010_DHCP_PID=' "$result" || grep -q '^P010_DHCP_TCPDUMP_PID=' "$result"; }; then exit 91; fi
+        if [ "$expected_result" != '0|0|0|600' ] && [ -f "$result" ]; then rm -- "$result"; fi
+        if [ "$expected_capture" != '0|0|0|600' ] && [ -f "$capture" ]; then rm -- "$capture"; fi
+        printf 'P010_M11_DHCP_CAPTURE=absent\n' >&3
+        exit 0
+      fi
+      [ "$expected_capture" != '0|0|0|600' ] && [ "$expected_result" != '0|0|0|600' ]
+      if [ ! -e "$capture" ] && [ ! -L "$capture" ] && [ ! -e "$result" ] && [ ! -L "$result" ]; then
+        [ "$(proc_start "$tcpdump_pid")" != "$tcpdump_start" ]
+        [ "$(proc_start "$launcher_pid")" != "$launcher_start" ]
+        [ "$(proc_start "$supervisor_pid")" != "$supervisor_start" ]
+        printf 'P010_M11_DHCP_CAPTURE=absent\n' >&3
+        exit 0
+      fi
+      [ -f "$capture" ] && [ -f "$result" ]
+      check_live() {
+        proc_pid=$1
+        expected_start=$2
+        expected_uid=$3
+        if observed_start="$(proc_start "$proc_pid")"; then :; else return 90; fi
+        if [ "$observed_start" = absent ] || [ "$observed_start" != "$expected_start" ]; then return 1; fi
+        if observed_uid="$(sudo -n /usr/bin/stat -c '%u' "$proc_root/$proc_pid")"; then :; else return 90; fi
+        [ "$observed_uid" = "$expected_uid" ] || return 91
+        return 0
+      }
+      require_query_result() {
+        query_rc=$1
+        case "$query_rc" in 0|1) ;; *) exit 92 ;; esac
+      }
+
+      if check_live "$tcpdump_pid" "$tcpdump_start" "$tcpdump_uid"; then tcpdump_query_rc=0; else tcpdump_query_rc=$?; fi
+      require_query_result "$tcpdump_query_rc"
+      if [ "$tcpdump_query_rc" = 0 ]; then
+        actual_netns="$(sudo -n /usr/bin/readlink "$proc_root/$tcpdump_pid/ns/net")"
+        [ "$actual_netns" = "$tcpdump_netns" ]
+        tcpdump_cmd="$(sudo -n /usr/bin/cat "$proc_root/$tcpdump_pid/cmdline" | tr '\000' ' ')"
+        case "$tcpdump_cmd" in
+          "/usr/sbin/tcpdump -n -e -vv -l -c 32 -i tenant0 udp and (port 67 or port 68)"*) ;;
+          *) exit 74 ;;
+        esac
+      fi
+      if check_live "$launcher_pid" "$launcher_start" "$launcher_uid"; then launcher_query_rc=0; else launcher_query_rc=$?; fi
+      require_query_result "$launcher_query_rc"
+      if [ "$launcher_query_rc" = 0 ]; then
+        launcher_cmd="$(sudo -n /usr/bin/cat "$proc_root/$launcher_pid/cmdline" | tr '\000' ' ')"
+        case "$launcher_cmd" in
+          *"/usr/bin/timeout 120 /usr/sbin/tcpdump -n -e -vv -l -c 32 -i tenant0 udp and (port 67 or port 68)"*) ;;
+          *) exit 75 ;;
+        esac
+      fi
+      if check_live "$supervisor_pid" "$supervisor_start" "$supervisor_uid"; then supervisor_query_rc=0; else supervisor_query_rc=$?; fi
+      require_query_result "$supervisor_query_rc"
+
+      if [ "$tcpdump_query_rc" = 0 ]; then sudo -n /usr/bin/kill -INT "$tcpdump_pid"; fi
+      for attempt in $(seq 1 100); do
+        tcpdump_now="$(proc_start "$tcpdump_pid")"
+        launcher_now="$(proc_start "$launcher_pid")"
+        supervisor_now="$(proc_start "$supervisor_pid")"
+        if [ "$tcpdump_now" != "$tcpdump_start" ] && [ "$launcher_now" != "$launcher_start" ] && [ "$supervisor_now" != "$supervisor_start" ]; then break; fi
+        sleep 0.1
+      done
+      [ "$(proc_start "$tcpdump_pid")" != "$tcpdump_start" ]
+      [ "$(proc_start "$launcher_pid")" != "$launcher_start" ]
+      [ "$(proc_start "$supervisor_pid")" != "$supervisor_start" ]
+      grep -Eq '^P010_DHCP_EXIT_RC=[0-9]+$' "$result"
+      grep -Eq '^P010_DHCP_COMPLETED_UTC=20[0-9]{2}-[0-9]{2}-[0-9]{2}T' "$result"
+      rm -- "$result" "$capture"
+      printf 'P010_M11_DHCP_CAPTURE=absent\n' >&3
+  no_log: true

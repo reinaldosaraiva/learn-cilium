@@ -1,0 +1,58 @@
+---
+- name: Require the Neutron discovery response to contain its advertised version array
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_network_discovery.json is mapping
+      - student_hybrid_api_network_discovery.json.versions is defined
+      - student_hybrid_api_network_discovery.json.versions is sequence
+      - student_hybrid_api_network_discovery.json.versions is not string
+    fail_msg: "A descoberta Neutron não retornou o campo versions como uma lista."
+  no_log: true
+
+- name: Retain the advertised Neutron API version list
+  ansible.builtin.set_fact:
+    student_hybrid_api_neutron_versions: "{{ student_hybrid_api_network_discovery.json.versions }}"
+  no_log: true
+
+- name: Select only current Neutron v2 and its self links
+  ansible.builtin.set_fact:
+    student_hybrid_api_neutron_v2_versions: >-
+      {{ student_hybrid_api_neutron_versions
+         | selectattr('id', 'equalto', 'v2.0')
+         | selectattr('status', 'equalto', 'CURRENT') | list }}
+
+- name: Retain only the self links for the current Neutron v2 API
+  ansible.builtin.set_fact:
+    student_hybrid_api_neutron_version_links: >-
+      {{ student_hybrid_api_neutron_v2_versions
+         | map(attribute='links') | flatten
+         | selectattr('rel', 'equalto', 'self') | list }}
+  no_log: true
+
+- name: Retain the one advertised Neutron v2 self URL
+  ansible.builtin.set_fact:
+    student_hybrid_api_neutron_version_url: "{{ ((student_hybrid_api_neutron_version_links | first) | default({})).get('href', '') }}"
+  no_log: true
+
+- name: Require one current Neutron v2 API version and one self link on this guest
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_network_discovery.status == 200
+      - student_hybrid_api_neutron_v2_versions | length == 1
+      - student_hybrid_api_neutron_version_links | length == 1
+      - student_hybrid_api_neutron_version_url | urlsplit('scheme') == student_hybrid_api_network_catalog_url | urlsplit('scheme')
+      - student_hybrid_api_neutron_version_url | urlsplit('hostname') == '10.0.2.15'
+      - student_hybrid_api_neutron_version_url | urlsplit('username') in [none, '']
+      - student_hybrid_api_neutron_version_url | urlsplit('password') in [none, '']
+      - student_hybrid_api_neutron_version_url | urlsplit('query') == ''
+      - student_hybrid_api_neutron_version_url | urlsplit('fragment') == ''
+      - student_hybrid_api_neutron_version_url | urlsplit('port') == student_hybrid_api_network_catalog_url | urlsplit('port')
+      - (student_hybrid_api_neutron_version_url | urlsplit('port') is none) or ((student_hybrid_api_neutron_version_url | urlsplit('port') | int) >= 1 and (student_hybrid_api_neutron_version_url | urlsplit('port') | int) <= 65535)
+      - (student_hybrid_api_neutron_version_url | urlsplit('path') | regex_replace('/+$', '')) == ((student_hybrid_api_network_catalog_url | urlsplit('path') | regex_replace('/+$', '')) ~ '/v2.0')
+    fail_msg: "A descoberta Neutron diverge do host, porta ou prefixo anunciados no catálogo desta appliance."
+  no_log: true
+
+- name: Retain the service-discovered Neutron v2 endpoint without secrets
+  ansible.builtin.set_fact:
+    student_hybrid_api_neutron_endpoint: "{{ student_hybrid_api_neutron_version_url | regex_replace('/+$', '') }}"
+  no_log: true

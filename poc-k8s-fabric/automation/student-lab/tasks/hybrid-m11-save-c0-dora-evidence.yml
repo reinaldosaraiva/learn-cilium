@@ -1,0 +1,201 @@
+---
+- name: Require the complete first-boot observer and transaction record before evidence commit
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_dora_fields.CAPTURE_RC in ['0', '130']
+      - student_hybrid_m11_dora_fields.CAPTURE_RC != '130' or student_state.hybrid.m11.verification.gates.dhcp_capture.stop_requested | bool
+      - student_hybrid_m11_dora_fields.CAPTURE_SHA256 is match('^[0-9a-f]{64}$')
+      - (student_hybrid_m11_dora_fields.RAW_B64 | b64decode | hash('sha256')) == student_hybrid_m11_dora_fields.CAPTURE_SHA256
+      - student_hybrid_m11_dora_fields.PACKET_COUNT | int >= 4
+      - student_hybrid_m11_dora_fields.PACKET_COUNT | int <= 32
+      - student_hybrid_m11_dora_fields.CAPTURED_COUNT | int == student_state.hybrid.m11.verification.gates.dhcp_capture.captured_count | int
+      - student_hybrid_m11_dora_fields.RECEIVED_COUNT is match('^[0-9]+$')
+      - student_hybrid_m11_dora_fields.DROPPED_COUNT == '0'
+      - student_hybrid_m11_dora_fields.EVENT_INDEXES.split(',') | length == 4
+      - student_hybrid_m11_dora_fields.EXCHANGE == 'DISCOVER,OFFER,REQUEST,ACK'
+      - student_hybrid_m11_dora_fields.CLIENT_MAC | lower == student_state.hybrid.guests.cirros.tenant_mac | lower
+      - student_hybrid_m11_dora_fields.SERVER_IP == student_state.hybrid.m11.verification.gates.dhcp_server.ip_address
+      - student_hybrid_m11_dora_fields.SERVER_MAC | lower == student_state.hybrid.m11.verification.gates.dhcp_server.mac_address | lower
+      - student_hybrid_m11_dora_fields.ADDRESS == student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips[0].ip_address
+      - student_hybrid_m11_dora_fields.GATEWAY == student_state.hybrid.m11.network.tenant_gateway
+      - student_hybrid_m11_dora_fields.STARTED_UTC is match('^20[0-9]{2}-[0-9]{2}-[0-9]{2}T')
+      - student_hybrid_m11_dora_fields.COMPLETED_UTC is match('^20[0-9]{2}-[0-9]{2}-[0-9]{2}T')
+      - student_hybrid_m11_dora_fields.CAPTURE_FILE.split('|') | length == 4
+      - student_hybrid_m11_dora_fields.RESULT_FILE.split('|') | length == 4
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.phase == 'captured'
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.pid | int > 1
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.starttime | int > 0
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.netns is match('^net:\[[0-9]+\]$')
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_pid | int > 1
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_starttime | int > 0
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_netns == student_state.hybrid.m11.verification.gates.dhcp_capture.netns
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.capture_rc | int in [0, 130]
+      - student_state.hybrid.m11.verification.gates.dhcp_capture.capture_rc | int != 130 or student_state.hybrid.m11.verification.gates.dhcp_capture.stop_requested | bool
+    fail_msg: "A captura inicial não tem identidade íntegra e DORA completo da porta CirrOS desta execução."
+  no_log: true
+
+- name: Refuse a pre-existing immutable first-boot DORA evidence file
+  ansible.builtin.stat:
+    path: "{{ student_run_dir }}/m11-evidence/c0-dora.json"
+    follow: false
+  register: student_hybrid_m11_c0_dora_before
+  no_log: true
+
+- name: Require the owner-only evidence directory and an unused DORA path
+  ansible.builtin.assert:
+    that:
+      - not (student_hybrid_m11_c0_dora_before.stat.exists | default(false))
+      - not (student_hybrid_m11_c0_dora_before.stat.islnk | default(false))
+      - student_state.hybrid.m11.verification.gates.c0_binding_evidence.path == student_run_dir ~ '/m11-evidence/c0-binding.json'
+    fail_msg: "A evidência C0 está ausente, foi preexistente ou perdeu seu caminho registrado."
+  no_log: true
+
+- name: Build the immutable DORA observation without exporting state or capture payloads
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c0_dora_observation:
+      schema: 1
+      scope: C0 initial DHCP DORA on tenant0; no C1-C8 path claim
+      run_id: "{{ student_state.run_id }}"
+      command:
+        argv:
+          - sudo
+          - -n
+          - /usr/bin/timeout
+          - '120'
+          - /usr/sbin/tcpdump
+          - -n
+          - -e
+          - -vv
+          - -l
+          - -c
+          - '32'
+          - -i
+          - tenant0
+          - udp and (port 67 or port 68)
+        rc: "{{ student_hybrid_m11_dora_fields.CAPTURE_RC | int }}"
+        started_utc: "{{ student_hybrid_m11_dora_fields.STARTED_UTC }}"
+        completed_utc: "{{ student_hybrid_m11_dora_fields.COMPLETED_UTC }}"
+        stop_requested: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.stop_requested | bool }}"
+      observer:
+        pid: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.pid | int }}"
+        starttime: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.starttime | int }}"
+        uid: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.process_uid | int }}"
+        netns: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.netns }}"
+        ifindex: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.ifindex | int }}"
+        supervisor_pid: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.supervisor_pid | int }}"
+        supervisor_starttime: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.supervisor_starttime | int }}"
+        supervisor_uid: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.supervisor_uid | int }}"
+        tcpdump_pid: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_pid | int }}"
+        tcpdump_starttime: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_starttime | int }}"
+        tcpdump_uid: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_uid | int }}"
+        tcpdump_netns: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.tcpdump_netns }}"
+      capture:
+        remote_path: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.path }}"
+        device: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.device | int }}"
+        inode: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.inode | int }}"
+        owner_uid: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.owner_uid | int }}"
+        mode: '0600'
+        sha256: "{{ student_hybrid_m11_dora_fields.CAPTURE_SHA256 }}"
+        captured_packets: "{{ student_hybrid_m11_dora_fields.CAPTURED_COUNT | int }}"
+        received_by_filter: "{{ student_hybrid_m11_dora_fields.RECEIVED_COUNT | int }}"
+        dropped_by_kernel: "{{ student_hybrid_m11_dora_fields.DROPPED_COUNT | int }}"
+        stop_requested: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.stop_requested | bool }}"
+        result_path: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.result_path }}"
+        result_device: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.result_device | int }}"
+        result_inode: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.result_inode | int }}"
+        result_owner_uid: "{{ student_state.hybrid.m11.verification.gates.dhcp_capture.result_owner_uid | int }}"
+        result_mode: '0600'
+      transaction:
+        xid: "{{ student_hybrid_m11_dora_fields.XID }}"
+        exchange: "{{ student_hybrid_m11_dora_fields.EXCHANGE.split(',') }}"
+        packet_count: "{{ student_hybrid_m11_dora_fields.PACKET_COUNT | int }}"
+        client_mac: "{{ student_hybrid_m11_dora_fields.CLIENT_MAC }}"
+        server_ip: "{{ student_hybrid_m11_dora_fields.SERVER_IP }}"
+        server_mac: "{{ student_hybrid_m11_dora_fields.SERVER_MAC }}"
+        address: "{{ student_hybrid_m11_dora_fields.ADDRESS }}"
+        gateway: "{{ student_hybrid_m11_dora_fields.GATEWAY }}"
+      raw_headers: "{{ student_hybrid_m11_dora_fields.RAW_B64 | b64decode }}"
+  no_log: true
+
+- name: Persist the exact bounded tcpdump headers as a private C0 record
+  ansible.builtin.copy:
+    dest: "{{ student_run_dir }}/m11-evidence/c0-dora.json"
+    content: "{{ student_hybrid_m11_c0_dora_observation | to_nice_json }}"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Inspect and hash the immutable first-boot DORA evidence file
+  ansible.builtin.stat:
+    path: "{{ student_run_dir }}/m11-evidence/c0-dora.json"
+    follow: false
+    get_checksum: true
+    checksum_algorithm: sha256
+  register: student_hybrid_m11_c0_dora_stat
+  no_log: true
+
+- name: Require a private regular DORA record with a SHA-256 identity
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c0_dora_stat.stat.isreg | default(false)
+      - not (student_hybrid_m11_c0_dora_stat.stat.islnk | default(false))
+      - student_hybrid_m11_c0_dora_stat.stat.uid | int == student_uid | int
+      - student_hybrid_m11_c0_dora_stat.stat.mode == '0600'
+      - student_hybrid_m11_c0_dora_stat.stat.checksum is match('^[0-9a-f]{64}$')
+    fail_msg: "O registro DORA não ficou owner-only com hash íntegro."
+  no_log: true
+
+- name: Checkpoint the immutable DORA evidence file identity and hash
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': {'m11': {'verification': {'gates': {
+        'c0_dora_evidence': {
+          'path': student_run_dir ~ '/m11-evidence/c0-dora.json',
+          'sha256': student_hybrid_m11_c0_dora_stat.stat.checksum,
+          'device': student_hybrid_m11_c0_dora_stat.stat.dev | int,
+          'inode': student_hybrid_m11_c0_dora_stat.stat.inode | int,
+          'owner_uid': student_hybrid_m11_c0_dora_stat.stat.uid | int,
+          'mode': student_hybrid_m11_c0_dora_stat.stat.mode,
+          'capture_sha256': student_hybrid_m11_dora_fields.CAPTURE_SHA256,
+          'captured_packets': student_hybrid_m11_dora_fields.CAPTURED_COUNT | int,
+          'received_by_filter': student_hybrid_m11_dora_fields.RECEIVED_COUNT | int,
+          'dropped_by_kernel': student_hybrid_m11_dora_fields.DROPPED_COUNT | int,
+          'xid': student_hybrid_m11_dora_fields.XID,
+          'capture_identity': {
+            'file_device': student_state.hybrid.m11.verification.gates.dhcp_capture.device | int,
+            'file_inode': student_state.hybrid.m11.verification.gates.dhcp_capture.inode | int,
+            'file_owner_uid': student_state.hybrid.m11.verification.gates.dhcp_capture.owner_uid | int,
+            'result_device': student_state.hybrid.m11.verification.gates.dhcp_capture.result_device | int,
+            'result_inode': student_state.hybrid.m11.verification.gates.dhcp_capture.result_inode | int,
+            'result_owner_uid': student_state.hybrid.m11.verification.gates.dhcp_capture.result_owner_uid | int,
+            'capture_rc': student_hybrid_m11_dora_fields.CAPTURE_RC | int,
+            'started_utc': student_hybrid_m11_dora_fields.STARTED_UTC,
+            'completed_utc': student_hybrid_m11_dora_fields.COMPLETED_UTC,
+            'stop_requested': student_state.hybrid.m11.verification.gates.dhcp_capture.stop_requested | bool
+          },
+          'scope': 'C0 first-boot DHCP DORA on tenant0; no tenant-to-pod origin claim'
+        }
+      }}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  no_log: true
+
+- name: Persist the private DORA evidence reference before capture cleanup
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Reload the DORA evidence checkpoint from disk
+  ansible.builtin.slurp:
+    src: "{{ student_state_file }}"
+  register: student_hybrid_m11_c0_dora_state_reload
+  no_log: true
+
+- name: Require the DORA evidence hash and identity to survive state reload
+  ansible.builtin.assert:
+    that:
+      - (student_hybrid_m11_c0_dora_state_reload.content | b64decode | from_json).hybrid.m11.verification.gates.c0_dora_evidence.sha256 == student_hybrid_m11_c0_dora_stat.stat.checksum
+      - (student_hybrid_m11_c0_dora_state_reload.content | b64decode | from_json).hybrid.m11.verification.gates.c0_dora_evidence.capture_sha256 == student_hybrid_m11_dora_fields.CAPTURE_SHA256
+      - (student_hybrid_m11_c0_dora_state_reload.content | b64decode | from_json).hybrid.m11.verification.gates.c0_dora_evidence.xid == student_hybrid_m11_dora_fields.XID
+  no_log: true

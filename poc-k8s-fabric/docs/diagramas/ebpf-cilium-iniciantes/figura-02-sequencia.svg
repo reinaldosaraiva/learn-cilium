@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="820" viewBox="0 0 1500 820" role="img" aria-labelledby="title desc">
+  <title id="title">Sequência temporal entre loader, kernel e hook</title>
+  <desc id="desc">Diagrama de sequência com tempo de cima para baixo e quatro participantes identificados: loader ou agente em espaço de usuário, kernel eBPF com verifier e JIT, hook no contexto do kernel e evento compatível. O loader pede carga; o verifier analisa; se rejeita, a tentativa termina; se aceita, o kernel pode aplicar JIT quando aplicável; o loader pede attach; o kernel associa o programa ao hook; um evento chega ao hook e o programa executa nesse contexto. Exemplo didático, pois mecanismos variam por tipo de programa.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M1,1 L11,6 L1,11 Z" fill="#16324f"/></marker>
+    <marker id="arrow-green" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M1,1 L11,6 L1,11 Z" fill="#2d7042"/></marker>
+    <marker id="arrow-purple" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M1,1 L11,6 L1,11 Z" fill="#7451a6"/></marker>
+    <style>
+      .title{font:700 42px Arial,DejaVu Sans,sans-serif;fill:#16324f}
+      .subtitle{font:400 32px Arial,DejaVu Sans,sans-serif;fill:#293845}
+      .head{font:700 32px Arial,DejaVu Sans,sans-serif;fill:#16324f}
+      .body{font:400 32px Arial,DejaVu Sans,sans-serif;fill:#1f2933}
+      .step{font:700 32px Arial,DejaVu Sans,sans-serif;fill:#16324f}
+      .red{font:700 32px Arial,DejaVu Sans,sans-serif;fill:#7b302a}
+      .green{font:700 32px Arial,DejaVu Sans,sans-serif;fill:#245b36}
+    </style>
+  </defs>
+  <rect x="12" y="12" width="1476" height="796" rx="22" fill="#ffffff" stroke="#16324f" stroke-width="3"/>
+  <text x="45" y="57" class="title">Quem pede, quem verifica, onde executa?</text>
+  <text x="45" y="100" class="subtitle">Tempo de cima para baixo · caminho didático, variável por tipo.</text>
+
+  <rect x="45" y="122" width="280" height="92" rx="16" fill="#fff2d5" stroke="#855b12" stroke-width="3"/>
+  <text x="185" y="160" text-anchor="middle" class="head">Loader / agente</text>
+  <text x="185" y="197" text-anchor="middle" class="body">espaço de usuário</text>
+
+  <rect x="405" y="122" width="310" height="92" rx="16" fill="#e7f1f6" stroke="#1f6a8a" stroke-width="3"/>
+  <text x="560" y="160" text-anchor="middle" class="head">Kernel eBPF</text>
+  <text x="560" y="197" text-anchor="middle" class="body">verifier · JIT</text>
+
+  <rect x="820" y="122" width="280" height="92" rx="16" fill="#eee7f8" stroke="#7451a6" stroke-width="3" stroke-dasharray="10 6"/>
+  <text x="960" y="160" text-anchor="middle" class="head">Hook</text>
+  <text x="960" y="197" text-anchor="middle" class="body">contexto do kernel</text>
+
+  <rect x="1205" y="122" width="250" height="92" rx="16" fill="#f0f5f8" stroke="#526777" stroke-width="3"/>
+  <text x="1330" y="160" text-anchor="middle" class="head">Evento</text>
+  <text x="1330" y="197" text-anchor="middle" class="body">compatível</text>
+
+  <line x1="185" y1="214" x2="185" y2="760" stroke="#855b12" stroke-width="3" stroke-dasharray="8 8"/>
+  <line x1="560" y1="214" x2="560" y2="760" stroke="#1f6a8a" stroke-width="3" stroke-dasharray="8 8"/>
+  <line x1="960" y1="214" x2="960" y2="760" stroke="#7451a6" stroke-width="3" stroke-dasharray="8 8"/>
+  <line x1="1330" y1="214" x2="1330" y2="760" stroke="#526777" stroke-width="3" stroke-dasharray="8 8"/>
+  <line x1="28" y1="245" x2="28" y2="750" stroke="#16324f" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <text x="372" y="250" text-anchor="middle" class="step">1 · pede carga</text>
+  <line x1="185" y1="269" x2="560" y2="269" stroke="#16324f" stroke-width="4" marker-end="url(#arrow)"/>
+
+  <line x1="560" y1="300" x2="600" y2="300" stroke="#1f6a8a" stroke-width="4"/>
+  <rect x="600" y="278" width="320" height="56" rx="12" fill="#e7f1f6" stroke="#1f6a8a" stroke-width="3"/>
+  <text x="760" y="316" text-anchor="middle" class="step">2 · verifier analisa</text>
+
+  <rect x="55" y="356" width="700" height="112" rx="14" fill="#ffffff" stroke="#526777" stroke-width="3"/>
+  <text x="75" y="389" class="step">3 · resultado do verifier</text>
+  <rect x="75" y="400" width="300" height="56" rx="12" fill="#fae9e7" stroke="#963c35" stroke-width="3"/>
+  <text x="225" y="438" text-anchor="middle" class="red">rejeita · termina</text>
+  <rect x="400" y="400" width="335" height="56" rx="12" fill="#e8f4eb" stroke="#2d7042" stroke-width="3"/>
+  <text x="567" y="438" text-anchor="middle" class="green">aceita · segue</text>
+  <line x1="560" y1="468" x2="560" y2="490" stroke="#2d7042" stroke-width="4" marker-end="url(#arrow-green)"/>
+
+  <rect x="400" y="490" width="335" height="76" rx="12" fill="#e8f4eb" stroke="#2d7042" stroke-width="3"/>
+  <text x="567" y="526" text-anchor="middle" class="step">4 · JIT compila</text>
+  <text x="567" y="559" text-anchor="middle" class="body">se aplicável</text>
+
+  <text x="372" y="601" text-anchor="middle" class="step">5 · loader pede attach</text>
+  <line x1="185" y1="620" x2="560" y2="620" stroke="#16324f" stroke-width="4" marker-end="url(#arrow)"/>
+
+  <text x="760" y="657" text-anchor="middle" class="step">6 · associa ao hook</text>
+  <line x1="560" y1="676" x2="960" y2="676" stroke="#16324f" stroke-width="4" marker-end="url(#arrow-purple)"/>
+
+  <text x="1145" y="714" text-anchor="middle" class="step">7 · evento chega</text>
+  <line x1="1330" y1="733" x2="960" y2="733" stroke="#526777" stroke-width="4" marker-end="url(#arrow-purple)"/>
+
+  <rect x="780" y="747" width="360" height="52" rx="12" fill="#eee7f8" stroke="#7451a6" stroke-width="3" stroke-dasharray="9 5"/>
+  <text x="960" y="782" text-anchor="middle" class="step">programa eBPF roda</text>
+</svg>

@@ -1,0 +1,229 @@
+---
+- name: Require the local Docker engine before proving cleanup results
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - version
+      - --format
+      - "{{ '{{' }}.Server.Version{{ '}}' }}"
+  become: true
+  register: student_down_docker_version
+  changed_when: false
+  failed_when: false
+  when: student_has_state and student_state.status != 'down'
+
+- name: Refuse cleanup when the local Docker engine is unavailable
+  ansible.builtin.assert:
+    that:
+      - student_down_docker_version.rc == 0
+      - student_down_docker_version.stdout is version('20.10.0', '>=')
+    fail_msg: "Docker local precisa estar acessível para validar ownership e provar a remoção."
+  when: student_has_state and student_state.status != 'down'
+
+- name: Do not infer cleanup targets when no active state exists
+  ansible.builtin.debug:
+    msg: "Nenhum laboratório ativo registrado; nenhum recurso foi removido."
+  when: not student_has_state or student_state.status == 'down'
+
+- name: Require a supported active state before cleanup
+  ansible.builtin.assert:
+    that:
+      - student_state.status in ['preparing', 'partial', 'up']
+      - student_state.profile == student_profile_name
+    fail_msg: "Estado divergente; lab-down não remove recursos por nome sem ownership salvo."
+  when: student_has_state and student_state.status != 'down'
+
+- name: Persist cleanup intent while preserving all recorded IDs
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | combine({'status': 'partial', 'phase': 'down-start', 'updated_utc': ansible_date_time.iso8601}) | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  when: student_has_state and student_state.status != 'down'
+
+- name: Remove present Kind nodes only by their saved Docker IDs
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - rm
+      - --force
+      - --volumes
+      - "{{ student_state.kind_node_ids[item.item] }}"
+  become: true
+  register: student_kind_orphan_remove
+  changed_when: true
+  failed_when: false
+  no_log: true
+  loop: "{{ student_current_kind_ids.results | default([]) }}"
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - item.rc == 0
+
+- name: Remove present fabric nodes only by their saved Docker IDs
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - rm
+      - --force
+      - --volumes
+      - "{{ student_state.fabric_node_ids[item.item] }}"
+  become: true
+  register: student_fabric_remove
+  no_log: true
+  loop: "{{ student_current_fabric_ids.results | default([]) }}"
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - item.rc == 0
+
+- name: Remove the management network only by its saved Docker ID
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - network
+      - rm
+      - "{{ student_state.network_ids[student_profile.topology_network] }}"
+  become: true
+  register: student_network_remove
+  no_log: true
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - student_profile.topology_network is not none
+    - (student_current_network_id.rc | default(1)) == 0
+
+- name: Confirm Docker stayed available through cleanup inspection
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - version
+      - --format
+      - "{{ '{{' }}.Server.Version{{ '}}' }}"
+  become: true
+  register: student_down_docker_after
+  changed_when: false
+  failed_when: false
+  when: student_has_state and student_state.status != 'down'
+
+- name: Confirm every recorded kind and fabric name is absent
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - inspect
+      - "{{ item }}"
+  become: true
+  register: student_remaining_containers
+  changed_when: false
+  failed_when: false
+  loop: "{{ student_profile.kind_nodes + student_profile.fabric_nodes }}"
+  when: student_has_state and student_state.status != 'down'
+
+- name: Require each named container to be absent or report exact NotFound
+  ansible.builtin.assert:
+    that:
+      - item.rc == 1
+      - item.stdout in ['', '[]']
+      - item.stderr | trim in student_docker_not_found_messages
+    fail_msg: >-
+      {% if item.rc == 0 %}
+      O container {{ item.item }} ainda existe após a limpeza; o estado continuará parcial.
+      {% else %}
+      Não foi possível confirmar a ausência exata do container {{ item.item }} (Docker rc={{ item.rc }}); o estado continuará parcial sem inferir que o recurso existe.
+      {% endif %}
+  loop: "{{ student_remaining_containers.results | default([]) }}"
+  no_log: true
+  vars:
+    student_docker_not_found_messages:
+      - "Error: No such object: {{ item.item }}"
+      - "error: no such object: {{ item.item }}"
+  when: student_has_state and student_state.status != 'down'
+
+- name: Confirm the recorded management network is absent
+  ansible.builtin.command:
+    argv:
+      - "{{ student_docker_bin }}"
+      - --host
+      - unix:///var/run/docker.sock
+      - network
+      - inspect
+      - "{{ student_profile.topology_network }}"
+  become: true
+  register: student_remaining_network
+  changed_when: false
+  failed_when: false
+  when:
+    - student_has_state
+    - student_state.status != 'down'
+    - student_profile.topology_network is not none
+
+- name: Require network inspection to prove the recorded name absent
+  ansible.builtin.assert:
+    that:
+      - student_profile.topology_network is none or (student_remaining_network.rc == 1 and student_remaining_network.stdout in ['', '[]'] and student_remaining_network.stderr | trim == student_network_not_found_message)
+    fail_msg: >-
+      {% if student_profile.topology_network is none %}
+      Nenhuma rede Docker faz parte deste perfil; cleanup não inspecionou rede.
+      {% elif student_remaining_network.rc | default(-1) == 0 %}
+      A rede Docker {{ student_profile.topology_network }} ainda existe após a limpeza; o estado continuará parcial.
+      {% else %}
+      Não foi possível confirmar a ausência da rede Docker pelo nome exato (Docker rc={{ student_remaining_network.rc | default('not-run') }}); o estado continuará parcial sem inferir que a rede existe.
+      {% endif %}
+  when: student_has_state and student_state.status != 'down'
+  no_log: true
+  vars:
+    student_network_not_found_message: "Error response from daemon: network {{ student_profile.topology_network }} not found"
+
+- name: Require kind metadata query to remain available and the cluster name absent
+  ansible.builtin.command:
+    argv: ["{{ student_tool_dir }}/kind", get, clusters]
+  become: true
+  environment:
+    DOCKER_HOST: unix:///var/run/docker.sock
+  register: student_down_clusters_after
+  changed_when: false
+  failed_when: false
+  when: student_has_state and student_state.status != 'down'
+
+- name: Require Docker and kind to confirm exact cleanup completion
+  ansible.builtin.assert:
+    that:
+      - student_down_docker_after.rc == 0
+      - student_down_clusters_after.rc == 0
+      - student_profile.kind_name not in student_down_clusters_after.stdout_lines
+    fail_msg: "Cleanup ficou parcial; IDs permanecem registrados para nova tentativa."
+  when: student_has_state and student_state.status != 'down'
+
+- name: Mark the state down only after proving exact resources absent
+  ansible.builtin.include_tasks: down-finalize-state.yml
+  when: student_has_state and student_state.status != 'down'
+
+- name: Remove the kubeconfig and generated environment after successful cleanup
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ student_state.kubeconfig }}"
+    - "{{ student_env_file }}"
+    - "{{ student_owner_token_file }}"
+  when: student_has_state and student_state.status == 'down'
+
+- name: Persist completed cleanup state
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  when: student_has_state and student_state.status == 'down'

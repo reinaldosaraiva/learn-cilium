@@ -1,0 +1,25 @@
+---
+- name: Retain only complete marker lines with the requested prefix
+  ansible.builtin.set_fact:
+    student_hybrid_m11_marker_pairs: >-
+      {{ student_hybrid_m11_marker_lines
+        | select('match', '^' ~ student_hybrid_m11_marker_prefix)
+        | map('regex_replace', '^' ~ student_hybrid_m11_marker_prefix, '')
+        | map('split', '=', 1)
+        | list }}
+  no_log: true
+
+- name: Reject malformed or duplicate markers instead of silently overwriting an observation
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_marker_pairs | length > 0
+      - student_hybrid_m11_marker_pairs | map('length') | select('equalto', 2) | list | length == student_hybrid_m11_marker_pairs | length
+      - student_hybrid_m11_marker_pairs | map('first') | select('match', '^[A-Z][A-Z0-9_]*$') | list | length == student_hybrid_m11_marker_pairs | length
+      - student_hybrid_m11_marker_pairs | map('first') | unique | list | length == student_hybrid_m11_marker_pairs | length
+    fail_msg: "A saída do helper contém marcador ausente, malformado ou duplicado."
+  no_log: true
+
+- name: Parse only the requested stdout marker prefix and preserve each value
+  ansible.builtin.set_fact:
+    student_hybrid_m11_parsed_markers: "{{ dict(student_hybrid_m11_marker_pairs) }}"
+  no_log: true

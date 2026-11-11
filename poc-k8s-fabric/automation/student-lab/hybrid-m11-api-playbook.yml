@@ -1,0 +1,166 @@
+---
+- name: Run one bounded API phase through this run's pinned Ubuntu guest
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  become: false
+  vars_files:
+    - "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/vars.yml"
+  vars:
+    student_profile_name: hibrido
+    student_profile: "{{ student_profiles.hibrido }}"
+  tasks:
+    - name: Read this run's versioned state inside the local API process
+      ansible.builtin.slurp:
+        src: "{{ student_state_file }}"
+      register: student_hybrid_api_state_input
+      no_log: true
+
+    - name: Parse the private state and derive its run directory
+      ansible.builtin.set_fact:
+        student_state: "{{ student_hybrid_api_state_input.content | b64decode | from_json }}"
+        student_state_dir: "{{ student_state_file | dirname }}"
+      no_log: true
+
+    - name: Require the exact partial hybrid run before a guest API phase
+      ansible.builtin.assert:
+        that:
+          - student_state.schema | int == 3
+          - student_state.profile == 'hibrido'
+          - student_state.owner_uid | int == student_uid | int
+          - student_state.status in ['partial', 'up']
+          - student_state.hybrid.schema | int == 4
+          - student_state.hybrid.m11.schema | int == 2
+          - student_state.hybrid.network.border.container_id is match('^[0-9a-f]{64}$')
+          - student_state.hybrid.network.border.pid | int > 1
+          - student_state.hybrid.network.border.starttime | int > 0
+          - student_hybrid_api_mode in ['provision', 'remove-routing', 'remove-resources', 'verify']
+        fail_msg: "A operação API não corresponde a uma execução híbrida parcial com identidade validada."
+      no_log: true
+
+    - name: Derive the private runtime path from the validated state file
+      ansible.builtin.set_fact:
+        student_run_dir: "{{ student_state.kubeconfig | dirname }}"
+      no_log: true
+
+    - name: Add only the pinned Ubuntu management socket as the API module target
+      ansible.builtin.add_host:
+        name: student_hybrid_ubuntu
+        groups: student_hybrid_guest_api
+        ansible_connection: ssh
+        ansible_host: 127.0.0.1
+        ansible_port: "{{ student_state.hybrid.guests.ubuntu.host_port | int }}"
+        ansible_user: stack
+        ansible_python_interpreter: /usr/bin/python3
+        ansible_ssh_private_key_file: "{{ student_state.hybrid.guests.ubuntu.ssh_private_key }}"
+        ansible_ssh_host_key_checking: true
+        ansible_ssh_common_args: >-
+          -F /dev/null
+          -o IdentitiesOnly=yes
+          -o IdentityAgent=none
+          -o BatchMode=yes
+          -o PreferredAuthentications=publickey
+          -o PasswordAuthentication=no
+          -o KbdInteractiveAuthentication=no
+          -o StrictHostKeyChecking=yes
+          -o UserKnownHostsFile={{ student_state.hybrid.m11.ssh.known_hosts_path | quote }}
+          -o GlobalKnownHostsFile=/dev/null
+          -o HostKeyAlgorithms=ssh-ed25519
+          -o UpdateHostKeys=no
+          -o HostKeyAlias={{ student_state.hybrid.m11.ssh.host_keys.ubuntu.alias }}
+          -o ConnectTimeout=10
+        ansible_ssh_args: >-
+          -o ControlMaster=no
+          -o ControlPath=none
+          -o ControlPersist=no
+      no_log: true
+
+    - name: Prove the API target management address is this pinned Ubuntu guest
+      ansible.builtin.command:
+        argv: [/usr/sbin/ip, -j, -4, address, show, dev, management0]
+      delegate_to: student_hybrid_ubuntu
+      register: student_hybrid_api_management_address
+      changed_when: false
+      no_log: true
+
+    - name: Require the exact guest-owned management address and configured Keystone target
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_api_management_address.rc == 0
+          - (student_hybrid_api_management_address.stdout | from_json | length) == 1
+          - (student_hybrid_api_management_address.stdout | from_json)[0].addr_info | selectattr('family', 'equalto', 'inet') | selectattr('local', 'equalto', '10.0.2.15') | selectattr('prefixlen', 'equalto', 24) | list | length == 1
+          - student_state.hybrid.m11.api.auth_url | urlsplit('scheme') == 'http'
+          - student_state.hybrid.m11.api.auth_url | urlsplit('hostname') == '10.0.2.15'
+          - student_state.hybrid.m11.api.auth_url | urlsplit('username') in [none, '']
+          - student_state.hybrid.m11.api.auth_url | urlsplit('password') in [none, '']
+          - student_state.hybrid.m11.api.auth_url | urlsplit('query') == ''
+          - student_state.hybrid.m11.api.auth_url | urlsplit('fragment') == ''
+          - student_state.hybrid.m11.api.auth_url | urlsplit('path') is match('^/identity/v3/auth/tokens$')
+        fail_msg: "O endpoint de identidade não corresponde ao endereço management desta appliance; nenhuma credencial foi enviada."
+      no_log: true
+
+    - name: Discover the configured Keystone v3 endpoint inside the validated guest
+      ansible.builtin.uri:
+        url: "{{ student_state.hybrid.m11.api.auth_url | regex_replace('/auth/tokens$', '/') }}"
+        method: GET
+        headers:
+          Accept: application/json
+        return_content: true
+        status_code: [200]
+        timeout: 10
+        use_proxy: false
+        follow_redirects: none
+      delegate_to: student_hybrid_ubuntu
+      register: student_hybrid_api_identity_discovery
+      changed_when: false
+      no_log: true
+
+    - name: Require the configured Keystone endpoint to answer the v3 discovery query
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_api_identity_discovery.status == 200
+          - student_hybrid_api_identity_discovery.json.version.id is match('^v3(\.0)?$')
+        fail_msg: "O endpoint Keystone da appliance não anunciou a versão v3."
+      no_log: true
+
+    - ansible.builtin.include_tasks: tasks/hybrid-m11-api-auth.yml
+
+    - name: Reconcile an uncertain creation by run marker and project before cleanup
+      ansible.builtin.include_tasks: tasks/hybrid-m11-api-reconcile-post.yml
+      when:
+        - student_hybrid_api_mode in ['remove-routing', 'remove-resources']
+        - student_state.hybrid.m11.api.pending.method | default('') == 'POST'
+
+    - name: Reconcile an uncertain deletion against its exact resource ID before cleanup
+      ansible.builtin.include_tasks: tasks/hybrid-m11-api-reconcile-delete.yml
+      when:
+        - student_hybrid_api_mode in ['remove-routing', 'remove-resources']
+        - student_state.hybrid.m11.api.pending.method | default('') == 'DELETE'
+
+    - name: Refuse to mutate while any unconfirmed relationship intent remains
+      ansible.builtin.assert:
+        that:
+          - student_state.hybrid.m11.api.pending | length == 0
+        fail_msg: "Uma relação API tem resultado incerto; estado parcial permanece para inspeção."
+      when: student_hybrid_api_mode in ['provision', 'remove-routing', 'remove-resources']
+      no_log: true
+
+    - name: Create the API objects and relationships for this run
+      ansible.builtin.include_tasks: tasks/hybrid-m11-api-provision.yml
+      when: student_hybrid_api_mode == 'provision'
+
+    - name: Remove BGP relationships and speaker resources by recorded IDs
+      ansible.builtin.include_tasks: tasks/hybrid-m11-api-remove.yml
+      vars:
+        student_hybrid_api_remove_phase: routing
+      when: student_hybrid_api_mode == 'remove-routing'
+
+    - name: Remove tenant port, policy, router, networks, pools, and scope by recorded IDs
+      ansible.builtin.include_tasks: tasks/hybrid-m11-api-remove.yml
+      vars:
+        student_hybrid_api_remove_phase: resources
+      when: student_hybrid_api_mode == 'remove-resources'
+
+    - name: Verify Neutron IDs and relationships through fresh GET requests
+      ansible.builtin.include_tasks: tasks/hybrid-m11-verify.yml
+      when: student_hybrid_api_mode == 'verify'

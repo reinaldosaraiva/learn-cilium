@@ -1,0 +1,172 @@
+---
+- name: Require the requested guest to have a saved QEMU identity
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_ssh_guest_name in ['ubuntu', 'cirros']
+      - student_state.hybrid.guests[student_hybrid_ssh_guest_name].pid | int > 1
+      - student_state.hybrid.guests[student_hybrid_ssh_guest_name].starttime | int > 0
+      - student_state.hybrid.guests[student_hybrid_ssh_guest_name].netns_device | int == student_state.hybrid.network.border.netns_device | int
+      - student_state.hybrid.guests[student_hybrid_ssh_guest_name].netns_inode | int == student_state.hybrid.network.border.netns_inode | int
+      - student_state.hybrid.m11.ssh.host_keys[student_hybrid_ssh_guest_name].fingerprint is match('^SHA256:[A-Za-z0-9+/]{43}$')
+      - student_state.hybrid.m11.ssh.host_keys[student_hybrid_ssh_guest_name].alias is match('^p010-[0-9]{8}-[0-9a-f]{32}-[0-9a-f-]{36}-(ubuntu|cirros)$')
+    fail_msg: "SSH exige QEMU, netns e pin de host key salvos para o guest solicitado."
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-validate-border.yml
+  vars:
+    student_hybrid_ports_to_check: []
+
+- ansible.builtin.include_tasks: hybrid-qmp-command.yml
+  vars:
+    student_hybrid_qmp_action: verify
+    student_hybrid_qmp_guest_name: "{{ student_hybrid_ssh_guest_name }}"
+
+- name: Inspect the client key, host key public file, and pinned host database
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  register: student_hybrid_ssh_files
+  loop:
+    - "{{ student_state.hybrid.guests.ubuntu.ssh_private_key }}"
+    - "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.public_path }}"
+    - "{{ student_state.hybrid.m11.ssh.host_keys.cirros.public_path }}"
+    - "{{ student_state.hybrid.m11.ssh.known_hosts_path }}"
+  no_log: true
+
+- name: Read the pinned host key and its database for exact alias comparison
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  register: student_hybrid_ssh_public_inputs
+  loop:
+    - "{{ student_state.hybrid.m11.ssh.host_keys.ubuntu.public_path }}"
+    - "{{ student_state.hybrid.m11.ssh.host_keys.cirros.public_path }}"
+    - "{{ student_state.hybrid.m11.ssh.known_hosts_path }}"
+  no_log: true
+
+- name: Recompute the selected host public-key fingerprint
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_ssh_keygen_bin | default('/usr/bin/ssh-keygen') }}"
+      - -l
+      - -E
+      - sha256
+      - -f
+      - "{{ student_state.hybrid.m11.ssh.host_keys[student_hybrid_ssh_guest_name].public_path }}"
+  register: student_hybrid_ssh_fingerprint_now
+  changed_when: false
+  no_log: true
+
+- name: Require exact file identities, permissions, and a non-relearned pin
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_ssh_files.results[0].stat.isreg | default(false)
+      - not (student_hybrid_ssh_files.results[0].stat.islnk | default(false))
+      - student_hybrid_ssh_files.results[0].stat.uid | int == student_uid
+      - student_hybrid_ssh_files.results[0].stat.mode == '0600'
+      - student_hybrid_ssh_files.results[0].stat.dev | int == student_state.hybrid.guests.ubuntu.ssh_device | int
+      - student_hybrid_ssh_files.results[0].stat.inode | int == student_state.hybrid.guests.ubuntu.ssh_inode | int
+      - student_hybrid_ssh_files.results[1].stat.isreg | default(false)
+      - not (student_hybrid_ssh_files.results[1].stat.islnk | default(false))
+      - student_hybrid_ssh_files.results[1].stat.uid | int == student_uid
+      - student_hybrid_ssh_files.results[1].stat.mode == '0600'
+      - student_hybrid_ssh_files.results[1].stat.dev | int == student_state.hybrid.m11.ssh.host_keys.ubuntu.public_device | int
+      - student_hybrid_ssh_files.results[1].stat.inode | int == student_state.hybrid.m11.ssh.host_keys.ubuntu.public_inode | int
+      - student_hybrid_ssh_files.results[2].stat.isreg | default(false)
+      - not (student_hybrid_ssh_files.results[2].stat.islnk | default(false))
+      - student_hybrid_ssh_files.results[2].stat.uid | int == student_uid
+      - student_hybrid_ssh_files.results[2].stat.mode == '0600'
+      - student_hybrid_ssh_files.results[2].stat.dev | int == student_state.hybrid.m11.ssh.host_keys.cirros.public_device | int
+      - student_hybrid_ssh_files.results[2].stat.inode | int == student_state.hybrid.m11.ssh.host_keys.cirros.public_inode | int
+      - student_hybrid_ssh_files.results[3].stat.isreg | default(false)
+      - not (student_hybrid_ssh_files.results[3].stat.islnk | default(false))
+      - student_hybrid_ssh_files.results[3].stat.uid | int == student_uid
+      - student_hybrid_ssh_files.results[3].stat.mode == '0600'
+      - student_hybrid_ssh_files.results[3].stat.dev | int == student_state.hybrid.m11.ssh.known_hosts_device | int
+      - student_hybrid_ssh_files.results[3].stat.inode | int == student_state.hybrid.m11.ssh.known_hosts_inode | int
+      - (student_hybrid_ssh_public_inputs.results[0].content | b64decode | trim).split()[0] == 'ssh-ed25519'
+      - (student_hybrid_ssh_public_inputs.results[1].content | b64decode | trim).split()[0] == 'ssh-ed25519'
+      - student_hybrid_ssh_known_hosts_lines == student_hybrid_ssh_expected_known_hosts
+      - student_hybrid_ssh_fingerprint_now.rc == 0
+      - student_hybrid_ssh_fingerprint_now.stdout.split()[1] == student_state.hybrid.m11.ssh.host_keys[student_hybrid_ssh_guest_name].fingerprint
+    fail_msg: "Identidade SSH local divergiu do pin criado antes do boot; não farei keyscan nem substituirei pin."
+  vars:
+    student_hybrid_ssh_known_hosts_lines: "{{ student_hybrid_ssh_public_inputs.results[2].content | b64decode | split('\n') | reject('equalto', '') | list | sort }}"
+    student_hybrid_ssh_expected_known_hosts: >-
+      {{ [
+        student_state.hybrid.m11.ssh.host_keys.ubuntu.alias ~ ' ' ~ (student_hybrid_ssh_public_inputs.results[0].content | b64decode | trim).split()[0] ~ ' ' ~ (student_hybrid_ssh_public_inputs.results[0].content | b64decode | trim).split()[1],
+        student_state.hybrid.m11.ssh.host_keys.cirros.alias ~ ' ' ~ (student_hybrid_ssh_public_inputs.results[1].content | b64decode | trim).split()[0] ~ ' ' ~ (student_hybrid_ssh_public_inputs.results[1].content | b64decode | trim).split()[1]
+      ] | sort }}
+  no_log: true
+
+- name: Invoke SSH only inside the saved border namespace with explicit pins and identity
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_nsenter_bin | default('/usr/bin/nsenter') }}"
+      - "--net=/proc/{{ student_state.hybrid.network.border.pid }}/ns/net"
+      - --
+      - /usr/bin/setpriv
+      - "--reuid={{ student_uid }}"
+      - "--regid={{ ansible_user_gid | int }}"
+      - --init-groups
+      - --
+      - "{{ student_hybrid_ssh_bin | default('/usr/bin/ssh') }}"
+      - -F
+      - /dev/null
+      - -T
+      - -i
+      - "{{ student_state.hybrid.guests.ubuntu.ssh_private_key }}"
+      - -o
+      - IdentitiesOnly=yes
+      - -o
+      - IdentityAgent=none
+      - -o
+      - BatchMode=yes
+      - -o
+      - PreferredAuthentications=publickey
+      - -o
+      - PasswordAuthentication=no
+      - -o
+      - KbdInteractiveAuthentication=no
+      - -o
+      - StrictHostKeyChecking=yes
+      - -o
+      - "UserKnownHostsFile={{ student_state.hybrid.m11.ssh.known_hosts_path }}"
+      - -o
+      - GlobalKnownHostsFile=/dev/null
+      - -o
+      - HostKeyAlgorithms=ssh-ed25519
+      - -o
+      - UpdateHostKeys=no
+      - -o
+      - "HostKeyAlias={{ student_state.hybrid.m11.ssh.host_keys[student_hybrid_ssh_guest_name].alias }}"
+      - -o
+      - ConnectTimeout=10
+      - -o
+      - ServerAliveInterval=5
+      - -o
+      - ServerAliveCountMax=3
+      - -p
+      - "{{ student_state.hybrid.guests[student_hybrid_ssh_guest_name].host_port }}"
+      - "{{ 'stack' if student_hybrid_ssh_guest_name == 'ubuntu' else 'cirros' }}@127.0.0.1"
+      - "{{ student_hybrid_ssh_remote_command | default('sh -s') }}"
+    stdin: "{{ student_hybrid_ssh_stdin | default('') }}"
+    stdin_add_newline: false
+  register: student_hybrid_ssh_result
+  changed_when: false
+  become: true
+  retries: "{{ 30 if student_hybrid_ssh_allow_retry | default(false) | bool else 1 }}"
+  delay: 2
+  until: >-
+    not (student_hybrid_ssh_allow_retry | default(false) | bool) or
+    student_hybrid_ssh_result.rc == 0
+  environment:
+    HOME: "{{ lookup('env', 'HOME') }}"
+  no_log: true
+
+- name: Require the SSH transport and requested guest script to finish cleanly
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_ssh_result.rc == 0
+    fail_msg: "SSH falhou com os pins pré-gerados ou a verificação remota falhou; nenhum pin será aprendido novamente."
+  no_log: true
+  when: not (student_hybrid_ssh_allow_failure | default(false))

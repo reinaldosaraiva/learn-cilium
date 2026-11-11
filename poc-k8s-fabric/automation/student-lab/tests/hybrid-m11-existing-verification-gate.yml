@@ -1,0 +1,47 @@
+---
+- name: Exercise the existing-up and direct-verify gates without external commands
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    requested_action: "{{ lookup('env', 'P010_HYBRID_GATE_ACTION') }}"
+    student_action: "{{ requested_action }}"
+    student_profile_name: hibrido
+    student_has_state: true
+    student_state_file: "{{ lookup('env', 'P010_HYBRID_API_TEST_SCRATCH') }}/existing-gate-state.json"
+    student_hybrid_m11_verify_existing: true
+    student_state:
+      profile: hibrido
+      status: up
+      schema: 3
+      run_id: 20261030-0123456789abcdef0123456789abcdef
+      owner_token: '11111111111141118111111111111111'
+      hybrid:
+        schema: 4
+        phase: verified
+        m11:
+          phase: verified
+          api:
+            pending: {}
+          verification:
+            gates:
+              k8s_pending: {}
+              k8s_delete_pending: {}
+              positive:
+                phase: verified
+                bgp_established: 3
+                tenant_route: true
+                podcidr_route: true
+                pod_to_vm_icmp: true
+                pod_to_vm_tcp22: true
+                vm_to_pod_icmp: true
+                vm_to_pod_http: true
+                vm_source_observed_on_tenant_link: false
+  tasks:
+    - name: Route a repeated up through the production up dispatcher
+      ansible.builtin.include_tasks: ../tasks/up.yml
+      when: requested_action == 'up'
+
+    - name: Route direct verification through the production verification tasks
+      ansible.builtin.include_tasks: ../tasks/verify.yml
+      when: requested_action == 'verify'

@@ -1,0 +1,41 @@
+set -eu
+umask 077
+exec 3>&1 4>&2
+exec >/dev/null 2>&1
+bridge={{ student_state.hybrid.m11.verification.gates.ovs_attach.bridge_name | quote }}
+iface={{ student_state.hybrid.m11.verification.gates.ovs_attach.interface_name | quote }}
+expected_guest_mac={{ student_state.hybrid.m11.verification.gates.ovs_attach.guest_interface_mac | quote }}
+port_id={{ student_state.hybrid.m11.verification.gates.ovs_attach.neutron_port_id | quote }}
+attached_mac={{ student_state.hybrid.m11.verification.gates.ovs_attach.attached_mac | quote }}
+config=/etc/neutron/plugins/ml2/ml2_conf.ini
+[ "$(cat "/sys/class/net/$iface/address" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$expected_guest_mac" | tr '[:upper:]' '[:lower:]')" ]
+[ -z "$(ip -o -4 address show dev "$iface")" ]
+[ "$(sudo -n crudini --get "$config" securitygroup enable_security_group)" = True ]
+[ "$(sudo -n crudini --get "$config" securitygroup firewall_driver)" = openvswitch ]
+[ "$(sudo -n crudini --get "$config" ovs bridge_mappings)" = m11public:br-ex ]
+sudo -n ovs-vsctl --timeout=10 br-exists br-int
+interfaces="$(sudo -n ovs-vsctl --timeout=10 --format=bare --data=bare --no-heading --columns=name list Interface)"
+ports="$(sudo -n ovs-vsctl --timeout=10 --format=bare --data=bare --no-heading --columns=name list Port)"
+if printf '%s\n' "$interfaces" | grep -Fxq "$iface"; then exit 1; fi
+if printf '%s\n' "$ports" | grep -Fxq "$iface"; then exit 1; fi
+sudo -n ovs-vsctl --timeout=10 add-port "$bridge" "$iface" -- set Interface "$iface" "external_ids:iface-id=$port_id" "external_ids:attached-mac=$attached_mac"
+bridge_uuid="$(sudo -n ovs-vsctl --timeout=10 get Bridge "$bridge" _uuid | tr -d '"')"
+port_uuid="$(sudo -n ovs-vsctl --timeout=10 get Port "$iface" _uuid | tr -d '"')"
+interface_uuid="$(sudo -n ovs-vsctl --timeout=10 get Interface "$iface" _uuid | tr -d '"')"
+ifindex="$(cat "/sys/class/net/$iface/ifindex")"
+ofport="$(sudo -n ovs-vsctl --timeout=10 get Interface "$iface" ofport | tr -d '"')"
+actual_bridge="$(sudo -n ovs-vsctl --timeout=10 port-to-br "$iface")"
+actual_iface_id="$(sudo -n ovs-vsctl --timeout=10 get Interface "$iface" external_ids:iface-id | tr -d '"')"
+actual_attached_mac="$(sudo -n ovs-vsctl --timeout=10 get Interface "$iface" external_ids:attached-mac | tr -d '"')"
+[ "$actual_bridge" = "$bridge" ]
+[ "$actual_iface_id" = "$port_id" ]
+[ "$(printf '%s' "$actual_attached_mac" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$attached_mac" | tr '[:upper:]' '[:lower:]')" ]
+printf 'P010_OVS_BRIDGE=%s\n' "$bridge" >&3
+printf 'P010_OVS_BRIDGE_UUID=%s\n' "$bridge_uuid" >&3
+printf 'P010_OVS_PORT_UUID=%s\n' "$port_uuid" >&3
+printf 'P010_OVS_INTERFACE_UUID=%s\n' "$interface_uuid" >&3
+printf 'P010_OVS_IFINDEX=%s\n' "$ifindex" >&3
+printf 'P010_OVS_OFPORT=%s\n' "$ofport" >&3
+printf 'P010_OVS_IFACE_ID=%s\n' "$actual_iface_id" >&3
+printf 'P010_OVS_ATTACHED_MAC=%s\n' "$actual_attached_mac" >&3
+printf 'P010_OVS_GUEST_MAC=%s\n' "$expected_guest_mac" >&3

@@ -1,0 +1,27 @@
+---
+- name: Resolve CiliumNode records from the normal kubectl List shape
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Provide CLI JSON output as an ordinary List with rack allocations
+      ansible.builtin.set_fact:
+        student_hybrid_m11_ciliumnodes:
+          stdout: >-
+            {"apiVersion":"v1","kind":"List","items":[
+              {"apiVersion":"cilium.io/v2","kind":"CiliumNode","metadata":{"name":"rack1-node"},"spec":{"ipam":{"podCIDRs":["10.246.1.0/24"]}}},
+              {"apiVersion":"cilium.io/v2","kind":"CiliumNode","metadata":{"name":"rack2-node"},"spec":{"ipam":{"podCIDRs":["10.246.2.0/24"]}}}]}
+        student_hybrid_m11_client_pod:
+          spec: {nodeName: rack1-node}
+        student_hybrid_m11_server_pod:
+          spec: {nodeName: rack2-node}
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-resolve-ciliumnodes.yml
+
+    - name: Require the exact node records and PodCIDRs from the JSON items key
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_m11_client_node.metadata.name == 'rack1-node'
+          - student_hybrid_m11_client_node.spec.ipam.podCIDRs == ['10.246.1.0/24']
+          - student_hybrid_m11_server_node.metadata.name == 'rack2-node'
+          - student_hybrid_m11_server_node.spec.ipam.podCIDRs == ['10.246.2.0/24']

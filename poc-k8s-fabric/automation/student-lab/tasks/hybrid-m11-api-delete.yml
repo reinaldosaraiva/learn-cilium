@@ -1,0 +1,142 @@
+---
+- name: Require the saved object ID and a cleared previous API intent
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_slot is defined
+      - student_state.hybrid.m11.api.pending | length == 0
+      - student_state.hybrid.m11.api.resources[student_hybrid_api_resource_key][student_hybrid_api_slot].id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    fail_msg: "DELETE exige o ID persistido e nenhuma mutação API pendente."
+  no_log: true
+
+- name: Query the exact saved object before cleanup
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}{{ student_hybrid_api_collection_path }}/{{ student_state.hybrid.m11.api.resources[student_hybrid_api_resource_key][student_hybrid_api_slot].id }}"
+    method: GET
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+    return_content: true
+    status_code: [200, 404]
+    timeout: 15
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_delete_read
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+
+- name: Retain the object body only when the exact Neutron ID is present
+  ansible.builtin.set_fact:
+    student_hybrid_api_delete_object: "{{ student_hybrid_api_delete_read.json[student_hybrid_api_envelope] if student_hybrid_api_delete_read.status == 200 else {} }}"
+  no_log: true
+
+- name: Require exact saved ownership attributes before a destructive request
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_delete_object.id == student_state.hybrid.m11.api.resources[student_hybrid_api_resource_key][student_hybrid_api_slot].id
+      - item.value is none or (student_hybrid_api_delete_object[item.key] is defined and student_hybrid_api_delete_object[item.key] == item.value)
+    fail_msg: "Objeto no servidor diverge do registro privado; nenhum recurso será excluído."
+  loop: "{{ student_hybrid_api_delete_expected | dict2items }}"
+  when: student_hybrid_api_delete_read.status == 200
+  no_log: true
+
+- name: Persist an identity-bound DELETE intent before the request
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      status: partial
+      phase: hybrid-api-delete-pending
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending:
+              method: DELETE
+              resource: "{{ student_hybrid_api_resource_key }}:{{ student_hybrid_api_slot }}"
+              path: "{{ student_hybrid_api_collection_path }}/{{ student_state.hybrid.m11.api.resources[student_hybrid_api_resource_key][student_hybrid_api_slot].id }}"
+              collection_path: "{{ student_hybrid_api_collection_path }}"
+              envelope: "{{ student_hybrid_api_envelope }}"
+              expected: "{{ student_hybrid_api_delete_expected }}"
+              run_id: "{{ student_state.run_id }}"
+  when: student_hybrid_api_delete_read.status == 200
+  no_log: true
+
+- name: Delete only the exact saved ID and never retry the mutation
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}{{ student_hybrid_api_collection_path }}/{{ student_state.hybrid.m11.api.resources[student_hybrid_api_resource_key][student_hybrid_api_slot].id }}"
+    method: DELETE
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+    return_content: false
+    status_code: [204]
+    timeout: 20
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_delete_result
+  when: student_hybrid_api_delete_read.status == 200
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+
+- name: Confirm the saved ID is absent after deletion
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}{{ student_hybrid_api_collection_path }}/{{ student_state.hybrid.m11.api.resources[student_hybrid_api_resource_key][student_hybrid_api_slot].id }}"
+    method: GET
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+    return_content: true
+    status_code: [200, 404]
+    timeout: 15
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_delete_confirm
+  when: student_hybrid_api_delete_read.status == 200
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+
+- name: Require the object to be absent after the one-time DELETE
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_delete_confirm.status == 404
+    fail_msg: "Neutron não confirmou a remoção; IDs e intenção ficam preservados para inspeção."
+  when: student_hybrid_api_delete_read.status == 200
+  no_log: true
+
+- name: Build the exact resource map patch with resolved API keys
+  ansible.builtin.set_fact:
+    student_hybrid_api_delete_resource_patch: >-
+      {{ {student_hybrid_api_resource_key: {
+        student_hybrid_api_slot:
+          student_state.hybrid.m11.api.resources[student_hybrid_api_resource_key][student_hybrid_api_slot]
+          | combine({'id': ''})
+      }} }}
+  no_log: true
+
+- name: Clear only the confirmed-absent ID and pending DELETE intent
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-object-removed
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending: {}
+            resources: "{{ student_hybrid_api_delete_resource_patch }}"
+  no_log: true
+
+- name: Clear only an ID for an exact 404 from the authenticated local Neutron endpoint
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-object-already-absent
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            resources: "{{ student_hybrid_api_delete_resource_patch }}"
+  when: student_hybrid_api_delete_read.status == 404
+  no_log: true

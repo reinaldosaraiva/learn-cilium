@@ -1,0 +1,123 @@
+---
+- name: Require exact saved endpoint IDs and an empty relationship intent
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.api.pending | length == 0
+      - student_state.hybrid.m11.api.agent_ids.bgp is match('^[0-9a-f-]{36}$')
+      - student_state.hybrid.m11.api.resources.bgp_speaker.primary.id is match('^[0-9a-f-]{36}$')
+      - not (student_state.hybrid.m11.api.links.drinstance | default({}))
+    fail_msg: "O agendamento NDR requer o agent e speaker exatos, sem outra relação persistida."
+  no_log: true
+
+- name: Read the scheduler collection for the saved BGP agent before creating a relation
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "/agents/{{ student_state.hybrid.m11.api.agent_ids.bgp }}/bgp-drinstances"
+
+- name: Validate the exact existing speaker relation before any scheduler POST
+  ansible.builtin.include_tasks: hybrid-m11-api-validate-scheduled.yml
+  vars:
+    student_hybrid_api_expected_speaker_id: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}"
+
+- name: Record whether the exact relationship was already present
+  ansible.builtin.set_fact:
+    student_hybrid_api_schedule_was_present: "{{ student_hybrid_api_scheduled_speaker_ids == [student_state.hybrid.m11.api.resources.bgp_speaker.primary.id] }}"
+  no_log: true
+
+- name: Persist the exact two-ID relationship intent before scheduler POST
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      status: partial
+      phase: hybrid-api-scheduler-pending
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-provisioning
+          api:
+            pending:
+              method: POST
+              resource: relation:drinstance
+              path: "/agents/{{ student_state.hybrid.m11.api.agent_ids.bgp }}/bgp-drinstances"
+              run_id: "{{ student_state.run_id }}"
+              agent_id: "{{ student_state.hybrid.m11.api.agent_ids.bgp }}"
+              speaker_id: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}"
+              body:
+                bgp_speaker_id: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}"
+  when: not student_hybrid_api_schedule_was_present
+  no_log: true
+
+- name: Schedule the saved speaker using the pin's top-level NDR request body
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}/agents/{{ student_state.hybrid.m11.api.agent_ids.bgp }}/bgp-drinstances"
+    method: POST
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+      Content-Type: application/json
+    body_format: json
+    body:
+      bgp_speaker_id: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}"
+    return_content: true
+    status_code: [201]
+    timeout: 20
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_schedule_post
+  delegate_to: student_hybrid_ubuntu
+  when: not student_hybrid_api_schedule_was_present
+  no_log: true
+
+- name: Require the scheduler POST's actual status without expecting an object or ID
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_schedule_post.status == 201
+      - student_hybrid_api_schedule_post.json is not defined or student_hybrid_api_schedule_post.json is none
+    fail_msg: "O POST do scheduler não retornou o contrato NDR sem envelope nem UUID."
+  when: not student_hybrid_api_schedule_was_present
+  no_log: true
+
+- name: Re-read the scheduler collection after the one-time POST
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "/agents/{{ student_state.hybrid.m11.api.agent_ids.bgp }}/bgp-drinstances"
+  when: not student_hybrid_api_schedule_was_present
+
+- name: Confirm the exact agent-to-speaker relationship by both saved IDs
+  ansible.builtin.include_tasks: hybrid-m11-api-validate-scheduled.yml
+  vars:
+    student_hybrid_api_expected_speaker_id: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}"
+
+- name: Require this agent to schedule exactly the saved speaker
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_scheduled_speaker_ids == [student_state.hybrid.m11.api.resources.bgp_speaker.primary.id]
+    fail_msg: "A lista NDR não confirmou o vínculo pelo agent e speaker persistidos."
+  no_log: true
+
+- name: Persist the confirmed NDR relation without inventing a scheduler UUID
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-scheduler-ready
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-provisioning
+          api:
+            pending: {}
+            links:
+              drinstance:
+                agent_id: "{{ student_state.hybrid.m11.api.agent_ids.bgp }}"
+                speaker_id: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}"
+                method: "{{ 'GET' if student_hybrid_api_schedule_was_present else 'POST' }}"
+                status: "{{ 200 if student_hybrid_api_schedule_was_present else student_hybrid_api_schedule_post.status }}"
+                envelope: bgp_speakers
+            resources:
+              drinstance:
+                primary:
+                  id: ''
+                  name: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.name }}"
+                  agent_id: "{{ student_state.hybrid.m11.api.agent_ids.bgp }}"
+                  speaker_id: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}"
+  no_log: true

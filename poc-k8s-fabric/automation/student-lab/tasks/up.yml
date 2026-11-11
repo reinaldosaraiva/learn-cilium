@@ -1,0 +1,719 @@
+---
+- name: Verify instead of reconciling an already healthy recorded lab
+  ansible.builtin.include_tasks: verify.yml
+  vars:
+    student_hybrid_m11_verify_existing: true
+  when: student_has_state and student_state.status == 'up'
+  tags: [student-up-state-guard]
+
+- name: Leave a recorded up lab unchanged after successful verification
+  ansible.builtin.meta: end_play
+  when: student_has_state and student_state.status == 'up'
+  tags: [student-up-state-guard]
+
+- name: Require explicit cleanup before retrying a partial run
+  ansible.builtin.assert:
+    that:
+      - not student_has_state or student_state.status in ['down']
+    fail_msg: "A execução anterior está {{ student_state.status | default('indefinida') }}. Use lab-status e lab-down; a automação não reconciliará helm, workloads ou containers parciais."
+  when: not (student_has_state and student_state.status == 'up')
+  tags: [student-up-state-guard]
+
+- name: Start a fresh lab after the durable owner record is established
+  block:
+    - name: Create private run directory and persist state before any host change
+      ansible.builtin.include_tasks: prepare-run.yml
+
+    - name: Install only declared apt dependencies and Docker when absent
+      ansible.builtin.apt:
+        name: "{{ student_system_packages + (['docker.io'] if not student_docker_client_stat.stat.exists | default(false) else []) }}"
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+        lock_timeout: 300
+      become: true
+      async: 1800
+      poll: 10
+
+    - name: Ensure the local Docker service is running
+      ansible.builtin.service:
+        name: docker
+        state: started
+      become: true
+
+    - name: Read the rootful local Docker server version
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/docker
+          - --host
+          - unix:///var/run/docker.sock
+          - version
+          - --format
+          - "{{ '{{' }}.Server.Version{{ '}}' }}"
+      become: true
+      register: student_docker_server_version
+      changed_when: false
+
+    - name: Require a compatible local Docker engine
+      ansible.builtin.assert:
+        that:
+          - student_docker_server_version.stdout is version('20.10.0', '>=')
+        fail_msg: "Docker local precisa ser >=20.10; detectado {{ student_docker_server_version.stdout }}. Não atualizei engine existente."
+
+    - name: Create private tool download and staging directories
+      ansible.builtin.file:
+        path: "{{ student_tool_dir }}/{{ item }}"
+        state: directory
+        owner: "{{ student_uid }}"
+        mode: '0700'
+      loop:
+        - downloads
+        - staging
+
+    - name: Download pinned tools with published SHA-256 checksums
+      ansible.builtin.get_url:
+        url: "{{ item.value.url }}"
+        dest: "{{ student_tool_dir }}/downloads/{{ item.key }}"
+        checksum: "sha256:{{ item.value.checksum }}"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+        timeout: 60
+      loop: "{{ student_tool_downloads | dict2items }}"
+
+    - name: Create private extraction directories
+      ansible.builtin.file:
+        path: "{{ student_tool_dir }}/staging/{{ item.key }}"
+        state: directory
+        owner: "{{ student_uid }}"
+        mode: '0700'
+      loop: "{{ student_tool_downloads | dict2items }}"
+      when: item.value.archive != false
+
+    - name: Extract pinned tool archives into private staging
+      ansible.builtin.unarchive:
+        src: "{{ student_tool_dir }}/downloads/{{ item.key }}"
+        dest: "{{ student_tool_dir }}/staging/{{ item.key }}"
+        remote_src: true
+        creates: "{{ student_tool_dir }}/staging/{{ item.key }}/{{ item.value.archive }}"
+      loop: "{{ student_tool_downloads | dict2items }}"
+      when: item.value.archive != false
+
+    - name: Install pinned standalone binaries in the private tools directory
+      ansible.builtin.copy:
+        src: "{{ student_tool_dir }}/downloads/{{ item.key }}"
+        dest: "{{ student_tool_dir }}/{{ item.key }}"
+        owner: "{{ student_uid }}"
+        mode: '0755'
+        remote_src: true
+      loop: "{{ student_tool_downloads | dict2items }}"
+      when: item.value.archive == false
+
+    - name: Install pinned binaries extracted from private archives
+      ansible.builtin.copy:
+        src: "{{ student_tool_dir }}/staging/{{ item.key }}/{{ item.value.archive }}"
+        dest: "{{ student_tool_dir }}/{{ item.key }}"
+        owner: "{{ student_uid }}"
+        mode: '0755'
+        remote_src: true
+      loop: "{{ student_tool_downloads | dict2items }}"
+      when: item.value.archive != false
+
+    - name: Check the installed versions of private tools
+      ansible.builtin.command:
+        argv: "{{ item.argv }}"
+      register: student_tool_version_results
+      changed_when: false
+      environment:
+        KUBECONFIG: /dev/null
+      loop:
+        - { name: kind, argv: ["{{ student_tool_dir }}/kind", version] }
+        - { name: kubectl, argv: ["{{ student_tool_dir }}/kubectl", version, --client=true] }
+        - { name: helm, argv: ["{{ student_tool_dir }}/helm", version, --short] }
+        - { name: cilium, argv: [/usr/bin/timeout, --kill-after=5s, 30s, "{{ student_tool_dir }}/cilium", version, --client] }
+        - { name: hubble, argv: ["{{ student_tool_dir }}/hubble", version] }
+        - { name: containerlab, argv: ["{{ student_tool_dir }}/containerlab", version] }
+
+    - name: Require the pinned tool versions in command output
+      ansible.builtin.assert:
+        that:
+          - >-
+            ({'kind': student_tool_versions.kind,
+              'kubectl': student_tool_versions.kubernetes,
+              'helm': student_tool_versions.helm,
+              'cilium': student_tool_versions.cilium_cli,
+              'hubble': student_tool_versions.hubble_cli,
+              'containerlab': student_tool_versions.containerlab}
+             [item.item.name]) in (item.stdout ~ item.stderr)
+        fail_msg: "Versão de {{ item.item.name }} inesperada: {{ item.stdout | default('') }} {{ item.stderr | default('') }}"
+      loop: "{{ student_tool_version_results.results }}"
+
+    - name: Recheck name collisions after installing private tools and starting Docker
+      ansible.builtin.include_tasks: check-collisions.yml
+
+    - name: Choose the exact kind configuration file
+      ansible.builtin.set_fact:
+        student_kind_config_file: "{{ student_run_dir }}/kind-config.yml"
+      when: student_profile_name == 'iniciantes'
+
+    - name: Render the beginner one-node kind configuration
+      ansible.builtin.template:
+        src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/kind-iniciantes.yml.j2"
+        dest: "{{ student_kind_config_file }}"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      when: student_profile_name == 'iniciantes'
+
+    - name: Use the reviewed kind configuration for book profiles
+      ansible.builtin.set_fact:
+        student_kind_config_file: "{{ student_run_dir }}/kind-config.yml"
+      when: student_profile_name not in ['iniciantes', 'hibrido']
+
+    - name: Select the private Kind configuration path for the hybrid profile
+      ansible.builtin.set_fact:
+        student_kind_config_file: "{{ student_run_dir }}/kind-config.yml"
+      when: student_profile_name == 'hibrido'
+
+    - name: Select the private runtime values path for the hybrid Cilium exception
+      ansible.builtin.set_fact:
+        student_chart_file: "{{ student_repo_root }}/{{ student_profile.chart }}"
+        student_values_file: "{{ student_repo_root }}/{{ student_profile.cilium_values }}"
+        student_scenario_values_file: "{{ student_state.hybrid.m11.cilium.values_path }}"
+      when: student_profile_name == 'hibrido'
+
+    - name: Render the private destination-only Cilium masquerade exception
+      ansible.builtin.include_tasks: hybrid-m11-render-cilium-values.yml
+      when: student_profile_name == 'hibrido'
+
+    - name: Copy the reviewed book Kind configuration into private runtime state
+      ansible.builtin.copy:
+        src: "{{ student_repo_root }}/{{ student_profile.kind_config }}"
+        dest: "{{ student_kind_config_file }}"
+        remote_src: true
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      when: student_profile_name != 'iniciantes'
+
+    - name: Replace only the P003 pod subnet in the hybrid Kind runtime copy
+      ansible.builtin.replace:
+        path: "{{ student_kind_config_file }}"
+        regexp: '(?m)^  podSubnet: "10\.245\.0\.0/16"$'
+        replace: '  podSubnet: "{{ student_profile.hybrid_network.pod_cidr }}"'
+      register: student_hybrid_kind_pod_subnet
+      when: student_profile_name == 'hibrido'
+
+    - name: Replace only the P003 service subnet in the hybrid Kind runtime copy
+      ansible.builtin.replace:
+        path: "{{ student_kind_config_file }}"
+        regexp: '(?m)^  serviceSubnet: "10\.112\.0\.0/16"$'
+        replace: '  serviceSubnet: "{{ student_profile.hybrid_network.service_cidr }}"'
+      register: student_hybrid_kind_service_subnet
+      when: student_profile_name == 'hibrido'
+
+    - name: Require the private Kind copy to contain the reserved hybrid CIDRs
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_kind_pod_subnet.changed
+          - student_hybrid_kind_service_subnet.changed
+          - lookup('file', student_kind_config_file) is search(student_profile.hybrid_network.pod_cidr | regex_escape)
+          - lookup('file', student_kind_config_file) is search(student_profile.hybrid_network.service_cidr | regex_escape)
+      when: student_profile_name == 'hibrido'
+
+    - name: Add ownership data to the private Kind configuration structurally
+      ansible.builtin.include_tasks: configure-kind-ownership.yml
+
+    - name: Recheck admission after apt and downloads, immediately before lab creation
+      ansible.builtin.include_tasks: preflight.yml
+      vars:
+        student_force_admission_check: true
+
+    - name: Create the kind cluster without waiting for CNI readiness
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kind"
+          - create
+          - cluster
+          - --name
+          - "{{ student_profile.kind_name }}"
+          - --config
+          - "{{ student_kind_config_file }}"
+          - --kubeconfig
+          - "{{ student_kubeconfig }}"
+          - --wait
+          - 0s
+      become: true
+      environment:
+        DOCKER_HOST: unix:///var/run/docker.sock
+      register: student_kind_create
+      async: 1200
+      poll: 10
+
+    - name: Set private kubeconfig ownership and permissions
+      ansible.builtin.file:
+        path: "{{ student_kubeconfig }}"
+        state: file
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      become: true
+
+    - name: Save IDs immediately after kind creation
+      ansible.builtin.include_tasks: save-state.yml
+      vars:
+        student_save_status: partial
+        student_save_phase: kind-created
+
+    - name: Wait for the explicit kind context API endpoint
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - get
+          - nodes
+      become: true
+      register: student_api_ready
+      changed_when: false
+      retries: 60
+      delay: 5
+      until: student_api_ready.rc == 0
+
+    - name: Read the Kubernetes API address from the private kubeconfig
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - config
+          - view
+          - --minify
+          - -o
+          - "jsonpath={{ '{' }}.clusters[0].cluster.server{{ '}' }}"
+      become: true
+      register: student_api_server
+      changed_when: false
+
+    - name: Require the loopback API endpoint pinned by the private kubeconfig
+      ansible.builtin.assert:
+        that:
+          - student_api_server.stdout is match('^https://127\\.0\\.0\\.1:[0-9]{1,5}$')
+        fail_msg: "API server inesperado: {{ student_api_server.stdout }}"
+
+    - name: Read nodes carrying the owner label from initial kubeadm configuration
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - get
+          - nodes
+          - --selector
+          - "p010-student-owner={{ student_state.owner_token }}"
+          - -o
+          - 'jsonpath={range .items[*]}{.metadata.name}{"\n"}{end}'
+      become: true
+      register: student_initial_owner_nodes
+      changed_when: false
+
+    - name: Require kubeadm to bind the owner label before Cilium installation
+      ansible.builtin.assert:
+        that:
+          - student_initial_owner_nodes.stdout_lines | sort == student_profile.kind_nodes | sort
+        fail_msg: "O cluster não recebeu o token no kubeadm inicial; interrompo antes de instalar Cilium."
+
+    - name: Read the control-plane address on the local kind network
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/docker
+          - --host
+          - unix:///var/run/docker.sock
+          - inspect
+          - "--format={{ '{{' }}.NetworkSettings.Networks.kind.IPAddress{{ '}}' }}"
+          - "{{ student_profile.kind_name }}-control-plane"
+      become: true
+      register: student_cp_ip_result
+      changed_when: false
+
+    - name: Require a control-plane address on the kind bridge
+      ansible.builtin.assert:
+        that:
+          - student_cp_ip_result.stdout is match('^[0-9]{1,3}(\\.[0-9]{1,3}){3}$')
+        fail_msg: "Não foi possível identificar o IP do control-plane na rede Docker kind."
+
+    - name: Set chart and runtime values paths
+      ansible.builtin.set_fact:
+        student_cp_ip: "{{ student_cp_ip_result.stdout }}"
+        student_chart_file: "{{ student_repo_root }}/{{ student_profile.chart }}"
+        student_values_file: "{{ student_run_dir }}/cilium-values.yml"
+      when: student_profile_name == 'iniciantes'
+
+    - name: Render beginner Cilium values with Hubble mTLS enabled
+      ansible.builtin.template:
+        src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hubble-values.yml.j2"
+        dest: "{{ student_values_file }}"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      when: student_profile_name == 'iniciantes'
+
+    - name: Set reviewed values file for a book profile
+      ansible.builtin.set_fact:
+        student_cp_ip: "{{ student_cp_ip_result.stdout }}"
+        student_chart_file: "{{ student_repo_root }}/{{ student_profile.chart }}"
+        student_values_file: "{{ student_repo_root }}/{{ student_profile.cilium_values }}"
+      when: student_profile_name in ['fundamentos', 'plataforma']
+
+    - name: Set the hybrid API server address after reading the private Kind network
+      ansible.builtin.set_fact:
+        student_cp_ip: "{{ student_cp_ip_result.stdout }}"
+      when: student_profile_name == 'hibrido'
+
+    - name: Set the private scenario values path
+      ansible.builtin.set_fact:
+        student_scenario_values_file: "{{ student_run_dir }}/scenario-values.yml"
+      when:
+        - student_profile_name == 'plataforma'
+        - student_exercise_config.routing_mode is defined or student_exercise_config.ipam is defined
+
+    - name: Render only the reviewed scenario Cilium overrides
+      ansible.builtin.template:
+        src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/scenario-values.yml.j2"
+        dest: "{{ student_scenario_values_file }}"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      when:
+        - student_profile_name == 'plataforma'
+        - student_exercise_config.routing_mode is defined or student_exercise_config.ipam is defined
+
+    - name: Render an isolated runtime copy of the reviewed topology
+      ansible.builtin.copy:
+        src: "{{ student_repo_root }}/{{ student_profile.topology_source }}"
+        dest: "{{ student_topology_file }}"
+        remote_src: true
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      when: student_profile.topology_source is not none
+
+    - name: Rename the private hybrid topology and management network
+      ansible.builtin.replace:
+        path: "{{ student_topology_file }}"
+        regexp: "{{ item.regexp }}"
+        replace: "{{ item.replace }}"
+      loop:
+        - { regexp: '(?m)^name: p003-gw-fabric$', replace: "name: {{ student_profile.topology_name }}" }
+        - { regexp: '(?m)^  network: p003-gw-mgmt$', replace: "  network: {{ student_profile.topology_network }}" }
+      register: student_hybrid_topology_identity_replacements
+      when: student_profile_name == 'hibrido'
+
+    - name: Rename the private hybrid ext-container nodes to the reserved Kind nodes
+      ansible.builtin.replace:
+        path: "{{ student_topology_file }}"
+        regexp: "{{ item.source | regex_escape }}"
+        replace: "{{ item.target }}"
+      loop:
+        - { source: p003-gw-control-plane, target: "{{ student_profile.kind_nodes[0] }}" }
+        - { source: p003-gw-worker2, target: "{{ student_profile.kind_nodes[2] }}" }
+        - { source: p003-gw-worker, target: "{{ student_profile.kind_nodes[1] }}" }
+      register: student_hybrid_topology_node_replacements
+      when: student_profile_name == 'hibrido'
+
+    - name: Replace the stale P003 pod route only in the private hybrid topology
+      ansible.builtin.replace:
+        path: "{{ student_topology_file }}"
+        regexp: '10\.245\.0\.0/16'
+        replace: "{{ student_profile.hybrid_network.pod_cidr }}"
+      register: student_hybrid_topology_pod_route
+      when: student_profile_name == 'hibrido'
+
+    - name: Require every private topology identity and pod route to be transformed
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_topology_identity_replacements.results | selectattr('changed', 'equalto', true) | list | length == 2
+          - student_hybrid_topology_node_replacements.results | selectattr('changed', 'equalto', true) | list | length == 3
+          - student_hybrid_topology_pod_route.changed
+          - lookup('file', student_topology_file) is search(student_profile.topology_name | regex_escape)
+          - lookup('file', student_topology_file) is search(student_profile.topology_network | regex_escape)
+          - lookup('file', student_topology_file) is search(student_profile.hybrid_network.pod_cidr | regex_escape)
+          - lookup('file', student_topology_file) is not search('p003-gw-(control-plane|worker2?|fabric|mgmt)')
+      when: student_profile_name == 'hibrido'
+
+    - name: Remove only the kind node owned by the source topology
+      ansible.builtin.replace:
+        path: "{{ student_topology_file }}"
+        regexp: "(?ms)^    {{ student_profile.topology_nodes[0] }}:\\n      kind: k8s-kind\\n      startup-config: [^\\n]+\\n\\n"
+        replace: ''
+      when: student_profile.topology_source is not none
+
+    - name: Remove the source topology host attachment from the private copy
+      ansible.builtin.replace:
+        path: "{{ student_topology_file }}"
+        regexp: '(?m)^    - endpoints: \["border1:[^"]+", "host:[^"]+"\]\n'
+        replace: ''
+      when: student_profile.topology_source is not none
+
+    - name: Resolve source config paths in the private topology copy
+      ansible.builtin.replace:
+        path: "{{ student_topology_file }}"
+        regexp: '\.\./configs/'
+        replace: "{{ student_repo_root }}/{{ 'poc-k8s-fabric/configs/' if student_profile_name == 'fundamentos' else 'poc-k8s-fabric/studies/p003/configs/' }}"
+      when: student_profile.topology_source is not none
+
+    - name: Prepare the private FRR filter for selected IPAM pools
+      ansible.builtin.include_tasks: prepare-ipam-frr.yml
+      when:
+        - student_profile_name == 'plataforma'
+        - student_exercise_config.ipam | default('') in ['m24', 'm32']
+
+    - name: Prepare only the hybrid border's private tenant and pod route filters
+      ansible.builtin.include_tasks: hybrid-m11-prepare-frr.yml
+      when: student_profile_name == 'hibrido'
+
+    - name: Bind the owner token to each managed containerlab node
+      ansible.builtin.replace:
+        path: "{{ student_topology_file }}"
+        regexp: '(?m)^    {{ item }}:\n      kind: ([^\n]+)\n'
+        replace: "    {{ item }}:\n      kind: \\g<1>\n      labels:\n        p010-student-owner: {{ student_state.owner_token }}\n"
+      loop: "{{ student_profile.topology_label_nodes }}"
+      when: student_profile.topology_source is not none
+
+    - name: Prove the private topology has no nested kind or host network link
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -En
+          - '^[[:space:]]+kind: k8s-kind|^[[:space:]]+- endpoints:.*"host:'
+          - "{{ student_topology_file }}"
+      register: student_forbidden_topology_lines
+      changed_when: false
+      failed_when: false
+      when: student_profile.topology_source is not none
+
+    - name: Reject any remaining kind node or host link
+      ansible.builtin.assert:
+        that:
+          - student_forbidden_topology_lines.rc == 1
+        fail_msg: "A cópia de runtime ainda contém k8s-kind ou endpoint host; não vou alterar rede do host."
+      when: student_profile.topology_source is not none
+
+    - name: Recheck admission immediately before network and fabric creation
+      ansible.builtin.include_tasks: preflight.yml
+      vars:
+        student_force_admission_check: true
+      when: student_profile.topology_source is not none
+
+    - name: Create the management Docker network with this run's owner label
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/docker
+          - --host
+          - unix:///var/run/docker.sock
+          - network
+          - create
+          - --driver
+          - bridge
+          - --label
+          - containerlab=
+          - --label
+          - "p010-student-owner={{ student_state.owner_token }}"
+          - --subnet
+          - "{{ student_profile.topology_subnet }}"
+          - --opt
+          - com.docker.network.driver.mtu=1500
+          - "{{ student_profile.topology_network }}"
+      become: true
+      register: student_network_create
+      changed_when: true
+      no_log: true
+      when: student_profile.topology_source is not none
+
+    - name: Save the owner-labeled management network ID before fabric deployment
+      ansible.builtin.include_tasks: save-state.yml
+      vars:
+        student_save_status: partial
+        student_save_phase: network-created
+      when: student_profile.topology_source is not none
+
+    - name: Deploy the fabric using the pre-created owner-labeled network
+      ansible.builtin.shell:
+        cmd: >-
+          {{ (student_tool_dir ~ '/containerlab') | quote }} deploy
+          -t {{ student_topology_file | quote }}
+          > {{ (student_run_dir ~ '/containerlab-up.log') | quote }} 2>&1
+      become: true
+      environment:
+        DOCKER_HOST: unix:///var/run/docker.sock
+      async: 2400
+      poll: 10
+      when: student_profile.topology_source is not none
+
+    - name: Save real fabric, network, kubeconfig, and identity IDs
+      ansible.builtin.include_tasks: save-state.yml
+      vars:
+        student_save_status: partial
+        student_save_phase: fabric-created
+      when: student_profile.topology_source is not none
+
+    - name: Capture the original owner-labeled hybrid border process and namespace
+      ansible.builtin.include_tasks: hybrid-m11-capture-border.yml
+      when: student_profile_name == 'hibrido'
+
+    - name: Prepare the reserved Ubuntu guest inside the recorded border namespace
+      ansible.builtin.include_tasks: hybrid-boot.yml
+      when: student_profile_name == 'hibrido'
+
+    - name: Install pinned DevStack and create the run-owned Neutron topology
+      ansible.builtin.include_tasks: hybrid-m11-up.yml
+      when: student_profile_name == 'hibrido'
+
+    - name: Label kind nodes for the fabric racks
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - label
+          - node
+          - "{{ item.1 }}"
+          - "topology.kubernetes.io/rack={{ item.0.key }}"
+      become: true
+      register: student_node_labels
+      changed_when: true
+      loop: "{{ student_profile.labels | default({}) | dict2items | subelements('value') }}"
+      when: student_profile.topology_source is not none
+
+    - name: Install Gateway API CRDs from the reviewed platform fixture
+      ansible.builtin.command:
+        argv: >-
+          {{ [student_tool_dir ~ '/kubectl', '--kubeconfig', student_kubeconfig,
+              '--context', student_profile.context, 'apply']
+             + (['--server-side', '--field-manager=p010-student-lab']
+                if student_exercise_config.gateway_crds | default('') == 'experimental' else [])
+             + ['-f', student_repo_root ~ '/poc-k8s-fabric/studies/p003/base/crds/standard-install.yaml'] }}
+      become: true
+      register: student_gateway_crds
+      changed_when: "'configured' in student_gateway_crds.stdout or 'created' in student_gateway_crds.stdout"
+      when:
+        - student_profile_name == 'plataforma'
+        - student_exercise_config.gateway_crds | default('') != 'experimental'
+
+    - name: Install experimental Gateway API schemas with server-side apply when Auth is selected
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - apply
+          - --server-side
+          - --field-manager=p010-student-lab
+          - -f
+          - "{{ student_repo_root }}/poc-k8s-fabric/studies/p003/base/crds/experimental-install.yaml"
+      become: true
+      register: student_experimental_gateway_crds
+      changed_when: "'configured' in student_experimental_gateway_crds.stdout or 'created' in student_experimental_gateway_crds.stdout"
+      when: student_exercise_config.gateway_crds | default('') == 'experimental'
+
+    - name: Wait for the HTTPRoute schema used by Auth filters
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - wait
+          - --for=condition=Established
+          - crd/httproutes.gateway.networking.k8s.io
+          - --timeout=120s
+      become: true
+      changed_when: false
+      when: student_exercise_config.gateway_crds | default('') == 'experimental'
+
+    - name: Wait for Gateway API CRDs to become established
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - wait
+          - --for=condition=Established
+          - crd/gateways.gateway.networking.k8s.io
+          - --timeout=120s
+      become: true
+      changed_when: false
+      when: student_profile_name == 'plataforma'
+
+    - name: Install the pinned local Cilium chart without an implicit repository
+      ansible.builtin.command:
+        argv: >-
+          {{ [student_tool_dir ~ '/helm', '--kubeconfig', student_kubeconfig,
+              '--kube-context', student_profile.context, 'upgrade', '--install',
+              'cilium', student_chart_file, '--namespace', 'kube-system', '--wait',
+              '--timeout', '10m', '--values', student_values_file]
+             + (['--values', student_scenario_values_file]
+                if student_scenario_values_file is defined else [])
+             + ['--set', 'k8sServiceHost=' ~ student_cp_ip,
+                '--set', 'k8sServicePort=6443'] }}
+      become: true
+      environment:
+        KUBECONFIG: "{{ student_kubeconfig }}"
+      register: student_cilium_install
+      async: 900
+      poll: 10
+
+    - name: Save Helm and cluster identity after Cilium is installed
+      ansible.builtin.include_tasks: save-state.yml
+      vars:
+        student_save_status: partial
+        student_save_phase: cilium-installed
+
+    - name: Apply only the reviewed baseline manifests for book profiles
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - apply
+          - -f
+          - "{{ student_repo_root }}/{{ item }}"
+      become: true
+      register: student_manifest_apply
+      changed_when: "'configured' in student_manifest_apply.stdout or 'created' in student_manifest_apply.stdout"
+      loop: "{{ student_profile.manifests }}"
+      when: student_profile.topology_source is not none
+
+    - name: Apply the selected Auth, tenant, or IPAM exercise from private copies
+      ansible.builtin.include_tasks: apply-scenario.yml
+      when: student_profile_name == 'plataforma' and student_effective_exercise != 'baseline'
+
+    - name: Verify the hybrid positive dataplane after Cilium and Neutron are ready
+      ansible.builtin.include_tasks: hybrid-m11-positive-verify.yml
+      when: student_profile_name == 'hibrido'
+
+    - name: Verify baseline and isolated canaries before declaring the lab up
+      ansible.builtin.include_tasks: verify.yml
+
+    - name: Save the completed state after every verification passes
+      ansible.builtin.set_fact:
+        student_state: "{{ student_state | combine({'status': 'up', 'phase': 'verified', 'updated_utc': ansible_date_time.iso8601}) }}"
+
+    - name: Persist the completed private state
+      ansible.builtin.copy:
+        dest: "{{ student_state_file }}"
+        content: "{{ student_state | to_nice_json }}\n"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+
+  rescue:
+    - name: Save proven partial state and report the original startup failure
+      ansible.builtin.include_tasks: rescue-up.yml

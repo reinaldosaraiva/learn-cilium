@@ -1,0 +1,28 @@
+---
+- name: Exercise the production TAP identity query against explicit local JSON fixtures
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    student_uid: 1000
+    student_hybrid_become: false
+    student_run_id: 20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    student_hybrid_network_namespace_pid: 12345
+    student_hybrid_nsenter_bin: "{{ lookup('env', 'P010_HYBRID_FAKE_NSENTER') }}"
+    student_hybrid_ip_bin: "{{ lookup('env', 'P010_HYBRID_FAKE_IP') }}"
+    student_hybrid_tap_allow_absent: "{{ lookup('env', 'P010_HYBRID_TAP_ALLOW_ABSENT') == 'true' }}"
+    student_state:
+      status: partial
+      phase: hybrid-tap-identified
+      run_id: 20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      hybrid:
+        network:
+          border:
+            pid: 12345
+          tap:
+            name: p10tabcdef01
+            alias: "{{ '' if lookup('env', 'P010_HYBRID_TAP_INDEX') | int == 0 else 'p010-hyb-1000-20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }}"
+            reserved_alias: p010-hyb-1000-20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            ifindex: "{{ lookup('env', 'P010_HYBRID_TAP_INDEX') | int }}"
+  tasks:
+    - ansible.builtin.include_tasks: ../tasks/hybrid-validate-tap.yml

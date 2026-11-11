@@ -1,0 +1,107 @@
+---
+- name: Require the pending NDR relation to match this run's saved IDs
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_mode in ['remove-routing', 'remove-resources']
+      - student_state.hybrid.m11.api.pending.method == 'POST'
+      - student_state.hybrid.m11.api.pending.resource == 'relation:drinstance'
+      - student_state.hybrid.m11.api.pending.run_id == student_state.run_id
+      - student_state.hybrid.m11.api.pending.agent_id == student_state.hybrid.m11.api.agent_ids.bgp
+      - student_state.hybrid.m11.api.pending.speaker_id == student_state.hybrid.m11.api.resources.bgp_speaker.primary.id
+      - student_state.hybrid.m11.api.pending.path == '/agents/' ~ student_state.hybrid.m11.api.pending.agent_id ~ '/bgp-drinstances'
+    fail_msg: "A intenção NDR pendente não corresponde à relação por IDs registrada."
+  when: student_state.hybrid.m11.api.pending.resource | default('') == 'relation:drinstance'
+  no_log: true
+
+- name: Query only the saved NDR agent collection after an uncertain relation POST
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "{{ student_state.hybrid.m11.api.pending.path }}"
+  when: student_state.hybrid.m11.api.pending.resource | default('') == 'relation:drinstance'
+  no_log: true
+
+- name: Validate an uncertain scheduler result by the two known endpoint IDs
+  ansible.builtin.include_tasks: hybrid-m11-api-validate-scheduled.yml
+  vars:
+    student_hybrid_api_expected_speaker_id: "{{ student_state.hybrid.m11.api.pending.speaker_id }}"
+  when: student_state.hybrid.m11.api.pending.resource | default('') == 'relation:drinstance'
+  no_log: true
+
+- name: Preserve a scheduler relation confirmed by its exact agent and speaker IDs
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-scheduler-reconciled-present
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending: {}
+            links:
+              drinstance:
+                agent_id: "{{ student_state.hybrid.m11.api.pending.agent_id }}"
+                speaker_id: "{{ student_state.hybrid.m11.api.pending.speaker_id }}"
+                method: GET
+                status: 200
+                envelope: bgp_speakers
+            resources:
+              drinstance:
+                primary:
+                  id: ''
+                  name: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.name }}"
+                  agent_id: "{{ student_state.hybrid.m11.api.pending.agent_id }}"
+                  speaker_id: "{{ student_state.hybrid.m11.api.pending.speaker_id }}"
+  when:
+    - student_state.hybrid.m11.api.pending.resource | default('') == 'relation:drinstance'
+    - student_hybrid_api_scheduled_speaker_ids == [student_state.hybrid.m11.api.pending.speaker_id]
+  no_log: true
+
+- name: Clear an absent NDR relation only after its exact agent collection proves absence
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-scheduler-reconciled-absent
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending: {}
+            links:
+              drinstance:
+                agent_id: ''
+                speaker_id: ''
+                method: ''
+                status: 0
+                envelope: bgp_speakers
+            resources:
+              drinstance:
+                primary:
+                  id: ''
+                  name: ''
+                  agent_id: ''
+                  speaker_id: ''
+  when:
+    - student_state.hybrid.m11.api.pending.resource | default('') == 'relation:drinstance'
+    - student_hybrid_api_scheduled_speaker_ids | length == 0
+  no_log: true
+
+- name: Keep an uncertain POST pending without searching for or adopting an object
+  ansible.builtin.fail:
+    msg: >-
+      A criação Neutron teve resultado incerto. O POST não será repetido e nenhum objeto será
+      procurado ou adotado por nome; o estado parcial e a intenção original permanecem para
+      inspeção e uma reconciliação por identidade explícita.
+  when:
+    - student_state.hybrid.m11.api.pending.method | default('') == 'POST'
+    - student_state.hybrid.m11.api.pending.resource | default('') != 'relation:drinstance'
+  no_log: true
+
+- name: Reject malformed cleanup state when no POST intent is present
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.api.pending | default({}) is mapping
+      - student_state.hybrid.m11.api.pending | default({}) | length == 0
+    fail_msg: "O estado de limpeza não contém uma intenção POST válida."
+  no_log: true

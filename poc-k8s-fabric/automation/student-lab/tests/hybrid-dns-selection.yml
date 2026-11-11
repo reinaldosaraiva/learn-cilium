@@ -1,0 +1,14 @@
+---
+- name: Check DNS discovery using only an explicit resolver-command fixture
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    student_hybrid_resolvectl_bin: "{{ lookup('env', 'P010_HYBRID_FAKE_RESOLVECTL') }}"
+  tasks:
+    - ansible.builtin.include_tasks: ../tasks/hybrid-read-dns.yml
+
+    - name: Require the discovered upstream list to exclude only non-upstream addresses
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_dns_upstreams == ['192.168.50.1', '1.1.1.1']

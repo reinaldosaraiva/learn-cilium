@@ -1,0 +1,594 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+repo_root="$(cd "${script_dir}/../../.." && pwd -P)"
+source "${script_dir}/sudo-auth.sh"
+action="${1:-}"
+lab_profile="${LAB:-}"
+caller_uid="$(id -u)"
+caller_name="$(id -un)"
+guest_input="${GUEST:-}"
+readonly script_dir repo_root action lab_profile caller_uid caller_name guest_input
+exercise_input="${EXERCISE:-}"
+wireguard_input="${WG:-}"
+
+usage() {
+  cat <<'EOF'
+Laboratórios estudantis (Ubuntu 24.04 amd64)
+
+  make lab-preflight LAB=iniciantes|fundamentos|plataforma|hibrido
+  make lab-up        LAB=iniciantes|fundamentos|plataforma
+  make lab-status    LAB=iniciantes|fundamentos|plataforma|hibrido
+  make lab-session   LAB=iniciantes  # nova rodada E01-E06 sem recriar cluster
+  lab_env="$(make --no-print-directory lab-env LAB=iniciantes)" || exit 1
+  eval "$lab_env"
+  unset lab_env
+  make lab-verify    LAB=iniciantes|fundamentos|plataforma
+  make lab-down      LAB=iniciantes|fundamentos|plataforma|hibrido
+  make lab-up LAB=plataforma [EXERCISE=baseline]
+  make lab-shell     LAB=hibrido GUEST=ubuntu|cirros
+make lab-up LAB=plataforma EXERCISE=auth|tenants|ipam24|ipam32
+make lab-up LAB=plataforma EXERCISE=wireguard-native|wireguard-vxlan [WG=W0|W1|W2]
+
+`hibrido` (M11) permite preflight, status, console validada e cleanup de estado híbrido. O
+`lab-up` público segue bloqueado até a instalação/validação integral de
+Neutron, DHCP, BGP, security groups e tráfego bidirecional.
+O estado fica em ~/.local/state/p010-student-lab; logs e kubeconfigs não
+entram no repositório. O usuário executa Make; Ansible usa sudo por tarefa.
+LAB=iniciantes exige `lab-session` antes de `lab-env`. Em plataforma, cada
+EXERCISE é escolhido antes de lab-up e fica salvo com a execução; WG só se
+aplica aos cenários WireGuard e assume W1 quando omitido. M11 continua sem
+provisionamento público.
+`make -w lab-env` imprime diretórios no stdout antes/depois da receita e quebra
+essa captura; use `--no-print-directory` na chamada ao Make raiz.
+EOF
+}
+
+case "${action}" in
+  help) usage; exit 0 ;;
+  up|preflight|status|env|verify|down|session|shell) ;;
+  *) usage >&2; exit 2 ;;
+esac
+
+case "${lab_profile}" in
+  iniciantes|fundamentos|plataforma|hibrido) ;;
+  *) printf 'LAB inválido ou ausente; use iniciantes, fundamentos ou plataforma.\n' >&2; exit 2 ;;
+esac
+if [[ "${lab_profile}" == hibrido && "${action}" =~ ^(up|env|verify|session)$ ]]; then
+  printf 'LAB=hibrido/M11 ainda não tem provisionamento completo; lab-%s foi recusado antes de qualquer alteração. Use lab-preflight, lab-status ou lab-down.\n' "${action}" >&2
+  exit 2
+fi
+
+guest_arg=''
+if [[ "${action}" == shell ]]; then
+  [[ "${lab_profile}" == hibrido ]] \
+    || { printf 'lab-shell só se aplica a LAB=hibrido.\n' >&2; exit 2; }
+  case "${guest_input}" in
+    ubuntu|cirros) guest_arg="${guest_input}" ;;
+    *) printf 'GUEST inválido ou ausente; use ubuntu ou cirros.\n' >&2; exit 2 ;;
+  esac
+else
+  [[ -z "${guest_input}" ]] \
+    || { printf 'GUEST só se aplica a lab-shell LAB=hibrido.\n' >&2; exit 2; }
+fi
+
+exercise_arg=''
+wireguard_arg=''
+if [[ "${action}" == up || "${action}" == preflight ]]; then
+  if [[ "${lab_profile}" == plataforma ]]; then
+    exercise_arg="${exercise_input:-baseline}"
+    case "${exercise_arg}" in
+      baseline|auth|tenants|ipam24|ipam32) ;;
+      wireguard-native|wireguard-vxlan)
+        case "${wireguard_input:-W1}" in
+          W0|W1|W2) wireguard_arg="${wireguard_input:-W1}" ;;
+          *) printf 'WG inválido; use W0, W1 ou W2.\n' >&2; exit 2 ;;
+        esac
+        ;;
+      *) printf 'EXERCISE inválido para plataforma.\n' >&2; exit 2 ;;
+    esac
+    if [[ "${exercise_arg}" != wireguard-native && "${exercise_arg}" != wireguard-vxlan ]]; then
+      [[ -z "${wireguard_input}" ]] || { printf 'WG só se aplica aos cenários WireGuard.\n' >&2; exit 2; }
+    fi
+  else
+    [[ -z "${exercise_input}" && -z "${wireguard_input}" ]] \
+      || { printf 'EXERCISE/WG só se aplicam a LAB=plataforma.\n' >&2; exit 2; }
+  fi
+elif [[ "${action}" == session ]]; then
+  [[ "${lab_profile}" == iniciantes ]] \
+    || { printf 'lab-session só se aplica a LAB=iniciantes.\n' >&2; exit 2; }
+  [[ -z "${exercise_input}" && -z "${wireguard_input}" ]] \
+    || { printf 'lab-session não aceita EXERCISE nem WG.\n' >&2; exit 2; }
+else
+  [[ -z "${exercise_input}" && -z "${wireguard_input}" ]] \
+    || { printf 'EXERCISE/WG só se aplicam a lab-up e lab-preflight.\n' >&2; exit 2; }
+fi
+readonly exercise_arg wireguard_arg guest_arg
+
+if [[ "${caller_uid}" == 0 ]]; then
+  printf 'Execute Make como o usuário aluno; as tarefas privilegiadas usam sudo.\n' >&2
+  exit 2
+fi
+
+passwd_home="$(getent passwd "${caller_uid}" | cut -d: -f6)"
+readonly passwd_home
+if [[ -z "${passwd_home}" || "${HOME:-}" != "${passwd_home}" ]]; then
+  printf 'HOME não corresponde ao usuário atual; não vou escolher outro dono para o estado.\n' >&2
+  exit 2
+fi
+
+readonly state_dir="${passwd_home}/.local/state/p010-student-lab"
+readonly cache_dir="${passwd_home}/.cache/p010-student-lab"
+readonly tool_dir="${state_dir}/tools/bin"
+readonly state_file="${state_dir}/state.json"
+readonly env_file="${state_dir}/lab-env.sh"
+readonly ansible_log="${state_dir}/lab-env.log"
+readonly lock_file="${state_dir}/lock"
+readonly venv_dir="${cache_dir}/ansible-core-2.19.3"
+
+for private_parent in "${passwd_home}/.local" "${passwd_home}/.local/state" \
+  "${passwd_home}/.cache"; do
+  if [[ -L "${private_parent}" ]]; then
+    printf 'Diretório pai privado é symlink: %s\n' "${private_parent}" >&2
+    exit 2
+  fi
+done
+for private_path in "${state_dir}" "${cache_dir}" "${state_file}" "${venv_dir}"; do
+  if [[ -L "${private_path}" ]]; then
+    printf 'Caminho privado é symlink: %s\n' "${private_path}" >&2
+    exit 2
+  fi
+done
+
+if [[ "${action}" == preflight ]]; then
+  exec "${script_dir}/preflight.sh" "${lab_profile}" "${state_file}" "${exercise_arg}" "${wireguard_arg}"
+fi
+
+if [[ "${action}" == up && ! -e "${state_file}" ]]; then
+  "${script_dir}/preflight.sh" "${lab_profile}" "${state_file}" "${exercise_arg}" "${wireguard_arg}"
+fi
+if [[ "${action}" == up && -e "${state_file}" && ! -e "${venv_dir}" ]]; then
+  printf 'Venv privada ausente com state já existente; não vou bootstrap nem alterar host/recursos. Reinstale a venv após revisar o diretório %s.\n' "${venv_dir}" >&2
+  exit 2
+fi
+
+if [[ "${action}" == status && ! -e "${state_file}" ]]; then
+  printf 'Nenhuma execução student-lab registrada para %s.\n' "${lab_profile}"
+  exit 0
+fi
+if [[ "${action}" == down && ! -e "${state_file}" ]]; then
+  printf 'Nenhum state student-lab registrado; nenhum recurso foi removido.\n'
+  exit 0
+fi
+if [[ "${action}" == env || "${action}" == verify ]]; then
+  if [[ ! -e "${state_file}" ]]; then
+    printf '%s exige state criado por lab-up; nenhum recurso foi alterado.\n' "lab-${action}" >&2
+    exit 2
+  fi
+fi
+if [[ "${action}" == session && ! -e "${state_file}" ]]; then
+  printf 'lab-session exige cluster iniciado; execute make lab-up LAB=iniciantes primeiro.\n' >&2
+  exit 2
+fi
+if [[ "${action}" == shell && ! -e "${state_file}" ]]; then
+  printf 'lab-shell exige um state híbrido ativo; nenhum recurso foi alterado.\n' >&2
+  exit 2
+fi
+if [[ "${action}" == shell && ( ! -t 0 || ! -t 1 ) ]]; then
+  printf 'lab-shell exige terminal interativo em stdin e stdout.\n' >&2
+  exit 2
+fi
+
+secure_private_dir() {
+  local path="$1" observed
+  if [[ -L "${path}" ]]; then
+    printf 'Caminho privado é symlink: %s\n' "${path}" >&2
+    exit 2
+  fi
+  if [[ ! -e "${path}" ]]; then
+    if [[ "${action}" == shell ]]; then
+      printf 'Diretório privado esperado ausente em %s; lab-shell não vai criá-lo.\n' "${path}" >&2
+      exit 2
+    fi
+    mkdir -p "${path}"
+  fi
+  if [[ ! -d "${path}" ]]; then
+    printf 'Caminho privado não é diretório: %s\n' "${path}" >&2
+    exit 2
+  fi
+  observed="$(stat -c '%u:%a' "${path}")"
+  if [[ "${observed}" != "${caller_uid}:700" ]]; then
+    printf 'Permissões/dono inesperados em %s (%s); esperado uid=%s mode=0700.\n' "${path}" "${observed}" "${caller_uid}" >&2
+    exit 2
+  fi
+}
+
+secure_private_dir "${state_dir}"
+secure_private_dir "${cache_dir}"
+secure_private_dir "${tool_dir}"
+for private_path in "${state_file}" "${lock_file}" "${env_file}" "${ansible_log}"; do
+  if [[ -L "${private_path}" ]]; then
+    printf 'Caminho privado é symlink: %s\n' "${private_path}" >&2
+    exit 2
+  fi
+done
+if [[ -e "${state_file}" ]]; then
+  observed="$(stat -c '%u:%a' "${state_file}")"
+  if [[ "${observed}" != "${caller_uid}:600" ]]; then
+    printf 'Dono/permissões inesperados no estado (%s).\n' "${observed}" >&2
+    exit 2
+  fi
+fi
+if [[ -e "${env_file}" ]]; then
+  observed="$(stat -c '%u:%a' "${env_file}")"
+  if [[ "${observed}" != "${caller_uid}:600" ]]; then
+    printf 'Dono/permissões inesperados no ambiente gerado (%s).\n' "${observed}" >&2
+    exit 2
+  fi
+fi
+if [[ "${action}" != shell && -e "${ansible_log}" ]]; then
+  observed="$(stat -c '%u:%a' "${ansible_log}")"
+  if [[ "${observed}" != "${caller_uid}:600" ]]; then
+    printf 'Dono/permissões inesperados no log privado (%s).\n' "${observed}" >&2
+    exit 2
+  fi
+elif [[ "${action}" != shell ]]; then
+  install -m 0600 /dev/null "${ansible_log}"
+fi
+if [[ -e "${venv_dir}" ]]; then
+  observed="$(stat -c '%u:%a' "${venv_dir}")"
+  if [[ "${observed}" != "${caller_uid}:700" ]]; then
+    printf 'Dono/permissões inesperados na venv privada (%s).\n' "${observed}" >&2
+    exit 2
+  fi
+fi
+if [[ -L "${venv_dir}" ]]; then
+  printf 'A venv privada é symlink; operação interrompida.\n' >&2
+  exit 2
+fi
+
+if [[ "${action}" == shell && ! -e "${lock_file}" ]]; then
+  printf 'Lock ativo ausente; lab-shell não criará outro inode para um state existente.\n' >&2
+  exit 2
+fi
+if [[ -e "${lock_file}" ]]; then
+  observed="$(stat -c '%u:%a' "${lock_file}")"
+  if [[ "${observed}" != "${caller_uid}:600" ]]; then
+    printf 'Dono/permissões inesperados no lock (%s).\n' "${observed}" >&2
+    exit 2
+  fi
+else
+  install -m 0600 /dev/null "${lock_file}"
+fi
+exec 9>>"${lock_file}"
+if [[ "${action}" == shell ]]; then
+  if ! flock -s -w 15 9; then
+    printf 'Outro comando student-lab ainda mantém o lock após 15s.\n' >&2
+    exit 2
+  fi
+else
+  if ! flock -x -w 15 9; then
+    printf 'Outro comando student-lab ainda mantém o lock após 15s.\n' >&2
+    exit 2
+  fi
+fi
+
+bootstrap_ansible() {
+  if [[ "${action}" == up && ! -e "${venv_dir}" ]]; then
+    command -v sudo >/dev/null 2>&1 || { printf 'sudo é necessário para instalar python3-venv.\n' >&2; return 1; }
+    student_require_sudo_auth || { printf 'autenticação sudo necessária para instalar python3-venv.\n' >&2; return 1; }
+    sudo -n timeout --kill-after=30s 900s apt-get update
+    sudo -n timeout --kill-after=30s 900s apt-get install -y python3-venv
+  fi
+
+  if [[ -L "${venv_dir}" ]]; then
+    printf 'A venv privada é symlink; operação interrompida.\n' >&2
+    return 1
+  fi
+  if [[ ! -e "${venv_dir}" ]]; then
+    if [[ "${action}" != up ]]; then
+      printf 'Venv privada ansible-core==2.19.3 ausente; lab-%s não instala dependências. Execute lab-up numa VM admitida.\n' "${action}" >&2
+      return 1
+    fi
+    python3 -m venv "${venv_dir}"
+    observed="$(stat -c '%u:%a' "${venv_dir}")"
+    if [[ "${observed}" != "${caller_uid}:700" ]]; then
+      printf 'Venv recém-criada tem dono/permissões inesperados (%s); nenhuma tentativa será repetida.\n' "${observed}" >&2
+      return 1
+    fi
+    timeout --kill-after=30s 900s "${venv_dir}/bin/python" -m pip install --isolated --no-cache-dir --no-input --disable-pip-version-check \
+      --requirement "${script_dir}/requirements.txt"
+  elif [[ ! -x "${venv_dir}/bin/ansible-playbook" ]]; then
+    printf 'Venv privada incompleta em %s; remova-a após revisar e tente novamente.\n' "${venv_dir}" >&2
+    return 1
+  fi
+
+  if ! "${venv_dir}/bin/ansible-playbook" --version | head -1 | grep -Fq '[core 2.19.3]'; then
+    printf 'A venv privada não contém ansible-core 2.19.3; não vou atualizá-la automaticamente.\n' >&2
+    return 1
+  fi
+}
+
+new_run_id="$(date -u +%Y%m%d)-$(tr -d '-' </proc/sys/kernel/random/uuid)"
+new_owner_token="$(cat /proc/sys/kernel/random/uuid)"
+new_session_id="$(date -u +%Y%m%d)-$(tr -d '-' </proc/sys/kernel/random/uuid)"
+bootstrap_ansible
+
+shell_console_id=''
+shell_log=''
+shell_phase=''
+shell_run_id=''
+guest_uuid=''
+border_pid=''
+guest_port=''
+ssh_private_key=''
+known_hosts=''
+host_key_alias=''
+guest_user=''
+guest_home=''
+shell_child_pid=''
+if [[ "${action}" == shell ]]; then
+  shell_console_id="$(tr -d '-' </proc/sys/kernel/random/uuid)"
+  [[ "${shell_console_id}" =~ ^[0-9a-f]{32}$ ]] \
+    || { printf 'UUID inválido para a console; nenhum guest será acessado.\n' >&2; exit 2; }
+  shell_log="${state_dir}/shell-${shell_console_id}.log"
+  if [[ -e "${shell_log}" || -L "${shell_log}" ]]; then
+    printf 'Log privado da console já existe; nenhuma identidade será adotada.\n' >&2
+    exit 2
+  fi
+  install -m 0600 /dev/null "${shell_log}"
+fi
+
+become_args=()
+if ! sudo -n true >/dev/null 2>&1; then
+  become_args=(--ask-become-pass)
+fi
+
+ansible_args=(
+  --inventory 'localhost,'
+  --connection local
+  --limit localhost
+  --extra-vars "student_action=${action}"
+)
+
+run_playbook() {
+  local -a playbook_args
+  playbook_args=("${ansible_args[@]}")
+  if [[ "${#become_args[@]}" -gt 0 ]]; then
+    playbook_args=("${ansible_args[@]}" "${become_args[@]}")
+  fi
+
+  env -i \
+    HOME="${passwd_home}" \
+    USER="${caller_name}" \
+    LOGNAME="${caller_name}" \
+    PATH="${tool_dir}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    LANG=C.UTF-8 \
+    ANSIBLE_CONFIG="${script_dir}/ansible.cfg" \
+    ANSIBLE_NOCOLOR=1 \
+    P010_LAB_ACTION="${action}" \
+    P010_LAB_PROFILE="${lab_profile}" \
+    P010_LAB_REPO_ROOT="${repo_root}" \
+    P010_LAB_STATE_DIR="${state_dir}" \
+    P010_LAB_TOOL_DIR="${tool_dir}" \
+    P010_LAB_UID="${caller_uid}" \
+    P010_LAB_NEW_RUN_ID="${new_run_id}" \
+    P010_LAB_NEW_OWNER_TOKEN="${new_owner_token}" \
+    P010_LAB_EXERCISE="${exercise_arg}" \
+    P010_LAB_WG="${wireguard_arg}" \
+    P010_LAB_GUEST="${guest_arg}" \
+    P010_LAB_SHELL_CONSOLE_ID="${shell_console_id}" \
+    P010_LAB_SHELL_PHASE="${shell_phase}" \
+    P010_LAB_NEW_SESSION_ID="${new_session_id}" \
+    "${venv_dir}/bin/ansible-playbook" "${script_dir}/site.yml" \
+    "${playbook_args[@]}"
+}
+
+shell_phase_playbook() {
+  shell_phase="$1"
+  printf '\n=== shell phase: %s ===\n' "${shell_phase}" >>"${shell_log}"
+  run_playbook >>"${shell_log}" 2>&1
+}
+
+load_shell_ssh_identity() {
+  local expected_port key_device key_inode
+  local known_hosts_device known_hosts_inode observed
+
+  /usr/bin/jq -e --arg uid "${caller_uid}" --arg guest "${guest_arg}" '
+    .profile == "hibrido" and .status == "up" and
+    (.owner_uid | tostring) == $uid and
+    (.run_id | type == "string") and
+    .hybrid.schema == 4 and .hybrid.phase == "verified" and
+    .hybrid.m11.phase == "verified" and
+    .hybrid.m11.verification.phase == "verified" and
+    .hybrid.m11.api.pending == {} and
+    .hybrid.m11.verification.gates.k8s_pending == {} and
+    .hybrid.m11.verification.gates.k8s_delete_pending == {} and
+    .hybrid.m11.verification.gates.positive.phase == "verified" and
+    .hybrid.m11.verification.gates.positive.bgp_established == 3 and
+    .hybrid.m11.verification.gates.positive.tenant_route == true and
+    .hybrid.m11.verification.gates.positive.podcidr_route == true and
+    .hybrid.m11.verification.gates.positive.pod_to_vm_icmp == true and
+    .hybrid.m11.verification.gates.positive.pod_to_vm_tcp22 == true and
+    .hybrid.m11.verification.gates.positive.vm_to_pod_icmp == true and
+    .hybrid.m11.verification.gates.positive.vm_to_pod_http == true and
+    .hybrid.m11.verification.gates.positive.vm_source_observed_on_tenant_link == true and
+    .hybrid.guests[$guest].pid > 1 and .hybrid.guests[$guest].starttime > 0 and
+    (.hybrid.guests[$guest] | type) == "object"
+  ' "${state_file}" >/dev/null || return 1
+
+  shell_run_id="$(/usr/bin/jq -er '.run_id | strings' "${state_file}")" || return 1
+  guest_uuid="$(/usr/bin/jq -er --arg guest "${guest_arg}" '.hybrid.guests[$guest].uuid | strings' "${state_file}")" || return 1
+  border_pid="$(/usr/bin/jq -er '.hybrid.network.border.pid | numbers' "${state_file}")" || return 1
+  guest_port="$(/usr/bin/jq -er --arg guest "${guest_arg}" '.hybrid.guests[$guest].host_port | numbers' "${state_file}")" || return 1
+  ssh_private_key="$(/usr/bin/jq -er --arg guest "${guest_arg}" '.hybrid.guests[$guest].ssh_private_key | strings' "${state_file}")" || return 1
+  key_device="$(/usr/bin/jq -er --arg guest "${guest_arg}" '.hybrid.guests[$guest].ssh_device | numbers' "${state_file}")" || return 1
+  key_inode="$(/usr/bin/jq -er --arg guest "${guest_arg}" '.hybrid.guests[$guest].ssh_inode | numbers' "${state_file}")" || return 1
+  known_hosts="$(/usr/bin/jq -er '.hybrid.m11.ssh.known_hosts_path | strings' "${state_file}")" || return 1
+  known_hosts_device="$(/usr/bin/jq -er '.hybrid.m11.ssh.known_hosts_device | numbers' "${state_file}")" || return 1
+  known_hosts_inode="$(/usr/bin/jq -er '.hybrid.m11.ssh.known_hosts_inode | numbers' "${state_file}")" || return 1
+  host_key_alias="$(/usr/bin/jq -er --arg guest "${guest_arg}" '.hybrid.m11.ssh.host_keys[$guest].alias | strings' "${state_file}")" || return 1
+
+  [[ "${shell_run_id}" =~ ^[0-9]{8}-[0-9a-f]{32}$ ]] || return 1
+  [[ "${guest_uuid}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] || return 1
+  [[ "${border_pid}" =~ ^[0-9]+$ && "${border_pid}" -gt 1 ]] || return 1
+  [[ "${guest_port}" =~ ^[0-9]+$ ]] || return 1
+  [[ "${ssh_private_key}" == "${state_dir}/runs/${shell_run_id}/keys/hybrid-ed25519" ]] || return 1
+  [[ "${known_hosts}" == "${state_dir}/runs/${shell_run_id}/keys/known_hosts" ]] || return 1
+  [[ "${host_key_alias}" == "p010-${shell_run_id}-${guest_uuid}-${guest_arg}" ]] || return 1
+  if [[ "${guest_arg}" == ubuntu ]]; then
+    expected_port=42422
+    guest_user=stack
+    guest_home=/home/stack
+  else
+    expected_port=42423
+    guest_user=cirros
+    guest_home=/home/cirros
+  fi
+  [[ "${guest_port}" == "${expected_port}" ]] || return 1
+
+  [[ -f "${ssh_private_key}" && ! -L "${ssh_private_key}" ]] || return 1
+  observed="$(stat -c '%u:%a:%d:%i' -- "${ssh_private_key}")" || return 1
+  [[ "${observed}" == "${caller_uid}:600:${key_device}:${key_inode}" ]] || return 1
+  [[ -f "${known_hosts}" && ! -L "${known_hosts}" ]] || return 1
+  observed="$(stat -c '%u:%a:%d:%i' -- "${known_hosts}")" || return 1
+  [[ "${observed}" == "${caller_uid}:600:${known_hosts_device}:${known_hosts_inode}" ]] || return 1
+}
+
+forward_shell_signal() {
+  local signal="$1"
+  if [[ -n "${shell_child_pid:-}" ]]; then
+    kill -s "${signal}" "${shell_child_pid}" 2>/dev/null || true
+  fi
+}
+
+run_interactive_shell_ssh() {
+  local caller_gid remote_command ssh_rc shell_profile_dir clouds_file secure_file owner_file
+  local -a ssh_command
+
+  caller_gid="$(id -g)"
+  if [[ "${guest_arg}" == ubuntu ]]; then
+    shell_profile_dir="/home/stack/.p010-student-lab/runs/${shell_run_id}/shell/${shell_console_id}"
+    clouds_file="${shell_profile_dir}/clouds.yaml"
+    secure_file="${shell_profile_dir}/secure.yaml"
+    owner_file="${shell_profile_dir}/.owner"
+    printf -v remote_command \
+      'set -eu; dir=%q; clouds=%q; secure=%q; owner=%q; cd "$dir"; test -d "$dir" && test ! -L "$dir" && test "$(stat -c '\''%%u:%%a'\'' "$dir")" = "$(id -u):700" && test -f "$owner" && test ! -L "$owner" && test "$(stat -c '\''%%u:%%a'\'' "$owner")" = "$(id -u):600" && read -r marker_run marker_console marker_guest clouds_device clouds_inode secure_device secure_inode < "$owner" && test "$marker_run" = '\''%s'\'' && test "$marker_console" = '\''%s'\'' && test "$marker_guest" = ubuntu && test -f "$clouds" && test ! -L "$clouds" && test -r "$clouds" && test "$(stat -c '\''%%u:%%a'\'' "$clouds")" = "$(id -u):600" && test "$(stat -c '\''%%d:%%i'\'' "$clouds")" = "$clouds_device:$clouds_inode" && test -f "$secure" && test ! -L "$secure" && test -r "$secure" && test "$(stat -c '\''%%u:%%a'\'' "$secure")" = "$(id -u):600" && test "$(stat -c '\''%%d:%%i'\'' "$secure")" = "$secure_device:$secure_inode" && printf '\''clouds: {}\\n'\'' | cmp -s - "$secure" && exec /usr/bin/env -i HOME=/home/stack USER=stack LOGNAME=stack PATH=/opt/stack/data/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 OS_CLIENT_CONFIG_FILE="$clouds" OS_CLIENT_SECURE_FILE="$secure" /bin/bash --noprofile --norc -i' \
+      "${shell_profile_dir}" "${clouds_file}" "${secure_file}" "${owner_file}" "${shell_run_id}" "${shell_console_id}"
+  else
+    remote_command="cd /home/cirros && exec /usr/bin/env -i HOME=/home/cirros USER=cirros LOGNAME=cirros PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 /bin/sh -i"
+  fi
+
+  ssh_command=(
+    sudo -n /usr/bin/env -i
+    "HOME=${passwd_home}"
+    "USER=${caller_name}"
+    "LOGNAME=${caller_name}"
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    LANG=C.UTF-8
+    /usr/bin/nsenter "--net=/proc/${border_pid}/ns/net" --
+    /usr/bin/setpriv "--reuid=${caller_uid}" "--regid=${caller_gid}" --init-groups --
+    /usr/bin/ssh
+    -F /dev/null
+    -tt
+    -i "${ssh_private_key}"
+    -o IdentitiesOnly=yes
+    -o IdentityAgent=none
+    -o BatchMode=yes
+    -o PreferredAuthentications=publickey
+    -o PasswordAuthentication=no
+    -o KbdInteractiveAuthentication=no
+    -o StrictHostKeyChecking=yes
+    -o "UserKnownHostsFile=${known_hosts}"
+    -o GlobalKnownHostsFile=/dev/null
+    -o HostKeyAlgorithms=ssh-ed25519
+    -o UpdateHostKeys=no
+    -o "HostKeyAlias=${host_key_alias}"
+    -o ConnectTimeout=10
+    -o ServerAliveInterval=5
+    -o ServerAliveCountMax=3
+    -p "${guest_port}"
+    "${guest_user}@127.0.0.1"
+    "${remote_command}"
+  )
+
+  trap 'forward_shell_signal HUP' HUP
+  trap 'forward_shell_signal INT' INT
+  trap 'forward_shell_signal TERM' TERM
+  "${ssh_command[@]}" <&0 &
+  shell_child_pid="$!"
+
+  set +e
+  while :; do
+    wait "${shell_child_pid}"
+    ssh_rc="$?"
+    if jobs -pr | grep -Fxq "${shell_child_pid}"; then
+      continue
+    fi
+    break
+  done
+  set -e
+  trap - HUP INT TERM
+  shell_child_pid=''
+  return "${ssh_rc}"
+}
+
+run_shell_session() {
+  local prepare_rc ssh_rc cleanup_rc
+
+  if shell_phase_playbook prepare; then
+    :
+  else
+    prepare_rc="$?"
+    if ! shell_phase_playbook cleanup; then
+      printf 'Preparação falhou e a limpeza da console também falhou; consulte o log privado %s.\n' "${shell_log}" >&2
+    fi
+    printf 'Preparação da console falhou; consulte o log privado %s.\n' "${shell_log}" >&2
+    return "${prepare_rc}"
+  fi
+
+  if load_shell_ssh_identity; then
+    :
+  else
+    printf 'Identidade salva mudou após a preparação; não iniciarei SSH.\n' >&2
+    if ! shell_phase_playbook cleanup; then
+      printf 'A limpeza da console falhou; consulte o log privado %s.\n' "${shell_log}" >&2
+    fi
+    return 2
+  fi
+
+  if run_interactive_shell_ssh; then
+    ssh_rc=0
+  else
+    ssh_rc="$?"
+  fi
+  if shell_phase_playbook cleanup; then
+    cleanup_rc=0
+    rm -f -- "${shell_log}"
+  else
+    cleanup_rc="$?"
+    printf 'Console encerrou, mas a limpeza falhou; consulte o log privado %s.\n' "${shell_log}" >&2
+  fi
+  if [[ "${ssh_rc}" -ne 0 ]]; then
+    return "${ssh_rc}"
+  fi
+  return "${cleanup_rc}"
+}
+
+if [[ "${action}" == env ]]; then
+  if ! run_playbook >"${ansible_log}" 2>&1; then
+    printf 'lab-env falhou; veja o log privado: %s\n' "${ansible_log}" >&2
+    exit 1
+  fi
+  if [[ ! -f "${env_file}" || -L "${env_file}" ]]; then
+    printf 'O playbook não gerou um ambiente privado válido.\n' >&2
+    exit 1
+  fi
+  cat "${env_file}"
+elif [[ "${action}" == shell ]]; then
+  run_shell_session
+else
+  run_playbook
+fi

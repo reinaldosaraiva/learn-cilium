@@ -1,0 +1,83 @@
+---
+- name: Render the production M11 capture-stop scripts from identified local fixtures
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    test_uid: "{{ ansible_user_uid | int }}"
+    test_run_id: "{{ lookup('env', 'P010_HYBRID_TEST_RUN_ID') }}"
+    origin_path: "{{ lookup('env', 'P010_HYBRID_ORIGIN_CAPTURE') }}"
+    dhcp_path: "{{ lookup('env', 'P010_HYBRID_DHCP_CAPTURE') }}"
+    dhcp_result_path: "{{ lookup('env', 'P010_HYBRID_DHCP_RESULT') }}"
+    student_state:
+      run_id: "{{ test_run_id }}"
+      hybrid:
+        m11:
+          api:
+            resources:
+              cirros_port:
+                primary:
+                  fixed_ips:
+                    - ip_address: 198.18.49.3
+          verification:
+            gates:
+              server_pod:
+                ip: 10.246.1.20
+              traffic_capture: {}
+              dhcp_capture: {}
+  tasks:
+    - name: Read both fixture file identities before rendering cleanup commands
+      ansible.builtin.stat:
+        path: "{{ item }}"
+        follow: false
+      loop:
+        - "{{ origin_path }}"
+        - "{{ dhcp_path }}"
+      register: capture_stats
+
+    - name: Supply exact recorded process and file identities for both script renders
+      ansible.builtin.set_fact:
+        student_state: >-
+          {{ student_state | combine({'hybrid': {'m11': {'verification': {'gates': {
+            'traffic_capture': {
+              'path': origin_path, 'pid': 4242, 'starttime': 12345, 'process_uid': test_uid,
+              'file_uid': capture_stats.results[0].stat.uid, 'device': capture_stats.results[0].stat.dev,
+              'inode': capture_stats.results[0].stat.inode, 'mode': capture_stats.results[0].stat.mode
+            },
+            'dhcp_capture': {
+              'phase': 'capturing', 'path': dhcp_path, 'result_path': dhcp_result_path,
+              'client_mac': '02:00:00:00:00:02',
+              'address': '198.18.49.4', 'gateway': '198.18.49.1', 'server_ip': '198.18.49.1',
+              'server_mac': 'fa:16:3e:49:00:01', 'pid': 4343, 'starttime': 23456,
+              'process_uid': test_uid, 'netns': 'net:[205:600]', 'ifindex': 5,
+              'tcpdump_pid': 4344, 'tcpdump_starttime': 23457, 'tcpdump_uid': test_uid,
+              'tcpdump_netns': 'net:[205:600]', 'supervisor_pid': 4345,
+              'supervisor_starttime': 23458, 'supervisor_uid': test_uid,
+              'owner_uid': capture_stats.results[1].stat.uid,
+              'device': capture_stats.results[1].stat.dev, 'inode': capture_stats.results[1].stat.inode,
+              'result_device': capture_stats.results[1].stat.dev,
+              'result_inode': capture_stats.results[1].stat.inode,
+              'result_owner_uid': capture_stats.results[1].stat.uid,
+              'started_utc': '2026-10-30T12:00:00Z', 'completed_utc': '',
+              'capture_rc': -1, 'captured_count': 0, 'stop_requested': false, 'xid': '00000001'
+            }
+          }}}}}, recursive=true) }}
+      no_log: true
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-build-stop-origin-script.yml
+
+    - name: Write the exact rendered origin-stop script to the isolated harness
+      ansible.builtin.copy:
+        dest: "{{ lookup('env', 'P010_HYBRID_ORIGIN_SCRIPT') }}"
+        content: "{{ student_hybrid_m11_stop_origin_script }}\n"
+        mode: '0600'
+      no_log: true
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-build-stop-dhcp-script.yml
+
+    - name: Write the exact rendered DHCP-stop script to the isolated harness
+      ansible.builtin.copy:
+        dest: "{{ lookup('env', 'P010_HYBRID_DHCP_SCRIPT') }}"
+        content: "{{ student_hybrid_m11_stop_dhcp_script }}\n"
+        mode: '0600'
+      no_log: true

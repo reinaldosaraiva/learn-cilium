@@ -1,0 +1,106 @@
+---
+- name: Exercise pinned downloads with an offline second-image checksum failure
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    student_hybrid_test_dir: "{{ lookup('env', 'P010_HYBRID_TEST_DIR') }}"
+    student_run_dir: "{{ student_hybrid_test_dir }}/run"
+    student_state_file: "{{ student_hybrid_test_dir }}/state.json"
+    student_uid: "{{ lookup('env', 'P010_HYBRID_TEST_UID') | int }}"
+    student_hybrid_sources:
+      ubuntu:
+        url: "file://{{ lookup('env', 'P010_HYBRID_IMAGE_ONE') }}"
+      cirros:
+        url: "file://{{ lookup('env', 'P010_HYBRID_IMAGE_TWO') }}"
+    student_state:
+      schema: 3
+      owner_uid: "{{ student_uid }}"
+      owner_token: 123e4567-e89b-42d3-a456-426614174000
+      profile: hibrido
+      run_id: 20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      status: partial
+      phase: hybrid-preparing
+      hybrid:
+        phase: assets-ready
+        sources:
+          ubuntu:
+            path: "{{ student_run_dir }}/images/ubuntu.img"
+            sha256: "{{ lookup('env', 'P010_HYBRID_IMAGE_ONE_SHA256') }}"
+            device: 0
+            inode: 0
+          cirros:
+            path: "{{ student_run_dir }}/images/cirros.img"
+            sha256: "{{ lookup('env', 'P010_HYBRID_IMAGE_TWO_SHA256') }}"
+            device: 0
+            inode: 0
+  tasks:
+    - name: Create private download destinations
+      ansible.builtin.file:
+        path: "{{ student_run_dir }}/images"
+        state: directory
+        owner: "{{ student_uid }}"
+        mode: '0700'
+
+    - name: Try each pinned download in order
+      block:
+        - ansible.builtin.include_tasks: ../tasks/hybrid-download-image.yml
+          loop: [ubuntu, cirros]
+          loop_control:
+            loop_var: student_hybrid_source_key
+          vars:
+            student_hybrid_source_item:
+              key: "{{ student_hybrid_source_key }}"
+              value: "{{ student_state.hybrid.sources[student_hybrid_source_key] }}"
+
+      rescue:
+        - name: Read the image checkpoint after the checksum failure
+          ansible.builtin.slurp:
+            src: "{{ student_state_file }}"
+          register: student_hybrid_download_checkpoint
+          no_log: true
+
+        - name: Decode the private saved checkpoint for assertions
+          ansible.builtin.set_fact:
+            student_hybrid_download_disk_state: "{{ student_hybrid_download_checkpoint.content | b64decode | from_json }}"
+          no_log: true
+
+        - name: Require the first image checkpoint and a visible original task failure
+          ansible.builtin.assert:
+            that:
+              - student_hybrid_download_disk_state.status == 'partial'
+              - student_hybrid_download_disk_state.hybrid.sources.ubuntu.device | int >= 0
+              - student_hybrid_download_disk_state.hybrid.sources.ubuntu.inode | int > 0
+              - student_hybrid_download_disk_state.hybrid.sources.cirros.device | int == 0
+              - student_hybrid_download_disk_state.hybrid.sources.cirros.inode | int == 0
+              - ansible_failed_result.msg is string
+          no_log: true
+
+        - name: Remove only the exact first image checkpoint
+          ansible.builtin.include_tasks: ../tasks/hybrid-remove-path.yml
+          vars:
+            student_hybrid_remove_path: "{{ student_hybrid_download_disk_state.hybrid.sources.ubuntu.path }}"
+            student_hybrid_remove_device: "{{ student_hybrid_download_disk_state.hybrid.sources.ubuntu.device }}"
+            student_hybrid_remove_inode: "{{ student_hybrid_download_disk_state.hybrid.sources.ubuntu.inode }}"
+            student_hybrid_remove_kind: file
+
+        - name: Inspect both source paths after cleanup
+          ansible.builtin.stat:
+            path: "{{ student_run_dir }}/images/{{ item }}.img"
+            follow: false
+          register: student_hybrid_download_after_cleanup
+          loop: [ubuntu, cirros]
+          no_log: true
+
+        - name: Require the recorded image to be removed and no second destination adopted
+          ansible.builtin.assert:
+            that:
+              - not (student_hybrid_download_after_cleanup.results[0].stat.exists | default(false))
+              - not (student_hybrid_download_after_cleanup.results[1].stat.exists | default(false))
+          no_log: true
+
+    - name: Require the second checksum check to have failed
+      ansible.builtin.assert:
+        that:
+          - ansible_failed_task.name == 'Download one pinned guest image with SHA-256 verification'
+      no_log: true

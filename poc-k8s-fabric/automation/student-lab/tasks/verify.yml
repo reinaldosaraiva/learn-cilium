@@ -1,0 +1,282 @@
+---
+- ansible.builtin.include_tasks: verify-state.yml
+
+- ansible.builtin.include_tasks: hybrid-m11-begin-verify-existing.yml
+  when:
+    - student_profile_name == 'hibrido'
+    - student_hybrid_m11_verify_existing | default(false) | bool
+
+- name: Re-read the Neutron API, service agents, scheduler, DHCP, and route records inside the validated guest
+  ansible.builtin.include_tasks: hybrid-m11-run-api.yml
+  vars:
+    student_hybrid_api_mode: verify
+  when:
+    - student_profile_name == 'hibrido'
+    - student_hybrid_m11_verify_existing | default(false) | bool
+
+- ansible.builtin.include_tasks: hybrid-m11-verify-c0.yml
+  when:
+    - student_profile_name == 'hibrido'
+    - student_hybrid_m11_verify_existing | default(false) | bool
+
+- name: Verify expected nodes are Ready
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - wait
+      - --for=condition=Ready
+      - nodes
+      - --all
+      - --timeout=240s
+  become: true
+  changed_when: false
+
+- name: Read exact node readiness records
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - nodes
+      - -o
+      - 'jsonpath={range .items[*]}{.metadata.name} {.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}'
+  become: true
+  register: student_ready_nodes
+  changed_when: false
+
+- name: Require every expected node and no extra node to be Ready
+  ansible.builtin.assert:
+    that:
+      - student_ready_nodes.stdout_lines | length == student_profile.kind_nodes | length
+      - student_ready_nodes.stdout_lines | select('search', ' True$') | list | length == student_profile.kind_nodes | length
+    fail_msg: "Nós fora do estado esperado: {{ student_ready_nodes.stdout_lines }}"
+
+- name: Verify Cilium components with the pinned CLI and explicit kubeconfig
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/cilium"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - status
+      - --wait
+      - --wait-duration=240s
+  become: true
+  register: student_cilium_status
+  changed_when: false
+  async: 300
+  poll: 10
+
+- name: Require the Cilium agent to be ready on every kind node
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - rollout
+      - status
+      - daemonset/cilium
+      - --namespace
+      - kube-system
+      - --timeout=240s
+  become: true
+  changed_when: false
+
+- name: Verify the real kube-system UID
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - namespace
+      - kube-system
+      - -o
+      - 'jsonpath={.metadata.uid}'
+  become: true
+  register: student_verify_uid
+  changed_when: false
+
+- name: Require the recorded cluster UID and API server identity
+  ansible.builtin.assert:
+    that:
+      - student_state.cluster_uid | length == 36
+      - student_verify_uid.stdout == student_state.cluster_uid
+      - student_state.api_server is match('^https://127\\.0\\.0\\.1:[0-9]{1,5}$')
+    fail_msg: "UID kube-system ou endpoint API divergiu do estado privado."
+
+- name: Re-probe the saved M11 workloads, BGP routes, guest paths, HTTP, and tenant-link source
+  ansible.builtin.include_tasks: hybrid-m11-positive-verify.yml
+  vars:
+    student_hybrid_m11_positive_existing: true
+  when:
+    - student_profile_name == 'hibrido'
+    - student_hybrid_m11_verify_existing | default(false) | bool
+
+- name: Verify Hubble Relay DNS, service endpoint, and temporary HTTP canary
+  ansible.builtin.include_tasks: verify-beginner.yml
+  when: student_profile_name == 'iniciantes'
+
+- name: Verify dual-stack node addresses for the fundamentals profile
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - nodes
+      - -o
+      - 'jsonpath={range .items[*]}{range .status.addresses[*]}{.address}{"\n"}{end}{end}'
+  become: true
+  register: student_dualstack_addresses
+  changed_when: false
+  when: student_profile_name == 'fundamentos'
+
+- name: Require IPv6 node addresses in the dual-stack topology
+  ansible.builtin.assert:
+    that:
+      - student_dualstack_addresses.stdout is search(':')
+    fail_msg: "O perfil fundamentos foi criado para dual-stack, mas não há endereço IPv6 nos nós."
+  when: student_profile_name == 'fundamentos'
+
+- name: Verify established BGP peers in both fabric profiles
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/cilium"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - bgp
+      - peers
+  become: true
+  register: student_bgp_peers
+  changed_when: false
+  when:
+    - student_profile.topology_source is not none
+    - student_profile_name != 'hibrido'
+  retries: 60
+  delay: 5
+  until: >-
+    student_bgp_peers.rc == 0 and
+    (student_bgp_peers.stdout | default('') | regex_findall('(?i)established') | length >= student_profile.min_established_peers | int)
+
+- name: Require the minimum established BGP peer count
+  ansible.builtin.assert:
+    that:
+      - student_bgp_peers.stdout | regex_findall('(?i)established') | length >= student_profile.min_established_peers | int
+    fail_msg: "BGP Established abaixo do mínimo {{ student_profile.min_established_peers }}."
+  when:
+    - student_profile.topology_source is not none
+    - student_profile_name != 'hibrido'
+
+- name: Verify the advertised service route in the SR Linux spine
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - exec
+      - "{{ student_profile.route_probe_container }}"
+      - sr_cli
+      - "{{ student_profile.route_probe_command }}"
+  become: true
+  register: student_route_probe
+  changed_when: false
+  when:
+    - student_profile.topology_source is not none
+    - student_profile_name != 'hibrido'
+  retries: 60
+  delay: 5
+  until: student_profile.route_prefix in (student_route_probe.stdout | default(''))
+
+- name: Require the service route in the fabric table
+  ansible.builtin.assert:
+    that:
+      - student_profile.route_prefix in student_route_probe.stdout
+    fail_msg: "Rota {{ student_profile.route_prefix }} não aparece no spine."
+  when:
+    - student_profile.topology_source is not none
+    - student_profile_name != 'hibrido'
+
+- name: Verify the platform Gateway is Programmed
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - gateway
+      - p003-main
+      - --namespace
+      - p003-gateway
+      - -o
+      - 'jsonpath={.status.conditions[?(@.type=="Programmed")].status}'
+  become: true
+  register: student_gateway_programmed
+  changed_when: false
+  when: student_profile_name == 'plataforma'
+  retries: 36
+  delay: 5
+  until: student_gateway_programmed.stdout == 'True'
+
+- name: Require the Gateway programmed condition
+  ansible.builtin.assert:
+    that:
+      - student_gateway_programmed.stdout == 'True'
+    fail_msg: "Gateway p003-main não foi programado: {{ student_gateway_programmed.stdout }}"
+  when: student_profile_name == 'plataforma'
+
+- name: Verify the HTTP fixture from its isolated fabric client
+  ansible.builtin.command:
+    argv: "{{ ['/usr/bin/docker', '--host', 'unix:///var/run/docker.sock', 'exec', student_profile.http_probe_container, 'curl', '--noproxy', '*', '--max-time', '8', '-sS', '-o', '/dev/null', '-w', '%{http_code}'] + (['-H', 'Host: ' ~ student_profile.http_probe_host] if student_profile.http_probe_host is not none else []) + [student_profile.http_probe_url] }}"
+  become: true
+  register: student_http_probe
+  changed_when: false
+  when:
+    - student_profile.topology_source is not none
+    - student_profile_name != 'hibrido'
+  retries: 30
+  delay: 5
+  until: student_http_probe.rc == 0 and student_http_probe.stdout == '200'
+
+- name: Require HTTP 200 from the fabric client
+  ansible.builtin.assert:
+    that:
+      - student_http_probe.stdout == '200'
+    fail_msg: "HTTP baseline respondeu {{ student_http_probe.stdout | default('sem código') }}."
+  when:
+    - student_profile.topology_source is not none
+    - student_profile_name != 'hibrido'
+
+- name: Verify both protected Auth protocols and the public control route
+  ansible.builtin.include_tasks: verify-auth.yml
+  when: student_exercise_config.auth_fixture | default(false)
+
+- name: Verify selected WireGuard routing, encryption, interfaces, and placement
+  ansible.builtin.include_tasks: verify-wireguard.yml
+  when: student_effective_exercise in ['wireguard-native', 'wireguard-vxlan']
+
+- name: Verify tenant service accounts and same/cross-tenant policy outcomes
+  ansible.builtin.include_tasks: verify-tenants.yml
+  when: student_exercise_config.tenants | default(false)
+
+- name: Verify multi-pool IPAM allocations, selectors, and BGP routes
+  ansible.builtin.include_tasks: verify-ipam.yml
+  when: student_exercise_config.ipam | default('') in ['m24', 'm32']

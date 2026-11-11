@@ -1,0 +1,25 @@
+---
+- name: Require a well-formed Neutron speaker list for the saved BGP agent
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_response.json is mapping
+      - student_hybrid_api_response.json.bgp_speakers is defined
+      - student_hybrid_api_response.json.bgp_speakers is sequence
+      - student_hybrid_api_response.json.bgp_speakers is not string
+      - student_hybrid_api_response.json.bgp_speakers | select('mapping') | list | length == student_hybrid_api_response.json.bgp_speakers | length
+      - student_hybrid_api_response.json.bgp_speakers | selectattr('id', 'defined') | list | length == student_hybrid_api_response.json.bgp_speakers | length
+    fail_msg: "A agenda NDR não contém apenas uma relação comprovável pelo agent e speaker desta execução."
+  no_log: true
+
+- name: Retain only the scheduled speaker IDs for the saved agent
+  ansible.builtin.set_fact:
+    student_hybrid_api_scheduled_speaker_ids: "{{ student_hybrid_api_response.json.bgp_speakers | map(attribute='id') | list }}"
+  no_log: true
+
+- name: Reject duplicate or unrelated scheduler speaker IDs
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_scheduled_speaker_ids | unique | list | length == student_hybrid_api_scheduled_speaker_ids | length
+      - student_hybrid_api_scheduled_speaker_ids | length == 0 or student_hybrid_api_scheduled_speaker_ids == [student_hybrid_api_expected_speaker_id]
+    fail_msg: "A agenda NDR inclui outro speaker ou duplicou o vínculo registrado."
+  no_log: true

@@ -1,0 +1,730 @@
+---
+- name: Require the Hubble Relay deployment to be ready
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - rollout
+      - status
+      - deployment/hubble-relay
+      - --namespace
+      - kube-system
+      - --timeout=180s
+  become: true
+  changed_when: false
+
+- name: Require an internal ClusterIP and a ready Relay endpoint
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - service
+      - hubble-relay
+      - --namespace
+      - kube-system
+      - -o
+      - 'jsonpath={.spec.type} {.spec.ports[0].port} {.spec.ports[0].targetPort}'
+  become: true
+  register: student_hubble_service
+  changed_when: false
+
+- name: Read the Hubble Relay endpoint addresses
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - endpoints
+      - hubble-relay
+      - --namespace
+      - kube-system
+      - -o
+      - 'jsonpath={.subsets[0].addresses[0].ip}'
+  become: true
+  register: student_hubble_endpoint
+  changed_when: false
+
+- name: Read the Hubble Relay named gRPC container port
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - deployment
+      - hubble-relay
+      - --namespace
+      - kube-system
+      - -o
+      - 'jsonpath={.spec.template.spec.containers[0].ports[?(@.name == "grpc")].containerPort}'
+  become: true
+  register: student_hubble_container_port
+  changed_when: false
+
+- name: Require loopback-ready Hubble Relay service and internal endpoint
+  ansible.builtin.assert:
+    that:
+      - student_hubble_service.stdout is match('^ClusterIP 80 grpc$')
+      - student_hubble_endpoint.stdout | length > 0
+      - student_hubble_container_port.stdout == '4245'
+    fail_msg: "Hubble Relay precisa estar pronto como serviço interno ClusterIP 80→grpc/4245."
+
+- name: Refuse observability UI or Prometheus resources in the beginner profile
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - get
+      - deployments
+      - --namespace
+      - kube-system
+      - -o
+      - name
+  become: true
+  register: student_beginner_deployments
+  changed_when: false
+
+- name: Require Hubble UI and Prometheus to stay disabled
+  ansible.builtin.assert:
+    that:
+      - student_beginner_deployments.stdout is not search('hubble-ui|prometheus')
+    fail_msg: "UI ou Prometheus foi instalado no perfil iniciante sem autorização."
+
+- name: Name the private, short-lived verification namespace
+  ansible.builtin.set_fact:
+    student_canary_namespace: "student-verify-{{ student_state.run_id | regex_replace('^.*-', '') }}"
+    student_canary_manifest: "{{ student_run_dir }}/canary.yml"
+    student_canary_probe_manifest: "{{ student_run_dir }}/canary-probe.yml"
+    student_canary_namespace_manifest: "{{ student_run_dir }}/canary-namespace.yml"
+    student_canary_failure_evidence: "{{ student_run_dir }}/canary-failure.txt"
+    student_canary_created: false
+    student_canary_namespace_uid: ''
+    student_canary_owner_token: "{{ student_state.owner_token }}"
+    student_canary_job_create_attempted: false
+    student_canary_evidence_complete: false
+    student_canary_first_evidence_written: false
+    student_canary_namespace_evidence_owned: false
+    student_canary_job_status_readable: false
+    student_canary_status_evidence_written: false
+    student_canary_first_failure_task: ''
+    student_canary_first_failure_rc: 'n/a'
+    student_canary_collection_error: ''
+    student_canary_cleanup_error: ''
+  no_log: true
+
+- name: Run the isolated in-cluster Relay DNS and HTTP canary
+  block:
+    - name: Render the private namespace, HTTP server, and probe separately
+      ansible.builtin.template:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      loop:
+        - { src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/beginner-namespace.yml.j2", dest: "{{ student_canary_namespace_manifest }}" }
+        - { src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/beginner-canary.yml.j2", dest: "{{ student_canary_manifest }}" }
+        - { src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/beginner-probe.yml.j2", dest: "{{ student_canary_probe_manifest }}" }
+
+    - name: Check that the unique canary namespace is absent
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_state.context }}"
+          - --request-timeout=30s
+          - get
+          - namespace
+          - "{{ student_canary_namespace }}"
+          - -o
+          - json
+      become: true
+      register: student_canary_precheck
+      changed_when: false
+      failed_when: false
+      no_log: true
+
+    - name: Refuse to adopt any existing canary namespace
+      ansible.builtin.assert:
+        that:
+          - student_canary_precheck.rc != 0
+          - student_canary_precheck.stderr is search('NotFound')
+        fail_msg: "Namespace de verificação já existe ou a API não confirmou NotFound; não será adotado."
+
+    - name: Create the owner-labeled canary namespace without apply or adoption
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_state.context }}"
+          - --request-timeout=30s
+          - create
+          - -f
+          - "{{ student_canary_namespace_manifest }}"
+          - -o
+          - json
+      become: true
+      register: student_canary_create
+      changed_when: true
+      no_log: true
+
+    - name: Capture the namespace UID returned by the successful create
+      ansible.builtin.set_fact:
+        student_canary_create_object: "{{ student_canary_create.stdout | from_json }}"
+        student_canary_namespace_uid: "{{ (student_canary_create.stdout | from_json).metadata.uid }}"
+      no_log: true
+
+    - name: Require the create response to prove this namespace and owner token
+      ansible.builtin.assert:
+        that:
+          - student_canary_create.rc == 0
+          - student_canary_create_object.kind == 'Namespace'
+          - student_canary_create_object.metadata.name == student_canary_namespace
+          - student_canary_namespace_uid is match('^[0-9a-fA-F-]{36}$')
+          - student_canary_create_object.metadata.labels['p010-student-owner'] == student_canary_owner_token
+          - student_canary_create_object.metadata.annotations['p010-student-owner-token'] == student_canary_owner_token
+        fail_msg: "Create do namespace não retornou UID e token desta execução."
+      no_log: true
+
+    - name: Record the proven canary creation before applying workloads
+      ansible.builtin.set_fact:
+        student_canary_created: true
+
+    - name: Recheck the live namespace UID and token before applying workloads
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_state.context }}"
+          - --request-timeout=30s
+          - get
+          - namespace
+          - "{{ student_canary_namespace }}"
+          - -o
+          - json
+      become: true
+      register: student_canary_live_before_apply
+      changed_when: false
+      failed_when: false
+      no_log: true
+
+    - name: Require the namespace identity captured from create to remain live
+      ansible.builtin.assert:
+        that:
+          - student_canary_live_before_apply.rc == 0
+          - (student_canary_live_before_apply.stdout | from_json).metadata.uid == student_canary_namespace_uid
+          - (student_canary_live_before_apply.stdout | from_json).metadata.labels['p010-student-owner'] == student_canary_owner_token
+          - (student_canary_live_before_apply.stdout | from_json).metadata.annotations['p010-student-owner-token'] == student_canary_owner_token
+        fail_msg: "Namespace de verificação mudou depois da criação; workloads não serão aplicados."
+      no_log: true
+
+    - name: Apply only workloads inside the namespace created by this run
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_state.context }}"
+          - --request-timeout=30s
+          - apply
+          - -f
+          - "{{ student_canary_manifest }}"
+      become: true
+      changed_when: true
+      no_log: true
+
+    - name: Wait for the temporary HTTP server
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_state.context }}"
+          - --request-timeout=125s
+          - rollout
+          - status
+          - deployment/http-canary
+          - --namespace
+          - "{{ student_canary_namespace }}"
+          - --timeout=120s
+      become: true
+      changed_when: false
+      no_log: true
+
+    - name: Read Ready addresses for the temporary HTTP Service with bounded retries
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_state.context }}"
+          - --request-timeout=5s
+          - get
+          - endpoints
+          - http-canary
+          - --namespace
+          - "{{ student_canary_namespace }}"
+          - -o
+          - 'jsonpath={.subsets[*].addresses[*].ip}'
+      become: true
+      register: student_canary_endpoints
+      changed_when: false
+      failed_when: false
+      retries: 7
+      delay: 1
+      until: student_canary_endpoints.rc != 0 or (student_canary_endpoints.stdout | default('') | length > 0)
+      no_log: true
+
+    - name: Distinguish an endpoint API error from an absent Ready address
+      ansible.builtin.assert:
+        that:
+          - student_canary_endpoints.rc == 0
+        fail_msg: "A API Kubernetes falhou ao consultar os endpoints do HTTP canary."
+      no_log: true
+
+    - name: Require at least one Ready address for the temporary HTTP Service
+      ansible.builtin.assert:
+        that:
+          - student_canary_endpoints.stdout | length > 0
+        fail_msg: "O Service HTTP canary ainda não tem endpoint Ready."
+      no_log: true
+
+    - name: Record that Job creation is about to be attempted
+      ansible.builtin.set_fact:
+        student_canary_job_create_attempted: true
+      no_log: true
+
+    - name: Create the Relay DNS and in-cluster HTTP probe after both readiness gates
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_state.context }}"
+          - --request-timeout=30s
+          - create
+          - -f
+          - "{{ student_canary_probe_manifest }}"
+      become: true
+      changed_when: true
+      no_log: true
+
+    - name: Wait for Relay DNS and in-cluster HTTP response
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_state.context }}"
+          - --request-timeout=125s
+          - wait
+          - --for=condition=complete
+          - job/relay-dns-and-http
+          - --namespace
+          - "{{ student_canary_namespace }}"
+          - --timeout=120s
+      become: true
+      changed_when: false
+      no_log: true
+
+    - name: Read the successful temporary canary result
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_state.context }}"
+          - --request-timeout=15s
+          - logs
+          - job/relay-dns-and-http
+          - --namespace
+          - "{{ student_canary_namespace }}"
+          - --tail=80
+          - --limit-bytes=8192
+      become: true
+      register: student_canary_result
+      changed_when: false
+      no_log: true
+
+    - name: Require Relay DNS resolution in the canary result
+      ansible.builtin.assert:
+        that:
+          - student_canary_result.stdout is search('hubble-relay\\.kube-system\\.svc\\.cluster\\.local')
+          - student_canary_result.stdout is search('student-canary-ok')
+        fail_msg: "A prova isolada não resolveu Hubble Relay ou não recebeu HTTP canary."
+      no_log: true
+
+    - name: Mark validated canary evidence complete before cleanup
+      ansible.builtin.set_fact:
+        student_canary_evidence_complete: true
+      no_log: true
+
+  rescue:
+    - name: Preserve the first canary failure before evidence collection and cleanup
+      ansible.builtin.set_fact:
+        student_canary_first_failure_task: "{{ ansible_failed_task.name | default('tarefa não identificada') }}"
+        student_canary_first_failure_rc: "{{ ansible_failed_result.rc | default('n/a') }}"
+      no_log: true
+
+    - name: Save a private summary when readiness prevented Job creation
+      ansible.builtin.copy:
+        content: |
+          primary_task={{ student_canary_first_failure_task }}
+          primary_rc={{ student_canary_first_failure_rc }}
+          job_state=not-created-before-readiness-gates
+        dest: "{{ student_canary_failure_evidence }}"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      register: student_canary_pre_job_evidence
+      failed_when: false
+      no_log: true
+      when: not (student_canary_job_create_attempted | bool)
+
+    - name: Record whether the pre-Job failure summary was saved
+      ansible.builtin.set_fact:
+        student_canary_evidence_complete: "{{ student_canary_pre_job_evidence.dest is defined }}"
+        student_canary_collection_error: "{{ '' if student_canary_pre_job_evidence.dest is defined else 'private-summary-write-failed' }}"
+      no_log: true
+      when: not (student_canary_job_create_attempted | bool)
+
+    - name: Collect bounded evidence for an attempted Job
+      block:
+        - name: Save the first failure privately before reading Job data
+          ansible.builtin.copy:
+            content: |
+              primary_task={{ student_canary_first_failure_task }}
+              primary_rc={{ student_canary_first_failure_rc }}
+              job_state=read-pending
+            dest: "{{ student_canary_failure_evidence }}"
+            owner: "{{ student_uid }}"
+            mode: '0600'
+          register: student_canary_first_job_evidence
+          failed_when: false
+          no_log: true
+
+        - name: Mark the private first-failure summary write
+          ansible.builtin.set_fact:
+            student_canary_first_evidence_written: "{{ student_canary_first_job_evidence.dest is defined }}"
+            student_canary_collection_error: "{{ '' if student_canary_first_job_evidence.dest is defined else 'private-summary-write-failed' }}"
+          no_log: true
+
+        - name: Re-prove the live namespace UID and token before reading Job data
+          ansible.builtin.command:
+            argv:
+              - "{{ student_tool_dir }}/kubectl"
+              - --kubeconfig
+              - "{{ student_state.kubeconfig }}"
+              - --context
+              - "{{ student_state.context }}"
+              - --request-timeout=10s
+              - get
+              - namespace
+              - "{{ student_canary_namespace }}"
+              - -o
+              - json
+          become: true
+          register: student_canary_live_before_evidence
+          changed_when: false
+          failed_when: false
+          no_log: true
+          when: student_canary_first_evidence_written | default(false) | bool
+
+        - name: Record whether the namespace still belongs to this run
+          ansible.builtin.set_fact:
+            student_canary_namespace_evidence_owned: "{{ student_canary_live_before_evidence.rc == 0 and (student_canary_live_before_evidence.stdout | from_json).metadata.uid == student_canary_namespace_uid and (student_canary_live_before_evidence.stdout | from_json).metadata.labels['p010-student-owner'] == student_canary_owner_token and (student_canary_live_before_evidence.stdout | from_json).metadata.annotations['p010-student-owner-token'] == student_canary_owner_token }}"
+          no_log: true
+          when: student_canary_first_evidence_written | default(false) | bool
+
+        - name: Keep evidence UNKNOWN when namespace identity changed or the API failed
+          ansible.builtin.set_fact:
+            student_canary_collection_error: "{{ 'namespace-identity-api-error' if student_canary_live_before_evidence.rc != 0 else 'namespace-identity-changed' }}"
+          no_log: true
+          when:
+            - student_canary_first_evidence_written | default(false) | bool
+            - not (student_canary_namespace_evidence_owned | default(false) | bool)
+
+        - name: Read only the known canary Job status fields
+          ansible.builtin.command:
+            argv:
+              - "{{ student_tool_dir }}/kubectl"
+              - --kubeconfig
+              - "{{ student_state.kubeconfig }}"
+              - --context
+              - "{{ student_state.context }}"
+              - --request-timeout=10s
+              - get
+              - job
+              - relay-dns-and-http
+              - --namespace
+              - "{{ student_canary_namespace }}"
+              - --ignore-not-found=true
+              - -o
+              - 'jsonpath={.status.failed}{"|"}{.status.succeeded}{"|"}{.status.active}{"|"}{range .status.conditions[*]}{.type}:{.status}:{.reason}{";"}{end}'
+          become: true
+          register: student_canary_job_status
+          changed_when: false
+          failed_when: false
+          no_log: true
+          when: student_canary_namespace_evidence_owned | default(false) | bool
+
+        - name: Distinguish Job status API errors from a missing Job
+          ansible.builtin.set_fact:
+            student_canary_job_status_readable: "{{ student_canary_job_status.rc == 0 and (student_canary_job_status.stdout | default('') | length > 0) }}"
+            student_canary_collection_error: "{{ '' if student_canary_job_status.rc == 0 and (student_canary_job_status.stdout | default('') | length > 0) else ('job-status-api-error' if student_canary_job_status.rc != 0 else 'known-job-status-absent') }}"
+          no_log: true
+          when: student_canary_namespace_evidence_owned | default(false) | bool
+
+        - name: Save selected Job status beside the first failure
+          ansible.builtin.copy:
+            content: |
+              primary_task={{ student_canary_first_failure_task }}
+              primary_rc={{ student_canary_first_failure_rc }}
+              job_status={{ student_canary_job_status.stdout }}
+            dest: "{{ student_canary_failure_evidence }}"
+            owner: "{{ student_uid }}"
+            mode: '0600'
+          register: student_canary_status_evidence
+          failed_when: false
+          no_log: true
+          when:
+            - student_canary_namespace_evidence_owned | default(false) | bool
+            - student_canary_job_status_readable | bool
+            - student_canary_first_evidence_written | bool
+
+        - name: Mark whether selected Job status was saved
+          ansible.builtin.set_fact:
+            student_canary_status_evidence_written: "{{ student_canary_status_evidence.dest is defined }}"
+            student_canary_collection_error: "{{ '' if student_canary_status_evidence.dest is defined else 'job-status-evidence-write-failed' }}"
+          no_log: true
+          when:
+            - student_canary_namespace_evidence_owned | default(false) | bool
+            - student_canary_job_status_readable | bool
+            - student_canary_first_evidence_written | bool
+
+        - name: Read bounded logs only for the known canary Job
+          ansible.builtin.command:
+            argv:
+              - "{{ student_tool_dir }}/kubectl"
+              - --kubeconfig
+              - "{{ student_state.kubeconfig }}"
+              - --context
+              - "{{ student_state.context }}"
+              - --request-timeout=15s
+              - logs
+              - job/relay-dns-and-http
+              - --namespace
+              - "{{ student_canary_namespace }}"
+              - --tail=80
+              - --limit-bytes=8192
+          become: true
+          register: student_canary_failure_logs
+          changed_when: false
+          failed_when: false
+          no_log: true
+          when:
+            - student_canary_status_evidence_written | default(false) | bool
+            - student_canary_collection_error | length == 0
+
+        - name: Record a separate bounded log-collection error
+          ansible.builtin.set_fact:
+            student_canary_collection_error: "job-log-collection-failed (rc={{ student_canary_failure_logs.rc }})"
+          no_log: true
+          when:
+            - student_canary_failure_logs is defined
+            - student_canary_failure_logs.rc is defined
+            - student_canary_failure_logs.rc != 0
+            - student_canary_collection_error | length == 0
+
+        - name: Save bounded Job logs beside the first failure and status
+          ansible.builtin.copy:
+            content: |
+              primary_task={{ student_canary_first_failure_task }}
+              primary_rc={{ student_canary_first_failure_rc }}
+              job_status={{ student_canary_job_status.stdout }}
+              job_logs:
+              {{ student_canary_failure_logs.stdout | indent(2, true) }}
+            dest: "{{ student_canary_failure_evidence }}"
+            owner: "{{ student_uid }}"
+            mode: '0600'
+          register: student_canary_complete_evidence
+          failed_when: false
+          no_log: true
+          when:
+            - student_canary_failure_logs is defined
+            - student_canary_failure_logs.rc is defined
+            - student_canary_failure_logs.rc == 0
+            - student_canary_collection_error | length == 0
+
+        - name: Require complete private Job evidence before namespace cleanup
+          ansible.builtin.set_fact:
+            student_canary_evidence_complete: "{{ student_canary_complete_evidence.dest is defined }}"
+            student_canary_collection_error: "{{ '' if student_canary_complete_evidence.dest is defined else 'job-evidence-write-failed' }}"
+          no_log: true
+          when:
+            - student_canary_failure_logs is defined
+            - student_canary_failure_logs.rc is defined
+            - student_canary_failure_logs.rc == 0
+            - student_canary_collection_error | length == 0
+
+      rescue:
+        - name: Preserve evidence-collection failure separately from the first failure
+          ansible.builtin.set_fact:
+            student_canary_collection_error: >-
+              evidence-collection-task-failed:
+              {{ ansible_failed_task.name | default('tarefa não identificada') }}
+              (rc={{ ansible_failed_result.rc | default('n/a') }})
+            student_canary_evidence_complete: false
+          no_log: true
+      when: student_canary_job_create_attempted | bool
+
+  always:
+    - name: Re-prove the live canary namespace UID and token before cleanup
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_state.context }}"
+          - --request-timeout=10s
+          - get
+          - namespace
+          - "{{ student_canary_namespace }}"
+          - -o
+          - json
+      become: true
+      register: student_canary_live_cleanup
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when:
+        - student_canary_created | bool
+        - student_canary_evidence_complete | bool
+
+    - name: Classify cleanup identity without masking the first canary failure
+      block:
+        - name: Distinguish an absent, owned, replaced, or unavailable namespace
+          ansible.builtin.set_fact:
+            student_canary_live_absent: "{{ student_canary_live_cleanup.rc != 0 and (student_canary_live_cleanup.stderr | default('') is search('NotFound')) }}"
+            student_canary_live_owned: "{{ student_canary_live_cleanup.rc == 0 and (student_canary_live_cleanup.stdout | from_json).metadata.uid == student_canary_namespace_uid and (student_canary_live_cleanup.stdout | from_json).metadata.labels['p010-student-owner'] == student_canary_owner_token and (student_canary_live_cleanup.stdout | from_json).metadata.annotations['p010-student-owner-token'] == student_canary_owner_token }}"
+            student_canary_cleanup_error: "{{ '' if (student_canary_live_cleanup.rc != 0 and (student_canary_live_cleanup.stderr | default('') is search('NotFound'))) or (student_canary_live_cleanup.rc == 0 and (student_canary_live_cleanup.stdout | from_json).metadata.uid == student_canary_namespace_uid and (student_canary_live_cleanup.stdout | from_json).metadata.labels['p010-student-owner'] == student_canary_owner_token and (student_canary_live_cleanup.stdout | from_json).metadata.annotations['p010-student-owner-token'] == student_canary_owner_token) else ('namespace-identity-api-error' if student_canary_live_cleanup.rc != 0 else 'namespace-identity-changed') }}"
+          no_log: true
+      rescue:
+        - name: Treat unreadable cleanup ownership data as unowned
+          ansible.builtin.set_fact:
+            student_canary_live_absent: false
+            student_canary_live_owned: false
+            student_canary_cleanup_error: namespace-identity-unreadable
+          no_log: true
+      when:
+        - student_canary_created | bool
+        - student_canary_evidence_complete | bool
+
+    - name: Remove only the canary namespace whose UID and owner token still match
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_state.context }}"
+          - --request-timeout=75s
+          - delete
+          - namespace
+          - "{{ student_canary_namespace }}"
+          - --wait=true
+          - --timeout=60s
+      become: true
+      register: student_canary_delete
+      changed_when: student_canary_delete.rc == 0
+      failed_when: false
+      when:
+        - student_canary_created | bool
+        - student_canary_evidence_complete | bool
+        - student_canary_live_owned | default(false) | bool
+      no_log: true
+
+    - name: Verify bounded namespace absence after cleanup
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_state.context }}"
+          - --request-timeout=5s
+          - get
+          - namespace
+          - "{{ student_canary_namespace }}"
+          - --ignore-not-found=true
+          - -o
+          - 'jsonpath={.metadata.uid}'
+      become: true
+      register: student_canary_absent
+      changed_when: false
+      failed_when: false
+      retries: 10
+      delay: 1
+      until: student_canary_absent.rc != 0 or (student_canary_absent.stdout | default('') | length == 0)
+      no_log: true
+      when:
+        - student_canary_created | bool
+        - student_canary_evidence_complete | bool
+        - student_canary_live_owned | default(false) | bool
+
+    - name: Keep cleanup failures separate from the original canary result
+      ansible.builtin.set_fact:
+        student_canary_cleanup_error: >-
+          {{ 'namespace-delete-command-failed (rc=' ~ student_canary_delete.rc ~ ')' if student_canary_delete.rc != 0 else
+             ('namespace-absence-api-error' if student_canary_absent.rc != 0 else
+              ('namespace-remains-after-cleanup' if student_canary_absent.stdout | default('') | length > 0 else '')) }}
+      when:
+        - student_canary_created | bool
+        - student_canary_evidence_complete | bool
+        - student_canary_live_owned | default(false) | bool
+      no_log: true
+
+- name: Preserve the first canary failure after evidence collection and cleanup
+  ansible.builtin.fail:
+    msg: >-
+      Canário não concluiu. Falha original: {{ student_canary_first_failure_task }}
+      (rc={{ student_canary_first_failure_rc }}).
+      {{ ('Falha secundária de coleta: ' ~ student_canary_collection_error ~ '. ') if student_canary_collection_error | length > 0 else '' }}
+      {{ ('Evidência UNKNOWN; esta execução não tentou limpar o namespace ' ~ student_canary_namespace ~ '; confirme sua identidade antes da limpeza. ') if student_canary_created and not student_canary_evidence_complete else '' }}
+      {{ ('Falha adicional de cleanup: ' ~ student_canary_cleanup_error ~ '. ') if student_canary_cleanup_error | length > 0 else '' }}
+      {{ ('Evidência privada: ' ~ student_canary_failure_evidence ~ '.') if student_canary_evidence_complete else '' }}
+  when: student_canary_first_failure_task | length > 0
+
+- name: Report a cleanup failure after an otherwise valid canary
+  ansible.builtin.fail:
+    msg: >-
+      A prova do canário passou, mas a limpeza não foi confirmada:
+      {{ student_canary_cleanup_error }}.
+      A evidência privada permanece; a ausência do namespace não foi confirmada.
+  when: student_canary_cleanup_error | length > 0 and student_canary_first_failure_task | length == 0

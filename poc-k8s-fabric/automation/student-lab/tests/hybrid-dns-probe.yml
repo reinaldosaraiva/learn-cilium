@@ -1,0 +1,31 @@
+---
+- name: Exercise direct DNS proof inside the saved border namespace with fake tools
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    student_hybrid_become: false
+    student_hybrid_nsenter_bin: "{{ lookup('env', 'P010_HYBRID_DNS_NSENTER') }}"
+    student_hybrid_ip_bin: "{{ lookup('env', 'P010_HYBRID_DNS_IP') }}"
+    student_hybrid_dig_bin: "{{ lookup('env', 'P010_HYBRID_DNS_DIG') }}"
+    student_hybrid_dns_case: "{{ lookup('env', 'P010_HYBRID_DNS_CASE') }}"
+    student_state:
+      hybrid:
+        network:
+          border: {pid: 12345}
+    student_hybrid_dns_upstreams: ['192.168.50.1', '1.1.1.1']
+  tasks:
+    - name: Accept a successful route and answer from both real DNS upstream identities
+      ansible.builtin.include_tasks: ../tasks/hybrid-probe-dns.yml
+      when: student_hybrid_dns_case == 'positive'
+
+    - name: Require every route or DNS failure to remain a hard gate
+      block:
+        - ansible.builtin.include_tasks: ../tasks/hybrid-probe-dns.yml
+        - ansible.builtin.fail:
+            msg: "A DNS route or response failure was accepted."
+      rescue:
+        - ansible.builtin.assert:
+            that:
+              - ansible_failed_task.name in ['Require every discovered DNS upstream to have a route in the saved border namespace', 'Query the image source through each discovered server from the saved border namespace', 'Refuse an upstream with no selected route in this exact border namespace', 'Require a real IPv4 answer from every selected upstream']
+      when: student_hybrid_dns_case != 'positive'

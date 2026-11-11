@@ -1,0 +1,12 @@
+---
+- name: Install the prepared Auth fixture for Auth and WireGuard scenarios
+  ansible.builtin.include_tasks: apply-auth.yml
+  when: student_exercise_config.auth_fixture | default(false)
+
+- name: Apply only tenant A and B assets for the tenants scenario
+  ansible.builtin.include_tasks: apply-tenants.yml
+  when: student_exercise_config.tenants | default(false)
+
+- name: Apply the selected multi-pool setup before its workload
+  ansible.builtin.include_tasks: apply-ipam.yml
+  when: student_exercise_config.ipam | default('') in ['m24', 'm32']

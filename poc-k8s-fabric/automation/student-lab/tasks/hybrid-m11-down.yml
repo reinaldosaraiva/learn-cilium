@@ -1,0 +1,114 @@
+---
+- name: Refuse M11 cleanup while a Kubernetes create result is unresolved
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.schema | int == 4
+      - student_state.hybrid.m11.schema | int == 2
+      - student_state.hybrid.m11.verification.gates.k8s_pending | default({}) == {}
+    fail_msg: "Kubernetes tem efeito de criação sem UID confirmado; a limpeza continua parcial."
+  when: student_state.hybrid.schema | int == 4
+  no_log: true
+
+- ansible.builtin.include_tasks: hybrid-m11-build-delete-k8s-specs.yml
+  when: student_state.hybrid.schema | int == 4
+
+- name: Require a pending Kubernetes delete to name one saved M11 object
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.k8s_delete_pending.key in (student_hybrid_m11_delete_k8s_specs | map(attribute='key') | list)
+      - student_state.hybrid.m11.verification.gates.k8s_delete_pending.key in (student_state.hybrid.m11.verification.gates.k8s_resources | default({}))
+    fail_msg: "A intenção DELETE Kubernetes não corresponde a um objeto M11 com UID salvo."
+  when:
+    - student_state.hybrid.schema | int == 4
+    - student_state.hybrid.m11.verification.gates.k8s_delete_pending | default({}) | length > 0
+  no_log: true
+
+- name: Resume the exact interrupted UID-preconditioned Kubernetes delete first
+  ansible.builtin.include_tasks: hybrid-m11-delete-k8s-object.yml
+  vars:
+    student_hybrid_m11_delete_k8s_key: "{{ student_state.hybrid.m11.verification.gates.k8s_delete_pending.key }}"
+    student_hybrid_m11_delete_k8s_spec: "{{ student_hybrid_m11_delete_k8s_specs | selectattr('key', 'equalto', student_state.hybrid.m11.verification.gates.k8s_delete_pending.key) | first }}"
+  when:
+    - student_state.hybrid.schema | int == 4
+    - student_state.hybrid.m11.verification.gates.k8s_delete_pending | default({}) | length > 0
+
+- ansible.builtin.include_tasks: hybrid-m11-stop-captures.yml
+  when: student_state.hybrid.schema | int == 4
+
+- name: Remove only recorded M11 workload and Cilium objects by UID precondition
+  ansible.builtin.include_tasks: hybrid-m11-delete-k8s-object.yml
+  loop: "{{ student_hybrid_m11_delete_k8s_specs }}"
+  loop_control:
+    loop_var: student_hybrid_m11_delete_k8s_spec
+    label: "{{ student_hybrid_m11_delete_k8s_spec.key }}"
+  vars:
+    student_hybrid_m11_delete_k8s_key: "{{ student_hybrid_m11_delete_k8s_spec.key }}"
+  when:
+    - student_state.hybrid.schema | int == 4
+    - student_hybrid_m11_delete_k8s_spec.key in (student_state.hybrid.m11.verification.gates.k8s_resources | default({}))
+
+- name: Determine whether this run has recorded Neutron API effects to remove
+  ansible.builtin.set_fact:
+    student_hybrid_m11_api_cleanup_needed: >-
+      {{ (student_state.hybrid.m11.api.resources | to_json | regex_search('"id"[ ]*:[ ]*"[0-9a-f-]{36}"')) is not none
+         or (student_state.hybrid.m11.api.pending | default({}) | length) > 0 }}
+  when: student_state.hybrid.schema | int == 4
+  no_log: true
+
+- name: Withdraw and remove only this run's NDR routes and scheduler identities
+  ansible.builtin.include_tasks: hybrid-m11-run-api.yml
+  vars:
+    student_hybrid_api_mode: remove-routing
+  when:
+    - student_state.hybrid.schema | int == 4
+    - student_hybrid_m11_api_cleanup_needed | default(false) | bool
+
+- name: Stop the recorded CirrOS process after route withdrawal
+  ansible.builtin.include_tasks: hybrid-qmp-command.yml
+  vars:
+    student_hybrid_qmp_action: quit
+    student_hybrid_qmp_guest_name: cirros
+  when:
+    - student_state.hybrid.schema | int == 4
+    - "'cirros' in (student_hybrid_live_guest_names | default([]))"
+
+- name: Wait for the recorded CirrOS QEMU process to exit
+  ansible.builtin.wait_for:
+    path: "/proc/{{ student_state.hybrid.guests.cirros.pid }}/stat"
+    state: absent
+    timeout: 30
+  when:
+    - student_state.hybrid.schema | int == 4
+    - "'cirros' in (student_hybrid_live_guest_names | default([]))"
+
+- name: Remove CirrOS from the already-proven live guest set
+  ansible.builtin.set_fact:
+    student_hybrid_live_guest_names: "{{ student_hybrid_live_guest_names | reject('equalto', 'cirros') | list }}"
+  when:
+    - student_state.hybrid.schema | int == 4
+    - student_hybrid_live_guest_names is defined
+  no_log: true
+
+- name: Detach the saved Neutron port before deleting its API identity
+  ansible.builtin.include_tasks: hybrid-m11-detach-ovs.yml
+  when:
+    - student_state.hybrid.schema | int == 4
+    - student_state.hybrid.m11.verification.gates.ovs_attach.phase | default('') in ['attached', 'detaching']
+
+- name: Refuse to delete an API port after an OVS effect with incomplete identity
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.ovs_attach.phase | default('') in ['', 'detached']
+    fail_msg: "OVS attach foi iniciado sem checkpoint dos UUIDs; o Neutron port permanece registrado."
+  when:
+    - student_state.hybrid.schema | int == 4
+    - student_state.hybrid.m11.api.resources.cirros_port.primary.id | default('') | length > 0
+  no_log: true
+
+- name: Remove Neutron resources only after the recorded OVS port is absent
+  ansible.builtin.include_tasks: hybrid-m11-run-api.yml
+  vars:
+    student_hybrid_api_mode: remove-resources
+  when:
+    - student_state.hybrid.schema | int == 4
+    - student_hybrid_m11_api_cleanup_needed | default(false) | bool

@@ -1,0 +1,10 @@
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: p010-hyb-{{ student_state.run_id.split('-')[-1][:12] }}-pods
+  labels:
+    p010-student-owner: {{ student_state.owner_token }}
+    p010-student-run: {{ student_state.run_id }}
+spec:
+  advertisements:
+    - advertisementType: PodCIDR

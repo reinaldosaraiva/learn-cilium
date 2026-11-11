@@ -1,0 +1,66 @@
+---
+- name: Require the exact saved relationship and no previous intent
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.api.pending | length == 0
+      - student_state.hybrid.m11.api.links[student_hybrid_api_link_key] | default(false) | bool
+    fail_msg: "A relação API não está registrada ou outra mutação está pendente."
+  no_log: true
+
+- name: Persist the exact relationship-removal intent before PUT
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      status: partial
+      phase: hybrid-api-unlink-pending
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending:
+              method: PUT
+              resource: "link:{{ student_hybrid_api_link_key }}"
+              path: "{{ student_hybrid_api_path }}"
+              body: "{{ student_hybrid_api_body }}"
+              run_id: "{{ student_state.run_id }}"
+              action: remove
+  no_log: true
+
+- name: Remove one saved speaker relationship using the validated API endpoint
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}{{ student_hybrid_api_path }}"
+    method: PUT
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+      Content-Type: application/json
+    body_format: json
+    body: "{{ student_hybrid_api_body }}"
+    return_content: true
+    status_code: [200, 201, 202, 204]
+    timeout: 20
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_unlink_response
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+
+- name: Build the exact relationship map patch with a resolved key
+  ansible.builtin.set_fact:
+    student_hybrid_api_unlink_link_patch: "{{ {student_hybrid_api_link_key: false, 'last_request_id': student_hybrid_api_unlink_response.x_openstack_request_id | default('')} }}"
+  no_log: true
+
+- name: Clear the relationship flag only after the API confirms the PUT
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-unlinked
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-removing
+          api:
+            pending: {}
+            links: "{{ student_hybrid_api_unlink_link_patch }}"
+  no_log: true

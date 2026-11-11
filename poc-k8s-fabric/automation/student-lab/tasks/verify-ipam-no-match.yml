@@ -1,0 +1,207 @@
+---
+- name: Initialize the create-only probe ownership guard
+  ansible.builtin.set_fact:
+    student_ipam_probe_created: false
+
+- name: Run the isolated no-match probe and remove only its owned namespace
+  block:
+    - name: Render a private no-match namespace with the run owner token
+      ansible.builtin.template:
+        src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/ipam-no-match.yml.j2"
+        dest: "{{ student_run_dir }}/ipam-no-match-namespace.yaml"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+
+    - name: Render the private no-match Pod separately
+      ansible.builtin.template:
+        src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/ipam-no-match-pod.yml.j2"
+        dest: "{{ student_run_dir }}/ipam-no-match-pod.yaml"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+
+    - name: Create the probe namespace without adopting an existing name
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - create
+          - --filename
+          - "{{ student_run_dir }}/ipam-no-match-namespace.yaml"
+          - --output
+          - json
+      become: true
+      register: student_ipam_probe_namespace_create
+      changed_when: true
+
+    - name: Record that this invocation created the namespace before parsing output
+      ansible.builtin.set_fact:
+        student_ipam_probe_created: true
+
+    - name: Capture the UID returned by namespace creation
+      ansible.builtin.set_fact:
+        student_ipam_probe_namespace_uid: "{{ (student_ipam_probe_namespace_create.stdout | from_json).metadata.uid }}"
+        student_ipam_probe_owner_token: "{{ student_state.owner_token }}"
+
+    - name: Require the create response to identify this run's namespace
+      ansible.builtin.assert:
+        that:
+          - student_ipam_probe_namespace_uid is match('^[0-9a-fA-F-]{36}$')
+          - (student_ipam_probe_namespace_create.stdout | from_json).metadata.labels['p010-student-owner-token'] == student_ipam_probe_owner_token
+        fail_msg: "A criação do probe IPAM não retornou UID/token esperados; não vou apagar por nome."
+
+    - name: Create the no-match Pod without reconciling any existing object
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - create
+          - --filename
+          - "{{ student_run_dir }}/ipam-no-match-pod.yaml"
+      become: true
+      changed_when: true
+
+    - name: Wait for the no-match probe to report that no IP pool matches
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - get
+          - events
+          - --namespace
+          - p003-ipam-no-match
+          - --field-selector
+          - involvedObject.name=p003-ipam-no-match-check
+          - -o
+          - 'jsonpath={range .items[*]}{.message}{"\n"}{end}'
+      become: true
+      register: student_ipam_no_match_event
+      changed_when: false
+      retries: 30
+      delay: 2
+      until: student_ipam_no_match_event.stdout is search('(?i)pool')
+
+    - name: Read the no-match Pod IP
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - get
+          - pod
+          - p003-ipam-no-match-check
+          - --namespace
+          - p003-ipam-no-match
+          - -o
+          - 'jsonpath={.status.podIP}'
+      become: true
+      register: student_ipam_no_match_pod_ip
+      changed_when: false
+
+    - name: Require that no unselected pool allocated an address
+      ansible.builtin.assert:
+        that:
+          - student_ipam_no_match_pod_ip.stdout == ''
+        fail_msg: "O namespace sem selector recebeu Pod IP apesar de require-pool-match=true."
+  always:
+    - name: Inspect the temporary namespace before cleanup
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - get
+          - namespace
+          - p003-ipam-no-match
+          - -o
+          - json
+      become: true
+      register: student_ipam_probe_namespace_live
+      changed_when: false
+      when: student_ipam_probe_created | default(false)
+
+    - name: Require the live UID and owner token before cleanup
+      ansible.builtin.assert:
+        that:
+          - (student_ipam_probe_namespace_live.stdout | from_json).metadata.uid == student_ipam_probe_namespace_uid
+          - (student_ipam_probe_namespace_live.stdout | from_json).metadata.labels['p010-student-owner-token'] == student_ipam_probe_owner_token
+        fail_msg: "A identidade do namespace probe mudou; não vou apagar recurso por nome."
+      when: student_ipam_probe_created | default(false)
+
+    - name: Render private Kubernetes DeleteOptions with the created namespace UID
+      ansible.builtin.copy:
+        dest: "{{ student_run_dir }}/ipam-no-match-delete-options.json"
+        content: "{{ {'apiVersion': 'v1', 'kind': 'DeleteOptions', 'preconditions': {'uid': student_ipam_probe_namespace_uid}} | to_nice_json }}\n"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      when: student_ipam_probe_created | default(false)
+
+    - name: Delete the namespace only when the API UID precondition still matches
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - delete
+          - --raw=/api/v1/namespaces/p003-ipam-no-match
+          - --filename
+          - "{{ student_run_dir }}/ipam-no-match-delete-options.json"
+      become: true
+      register: student_ipam_probe_namespace_delete
+      changed_when: student_ipam_probe_namespace_delete.rc == 0
+      when: student_ipam_probe_created | default(false)
+
+    - name: Wait until the raw UID-guarded delete has removed the exact namespace
+      ansible.builtin.command:
+        argv:
+          - "{{ student_tool_dir }}/kubectl"
+          - --kubeconfig
+          - "{{ student_state.kubeconfig }}"
+          - --context
+          - "{{ student_profile.context }}"
+          - get
+          - namespace
+          - p003-ipam-no-match
+          - -o
+          - name
+      become: true
+      register: student_ipam_probe_namespace_absence
+      changed_when: false
+      failed_when: >-
+        not (student_ipam_probe_namespace_absence.rc == 1 and
+             student_ipam_probe_namespace_absence.stdout in ['', '[]'] and
+             student_ipam_probe_namespace_absence.stderr | trim ==
+             'Error from server (NotFound): namespaces "p003-ipam-no-match" not found')
+      retries: "{{ student_ipam_cleanup_retries | default(45) }}"
+      delay: "{{ student_ipam_cleanup_delay | default(2) }}"
+      until: >-
+        student_ipam_probe_namespace_absence.rc == 1 and
+        student_ipam_probe_namespace_absence.stdout in ['', '[]'] and
+        student_ipam_probe_namespace_absence.stderr | trim ==
+        'Error from server (NotFound): namespaces "p003-ipam-no-match" not found'
+      when: student_ipam_probe_created | default(false)
+
+    - name: Require the exact namespace NotFound response after cleanup
+      ansible.builtin.assert:
+        that:
+          - student_ipam_probe_namespace_absence.rc == 1
+          - student_ipam_probe_namespace_absence.stdout in ['', '[]']
+          - >-
+            student_ipam_probe_namespace_absence.stderr | trim ==
+            'Error from server (NotFound): namespaces "p003-ipam-no-match" not found'
+        fail_msg: "A remoção do probe IPAM não provou a ausência da namespace criada."
+      when: student_ipam_probe_created | default(false)

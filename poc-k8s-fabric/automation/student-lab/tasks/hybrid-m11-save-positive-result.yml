@@ -1,0 +1,270 @@
+---
+- name: Require a measured two-wave C1 result before writing a receipt
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_receipt_body is mapping
+      - student_hybrid_m11_c1_receipt_body.keys() | list | sort == ['api', 'check_id', 'context', 'observed_utc', 'pods', 'run_id', 'schema', 'scope', 'waves']
+      - student_hybrid_m11_c1_receipt_body.schema | int == 1
+      - student_hybrid_m11_c1_receipt_body.scope == 'M11 C1 measured two-wave packet observation'
+      - student_hybrid_m11_c1_receipt_body.run_id == student_state.run_id
+      - student_hybrid_m11_c1_receipt_body.check_id == student_state.hybrid.m11.verification.gates.positive.c1.check_id
+      - student_hybrid_m11_c1_receipt_body.waves.keys() | list | sort == ['cirros_to_pod', 'pod_to_cirros']
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.phase == 'observed'
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.phase == 'observed'
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.icmp.id | int >= 0
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.icmp.id | int <= 65535
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.icmp.id | int >= 0
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.icmp.id | int <= 65535
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.icmp.sequences | length == 2
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.icmp.sequences | unique | list | length == 2
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.icmp.requests | int == 2
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.icmp.replies | int == 2
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.icmp.sequences | length == 2
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.icmp.sequences | unique | list | length == 2
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.icmp.requests | int == 2
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.icmp.replies | int == 2
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.tcp.server_port | int == 22
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.tcp.server_port | int == 8080
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.tcp.client_port | int > 0
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.tcp.client_port | int <= 65535
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.tcp.client_port | int > 0
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.tcp.client_port | int <= 65535
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.observers | length >= 7
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.observers | length >= 7
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.observers | selectattr('role', 'equalto', 'ubuntu-tenant0') | list | length == 1
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.observers | selectattr('role', 'equalto', 'qrouter-tenant') | list | length == 1
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.observers | selectattr('role', 'equalto', 'qrouter-provider') | list | length == 1
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.observers | selectattr('role', 'equalto', 'border-tap') | list | length == 1
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.observers | selectattr('role', 'equalto', 'border-fabric') | list | length >= 1
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.observers | selectattr('key', 'equalto', 'worker-pod_to_cirros') | list | length == 1
+      - student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.observers | selectattr('key', 'equalto', 'pod-pod_to_cirros') | list | length == 1
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.observers | selectattr('role', 'equalto', 'ubuntu-tenant0') | list | length == 1
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.observers | selectattr('role', 'equalto', 'qrouter-tenant') | list | length == 1
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.observers | selectattr('role', 'equalto', 'qrouter-provider') | list | length == 1
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.observers | selectattr('role', 'equalto', 'border-tap') | list | length == 1
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.observers | selectattr('role', 'equalto', 'border-fabric') | list | length >= 1
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.observers | selectattr('key', 'equalto', 'worker-cirros_to_pod') | list | length == 1
+      - student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.observers | selectattr('key', 'equalto', 'pod-cirros_to_pod') | list | length == 1
+      - student_state.hybrid.m11.verification.gates.positive.c1.phase == 'collecting'
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'stopping'
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.check_id == student_hybrid_m11_c1_receipt_body.check_id
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers is sequence
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers is not string
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers is not mapping
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | length > 0
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | selectattr('phase', 'equalto', 'stopped') | list | length == student_state.hybrid.m11.verification.gates.c1_capture_active.observers | length
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers | selectattr('check_id', 'equalto', student_hybrid_m11_c1_receipt_body.check_id) | list | length == student_state.hybrid.m11.verification.gates.c1_capture_active.observers | length
+    fail_msg: "O receipt C1 exige duas ondas medidas e processos parados por identidade; nenhum gate antigo será promovido."
+  no_log: true
+
+- name: Require each receipt observer to retain private files, counters, and selected headers
+  ansible.builtin.assert:
+    that:
+      - item.tcpdump.version is match('^tcpdump version [0-9][A-Za-z0-9 .+_-]{0,63}$')
+      - item.tcpdump.argv[:9] == ['/usr/sbin/tcpdump', '-nn', '-e', '-vv', '-l', '-tttt', '-S', '-c', '128']
+      - item.tcpdump.argv[-3:] == ['-i', item.interface, item.tcpdump.filter]
+      - item.tcpdump.filter | length > 0
+      - (item.role != 'cirros-endpoint' or item.neutron_port_id == student_hybrid_m11_c1_receipt_body.api.cirros_port_id)
+      - (item.role != 'qrouter-tenant' or item.neutron_port_id == student_hybrid_m11_c1_receipt_body.api.tenant_port.id)
+      - (item.role != 'qrouter-provider' or item.neutron_port_id == student_hybrid_m11_c1_receipt_body.api.provider_port.id)
+      - (item.role != 'border-fabric' or (item.route_candidates | selectattr('direction', 'equalto', 'pod_to_cirros') | list | length == 1 and item.route_candidates | selectattr('direction', 'equalto', 'cirros_to_pod') | list | length == 1))
+      - (item.role != 'worker-fabric' or (item.route.dst == student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.destination_ip and item.route.dev == item.interface and item.route.gateway is match('^10\.30\.[0-9]{1,3}\.[0-9]{1,3}$') and item.route.prefsrc is match('^10\.30\.[0-9]{1,3}\.[0-9]{1,3}$')))
+      - item.supervisor.pid | int > 1
+      - item.supervisor.starttime | int > 0
+      - item.tcpdump.pid | int > 1
+      - item.tcpdump.starttime | int > 0
+      - item.capture_file.path is match('^/tmp/p010-' ~ (student_state.run_id | regex_escape) ~ '-c1-') or item.capture_file.path is match('^' ~ (student_run_dir | regex_escape) ~ '/m11-evidence/c1-')
+      - item.capture_file.device | int > 0
+      - item.capture_file.inode | int > 0
+      - item.capture_file.uid | int >= 0
+      - item.capture_file.mode == '600'
+      - item.capture_file.bytes | int > 0
+      - item.capture_file.bytes | int <= 65536
+      - item.capture_file.sha256 is match('^[0-9a-f]{64}$')
+      - item.capture_file.stats.captured | int < 128
+      - item.capture_file.stats.dropped_by_kernel | int == 0
+      - item.selected_headers | length >= 7
+  loop: "{{ student_hybrid_m11_c1_receipt_body.waves.pod_to_cirros.observers + student_hybrid_m11_c1_receipt_body.waves.cirros_to_pod.observers }}"
+  no_log: true
+
+- name: Require the fresh C1 receipt path to remain unused
+  ansible.builtin.stat:
+    path: "{{ student_run_dir }}/m11-evidence/{{ student_hybrid_m11_c1_receipt_body.check_id }}/receipt.json"
+    follow: false
+  register: student_hybrid_m11_c1_receipt_before
+  no_log: true
+
+- name: Refuse to overwrite a receipt from an earlier attempt
+  ansible.builtin.assert:
+    that:
+      - not (student_hybrid_m11_c1_receipt_before.stat.exists | default(false))
+      - not (student_hybrid_m11_c1_receipt_before.stat.islnk | default(false))
+    fail_msg: "O caminho novo do receipt C1 já existe; não vou substituir evidência anterior."
+  no_log: true
+
+- name: Write only the normalized C1 receipt into the reserved private directory
+  ansible.builtin.copy:
+    dest: "{{ student_run_dir }}/m11-evidence/{{ student_hybrid_m11_c1_receipt_body.check_id }}/receipt.json"
+    content: "{{ student_hybrid_m11_c1_receipt_body | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+    force: false
+  no_log: true
+
+- name: Inspect the new C1 receipt file and checksum
+  ansible.builtin.stat:
+    path: "{{ student_run_dir }}/m11-evidence/{{ student_hybrid_m11_c1_receipt_body.check_id }}/receipt.json"
+    follow: false
+    checksum_algorithm: sha256
+  register: student_hybrid_m11_c1_receipt_stat
+  no_log: true
+
+- name: Reload the receipt bytes without exposing packet or control data
+  ansible.builtin.slurp:
+    src: "{{ student_run_dir }}/m11-evidence/{{ student_hybrid_m11_c1_receipt_body.check_id }}/receipt.json"
+  register: student_hybrid_m11_c1_receipt_slurp
+  no_log: true
+
+- name: Parse the just-written C1 receipt privately
+  ansible.builtin.set_fact:
+    student_hybrid_m11_c1_receipt_reloaded: "{{ student_hybrid_m11_c1_receipt_slurp.content | b64decode | from_json }}"
+  no_log: true
+
+- name: Require the new regular private receipt and its measured two-wave schema
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_c1_receipt_stat.stat.isreg | default(false)
+      - not (student_hybrid_m11_c1_receipt_stat.stat.islnk | default(false))
+      - student_hybrid_m11_c1_receipt_stat.stat.uid | int == student_uid | int
+      - student_hybrid_m11_c1_receipt_stat.stat.mode == '0600'
+      - student_hybrid_m11_c1_receipt_stat.stat.dev | int > 0
+      - student_hybrid_m11_c1_receipt_stat.stat.inode | int > 0
+      - student_hybrid_m11_c1_receipt_stat.stat.checksum is match('^[0-9a-f]{64}$')
+      - student_hybrid_m11_c1_receipt_reloaded == student_hybrid_m11_c1_receipt_body
+      - student_hybrid_m11_c1_receipt_reloaded.schema | int == 1
+      - student_hybrid_m11_c1_receipt_reloaded.run_id == student_state.run_id
+      - student_hybrid_m11_c1_receipt_reloaded.check_id == student_state.hybrid.m11.verification.gates.positive.c1.check_id
+      - student_hybrid_m11_c1_receipt_reloaded.waves.pod_to_cirros.phase == 'observed'
+      - student_hybrid_m11_c1_receipt_reloaded.waves.cirros_to_pod.phase == 'observed'
+    fail_msg: "O receipt C1 não passou pelo reload/hash e permanece apenas um resultado parcial."
+  no_log: true
+
+- name: Save the observed receipt reference while the overall run remains partial
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'status': 'partial', 'phase': 'hybrid-c1-receipt-saved',
+        'hybrid': student_state.hybrid | combine({'phase': 'partial', 'm11': student_state.hybrid.m11 | combine({
+          'phase': 'cilium-ready',
+          'verification': student_state.hybrid.m11.verification | combine({
+            'phase': 'collecting',
+            'gates': student_state.hybrid.m11.verification.gates | combine({
+              'positive': student_state.hybrid.m11.verification.gates.positive | combine({
+                'c1': {
+                  'schema': 1,
+                  'check_id': student_hybrid_m11_c1_receipt_body.check_id,
+                  'phase': 'observed',
+                  'previous_receipt': student_state.hybrid.m11.verification.gates.positive.c1.previous_receipt,
+                  'receipt': {
+                    'path': student_run_dir ~ '/m11-evidence/' ~ student_hybrid_m11_c1_receipt_body.check_id ~ '/receipt.json',
+                    'sha256': student_hybrid_m11_c1_receipt_stat.stat.checksum,
+                    'device': student_hybrid_m11_c1_receipt_stat.stat.dev | int,
+                    'inode': student_hybrid_m11_c1_receipt_stat.stat.inode | int,
+                    'owner_uid': student_hybrid_m11_c1_receipt_stat.stat.uid | int,
+                    'mode': student_hybrid_m11_c1_receipt_stat.stat.mode
+                  }
+                }
+              }, recursive=false)
+            }, recursive=false)
+          }, recursive=false)
+        }, recursive=false)}, recursive=false), 'updated_utc': ansible_date_time.iso8601}, recursive=false) }}
+  no_log: true
+
+- name: Persist and reload the observed receipt while preserving partial status
+  block:
+    - ansible.builtin.copy:
+        dest: "{{ student_state_file }}"
+        content: "{{ student_state | to_nice_json }}\n"
+        owner: "{{ student_uid }}"
+        mode: '0600'
+      no_log: true
+    - ansible.builtin.set_fact:
+        student_state: "{{ lookup('file', student_state_file) | from_json }}"
+      no_log: true
+    - ansible.builtin.assert:
+        that:
+          - student_state.status == 'partial'
+          - student_state.hybrid.m11.verification.gates.positive.c1.phase == 'observed'
+          - student_state.hybrid.m11.verification.gates.positive.c1.receipt.sha256 == student_hybrid_m11_c1_receipt_stat.stat.checksum
+          - student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'stopping'
+        fail_msg: "A receipt foi salva sem manter o estado parcial e os efeitos ativos."
+      no_log: true
+
+- name: Stop and remove only the capture processes and files saved for this C1 check
+  ansible.builtin.include_tasks: hybrid-m11-stop-captures.yml
+  vars:
+    student_hybrid_m11_capture_cleanup_complete: true
+
+- name: Require C1 active identities to be absent after save, reload, and cleanup
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.schema | int == 1
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.check_id == ''
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'absent'
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.observers == []
+      - student_state.hybrid.m11.verification.gates.positive.c1.phase == 'observed'
+      - student_state.hybrid.m11.verification.gates.positive.c1.receipt.sha256 == student_hybrid_m11_c1_receipt_stat.stat.checksum
+    fail_msg: "A observação C1 foi persistida, mas o cleanup não comprovou mapa ativo vazio."
+  no_log: true
+
+- name: Publish current M11 health only after the fresh C1 receipt and cleanup
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'status': student_hybrid_m11_positive_complete_status,
+        'phase': 'hybrid-m11-positive-verified',
+        'hybrid': student_state.hybrid | combine({'phase': 'verified', 'm11': student_state.hybrid.m11 | combine({
+          'phase': 'verified',
+          'verification': student_state.hybrid.m11.verification | combine({
+            'phase': 'verified',
+            'gates': student_state.hybrid.m11.verification.gates | combine({
+              'positive': student_state.hybrid.m11.verification.gates.positive | combine({
+                'phase': 'verified',
+                'bgp_established': 3,
+                'tenant_route': true,
+                'podcidr_route': true,
+                'pod_to_vm_icmp': true,
+                'pod_to_vm_tcp22': true,
+                'vm_to_pod_icmp': true,
+                'vm_to_pod_http': true,
+                'vm_source_observed_on_tenant_link': true,
+                'c1': student_state.hybrid.m11.verification.gates.positive.c1 | combine({'phase': 'verified'}, recursive=false)
+              }, recursive=false)
+            }, recursive=false)
+          }, recursive=false)
+        }, recursive=false)}, recursive=false), 'updated_utc': ansible_date_time.iso8601}, recursive=false) }}
+  no_log: true
+
+- name: Persist the completed health result only after C1 active identities are absent
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  when: student_hybrid_m11_positive_existing
+  no_log: true
+
+- name: Reload the final C1 verified state for an existing health check
+  ansible.builtin.set_fact:
+    student_state: "{{ lookup('file', student_state_file) | from_json }}"
+  when: student_hybrid_m11_positive_existing
+  no_log: true
+
+- name: Require the final C1 state to be verified and free of active captures
+  ansible.builtin.assert:
+    that:
+      - student_state.status == student_hybrid_m11_positive_complete_status
+      - student_state.hybrid.m11.phase == 'verified'
+      - student_state.hybrid.m11.verification.gates.positive.c1.phase == 'verified'
+      - student_state.hybrid.m11.verification.gates.c1_capture_active.phase == 'absent'
+      - student_state.hybrid.m11.verification.gates.positive.c1.receipt.sha256 == student_hybrid_m11_c1_receipt_stat.stat.checksum
+    fail_msg: "A saúde M11 não foi promovida após observação e cleanup C1 completos."
+  no_log: true

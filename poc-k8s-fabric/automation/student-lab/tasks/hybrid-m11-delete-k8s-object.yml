@@ -1,0 +1,181 @@
+---
+- name: Require a saved Kubernetes UID and run marker before cleanup
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_delete_k8s_key in student_state.hybrid.m11.verification.gates.k8s_resources
+      - student_hybrid_m11_delete_k8s_record.keys() | list | sort == ['api_version', 'kind', 'name', 'namespace', 'uid']
+      - student_hybrid_m11_delete_k8s_record.kind == student_hybrid_m11_delete_k8s_spec.kind
+      - student_hybrid_m11_delete_k8s_record.name == student_hybrid_m11_delete_k8s_spec.name
+      - student_hybrid_m11_delete_k8s_record.name | length > 0
+      - student_hybrid_m11_delete_k8s_record.uid is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_hybrid_m11_delete_k8s_record.namespace == student_hybrid_m11_delete_k8s_spec.namespace
+      - student_hybrid_m11_delete_k8s_record.api_version == student_hybrid_m11_delete_k8s_spec.api_version_full
+      - student_state.hybrid.m11.verification.gates.k8s_delete_pending | default({}) == {} or (student_state.hybrid.m11.verification.gates.k8s_delete_pending.key == student_hybrid_m11_delete_k8s_key and student_state.hybrid.m11.verification.gates.k8s_delete_pending.uid == student_hybrid_m11_delete_k8s_record.uid and student_state.hybrid.m11.verification.gates.k8s_delete_pending.name == student_hybrid_m11_delete_k8s_record.name and student_state.hybrid.m11.verification.gates.k8s_delete_pending.namespace == student_hybrid_m11_delete_k8s_record.namespace)
+      - student_state.hybrid.m11.verification.gates.k8s_delete_pending | default({}) | length == 0 or student_state.hybrid.m11.verification.gates.k8s_delete_pending.keys() | list | sort == ['key', 'name', 'namespace', 'uid']
+      - student_state.hybrid.m11.verification.gates.k8s_pending | default({}) == {}
+    fail_msg: "Kubernetes cleanup exige a identidade UID já gravada; intenção de criação incerta permanece parcial."
+  vars:
+    student_hybrid_m11_delete_k8s_record: "{{ student_state.hybrid.m11.verification.gates.k8s_resources[student_hybrid_m11_delete_k8s_key] }}"
+  no_log: true
+
+- name: Build the Kubernetes REST path from the saved API group and scope
+  ansible.builtin.set_fact:
+    student_hybrid_m11_delete_k8s_path: "{{ (('/apis/' ~ student_hybrid_m11_delete_k8s_spec.api_group ~ '/' ~ student_hybrid_m11_delete_k8s_spec.api_version) if student_hybrid_m11_delete_k8s_spec.api_group | length > 0 else '/api/' ~ student_hybrid_m11_delete_k8s_spec.api_version) ~ (('/namespaces/' ~ student_hybrid_m11_delete_k8s_record.namespace) if student_hybrid_m11_delete_k8s_spec.namespaced | bool else '') ~ '/' ~ student_hybrid_m11_delete_k8s_spec.plural ~ '/' ~ student_hybrid_m11_delete_k8s_record.name }}"
+  vars:
+    student_hybrid_m11_delete_k8s_record: "{{ student_state.hybrid.m11.verification.gates.k8s_resources[student_hybrid_m11_delete_k8s_key] }}"
+  no_log: true
+
+- name: Read the exact saved Kubernetes object, ignoring only NotFound
+  ansible.builtin.command:
+    argv: >-
+      {{ [student_tool_dir ~ '/kubectl', '--kubeconfig', student_state.kubeconfig,
+          '--context', student_state.context, 'get', student_hybrid_m11_delete_k8s_spec.resource,
+          student_hybrid_m11_delete_k8s_record.name]
+         + (['--namespace', student_hybrid_m11_delete_k8s_record.namespace]
+            if student_hybrid_m11_delete_k8s_record.namespace | length > 0 else [])
+         + ['--ignore-not-found=true', '-o', 'json'] }}
+  vars:
+    student_hybrid_m11_delete_k8s_record: "{{ student_state.hybrid.m11.verification.gates.k8s_resources[student_hybrid_m11_delete_k8s_key] }}"
+  become: true
+  register: student_hybrid_m11_delete_k8s_live
+  changed_when: false
+  failed_when: student_hybrid_m11_delete_k8s_live.rc != 0
+  no_log: true
+
+- name: Require a present object to match its saved UID, name, namespace, and run labels
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_delete_k8s_live.stdout | from_json is mapping
+      - (student_hybrid_m11_delete_k8s_live.stdout | from_json).kind == student_hybrid_m11_delete_k8s_record.kind
+      - (student_hybrid_m11_delete_k8s_live.stdout | from_json).metadata.name == student_hybrid_m11_delete_k8s_record.name
+      - (student_hybrid_m11_delete_k8s_live.stdout | from_json).metadata.namespace | default('') == student_hybrid_m11_delete_k8s_record.namespace
+      - (student_hybrid_m11_delete_k8s_live.stdout | from_json).metadata.uid == student_hybrid_m11_delete_k8s_record.uid
+      - (student_hybrid_m11_delete_k8s_live.stdout | from_json).metadata.labels['p010-student-owner'] == student_state.owner_token
+      - (student_hybrid_m11_delete_k8s_live.stdout | from_json).metadata.labels['p010-student-run'] == student_state.run_id
+    fail_msg: "O objeto Kubernetes mudou de UID ou marcador; nenhum recurso será removido por nome."
+  vars:
+    student_hybrid_m11_delete_k8s_record: "{{ student_state.hybrid.m11.verification.gates.k8s_resources[student_hybrid_m11_delete_k8s_key] }}"
+  when: student_hybrid_m11_delete_k8s_live.stdout | trim | length > 0
+  no_log: true
+
+- name: Checkpoint the exact Kubernetes DELETE intent before the API request
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'status': 'partial', 'phase': 'hybrid-k8s-delete-pending',
+        'hybrid': {'phase': 'partial', 'm11': {'phase': 'api-removing', 'verification': {
+          'phase': 'api-removing', 'gates': {'k8s_delete_pending': {
+            'key': student_hybrid_m11_delete_k8s_key,
+            'uid': student_hybrid_m11_delete_k8s_record.uid,
+            'name': student_hybrid_m11_delete_k8s_record.name,
+            'namespace': student_hybrid_m11_delete_k8s_record.namespace
+          }}
+        }}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  vars:
+    student_hybrid_m11_delete_k8s_record: "{{ student_state.hybrid.m11.verification.gates.k8s_resources[student_hybrid_m11_delete_k8s_key] }}"
+  when: student_hybrid_m11_delete_k8s_live.stdout | trim | length > 0
+  no_log: true
+
+- name: Persist the exact Kubernetes UID delete intent
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  when: student_hybrid_m11_delete_k8s_live.stdout | trim | length > 0
+  no_log: true
+
+- name: Write a private UID-preconditioned Kubernetes DeleteOptions body
+  ansible.builtin.copy:
+    dest: "{{ student_run_dir }}/m11-k8s/{{ student_hybrid_m11_delete_k8s_key }}-delete-options.json"
+    content: "{{ {'apiVersion': 'v1', 'kind': 'DeleteOptions', 'preconditions': {'uid': student_hybrid_m11_delete_k8s_record.uid}, 'propagationPolicy': 'Background'} | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  vars:
+    student_hybrid_m11_delete_k8s_record: "{{ student_state.hybrid.m11.verification.gates.k8s_resources[student_hybrid_m11_delete_k8s_key] }}"
+  when: student_hybrid_m11_delete_k8s_live.stdout | trim | length > 0
+  no_log: true
+
+- name: Delete the saved Kubernetes UID through the raw DeleteOptions API
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - delete
+      - "--raw={{ student_hybrid_m11_delete_k8s_path }}"
+      - --filename
+      - "{{ student_run_dir }}/m11-k8s/{{ student_hybrid_m11_delete_k8s_key }}-delete-options.json"
+  become: true
+  register: student_hybrid_m11_delete_k8s_response
+  changed_when: true
+  when: student_hybrid_m11_delete_k8s_live.stdout | trim | length > 0
+  no_log: true
+
+- name: Wait for the saved Kubernetes UID to become absent
+  ansible.builtin.command:
+    argv: >-
+      {{ [student_tool_dir ~ '/kubectl', '--kubeconfig', student_state.kubeconfig,
+          '--context', student_state.context, 'get', student_hybrid_m11_delete_k8s_spec.resource,
+          student_hybrid_m11_delete_k8s_record.name]
+         + (['--namespace', student_hybrid_m11_delete_k8s_record.namespace]
+            if student_hybrid_m11_delete_k8s_record.namespace | length > 0 else [])
+         + ['--ignore-not-found=true', '-o', 'json'] }}
+  vars:
+    student_hybrid_m11_delete_k8s_record: "{{ student_state.hybrid.m11.verification.gates.k8s_resources[student_hybrid_m11_delete_k8s_key] }}"
+  become: true
+  register: student_hybrid_m11_delete_k8s_absence
+  changed_when: false
+  failed_when: student_hybrid_m11_delete_k8s_absence.rc != 0
+  retries: 30
+  delay: 1
+  until: student_hybrid_m11_delete_k8s_absence.stdout | trim == ''
+  no_log: true
+
+- name: Clear only the object identity after the same Kubernetes name is absent
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'phase': 'hybrid-k8s-object-removed',
+        'hybrid': {'phase': 'partial', 'm11': {'phase': 'api-removing', 'verification': {
+          'phase': 'api-removing', 'gates': {
+            'k8s_resources': student_hybrid_m11_k8s_remaining_resources,
+            'k8s_delete_pending': {}
+          }
+        }}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}
+  vars:
+    student_hybrid_m11_delete_k8s_record: "{{ student_state.hybrid.m11.verification.gates.k8s_resources[student_hybrid_m11_delete_k8s_key] }}"
+    student_hybrid_m11_k8s_remaining_resources: >-
+      {{ student_state.hybrid.m11.verification.gates.k8s_resources | dict2items
+         | rejectattr('key', 'equalto', student_hybrid_m11_delete_k8s_key) | items2dict }}
+  no_log: true
+
+- name: Replace the nested object map and clear the exact DELETE intent
+  ansible.builtin.set_fact:
+    student_state: >-
+      {{ student_state | combine({'hybrid': student_state.hybrid | combine({
+        'm11': student_state.hybrid.m11 | combine({
+          'verification': student_state.hybrid.m11.verification | combine({
+            'gates': student_state.hybrid.m11.verification.gates | combine({
+              'k8s_resources': (student_state.hybrid.m11.verification.gates.k8s_resources | dict2items
+                | rejectattr('key', 'equalto', student_hybrid_m11_delete_k8s_key) | items2dict),
+              'k8s_delete_pending': {}
+            }, recursive=false)
+          }, recursive=false)
+        }, recursive=false)
+      }, recursive=false)}, recursive=false) }}
+  no_log: true
+
+- name: Persist the updated Kubernetes object inventory
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Remove the private DeleteOptions file after the resource is absent
+  ansible.builtin.file:
+    path: "{{ student_run_dir }}/m11-k8s/{{ student_hybrid_m11_delete_k8s_key }}-delete-options.json"
+    state: absent
+  no_log: true

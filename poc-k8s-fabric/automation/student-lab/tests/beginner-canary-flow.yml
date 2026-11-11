@@ -1,0 +1,69 @@
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+    ansible_become: false
+    student_tool_dir: "{{ lookup('env', 'TEST_SCRATCH') }}/bin"
+    student_repo_root: "{{ lookup('env', 'STUDENT_LAB_ROOT') }}"
+    student_run_dir: "{{ lookup('env', 'TEST_SCRATCH') }}/runtime"
+    student_uid: "{{ lookup('env', 'TEST_UID') | int }}"
+    student_state:
+      kubeconfig: fake-kubeconfig
+      context: kind-p010-student
+      run_id: 20261030-11111111111111111111111111111111
+      owner_token: "{{ lookup('env', 'TEST_OWNER_TOKEN') }}"
+    canary_flow_expected_failure: "{{ lookup('env', 'EXPECTED_FAILURE') | bool }}"
+    canary_flow_expected_evidence_complete: "{{ lookup('env', 'EXPECTED_EVIDENCE_COMPLETE') | bool }}"
+    canary_flow_expected_cleanup_error: "{{ lookup('env', 'EXPECTED_CLEANUP') }}"
+  tasks:
+    - name: Load beginner profile fingerprint paths
+      ansible.builtin.set_fact:
+        canary_flow_profiles: "{{ lookup('file', student_repo_root ~ '/poc-k8s-fabric/automation/student-lab/vars.yml') | from_yaml }}"
+      no_log: true
+
+    - name: Require the probe template to participate in the beginner source fingerprint
+      ansible.builtin.assert:
+        that:
+          - "'poc-k8s-fabric/automation/student-lab/templates/beginner-probe.yml.j2' in canary_flow_profiles.student_profiles.iniciantes.fingerprint_paths"
+        fail_msg: "O template do Job precisa integrar o fingerprint do perfil iniciantes."
+
+    - name: Run the actual beginner verification tasks
+      block:
+        - name: Include the production canary task flow
+          ansible.builtin.include_tasks: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/tasks/verify-beginner.yml"
+      rescue:
+        - name: Capture the sanitized final canary failure for assertions
+          ansible.builtin.set_fact:
+            canary_flow_failed: true
+            canary_flow_failure_message: "{{ ansible_failed_result.msg | default('') }}"
+          no_log: true
+
+    - name: Confirm expected success or preserved failure
+      ansible.builtin.assert:
+        that:
+          - (canary_flow_failed | default(false) | bool) == (canary_flow_expected_failure | bool)
+          - not (canary_flow_expected_failure | bool) or 'Falha original:' in canary_flow_failure_message
+          - lookup('env', 'EXPECTED_TASK') == '' or lookup('env', 'EXPECTED_TASK') in canary_flow_failure_message
+          - lookup('env', 'EXPECTED_RC') == '' or ('(rc=' ~ lookup('env', 'EXPECTED_RC') ~ ')') in canary_flow_failure_message
+          - lookup('env', 'EXPECTED_COLLECTION') == '' or lookup('env', 'EXPECTED_COLLECTION') in canary_flow_failure_message
+          - >-
+            canary_flow_expected_cleanup_error == '' or
+            ('Falha adicional de cleanup: ' ~ canary_flow_expected_cleanup_error) in canary_flow_failure_message
+          - (student_canary_evidence_complete | default(false) | bool) == (canary_flow_expected_evidence_complete | bool)
+        fail_msg: "O fluxo real do canário não preservou o primeiro resultado e o estado de evidência esperados."
+
+    - name: Inspect the private failure evidence file
+      ansible.builtin.stat:
+        path: "{{ student_canary_failure_evidence }}"
+      register: canary_flow_evidence_stat
+      when: canary_flow_expected_failure | bool
+
+    - name: Require private evidence to be owned by the test user with mode 0600
+      ansible.builtin.assert:
+        that:
+          - canary_flow_evidence_stat.stat.exists
+          - canary_flow_evidence_stat.stat.mode == '0600'
+          - canary_flow_evidence_stat.stat.uid | int == student_uid | int
+        fail_msg: "A evidência privada não manteve o owner e modo esperados."
+      when: canary_flow_expected_failure | bool

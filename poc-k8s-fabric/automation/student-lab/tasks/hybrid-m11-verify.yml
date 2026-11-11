@@ -1,0 +1,296 @@
+---
+- name: Require a complete API inventory before standalone M11 API verification
+  ansible.builtin.assert:
+    that:
+      - student_state.status in ['partial', 'up']
+      - student_state.hybrid.m11.api.pending | length == 0
+      - student_state.hybrid.m11.api.identity_endpoint | length > 0
+      - student_state.hybrid.m11.api.neutron_endpoint | length > 0
+      - student_state.hybrid.m11.api.project_id is match('^[0-9a-f]{32}$')
+      - student_state.hybrid.m11.api.resources.address_scope.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.external_subnetpool.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.tenant_subnetpool.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.external_network.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.tenant_network.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.external_subnet.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.tenant_subnet.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.router.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.router_interface.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.router_gateway_port.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.security_group.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.cirros_port.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.bgp_speaker.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.bgp_peer.primary.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.drinstance.primary.id == ''
+      - student_state.hybrid.m11.api.resources.drinstance.primary.agent_id == student_state.hybrid.m11.api.agent_ids.bgp
+      - student_state.hybrid.m11.api.resources.drinstance.primary.speaker_id == student_state.hybrid.m11.api.resources.bgp_speaker.primary.id
+      - student_state.hybrid.m11.api.resources.security_group_rules.ingress_icmp.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.security_group_rules.ingress_tcp.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.security_group_rules.egress_icmp.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.resources.security_group_rules.egress_tcp.id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - student_state.hybrid.m11.api.agent_ids.keys() | list | sort == ['bgp', 'dhcp', 'l3', 'ovs', 'ovs_host']
+    fail_msg: "A verificação API exige recursos, agentes e relações completos; estado parcial permanece preservado."
+  no_log: true
+
+- name: Initialize protected in-memory Neutron verification records
+  ansible.builtin.set_fact:
+    student_hybrid_api_verify_objects: {}
+  no_log: true
+
+- name: Define the exact per-run Neutron objects to re-read by ID
+  ansible.builtin.set_fact:
+    student_hybrid_api_verify_resources:
+      - {key: address_scope, slot: primary, collection: /address-scopes, envelope: address_scope, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", name: "{{ student_state.hybrid.m11.api.resources.address_scope.primary.name }}", ip_version: 4, shared: false}}
+      - {key: external_subnetpool, slot: primary, collection: /subnetpools, envelope: subnetpool, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", name: "{{ student_state.hybrid.m11.api.resources.external_subnetpool.primary.name }}", prefixes: ["{{ student_state.hybrid.m11.network.provider_cidr }}"], address_scope_id: "{{ student_state.hybrid.m11.api.resources.address_scope.primary.id }}", min_prefixlen: 29, default_prefixlen: 29, max_prefixlen: 29, shared: false, is_default: false}}
+      - {key: tenant_subnetpool, slot: primary, collection: /subnetpools, envelope: subnetpool, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", name: "{{ student_state.hybrid.m11.api.resources.tenant_subnetpool.primary.name }}", prefixes: ["{{ student_state.hybrid.m11.network.tenant_cidr }}"], address_scope_id: "{{ student_state.hybrid.m11.api.resources.address_scope.primary.id }}", min_prefixlen: 24, default_prefixlen: 24, max_prefixlen: 24, shared: false, is_default: false}}
+      - {key: external_network, slot: primary, collection: /networks, envelope: network, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", name: "{{ student_state.hybrid.m11.api.resources.external_network.primary.name }}", admin_state_up: true, shared: false, router:external: true, provider:network_type: flat, provider:physical_network: m11public}}
+      - {key: tenant_network, slot: primary, collection: /networks, envelope: network, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", name: "{{ student_state.hybrid.m11.api.resources.tenant_network.primary.name }}", admin_state_up: true, shared: false, provider:network_type: local, port_security_enabled: true}}
+      - {key: external_subnet, slot: primary, collection: /subnets, envelope: subnet, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", name: "{{ student_state.hybrid.m11.api.resources.external_subnet.primary.name }}", network_id: "{{ student_state.hybrid.m11.api.resources.external_network.primary.id }}", subnetpool_id: "{{ student_state.hybrid.m11.api.resources.external_subnetpool.primary.id }}", cidr: "{{ student_state.hybrid.m11.network.provider_cidr }}", ip_version: 4, gateway_ip: "{{ student_state.hybrid.m11.network.provider_border_ip }}", enable_dhcp: false}}
+      - {key: tenant_subnet, slot: primary, collection: /subnets, envelope: subnet, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", name: "{{ student_state.hybrid.m11.api.resources.tenant_subnet.primary.name }}", network_id: "{{ student_state.hybrid.m11.api.resources.tenant_network.primary.id }}", subnetpool_id: "{{ student_state.hybrid.m11.api.resources.tenant_subnetpool.primary.id }}", cidr: "{{ student_state.hybrid.m11.network.tenant_cidr }}", ip_version: 4, gateway_ip: "{{ student_state.hybrid.m11.network.tenant_gateway }}", enable_dhcp: true}}
+      - {key: router, slot: primary, collection: /routers, envelope: router, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", name: "{{ student_state.hybrid.m11.api.resources.router.primary.name }}", admin_state_up: true}}
+      - {key: router_interface, slot: primary, collection: /ports, envelope: port, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", device_id: "{{ student_state.hybrid.m11.api.resources.router.primary.id }}", device_owner: 'network:router_interface', network_id: "{{ student_state.hybrid.m11.api.resources.tenant_network.primary.id }}"}}
+      - {key: router_gateway_port, slot: primary, collection: /ports, envelope: port, expected: {device_id: "{{ student_state.hybrid.m11.api.resources.router.primary.id }}", device_owner: 'network:router_gateway', network_id: "{{ student_state.hybrid.m11.api.resources.external_network.primary.id }}"}}
+      - {key: security_group, slot: primary, collection: /security-groups, envelope: security_group, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", name: "{{ student_state.hybrid.m11.api.resources.security_group.primary.name }}"}}
+      - {key: security_group_rules, slot: ingress_icmp, collection: /security-group-rules, envelope: security_group_rule, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}", direction: ingress, ethertype: IPv4, protocol: icmp, remote_ip_prefix: "{{ student_profile.hybrid_network.pod_cidr }}"}}
+      - {key: security_group_rules, slot: ingress_tcp, collection: /security-group-rules, envelope: security_group_rule, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}", direction: ingress, ethertype: IPv4, protocol: tcp, port_range_min: "{{ student_profile.hybrid_m11.cirros_probe_tcp_port }}", port_range_max: "{{ student_profile.hybrid_m11.cirros_probe_tcp_port }}", remote_ip_prefix: "{{ student_profile.hybrid_network.pod_cidr }}"}}
+      - {key: security_group_rules, slot: egress_icmp, collection: /security-group-rules, envelope: security_group_rule, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}", direction: egress, ethertype: IPv4, protocol: icmp, remote_ip_prefix: "{{ student_profile.hybrid_network.pod_cidr }}"}}
+      - {key: security_group_rules, slot: egress_tcp, collection: /security-group-rules, envelope: security_group_rule, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", security_group_id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}", direction: egress, ethertype: IPv4, protocol: tcp, port_range_min: 8080, port_range_max: 8080, remote_ip_prefix: "{{ student_profile.hybrid_network.pod_cidr }}"}}
+      - {key: cirros_port, slot: primary, collection: /ports, envelope: port, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", name: "{{ student_state.hybrid.m11.api.resources.cirros_port.primary.name }}", network_id: "{{ student_state.hybrid.m11.api.resources.tenant_network.primary.id }}", mac_address: "{{ student_state.hybrid.guests.cirros.tenant_mac }}", fixed_ips: "{{ student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips }}", security_groups: ["{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"], port_security_enabled: true, allowed_address_pairs: [], binding:host_id: "{{ student_state.hybrid.m11.api.agent_ids.ovs_host }}", binding:vnic_type: normal, device_id: "{{ student_state.hybrid.guests.cirros.uuid }}", device_owner: ''}}
+      - {key: bgp_speaker, slot: primary, collection: /bgp-speakers, envelope: bgp_speaker, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", name: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.name }}", local_as: "{{ student_state.hybrid.m11.network.speaker_asn }}", ip_version: 4, advertise_tenant_networks: true, advertise_floating_ip_host_routes: false}}
+      - {key: bgp_peer, slot: primary, collection: /bgp-peers, envelope: bgp_peer, expected: {tenant_id: "{{ student_state.hybrid.m11.api.project_id }}", name: "{{ student_state.hybrid.m11.api.resources.bgp_peer.primary.name }}", peer_ip: "{{ student_state.hybrid.m11.network.provider_border_ip }}", remote_as: "{{ student_state.hybrid.m11.network.border_asn }}", auth_type: none}}
+  no_log: true
+
+- name: Re-read every recorded Neutron object by ID and compare its saved ownership fields
+  ansible.builtin.include_tasks: hybrid-m11-api-verify-resource.yml
+  loop: "{{ student_hybrid_api_verify_resources }}"
+  loop_control:
+    label: "{{ item.key }} {{ item.slot }}"
+  when: not (item.optional | default(false)) or student_state.hybrid.m11.api.resources[item.key][item.slot].id | length > 0
+
+- name: Verify that the qrouter keeps the approved external next hop without SNAT
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_verify_objects['router:primary'].external_gateway_info.enable_snat == false
+      - student_hybrid_api_verify_objects['router:primary'].external_gateway_info.network_id == student_state.hybrid.m11.api.resources.external_network.primary.id
+      - student_hybrid_api_verify_objects['router:primary'].external_gateway_info.external_fixed_ips | length == 1
+      - student_hybrid_api_verify_objects['router:primary'].external_gateway_info.external_fixed_ips[0].subnet_id == student_state.hybrid.m11.api.resources.external_subnet.primary.id
+      - student_hybrid_api_verify_objects['router:primary'].external_gateway_info.external_fixed_ips[0].ip_address == student_state.hybrid.m11.network.provider_router_ip
+      - student_hybrid_api_verify_objects['router_interface:primary'].fixed_ips is sequence
+      - student_hybrid_api_verify_objects['router_interface:primary'].fixed_ips is not string
+      - student_hybrid_api_verify_objects['router_interface:primary'].fixed_ips | length == 1
+      - student_hybrid_api_verify_objects['router_gateway_port:primary'].fixed_ips is sequence
+      - student_hybrid_api_verify_objects['router_gateway_port:primary'].fixed_ips is not string
+      - student_hybrid_api_verify_objects['router_gateway_port:primary'].fixed_ips | length == 1
+      - student_hybrid_api_verify_objects['router_interface:primary'].fixed_ips | selectattr('subnet_id', 'equalto', student_state.hybrid.m11.api.resources.tenant_subnet.primary.id) | list | length == 1
+      - student_hybrid_api_verify_objects['router_gateway_port:primary'].fixed_ips | selectattr('subnet_id', 'equalto', student_state.hybrid.m11.api.resources.external_subnet.primary.id) | selectattr('ip_address', 'equalto', student_state.hybrid.m11.network.provider_router_ip) | list | length == 1
+      - student_hybrid_api_verify_objects['cirros_port:primary']['binding:vif_type'] == 'ovs'
+      - student_hybrid_api_verify_objects['cirros_port:primary']['binding:vif_details'].port_filter | bool
+      - student_hybrid_api_verify_objects['cirros_port:primary'].fixed_ips == student_state.hybrid.m11.api.resources.cirros_port.primary.fixed_ips
+    fail_msg: "O roteador, as portas ou a fiação OVS não correspondem aos IDs/endereços validados desta execução."
+  no_log: true
+
+- name: Read the Neutron v3 agents used by the verified API objects
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: /agents
+
+- ansible.builtin.include_tasks: hybrid-m11-api-store-agents.yml
+
+- name: Read every rule attached to this run's security group
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "/security-group-rules?security_group_id={{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+
+- name: Verify the live rule set contains only this run's narrow pod-CIDR policy
+  ansible.builtin.include_tasks: hybrid-m11-api-verify-rules.yml
+
+- name: Require the exact saved OVS, DHCP, L3, and BGP agents to remain active
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_verify_agents | selectattr('id', 'equalto', student_state.hybrid.m11.api.agent_ids.ovs) | selectattr('agent_type', 'equalto', 'Open vSwitch agent') | selectattr('alive', 'equalto', true) | selectattr('admin_state_up', 'equalto', true) | list | length == 1
+      - student_hybrid_api_verify_agents | selectattr('id', 'equalto', student_state.hybrid.m11.api.agent_ids.dhcp) | selectattr('agent_type', 'equalto', 'DHCP agent') | selectattr('alive', 'equalto', true) | selectattr('admin_state_up', 'equalto', true) | list | length == 1
+      - student_hybrid_api_verify_agents | selectattr('id', 'equalto', student_state.hybrid.m11.api.agent_ids.l3) | selectattr('agent_type', 'equalto', 'L3 agent') | selectattr('alive', 'equalto', true) | selectattr('admin_state_up', 'equalto', true) | list | length == 1
+      - student_hybrid_api_verify_agents | selectattr('id', 'equalto', student_state.hybrid.m11.api.agent_ids.bgp) | selectattr('agent_type', 'equalto', 'BGP dynamic routing agent') | selectattr('alive', 'equalto', true) | selectattr('admin_state_up', 'equalto', true) | list | length == 1
+    fail_msg: "Um dos agentes Neutron registrados deixou de estar ativo nesta appliance."
+  no_log: true
+
+- name: Read the BGP agent's scheduler collection for the saved speaker
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "/agents/{{ student_state.hybrid.m11.api.agent_ids.bgp }}/bgp-drinstances"
+
+- name: Validate the actual NDR scheduler response envelope and speaker ID
+  ansible.builtin.include_tasks: hybrid-m11-api-validate-scheduled.yml
+  vars:
+    student_hybrid_api_expected_speaker_id: "{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}"
+
+- name: Require exactly this saved speaker on this saved agent
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_scheduled_speaker_ids == [student_state.hybrid.m11.api.resources.bgp_speaker.primary.id]
+      - student_state.hybrid.m11.api.links.drinstance.agent_id == student_state.hybrid.m11.api.agent_ids.bgp
+      - student_state.hybrid.m11.api.links.drinstance.speaker_id == student_state.hybrid.m11.api.resources.bgp_speaker.primary.id
+    fail_msg: "A relação NDR observada diverge dos dois IDs persistidos no estado."
+  no_log: true
+
+- name: Read the actual tenant route advertised by this NDR speaker
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "/bgp-speakers/{{ student_state.hybrid.m11.api.resources.bgp_speaker.primary.id }}/get_advertised_routes"
+
+- name: Require the one tenant prefix and real qrouter next-hop in Neutron's view
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_response.json.advertised_routes | length == 1
+      - student_hybrid_api_response.json.advertised_routes[0].destination == student_state.hybrid.m11.network.tenant_cidr
+      - student_hybrid_api_response.json.advertised_routes[0].next_hop == student_state.hybrid.m11.network.provider_router_ip
+    fail_msg: "NDR não anuncia exatamente a rede tenant pelo IP provider real do qrouter."
+  no_log: true
+
+- name: Read the DHCP service ports on this run's tenant network
+  ansible.builtin.include_tasks: hybrid-m11-api-get.yml
+  vars:
+    student_hybrid_api_path: "/ports?network_id={{ student_state.hybrid.m11.api.resources.tenant_network.primary.id }}&device_owner=network:dhcp"
+
+- name: Retain only DHCP ports from the saved tenant network
+  ansible.builtin.set_fact:
+    student_hybrid_api_verify_dhcp_ports: >-
+      {{ student_hybrid_api_response.json.ports
+        | selectattr('network_id', 'equalto', student_state.hybrid.m11.api.resources.tenant_network.primary.id)
+        | selectattr('device_owner', 'equalto', 'network:dhcp') | list }}
+  no_log: true
+
+- name: Require exactly one Neutron DHCP service port for the saved tenant subnet
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_response.status == 200
+      - student_hybrid_api_response.json.ports is sequence
+      - student_hybrid_api_response.json.ports is not string
+      - student_hybrid_api_verify_dhcp_ports | length == 1
+      - student_hybrid_api_verify_dhcp_ports[0].id is match('^[0-9a-f-]{36}$')
+      - student_hybrid_api_verify_dhcp_ports[0].mac_address is match('^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$')
+      - student_hybrid_api_verify_dhcp_ports[0].fixed_ips | selectattr('subnet_id', 'equalto', student_state.hybrid.m11.api.resources.tenant_subnet.primary.id) | list | length == 1
+      - student_hybrid_api_verify_dhcp_ports[0].fixed_ips | length == 1
+    fail_msg: "A sub-rede tenant não possui um único port DHCP identificável para validar a transação DORA."
+  no_log: true
+
+- name: Save only the Neutron DHCP service port and server address for DORA correlation
+  ansible.builtin.set_fact:
+    student_hybrid_api_verify_dhcp_server:
+      id: "{{ student_hybrid_api_verify_dhcp_ports[0].id }}"
+      mac_address: "{{ student_hybrid_api_verify_dhcp_ports[0].mac_address }}"
+      ip_address: "{{ (student_hybrid_api_verify_dhcp_ports[0].fixed_ips | selectattr('subnet_id', 'equalto', student_state.hybrid.m11.api.resources.tenant_subnet.primary.id) | first).ip_address }}"
+      subnet_id: "{{ student_state.hybrid.m11.api.resources.tenant_subnet.primary.id }}"
+  no_log: true
+
+- name: Build a sanitized C1 identity map from the exact Neutron router-port GETs
+  ansible.builtin.set_fact:
+    student_hybrid_api_c1_paths:
+      schema: 1
+      run_id: "{{ student_state.run_id }}"
+      observed_utc: "{{ ansible_date_time.iso8601 }}"
+      source:
+        router: "/routers/{{ student_state.hybrid.m11.api.resources.router.primary.id }}"
+        router_interface: "/ports/{{ student_state.hybrid.m11.api.resources.router_interface.primary.id }}"
+        router_gateway_port: "/ports/{{ student_state.hybrid.m11.api.resources.router_gateway_port.primary.id }}"
+      router:
+        id: "{{ student_hybrid_api_verify_objects['router:primary'].id }}"
+        project_id: "{{ student_hybrid_api_verify_objects['router:primary'].tenant_id }}"
+        external_network_id: "{{ student_hybrid_api_verify_objects['router:primary'].external_gateway_info.network_id }}"
+        external_subnet_id: "{{ student_hybrid_api_verify_objects['router:primary'].external_gateway_info.external_fixed_ips[0].subnet_id }}"
+        external_ip: "{{ student_hybrid_api_verify_objects['router:primary'].external_gateway_info.external_fixed_ips[0].ip_address }}"
+      tenant_port:
+        id: "{{ student_hybrid_api_verify_objects['router_interface:primary'].id }}"
+        project_id: "{{ student_hybrid_api_verify_objects['router_interface:primary'].tenant_id }}"
+        network_id: "{{ student_hybrid_api_verify_objects['router_interface:primary'].network_id }}"
+        device_id: "{{ student_hybrid_api_verify_objects['router_interface:primary'].device_id }}"
+        device_owner: "{{ student_hybrid_api_verify_objects['router_interface:primary'].device_owner }}"
+        mac_address: "{{ student_hybrid_api_verify_objects['router_interface:primary'].mac_address }}"
+        fixed_ips:
+          - ip_address: "{{ student_hybrid_api_verify_objects['router_interface:primary'].fixed_ips[0].ip_address }}"
+            subnet_id: "{{ student_hybrid_api_verify_objects['router_interface:primary'].fixed_ips[0].subnet_id }}"
+      provider_port:
+        id: "{{ student_hybrid_api_verify_objects['router_gateway_port:primary'].id }}"
+        project_id: "{{ student_hybrid_api_verify_objects['router_gateway_port:primary'].tenant_id | default('') }}"
+        network_id: "{{ student_hybrid_api_verify_objects['router_gateway_port:primary'].network_id }}"
+        device_id: "{{ student_hybrid_api_verify_objects['router_gateway_port:primary'].device_id }}"
+        device_owner: "{{ student_hybrid_api_verify_objects['router_gateway_port:primary'].device_owner }}"
+        mac_address: "{{ student_hybrid_api_verify_objects['router_gateway_port:primary'].mac_address }}"
+        fixed_ips:
+          - ip_address: "{{ student_hybrid_api_verify_objects['router_gateway_port:primary'].fixed_ips[0].ip_address }}"
+            subnet_id: "{{ student_hybrid_api_verify_objects['router_gateway_port:primary'].fixed_ips[0].subnet_id }}"
+  no_log: true
+
+- name: Require only the recorded router and both exact port identities in the C1 API map
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_c1_paths.router.id == student_state.hybrid.m11.api.resources.router.primary.id
+      - student_hybrid_api_c1_paths.router.external_network_id == student_state.hybrid.m11.api.resources.external_network.primary.id
+      - student_hybrid_api_c1_paths.router.external_subnet_id == student_state.hybrid.m11.api.resources.external_subnet.primary.id
+      - student_hybrid_api_c1_paths.router.external_ip == student_state.hybrid.m11.network.provider_router_ip
+      - student_hybrid_api_c1_paths.tenant_port.id == student_state.hybrid.m11.api.resources.router_interface.primary.id
+      - student_hybrid_api_c1_paths.tenant_port.device_id == student_hybrid_api_c1_paths.router.id
+      - student_hybrid_api_c1_paths.tenant_port.device_owner == 'network:router_interface'
+      - student_hybrid_api_c1_paths.tenant_port.network_id == student_state.hybrid.m11.api.resources.tenant_network.primary.id
+      - student_hybrid_api_c1_paths.tenant_port.fixed_ips | selectattr('subnet_id', 'equalto', student_state.hybrid.m11.api.resources.tenant_subnet.primary.id) | selectattr('ip_address', 'equalto', student_state.hybrid.m11.network.tenant_gateway) | list | length == 1
+      - student_hybrid_api_c1_paths.provider_port.id == student_state.hybrid.m11.api.resources.router_gateway_port.primary.id
+      - student_hybrid_api_c1_paths.provider_port.device_id == student_hybrid_api_c1_paths.router.id
+      - student_hybrid_api_c1_paths.provider_port.device_owner == 'network:router_gateway'
+      - student_hybrid_api_c1_paths.provider_port.network_id == student_state.hybrid.m11.api.resources.external_network.primary.id
+      - student_hybrid_api_c1_paths.provider_port.fixed_ips | selectattr('subnet_id', 'equalto', student_state.hybrid.m11.api.resources.external_subnet.primary.id) | selectattr('ip_address', 'equalto', student_state.hybrid.m11.network.provider_router_ip) | list | length == 1
+      - student_hybrid_api_c1_paths.tenant_port.mac_address is match('^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$')
+      - student_hybrid_api_c1_paths.provider_port.mac_address is match('^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$')
+    fail_msg: "A observação C1 não conseguiu unir os dois ports reais ao router salvo."
+  no_log: true
+
+- name: Persist the API-confirmed binding gate only after the OVS port is live
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-ready
+          verification:
+            phase: api-ready
+            gates:
+              port_binding: true
+              dhcp_server: "{{ student_hybrid_api_verify_dhcp_server }}"
+              c0_binding_observation:
+                schema: 1
+                observed_utc: "{{ ansible_date_time.iso8601 }}"
+                run_id: "{{ student_state.run_id }}"
+                source:
+                  neutron_port_get: "/ports/{{ student_state.hybrid.m11.api.resources.cirros_port.primary.id }}"
+                  neutron_security_group_rules_get: "/security-group-rules?security_group_id={{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+                  ovs_observation: "{{ student_state.hybrid.m11.verification.gates.ovs_observation.source }}"
+                port:
+                  id: "{{ student_hybrid_api_verify_objects['cirros_port:primary'].id }}"
+                  mac_address: "{{ student_hybrid_api_verify_objects['cirros_port:primary'].mac_address }}"
+                  fixed_ips: "{{ student_hybrid_api_verify_objects['cirros_port:primary'].fixed_ips }}"
+                  security_groups: "{{ student_hybrid_api_verify_objects['cirros_port:primary'].security_groups }}"
+                  port_security_enabled: "{{ student_hybrid_api_verify_objects['cirros_port:primary'].port_security_enabled }}"
+                  allowed_address_pairs: "{{ student_hybrid_api_verify_objects['cirros_port:primary'].allowed_address_pairs }}"
+                  binding_host_id: "{{ student_hybrid_api_verify_objects['cirros_port:primary']['binding:host_id'] }}"
+                  binding_vnic_type: "{{ student_hybrid_api_verify_objects['cirros_port:primary']['binding:vnic_type'] }}"
+                  binding_vif_type: "{{ student_hybrid_api_verify_objects['cirros_port:primary']['binding:vif_type'] }}"
+                  binding_vif_details: "{{ student_hybrid_api_verify_objects['cirros_port:primary']['binding:vif_details'] }}"
+                  device_id: "{{ student_hybrid_api_verify_objects['cirros_port:primary'].device_id }}"
+                  device_owner: "{{ student_hybrid_api_verify_objects['cirros_port:primary'].device_owner }}"
+                dhcp_server: "{{ student_hybrid_api_verify_dhcp_server }}"
+                security_group:
+                  id: "{{ student_state.hybrid.m11.api.resources.security_group.primary.id }}"
+                  rule_ids: "{{ student_hybrid_api_verified_security_group_rules | map(attribute='id') | list | sort }}"
+                  rules: "{{ student_hybrid_api_verified_security_group_rules }}"
+                ovs:
+                  attachment: "{{ student_state.hybrid.m11.verification.gates.ovs_attach }}"
+                  observed_utc: "{{ student_state.hybrid.m11.verification.gates.ovs_observation.observed_utc }}"
+                  source: "{{ student_state.hybrid.m11.verification.gates.ovs_observation.source }}"
+                  command_sha256: "{{ student_state.hybrid.m11.verification.gates.ovs_observation.command_sha256 }}"
+                  rc: "{{ student_state.hybrid.m11.verification.gates.ovs_observation.rc | int }}"
+              c1_api_paths: "{{ student_hybrid_api_c1_paths }}"
+  no_log: true
+
+- name: Report only the API verification phase without claiming dataplane validation
+  ansible.builtin.debug:
+    msg: "Inventário Neutron, agentes, binding OVS e anúncio do next-hop API conferem; DHCP, FIB, tráfego e políticas continuam em gates separados."

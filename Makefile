@@ -1,7 +1,16 @@
 # Makefile raiz — Repositório learn-cilium
 # Delega para poc-k8s-fabric/Makefile mantendo conveniência na raiz do projeto.
 
-.PHONY: all lint test pdf latex help p008-e38 p008-e39 p008-e40 p008-e41 p008-s001 p008-s002 p008-all
+.PHONY: all lint test pdf latex help p008-e38 p008-e39 p008-e40 p008-e41 p008-s001 p008-s002 p008-all lab-up lab-preflight lab-status lab-env lab-verify lab-down lab-session lab-shell lab-help
+
+# LAB is passed through the environment. Keep its raw value unevaluated by
+# Make; the student-lab wrapper accepts only the documented profile names.
+override LAB := $(value LAB)
+override EXERCISE := $(value EXERCISE)
+override WG := $(value WG)
+override GUEST := $(value GUEST)
+export LAB EXERCISE WG
+export GUEST
 
 all: lint test
 
@@ -20,6 +29,11 @@ latex:
 p008-e38 p008-e39 p008-e40 p008-e41 p008-s001 p008-s002 p008-all:
 	@$(MAKE) -C poc-k8s-fabric $@
 
+# The root make prints its own -w messages before reading this file. Callers
+# capturing lab-env must pass --no-print-directory to this root invocation.
+lab-up lab-preflight lab-status lab-env lab-verify lab-down lab-session lab-shell lab-help:
+	@$(MAKE) --no-print-directory -C poc-k8s-fabric $@
+
 help:
 	@echo "Alvos disponíveis:"
 	@echo "  make lint      - Valida sintaxe Bash (bash -n), ausência de chaves privadas e Go vet nas fixtures"
@@ -29,3 +43,5 @@ help:
 	@echo "  make p008-s001 - Executa Onda 1 do Plano P008 (E38 + E39)"
 	@echo "  make p008-s002 - Executa Onda 2 do Plano P008 (E40 + E41)"
 	@echo "  make p008-all  - Executa todas as ondas do Plano P008 (E38 a E41)"
+	@echo "  make lab-help  - Mostra a interface estudantil; hibrido oferece preflight/status/down e shell, com up ainda bloqueado"
+	@echo "  make lab-session LAB=iniciantes - Registra uma nova rodada E01-E06"

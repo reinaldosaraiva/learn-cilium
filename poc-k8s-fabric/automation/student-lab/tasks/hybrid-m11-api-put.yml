@@ -1,0 +1,64 @@
+---
+- name: Require a fresh relationship intent with both saved endpoint IDs
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.api.pending | length == 0
+      - not (student_state.hybrid.m11.api.links.get(student_hybrid_api_link_key, false) | bool)
+    fail_msg: "A relação Neutron já está salva ou tem resultado pendente; não repetirei a mutação."
+  no_log: true
+
+- name: Persist one relationship intent before issuing PUT
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      status: partial
+      phase: hybrid-api-link-pending
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-provisioning
+          api:
+            pending:
+              method: PUT
+              resource: "link:{{ student_hybrid_api_link_key }}"
+              path: "{{ student_hybrid_api_path }}"
+              run_id: "{{ student_state.run_id }}"
+              body: "{{ student_hybrid_api_body }}"
+
+- name: Issue one protected local relationship request
+  ansible.builtin.uri:
+    url: "{{ student_state.hybrid.m11.api.neutron_endpoint }}{{ student_hybrid_api_path }}"
+    method: PUT
+    headers:
+      X-Auth-Token: "{{ student_hybrid_api_token }}"
+      Accept: application/json
+      Content-Type: application/json
+    body_format: json
+    body: "{{ student_hybrid_api_body }}"
+    return_content: true
+    status_code: [200, 201, 202, 204]
+    timeout: 20
+    use_proxy: false
+    follow_redirects: none
+  register: student_hybrid_api_put_response
+  delegate_to: student_hybrid_ubuntu
+  no_log: true
+
+- name: Build the exact relationship map patch with a resolved key
+  ansible.builtin.set_fact:
+    student_hybrid_api_put_link_patch: "{{ {student_hybrid_api_link_key: true, 'last_request_id': student_hybrid_api_put_response.x_openstack_request_id | default('')} }}"
+  no_log: true
+
+- name: Persist the confirmed relationship and clear the pending intent
+  ansible.builtin.include_tasks: hybrid-m11-api-save.yml
+  vars:
+    student_hybrid_api_state_patch:
+      phase: hybrid-api-link-created
+      hybrid:
+        phase: partial
+        m11:
+          phase: api-provisioning
+          api:
+            pending: {}
+            links: "{{ student_hybrid_api_put_link_patch }}"
+  no_log: true

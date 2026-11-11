@@ -1,0 +1,105 @@
+---
+- name: Exercise each seed ISO checkpoint with an offline second-command failure
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    student_hybrid_test_dir: "{{ lookup('env', 'P010_HYBRID_TEST_DIR') }}"
+    student_run_dir: "{{ student_hybrid_test_dir }}/run"
+    student_state_file: "{{ student_hybrid_test_dir }}/state.json"
+    student_uid: "{{ lookup('env', 'P010_HYBRID_TEST_UID') | int }}"
+    student_hybrid_genisoimage_bin: "{{ lookup('env', 'P010_HYBRID_GENISOIMAGE_BIN') }}"
+    student_state:
+      schema: 3
+      owner_uid: "{{ student_uid }}"
+      owner_token: 123e4567-e89b-42d3-a456-426614174000
+      profile: hibrido
+      run_id: 20261029-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      status: partial
+      phase: hybrid-preparing
+      hybrid:
+        phase: assets-ready
+        guests:
+          ubuntu:
+            seed_dir: "{{ student_run_dir }}/seed/ubuntu"
+            seed_path: "{{ student_run_dir }}/seed/ubuntu.iso"
+            seed_device: 0
+            seed_inode: 0
+          cirros:
+            seed_dir: "{{ student_run_dir }}/seed/cirros"
+            seed_path: "{{ student_run_dir }}/seed/cirros.iso"
+            seed_device: 0
+            seed_inode: 0
+  tasks:
+    - name: Create private seed directories and input files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: "{{ item.state }}"
+        owner: "{{ student_uid }}"
+        mode: '0700'
+      loop:
+        - { path: "{{ student_run_dir }}/seed/ubuntu", state: directory }
+        - { path: "{{ student_run_dir }}/seed/cirros", state: directory }
+        - { path: "{{ student_run_dir }}/seed/ubuntu/meta-data", state: touch }
+        - { path: "{{ student_run_dir }}/seed/ubuntu/user-data", state: touch }
+        - { path: "{{ student_run_dir }}/seed/cirros/meta-data", state: touch }
+        - { path: "{{ student_run_dir }}/seed/cirros/files", state: directory }
+
+    - name: Try each seed ISO in guest order
+      block:
+        - ansible.builtin.include_tasks: ../tasks/hybrid-create-seed-iso.yml
+          loop: [ubuntu, cirros]
+          loop_control:
+            loop_var: student_hybrid_seed_guest_name
+
+      rescue:
+        - name: Read the seed checkpoint after the second command failure
+          ansible.builtin.slurp:
+            src: "{{ student_state_file }}"
+          register: student_hybrid_seed_checkpoint
+          no_log: true
+
+        - name: Decode the private saved seed checkpoint for assertions
+          ansible.builtin.set_fact:
+            student_hybrid_seed_disk_state: "{{ student_hybrid_seed_checkpoint.content | b64decode | from_json }}"
+          no_log: true
+
+        - name: Require only the first seed ISO to be recorded
+          ansible.builtin.assert:
+            that:
+              - student_hybrid_seed_disk_state.status == 'partial'
+              - student_hybrid_seed_disk_state.hybrid.guests.ubuntu.seed_device | int >= 0
+              - student_hybrid_seed_disk_state.hybrid.guests.ubuntu.seed_inode | int > 0
+              - student_hybrid_seed_disk_state.hybrid.guests.cirros.seed_device | int == 0
+              - student_hybrid_seed_disk_state.hybrid.guests.cirros.seed_inode | int == 0
+              - ansible_failed_result.rc | int == 77
+          no_log: true
+
+        - name: Remove only the exact first seed checkpoint
+          ansible.builtin.include_tasks: ../tasks/hybrid-remove-path.yml
+          vars:
+            student_hybrid_remove_path: "{{ student_hybrid_seed_disk_state.hybrid.guests.ubuntu.seed_path }}"
+            student_hybrid_remove_device: "{{ student_hybrid_seed_disk_state.hybrid.guests.ubuntu.seed_device }}"
+            student_hybrid_remove_inode: "{{ student_hybrid_seed_disk_state.hybrid.guests.ubuntu.seed_inode }}"
+            student_hybrid_remove_kind: file
+
+        - name: Inspect both seed ISO paths after cleanup
+          ansible.builtin.stat:
+            path: "{{ student_run_dir }}/seed/{{ item }}.iso"
+            follow: false
+          register: student_hybrid_seed_after_cleanup
+          loop: [ubuntu, cirros]
+          no_log: true
+
+        - name: Require exact cleanup after the second seed fails
+          ansible.builtin.assert:
+            that:
+              - not (student_hybrid_seed_after_cleanup.results[0].stat.exists | default(false))
+              - not (student_hybrid_seed_after_cleanup.results[1].stat.exists | default(false))
+          no_log: true
+
+    - name: Require the second seed command to have failed
+      ansible.builtin.assert:
+        that:
+          - ansible_failed_task.name == 'Render one guest\'s NoCloud seed ISO'
+      no_log: true

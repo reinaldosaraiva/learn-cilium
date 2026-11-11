@@ -1,0 +1,108 @@
+---
+- name: Capture whether this invocation is creating a new run
+  ansible.builtin.set_fact:
+    student_new_run: "{{ (not student_has_state) or ((student_state.status | default('')) == 'down') }}"
+
+- name: Inspect the selected run directory without following symlinks
+  ansible.builtin.stat:
+    path: "{{ student_run_dir }}"
+    follow: false
+  register: student_run_dir_stat
+
+- name: Refuse an existing run directory for a new run ID
+  ansible.builtin.assert:
+    that:
+      - not (student_run_dir_stat.stat.exists | default(false))
+    fail_msg: "Diretório da nova execução já existe; não vou adotar arquivos locais."
+  when: student_new_run
+
+- name: Reserve distinct hybrid guest UUIDs before writing or starting resources
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_uuid_bin | default('/usr/bin/cat') }}"
+      - /proc/sys/kernel/random/uuid
+  register: student_hybrid_uuid_results
+  changed_when: false
+  loop: [ubuntu, cirros]
+  when:
+    - student_new_run
+    - student_profile_name == 'hibrido'
+
+- name: Require valid distinct UUIDs for the two hybrid guests
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_uuid_results.results[0].stdout | trim is match('^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+      - student_hybrid_uuid_results.results[1].stdout | trim is match('^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+      - student_hybrid_uuid_results.results[0].stdout | trim != student_hybrid_uuid_results.results[1].stdout | trim
+    fail_msg: "Não foi possível reservar identidades distintas para os guests híbridos; nenhum recurso foi criado."
+  when:
+    - student_new_run
+    - student_profile_name == 'hibrido'
+
+- name: Create the private run directory
+  ansible.builtin.file:
+    path: "{{ student_run_dir }}"
+    state: directory
+    owner: "{{ student_uid }}"
+    mode: '0700'
+
+- name: Create a fresh state record
+  ansible.builtin.set_fact:
+    student_state:
+      schema: 2
+      owner_uid: "{{ student_uid }}"
+      owner_token: "{{ student_new_owner_token }}"
+      profile: "{{ student_profile_name }}"
+      exercise: "{{ student_effective_exercise if student_profile_name == 'plataforma' else '' }}"
+      wireguard_mode: "{{ student_effective_wireguard_mode if student_profile_name == 'plataforma' else '' }}"
+      exercise_session: {}
+      run_id: "{{ student_run_id }}"
+      status: preparing
+      phase: preflight
+      kind_name: "{{ student_profile.kind_name }}"
+      context: "{{ student_profile.context }}"
+      kubeconfig: "{{ student_kubeconfig }}"
+      kubeconfig_sha256: ''
+      api_server: ''
+      cluster_uid: ''
+      kind_node_ids: {}
+      fabric_node_ids: {}
+      network_ids: {}
+      profile_fingerprint: "{{ student_profile_fingerprint }}"
+      chart_sha256: ''
+      values_sha256: ''
+      topology_sha256: ''
+      topology_file: ''
+      helm_revision: 0
+      clab_up_log: "{{ student_run_dir }}/containerlab-up.log"
+      clab_down_log: "{{ student_run_dir }}/containerlab-down.log"
+      started_utc: "{{ ansible_date_time.iso8601 }}"
+      updated_utc: "{{ ansible_date_time.iso8601 }}"
+  when: student_new_run
+
+- name: Reserve the hybrid schema and guest identities before any package/resource effects
+  ansible.builtin.include_tasks: hybrid-reserve.yml
+  when:
+    - student_new_run
+    - student_profile_name == 'hibrido'
+
+- name: Persist preparing state before package changes
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  when: student_new_run
+
+- name: Persist the private owner token used by Kind and Docker labels
+  ansible.builtin.copy:
+    dest: "{{ student_owner_token_file }}"
+    content: "{{ student_state.owner_token }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0400'
+  when: student_new_run
+
+- name: Mark the durable preparing record as loaded in memory
+  ansible.builtin.set_fact:
+    student_has_state: true
+  when: student_new_run

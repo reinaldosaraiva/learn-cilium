@@ -1,0 +1,50 @@
+---
+- name: Check the pinned NDR scheduler envelope without network access
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    student_hybrid_api_expected_speaker_id: 22222222-2222-4222-8222-222222222222
+  tasks:
+    - name: Accept an empty collection before a relationship is created
+      ansible.builtin.set_fact:
+        student_hybrid_api_response:
+          json:
+            bgp_speakers: []
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-validate-scheduled.yml
+
+    - name: Require the empty NDR collection to remain empty
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_api_scheduled_speaker_ids == []
+
+    - name: Accept the pinned speaker object in the agent's collection
+      ansible.builtin.set_fact:
+        student_hybrid_api_response:
+          json:
+            bgp_speakers:
+              - {id: 22222222-2222-4222-8222-222222222222, name: p010-hyb-speaker}
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-validate-scheduled.yml
+
+    - name: Require only the exact saved speaker ID
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_api_scheduled_speaker_ids == [student_hybrid_api_expected_speaker_id]
+
+    - name: Reject any other speaker or malformed NDR collection entry
+      ansible.builtin.include_tasks: hybrid-m11-api-scheduler-reject.yml
+      loop:
+        - name: another speaker is scheduled
+          bgp_speakers:
+            - {id: 33333333-3333-4333-8333-333333333333}
+        - name: duplicate speaker response
+          bgp_speakers:
+            - {id: 22222222-2222-4222-8222-222222222222}
+            - {id: 22222222-2222-4222-8222-222222222222}
+        - name: missing speaker identity
+          bgp_speakers:
+            - {name: p010-hyb-speaker}
+        - name: obsolete envelope
+          bgp_drinstances: []

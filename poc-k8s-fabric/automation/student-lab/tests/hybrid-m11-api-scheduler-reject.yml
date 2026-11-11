@@ -1,0 +1,19 @@
+---
+- name: Set one invalid NDR scheduler response under test
+  ansible.builtin.set_fact:
+    student_hybrid_api_response:
+      json: "{{ item }}"
+    student_hybrid_api_scheduler_rejected: false
+
+- name: Require the production scheduler validator to reject it
+  block:
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-validate-scheduled.yml
+  rescue:
+    - ansible.builtin.set_fact:
+        student_hybrid_api_scheduler_rejected: true
+
+- name: Confirm the invalid scheduler response was rejected
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_api_scheduler_rejected | bool
+    fail_msg: "O validador aceitou resposta NDR inválida: {{ item.name }}"

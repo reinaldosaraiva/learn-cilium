@@ -1,0 +1,62 @@
+---
+- name: Refuse a pre-existing hybrid Cilium values path
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.m11.cilium.values_path }}"
+    follow: false
+  register: student_hybrid_m11_values_before
+  no_log: true
+
+- name: Require a fresh private destination for the Cilium destination exception
+  ansible.builtin.assert:
+    that:
+      - not (student_hybrid_m11_values_before.stat.exists | default(false))
+      - not (student_hybrid_m11_values_before.stat.islnk | default(false))
+    fail_msg: "Arquivo de valores Cilium já existe sem identidade desta execução."
+  no_log: true
+
+- name: Render a private Cilium IP masquerade exception for the tenant destination
+  ansible.builtin.template:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hybrid-cilium-values.yml.j2"
+    dest: "{{ student_state.hybrid.m11.cilium.values_path }}"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Inspect the rendered Cilium values file without following links
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.m11.cilium.values_path }}"
+    follow: false
+  register: student_hybrid_m11_values_stat
+  no_log: true
+
+- name: Hash the private Cilium values file
+  ansible.builtin.command:
+    argv: [sha256sum, "{{ student_state.hybrid.m11.cilium.values_path }}"]
+  register: student_hybrid_m11_values_hash
+  changed_when: false
+  no_log: true
+
+- name: Require a private Cilium values file with a stable identity
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_m11_values_stat.stat.isreg | default(false)
+      - not (student_hybrid_m11_values_stat.stat.islnk | default(false))
+      - student_hybrid_m11_values_stat.stat.uid | int == student_uid
+      - student_hybrid_m11_values_stat.stat.mode == '0600'
+      - student_hybrid_m11_values_stat.stat.inode | int > 0
+      - student_hybrid_m11_values_hash.stdout.split()[0] is match('^[0-9a-f]{64}$')
+    fail_msg: "Os valores Cilium privados não têm identidade/verificação esperadas."
+  no_log: true
+
+- name: Save the exact private Cilium file identity and checksum
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'hybrid': {'m11': {'cilium': {'values_device': student_hybrid_m11_values_stat.stat.dev, 'values_inode': student_hybrid_m11_values_stat.stat.inode, 'values_sha256': student_hybrid_m11_values_hash.stdout.split()[0]}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+  no_log: true
+
+- name: Persist the values checksum before Helm consumes the file
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true

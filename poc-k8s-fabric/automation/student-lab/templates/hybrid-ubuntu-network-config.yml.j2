@@ -1,0 +1,27 @@
+version: 2
+ethernets:
+  management:
+    match:
+      macaddress: {{ student_state.hybrid.guests.ubuntu.management_mac }}
+    set-name: management0
+    dhcp4: false
+    dhcp6: false
+    addresses:
+      - 10.0.2.15/24
+    routes:
+      - to: default
+        via: 10.0.2.2
+    nameservers:
+      addresses: {{ student_state.hybrid.network.management_dns | to_json }}
+  external:
+    match:
+      macaddress: {{ student_state.hybrid.guests.ubuntu.external_mac }}
+    set-name: external0
+    dhcp4: false
+    dhcp6: false
+  tenant:
+    match:
+      macaddress: {{ student_state.hybrid.guests.ubuntu.tenant_mac }}
+    set-name: tenant0
+    dhcp4: false
+    dhcp6: false

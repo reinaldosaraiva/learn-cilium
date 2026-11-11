@@ -1,0 +1,191 @@
+---
+- name: Read the multi-pool mode and exact preallocation request
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - configmap
+      - cilium-config
+      - --namespace
+      - kube-system
+      - -o
+      - "jsonpath={{ '{.data.' ~ item.key ~ '}' }}"
+  become: true
+  register: student_ipam_config
+  changed_when: false
+  loop:
+    - { key: ipam }
+    - { key: ipam-multi-pool-pre-allocation }
+
+- name: Require the selected multi-pool mode and background pools
+  ansible.builtin.assert:
+    that:
+      - student_ipam_config.results[0].stdout == 'multi-pool'
+      - >-
+        student_ipam_config.results[1].stdout ==
+        ('default=8,p003-m24=8' if student_exercise_config.ipam == 'm24'
+         else 'default=8,p003-m24=8,p003-m32=8')
+    fail_msg: "Configuração IPAM não mantém todos os pools pré-alocados pelo cenário selecionado."
+
+- name: Read the selected pool mask and source range
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - ciliumpodippool
+      - "{{ item.name }}"
+      - -o
+      - "jsonpath={{ '{.spec.ipv4.' ~ item.key ~ '}' }}"
+  become: true
+  register: student_ipam_pool_specs
+  changed_when: false
+  loop: >-
+    {{ [{'name': 'default', 'key': 'maskSize', 'expected': '24'},
+        {'name': 'default', 'key': 'cidrs', 'expected': '10.251.0.0/16'},
+        {'name': 'p003-m24', 'key': 'maskSize', 'expected': '24'},
+        {'name': 'p003-m24', 'key': 'cidrs', 'expected': '10.250.0.0/16'}]
+       + ([{'name': 'p003-m32', 'key': 'maskSize', 'expected': '32'},
+           {'name': 'p003-m32', 'key': 'cidrs', 'expected': '10.252.0.0/16'}]
+          if student_exercise_config.ipam == 'm32' else []) }}
+  loop_control:
+    label: "{{ item.name }}.{{ item.key }}"
+
+- name: Require each auto-created and selected pool to keep its declared range and mask
+  ansible.builtin.assert:
+    that:
+      - item.stdout is search(item.item.expected)
+    fail_msg: "Pool {{ item.item.name }} field {{ item.item.key }} is {{ item.stdout | default('missing') }}."
+  loop: "{{ student_ipam_pool_specs.results }}"
+
+- name: Wait for the selected IPAM workload to become Ready
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - rollout
+      - status
+      - "deployment/{{ 'p003-ipam-pods' if student_exercise_config.ipam == 'm24' else 'p003-ipam32-pods' }}"
+      - --namespace
+      - "{{ 'p003-ipam' if student_exercise_config.ipam == 'm24' else 'p003-ipam32' }}"
+      - --timeout=240s
+  become: true
+  changed_when: false
+
+- name: Read all selected workload Pod IPs
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - pods
+      - --namespace
+      - "{{ 'p003-ipam' if student_exercise_config.ipam == 'm24' else 'p003-ipam32' }}"
+      - --selector
+      - "app={{ 'p003-ipam-pods' if student_exercise_config.ipam == 'm24' else 'p003-ipam32-pods' }}"
+      - -o
+      - 'jsonpath={range .items[*]}{.status.podIP}{"\n"}{end}'
+  become: true
+  register: student_ipam_pod_ips
+  changed_when: false
+
+- name: Require six workload IPs from the selected pool range
+  ansible.builtin.assert:
+    that:
+      - student_ipam_pod_ips.stdout_lines | length == 6
+      - student_ipam_pod_ips.stdout_lines | reject('match', '^10\.' ~ ('250' if student_exercise_config.ipam == 'm24' else '252') ~ '\.') | list | length == 0
+    fail_msg: "Os Pods não receberam seis IPv4 do pool {{ 'p003-m24' if student_exercise_config.ipam == 'm24' else 'p003-m32' }}."
+
+- name: Read the CiliumNode allocation records
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - ciliumnodes
+      - -o
+      - json
+  become: true
+  register: student_ipam_ciliumnodes
+  changed_when: false
+
+- name: Select allocation blocks from CiliumNode records
+  ansible.builtin.set_fact:
+    student_ipam_allocations: >-
+      {{ (student_ipam_ciliumnodes.stdout | from_json)['items']
+         | map(attribute='spec.ipam.pools.allocated') | select('defined') | list | flatten
+         | selectattr('pool', 'equalto', 'p003-m24' if student_exercise_config.ipam == 'm24' else 'p003-m32')
+         | map(attribute='cidrs') | list | flatten }}
+
+- name: Require allocation evidence from the selected CiliumPodIPPool
+  ansible.builtin.assert:
+    that:
+      - student_ipam_allocations | length > 0
+      - student_ipam_allocations | select('search', '^10\.' ~ ('250' if student_exercise_config.ipam == 'm24' else '252') ~ '\.') | list | length > 0
+    fail_msg: "CiliumNode não registra allocations do pool selecionado."
+
+- name: Select a real allocated block for the BGP route check
+  ansible.builtin.set_fact:
+    student_ipam_route_prefix: "{{ student_ipam_allocations | first }}"
+
+- name: Confirm the selected pool block is advertised in the Cilium BGP configuration
+  ansible.builtin.command:
+    argv:
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_profile.context }}"
+      - get
+      - ciliumbgpadvertisement
+      - fabric-advertisements
+      - -o
+      - 'jsonpath={range .spec.advertisements[*]}{.advertisementType}{"\n"}{end}'
+  become: true
+  register: student_ipam_bgp_advertisement
+  changed_when: false
+
+- name: Require the pool route advertisement type
+  ansible.builtin.assert:
+    that:
+      - student_ipam_bgp_advertisement.stdout is search('CiliumPodIPPool')
+    fail_msg: "A advertisement BGP do fabric não inclui CiliumPodIPPool."
+
+- name: Wait for the actual allocated block to appear in the FRR border RIB
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - --host
+      - unix:///var/run/docker.sock
+      - exec
+      - "{{ student_profile.fabric_nodes | select('search', 'border1$') | first }}"
+      - vtysh
+      - -c
+      - show ip bgp
+  become: true
+  register: student_ipam_route_probe
+  changed_when: false
+  retries: 60
+  delay: 5
+  until: >-
+    student_ipam_route_probe.rc == 0 and
+    student_ipam_route_probe.stdout is search('(?m)^\\*>?\\s*' ~ (student_ipam_route_prefix | regex_escape) ~ '\\s')
+
+- name: Verify a create-only no-match probe with owner and UID guarded cleanup
+  ansible.builtin.include_tasks: verify-ipam-no-match.yml

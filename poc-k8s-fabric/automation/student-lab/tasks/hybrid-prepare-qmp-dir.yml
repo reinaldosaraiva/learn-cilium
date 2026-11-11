@@ -1,0 +1,54 @@
+---
+- name: Inspect the reserved short QMP directory without following links
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.qmp_dir.path }}"
+    follow: false
+  register: student_hybrid_qmp_dir_before
+  no_log: true
+
+- name: Require a fresh QMP directory path before creation
+  ansible.builtin.assert:
+    that:
+      - not (student_hybrid_qmp_dir_before.stat.exists | default(false))
+      - not (student_hybrid_qmp_dir_before.stat.islnk | default(false))
+    fail_msg: "O diretório QMP já existe sem identidade desta execução; nenhum socket será adotado."
+  no_log: true
+
+- name: Create the private short QMP directory for this run
+  ansible.builtin.file:
+    path: "{{ student_state.hybrid.qmp_dir.path }}"
+    state: directory
+    owner: "{{ student_uid }}"
+    mode: '0700'
+
+- name: Inspect the created QMP directory identity
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.qmp_dir.path }}"
+    follow: false
+  register: student_hybrid_qmp_dir_after
+  no_log: true
+
+- name: Require a private directory with a verifiable filesystem identity
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_qmp_dir_after.stat.isdir | default(false)
+      - not (student_hybrid_qmp_dir_after.stat.islnk | default(false))
+      - student_hybrid_qmp_dir_after.stat.uid | int == student_uid
+      - student_hybrid_qmp_dir_after.stat.mode == '0700'
+      - student_hybrid_qmp_dir_after.stat.dev | int >= 0
+      - student_hybrid_qmp_dir_after.stat.inode | int > 0
+    fail_msg: "O diretório QMP não ficou privado ou não tem identidade verificável."
+  no_log: true
+
+- name: Save the QMP directory identity before starting either guest
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'hybrid': {'qmp_dir': {'device': student_hybrid_qmp_dir_after.stat.dev, 'inode': student_hybrid_qmp_dir_after.stat.inode}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+  no_log: true
+
+- name: Persist the QMP directory checkpoint before QEMU can bind a socket
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true

@@ -1,0 +1,81 @@
+---
+- name: Require the verified beginner cluster before creating a session
+  ansible.builtin.assert:
+    that:
+      - student_profile_name == 'iniciantes'
+      - student_has_state
+      - student_state.profile == 'iniciantes'
+      - student_state.status == 'up'
+      - student_state.cluster_uid | length == 36
+      - student_state.exercise_session is mapping
+      - student_state.exercise_session == {} or student_state.exercise_session.namespace is defined
+      - student_new_session_id is match('^[0-9]{8}-[0-9a-f]{32}$')
+      - student_state.exercise_session == {} or student_state.exercise_session.id != student_new_session_id
+    fail_msg: "lab-session exige cluster iniciantes verificado e um ID novo válido."
+  no_log: true
+
+- name: Build read-only namespace identity checks for the old and proposed sessions
+  ansible.builtin.set_fact:
+    student_session_namespace_checks: >-
+      {{ ([{'purpose': 'previous', 'namespace': student_state.exercise_session.namespace}]
+          if student_state.exercise_session != {} else [])
+         + [{'purpose': 'candidate', 'namespace': 'p010-aluno-' ~ student_new_session_id}] }}
+
+- name: Check old and candidate session namespaces using the recorded kubeconfig and context
+  ansible.builtin.command:
+    argv:
+      - "{{ student_timeout_bin }}"
+      - --kill-after=5s
+      - 20s
+      - "{{ student_tool_dir }}/kubectl"
+      - --kubeconfig
+      - "{{ student_state.kubeconfig }}"
+      - --context
+      - "{{ student_state.context }}"
+      - --request-timeout=10s
+      - get
+      - namespace
+      - "{{ item.namespace }}"
+      - -o
+      - json
+  become: true
+  register: student_session_namespace_results
+  changed_when: false
+  failed_when: false
+  loop: "{{ student_session_namespace_checks }}"
+  no_log: true
+
+- name: Require an exact Kubernetes NotFound for every namespace check
+  ansible.builtin.assert:
+    that:
+      - item.rc == 1
+      - item.stdout | trim == ''
+      - >-
+        item.stderr | trim == ('Error from server (NotFound): namespaces "' ~ item.item.namespace ~ '" not found')
+    fail_msg: >-
+      Namespace {{ item.item.namespace }} existe ou a API não confirmou NotFound;
+      nenhuma sessão foi criada ou substituída.
+  loop: "{{ student_session_namespace_results.results }}"
+  no_log: true
+
+- name: Persist the new session identity without creating a namespace
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: >-
+      {{ student_state | combine({
+        'exercise_session': {
+          'id': student_new_session_id,
+          'namespace': 'p010-aluno-' ~ student_new_session_id,
+          'owner_uid': student_state.owner_uid,
+          'owner_token': student_state.owner_token,
+          'cluster_uid': student_state.cluster_uid
+        },
+        'updated_utc': ansible_date_time.iso8601
+      }, recursive=true) | to_nice_json }}
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Report the new session without credentials
+  ansible.builtin.debug:
+    msg: "Sessão E01-E06 registrada: LAB_RUN_ID={{ student_new_session_id }}, LAB_NS=p010-aluno-{{ student_new_session_id }}. Nenhum namespace foi criado."

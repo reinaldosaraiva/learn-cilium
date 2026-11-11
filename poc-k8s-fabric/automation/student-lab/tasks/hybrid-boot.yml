@@ -1,0 +1,347 @@
+---
+- name: Require a fresh durable hybrid reservation before guest creation
+  ansible.builtin.assert:
+    that:
+      - student_state.schema | int == 3
+      - student_state.profile == 'hibrido'
+      - student_state.status in ['preparing', 'partial']
+      - student_state.hybrid.phase == 'reserved'
+      - student_state.hybrid.guests.ubuntu.pid | int == 0
+      - student_state.hybrid.guests.cirros.pid | int == 0
+    fail_msg: "Boot híbrido exige uma reserva sem guests; registros parciais com guests não serão reconciliados por nome."
+
+- name: Persist partial lifecycle status before host package changes
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'status': 'partial', 'phase': 'hybrid-preparing', 'updated_utc': ansible_date_time.iso8601, 'hybrid': student_state.hybrid | combine({'phase': 'reserved'}, recursive=true)}, recursive=true) }}"
+
+- name: Persist the reserved state before installing guest tools
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+
+- name: Install only the declared hybrid guest tools
+  ansible.builtin.apt:
+    name: "{{ student_hybrid_system_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+    lock_timeout: 300
+  become: true
+  async: 1800
+  poll: 10
+
+- ansible.builtin.include_tasks: hybrid-discover-dns.yml
+
+- name: Recheck the hybrid memory admission after package changes
+  ansible.builtin.command:
+    argv: [awk, '/^MemAvailable:/ { print $2 }', /proc/meminfo]
+  register: student_hybrid_mem_available
+  changed_when: false
+
+- name: Preserve the four GiB host reserve before image downloads
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_mem_available.stdout | int >= (student_profiles.hibrido.estimated_peak_mib | int + 4096) * 1024
+    fail_msg: >-
+      MemAvailable caiu abaixo do limite híbrido após preparar ferramentas; imagens/guests não serão criados.
+      O state fica parcial para inspeção e lab-down.
+
+- name: Create private hybrid asset directories
+  ansible.builtin.file:
+    path: "{{ student_run_dir }}/{{ item }}"
+    state: directory
+    owner: "{{ student_uid }}"
+    mode: '0700'
+  loop: [images, qemu, seed, keys]
+
+- name: Download and checkpoint each pinned image before starting the next
+  ansible.builtin.include_tasks: hybrid-download-image.yml
+  loop: "{{ student_state.hybrid.sources | dict2items }}"
+  loop_control:
+    loop_var: student_hybrid_source_item
+    label: "{{ student_hybrid_source_item.key }} guest image"
+
+- name: Read image formats before creating overlays
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_qemu_img_bin | default('/usr/bin/qemu-img') }}"
+      - info
+      - --output=json
+      - "{{ student_state.hybrid.sources[item].path }}"
+  register: student_hybrid_image_info
+  changed_when: false
+  loop: [ubuntu, cirros]
+  no_log: true
+
+- name: Require both pinned base images to be qcow2
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - (item.stdout | from_json).format == 'qcow2'
+    fail_msg: "Formato de imagem híbrida inesperado; nenhum overlay será criado."
+  loop: "{{ student_hybrid_image_info.results }}"
+  no_log: true
+
+- name: Create and checkpoint each private overlay before the next guest
+  ansible.builtin.include_tasks: hybrid-create-overlay.yml
+  loop: [ubuntu, cirros]
+  loop_control:
+    loop_var: student_hybrid_overlay_guest_name
+
+- name: Require the private SSH key path to be absent before generation
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.guests.ubuntu.ssh_private_key }}"
+    follow: false
+  register: student_hybrid_key_before
+
+- name: Refuse a pre-existing or replaced SSH key path
+  ansible.builtin.assert:
+    that:
+      - not (student_hybrid_key_before.stat.exists | default(false))
+      - not (student_hybrid_key_before.stat.islnk | default(false))
+    fail_msg: "A chave híbrida já existe sem identidade desta execução; não será reutilizada."
+
+- name: Generate one private per-run Ed25519 key without printing key material
+  ansible.builtin.command:
+    argv:
+      - "{{ student_hybrid_ssh_keygen_bin | default('/usr/bin/ssh-keygen') }}"
+      - -q
+      - -t
+      - ed25519
+      - -N
+      - ''
+      - -f
+      - "{{ student_state.hybrid.guests.ubuntu.ssh_private_key }}"
+  register: student_hybrid_keygen
+  changed_when: true
+  no_log: true
+
+- name: Inspect the private hybrid SSH key
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.guests.ubuntu.ssh_private_key }}"
+    follow: false
+  register: student_hybrid_key_stat
+  no_log: true
+
+- name: Inspect the public half of the generated hybrid SSH key
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.guests.ubuntu.ssh_private_key }}.pub"
+    follow: false
+  register: student_hybrid_public_key_stat
+  no_log: true
+
+- name: Require a private regular Ed25519 key owned by the invoking user
+  ansible.builtin.assert:
+    that:
+      - student_hybrid_key_stat.stat.isreg | default(false)
+      - not (student_hybrid_key_stat.stat.islnk | default(false))
+      - student_hybrid_key_stat.stat.uid | int == student_uid
+      - student_hybrid_key_stat.stat.mode == '0600'
+      - student_hybrid_key_stat.stat.inode | int > 0
+      - student_hybrid_public_key_stat.stat.isreg | default(false)
+      - not (student_hybrid_public_key_stat.stat.islnk | default(false))
+      - student_hybrid_public_key_stat.stat.uid | int == student_uid
+      - student_hybrid_public_key_stat.stat.inode | int > 0
+    fail_msg: "A chave privada híbrida não está em modo/dono esperados."
+  no_log: true
+
+- name: Read only the public half for guest seed generation
+  ansible.builtin.slurp:
+    src: "{{ student_state.hybrid.guests.ubuntu.ssh_private_key }}.pub"
+  register: student_hybrid_public_key_result
+  no_log: true
+
+- name: Store the public key as an in-memory template input
+  ansible.builtin.set_fact:
+    student_hybrid_public_key: "{{ student_hybrid_public_key_result.content | b64decode | trim }}"
+  no_log: true
+
+- name: Record the private key inode in both guest reservations
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'hybrid': {'guests': {'ubuntu': {'ssh_device': student_hybrid_key_stat.stat.dev, 'ssh_inode': student_hybrid_key_stat.stat.inode, 'ssh_public_device': student_hybrid_public_key_stat.stat.dev, 'ssh_public_inode': student_hybrid_public_key_stat.stat.inode}, 'cirros': {'ssh_device': student_hybrid_key_stat.stat.dev, 'ssh_inode': student_hybrid_key_stat.stat.inode, 'ssh_public_device': student_hybrid_public_key_stat.stat.dev, 'ssh_public_inode': student_hybrid_public_key_stat.stat.inode}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+  no_log: true
+
+- name: Persist private key identity before writing seed data
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+
+- ansible.builtin.include_tasks: hybrid-m11-prepare-hostkeys.yml
+
+- name: Create private seed directories
+  ansible.builtin.file:
+    path: "{{ student_state.hybrid.guests[item].seed_dir }}"
+    state: directory
+    owner: "{{ student_uid }}"
+    mode: '0700'
+  loop: [ubuntu, cirros]
+
+- name: Capture seed directory identities before writing guest metadata
+  ansible.builtin.stat:
+    path: "{{ student_state.hybrid.guests[item].seed_dir }}"
+    follow: false
+  register: student_hybrid_seed_dir_stats
+  loop: [ubuntu, cirros]
+  no_log: true
+
+- name: Require private real seed directories
+  ansible.builtin.assert:
+    that:
+      - item.stat.isdir | default(false)
+      - not (item.stat.islnk | default(false))
+      - item.stat.uid | int == student_uid
+      - item.stat.mode == '0700'
+      - item.stat.inode | int > 0
+    fail_msg: "Diretório seed {{ item.item }} não é privado ou não tem identidade verificável."
+  loop: "{{ student_hybrid_seed_dir_stats.results }}"
+  no_log: true
+
+- name: Record seed directory identities before writing metadata
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'hybrid': {'guests': {item.item: {'seed_dir_device': item.stat.dev, 'seed_dir_inode': item.stat.inode}}}}, recursive=true) }}"
+  loop: "{{ student_hybrid_seed_dir_stats.results }}"
+  no_log: true
+
+- name: Persist seed directory identities before rendering metadata
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+
+- name: Render Ubuntu cloud-init metadata without exposing its SSH key
+  ansible.builtin.template:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hybrid-ubuntu-meta-data.yml.j2"
+    dest: "{{ student_state.hybrid.guests.ubuntu.seed_dir }}/meta-data"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  vars:
+    student_hybrid_guest: "{{ student_state.hybrid.guests.ubuntu }}"
+
+- name: Render Ubuntu cloud-init user data with password login disabled
+  ansible.builtin.template:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hybrid-ubuntu-user-data.yml.j2"
+    dest: "{{ student_state.hybrid.guests.ubuntu.seed_dir }}/user-data"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  no_log: true
+
+- name: Render Ubuntu cloud-init network configuration from discovered upstreams
+  ansible.builtin.template:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hybrid-ubuntu-network-config.yml.j2"
+    dest: "{{ student_state.hybrid.guests.ubuntu.seed_dir }}/network-config"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+
+- name: Render CirrOS NoCloud metadata with the public key only
+  ansible.builtin.template:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hybrid-cirros-meta-data.json.j2"
+    dest: "{{ student_state.hybrid.guests.cirros.seed_dir }}/meta-data"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  vars:
+    student_hybrid_guest: "{{ student_state.hybrid.guests.cirros }}"
+  no_log: true
+
+- name: Create the CirrOS Dropbear hardening file without a cloud-config dependency
+  ansible.builtin.file:
+    path: "{{ student_state.hybrid.guests.cirros.seed_dir }}/files/etc/default"
+    state: directory
+    owner: "{{ student_uid }}"
+    mode: '0700'
+- name: Create the CirrOS out-of-tree SSH host key directory in the NoCloud seed
+  ansible.builtin.file:
+    path: "{{ student_state.hybrid.guests.cirros.seed_dir }}/files/etc/p010-hibrido/ssh"
+    state: directory
+    owner: "{{ student_uid }}"
+    mode: '0700'
+  no_log: true
+- name: Copy the private CirrOS host key into the protected NoCloud seed
+  ansible.builtin.copy:
+    src: "{{ student_state.hybrid.m11.ssh.host_keys.cirros.private_path }}"
+    dest: "{{ student_state.hybrid.guests.cirros.seed_dir }}/files/etc/p010-hibrido/ssh/host_ed25519.openssh"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+    remote_src: true
+  no_log: true
+- name: Copy the pinned CirrOS public host key into the protected NoCloud seed
+  ansible.builtin.copy:
+    src: "{{ student_state.hybrid.m11.ssh.host_keys.cirros.public_path }}"
+    dest: "{{ student_state.hybrid.guests.cirros.seed_dir }}/files/etc/p010-hibrido/ssh/host_ed25519.pub"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+    remote_src: true
+  no_log: true
+- name: Recheck the CirrOS host key seed input before creating the ISO
+  ansible.builtin.assert:
+    that:
+      - student_state.hybrid.m11.ssh.host_keys.cirros.fingerprint is match('^SHA256:[A-Za-z0-9+/]{43}$')
+      - student_hybrid_cirros_host_public.split()[0] == 'ssh-ed25519'
+      - student_hybrid_cirros_host_public.split()[1] is match('^[A-Za-z0-9+/]+={0,2}$')
+    fail_msg: "A chave pública CirrOS não corresponde ao pin privado criado antes do boot."
+  no_log: true
+- name: Write the CirrOS Dropbear hardening file without a cloud-config dependency
+  ansible.builtin.copy:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hybrid-cirros-dropbear"
+    dest: "{{ student_state.hybrid.guests.cirros.seed_dir }}/files/etc/default/dropbear"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+    remote_src: true
+  become: false
+
+- name: Install CirrOS static management configuration before S40network
+  ansible.builtin.copy:
+    src: "{{ student_repo_root }}/poc-k8s-fabric/automation/student-lab/templates/hybrid-cirros-dhcpcd.conf"
+    dest: "{{ student_state.hybrid.guests.cirros.seed_dir }}/files/etc/dhcpcd.conf"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+    remote_src: true
+  become: false
+- name: Create and checkpoint each seed ISO before the next guest
+  ansible.builtin.include_tasks: hybrid-create-seed-iso.yml
+  loop: [ubuntu, cirros]
+  loop_control:
+    loop_var: student_hybrid_seed_guest_name
+
+- name: Record the guest SSH key and seed readiness
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'phase': 'hybrid-booting', 'hybrid': {'phase': 'assets-ready'}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+
+- name: Persist all boot assets and reserved guest identities before QEMU starts
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+
+- name: Create and checkpoint the short private QMP directory
+  ansible.builtin.include_tasks: hybrid-prepare-qmp-dir.yml
+
+- name: Create and checkpoint the Ubuntu external TAP in the saved border namespace
+  ansible.builtin.include_tasks: hybrid-prepare-tap.yml
+
+- name: Add the private border provider address to the identity-checked TAP
+  ansible.builtin.include_tasks: hybrid-m11-install-provider-address.yml
+
+- name: Boot Ubuntu first as the private stream socket server
+  ansible.builtin.include_tasks: hybrid-boot-one.yml
+  vars:
+    student_hybrid_guest_name: ubuntu
+
+- name: Checkpoint the Ubuntu tenant stream socket before starting CirrOS
+  ansible.builtin.include_tasks: hybrid-checkpoint-tenant-socket.yml
+
+- name: Persist Ubuntu-only boot while DevStack and Neutron are prepared
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'status': 'partial', 'phase': 'hybrid-ubuntu-started', 'hybrid': {'phase': 'guests-booting', 'm11': {'phase': 'ubuntu-started'}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+
+- name: Persist Ubuntu and the listening tenant socket before DevStack setup
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'

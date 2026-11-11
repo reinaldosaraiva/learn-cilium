@@ -5,7 +5,14 @@ SHELL := /usr/bin/env bash
 REPO_ROOT := $(abspath ..)
 PYTHON_PDF ?= $(shell if [ -x "$(REPO_ROOT)/.venv/bin/python3" ]; then echo "$(REPO_ROOT)/.venv/bin/python3"; else command -v python3; fi)
 
-.PHONY: all lint test pdf latex help p008-e38 p008-e39 p008-e40 p008-e41 p008-s001 p008-s002 p008-all
+.PHONY: all lint test pdf latex help p008-e38 p008-e39 p008-e40 p008-e41 p008-s001 p008-s002 p008-all lab-up lab-preflight lab-status lab-env lab-verify lab-down lab-session lab-shell lab-help
+
+# LAB is an environment value, never interpolated into a recipe.
+override LAB := $(value LAB)
+override EXERCISE := $(value EXERCISE)
+override WG := $(value WG)
+override GUEST := $(value GUEST)
+export LAB EXERCISE WG GUEST
 
 all: lint test
 
@@ -91,6 +98,9 @@ p008-s002: p008-e40 p008-e41
 
 p008-all: p008-s001 p008-s002
 
+lab-up lab-preflight lab-status lab-env lab-verify lab-down lab-session lab-shell lab-help:
+	@automation/student-lab/lab "$(@:lab-%=%)"
+
 pdf:
 	@echo "[pdf] Compilando a apostila ABNT (abnTeX2) via pandoc + tectonic..."
 	@(cd "$(REPO_ROOT)" && "$(PYTHON_PDF)" -I poc-k8s-fabric/tools/build_latex.py)
@@ -103,3 +113,4 @@ latex:
 help:
 	@echo "Alvos do kit: lint, test, pdf, latex e p008-e38/e39/e40/e41, p008-s001/s002, p008-all."
 	@echo "Use 'make lint' e 'make test' para validar; 'make pdf' gera o guia (requer pandoc e tectonic)."
+	@echo "Laboratórios: up para iniciantes|fundamentos|plataforma; hibrido aceita preflight/status/down enquanto M11 é concluído. Consulte make lab-help."

@@ -1,0 +1,21 @@
+---
+- ansible.builtin.include_tasks: hybrid-validate-border.yml
+  vars:
+    student_hybrid_ports_to_check: []
+
+- ansible.builtin.include_tasks: hybrid-query-tap-create-intent.yml
+
+- name: Record proven absence after the original namespace query
+  ansible.builtin.set_fact:
+    student_state: "{{ student_state | combine({'hybrid': {'network': {'tap': {'create_phase': 'absent'}}}, 'updated_utc': ansible_date_time.iso8601}, recursive=true) }}"
+  when: student_hybrid_tap_intent_record_absence | default(false)
+  no_log: true
+
+- name: Persist proven absence before continuing cleanup
+  ansible.builtin.copy:
+    dest: "{{ student_state_file }}"
+    content: "{{ student_state | to_nice_json }}\n"
+    owner: "{{ student_uid }}"
+    mode: '0600'
+  when: student_hybrid_tap_intent_record_absence | default(false)
+  no_log: true

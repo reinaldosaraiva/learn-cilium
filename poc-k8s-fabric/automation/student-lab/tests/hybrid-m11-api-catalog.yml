@@ -1,0 +1,155 @@
+---
+- name: Validate endpoint selection and API location with synthetic catalog responses
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    student_state:
+      hybrid:
+        m11:
+          api:
+            auth_url: http://10.0.2.15/identity/v3/auth/tokens
+    student_hybrid_api_identity_catalog:
+      - interface: internal
+        url: http://10.0.2.15/identity/v3/
+    student_hybrid_api_network_catalog:
+      - interface: internal
+        url: http://10.0.2.15:19696/neutron-api/
+  tasks:
+    - name: Validate a guest-owned catalog URL with a non-default port and prefix
+      ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-validate-catalog.yml
+
+    - name: Require the catalog URL itself to remain unchanged
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_api_identity_endpoint == 'http://10.0.2.15/identity/v3'
+          - student_hybrid_api_network_catalog_url == 'http://10.0.2.15:19696/neutron-api/'
+
+    - name: Reject identity or Neutron catalog URLs outside the appliance
+      ansible.builtin.include_tasks: hybrid-m11-api-catalog-reject.yml
+      loop:
+        - name: foreign identity host
+          identity_catalog: [{interface: internal, url: 'http://10.0.2.16/identity/v3'}]
+          network_catalog: [{interface: internal, url: 'http://10.0.2.15:19696/neutron-api/'}]
+        - name: foreign network host
+          identity_catalog: [{interface: internal, url: 'http://10.0.2.15/identity/v3'}]
+          network_catalog: [{interface: internal, url: 'http://192.0.2.44:19696/neutron-api/'}]
+        - name: non-http scheme
+          identity_catalog: [{interface: internal, url: 'http://10.0.2.15/identity/v3'}]
+          network_catalog: [{interface: internal, url: 'https://10.0.2.15:19696/neutron-api/'}]
+        - name: embedded network credentials
+          identity_catalog: [{interface: internal, url: 'http://10.0.2.15/identity/v3'}]
+          network_catalog: [{interface: internal, url: 'http://admin:secret@10.0.2.15:19696/neutron-api/'}]
+        - name: network query string
+          identity_catalog: [{interface: internal, url: 'http://10.0.2.15/identity/v3'}]
+          network_catalog: [{interface: internal, url: 'http://10.0.2.15:19696/neutron-api/?next=outside'}]
+        - name: invalid network port
+          identity_catalog: [{interface: internal, url: 'http://10.0.2.15/identity/v3'}]
+          network_catalog: [{interface: internal, url: 'http://10.0.2.15:70000/neutron-api/'}]
+        - name: ambiguous internal network endpoints
+          identity_catalog: [{interface: internal, url: 'http://10.0.2.15/identity/v3'}]
+          network_catalog:
+            - {interface: internal, url: 'http://10.0.2.15:19696/neutron-api/'}
+            - {interface: internal, url: 'http://10.0.2.15:19696/neutron-api/'}
+        - name: missing internal identity endpoint
+          identity_catalog: []
+          network_catalog: [{interface: internal, url: 'http://10.0.2.15:19696/neutron-api/'}]
+
+    - name: Validate a Neutron v2 link returned by the catalog endpoint
+      ansible.builtin.set_fact:
+        student_hybrid_api_network_discovery:
+          status: 200
+          json:
+            versions:
+              - id: v2.0
+                status: CURRENT
+                links:
+                  - rel: self
+                    href: http://10.0.2.15:19696/neutron-api/v2.0/
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-validate-neutron-version.yml
+
+    - name: Keep the service-provided port and prefix in the final Neutron URL
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_api_neutron_endpoint == 'http://10.0.2.15:19696/neutron-api/v2.0'
+
+    - name: Validate a root catalog URL when the discovered API link has no explicit port
+      ansible.builtin.set_fact:
+        student_hybrid_api_network_catalog_url: http://10.0.2.15/
+        student_hybrid_api_network_discovery:
+          status: 200
+          json:
+            versions:
+              - id: v2.0
+                status: CURRENT
+                links:
+                  - rel: self
+                    href: http://10.0.2.15/v2.0
+
+    - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-validate-neutron-version.yml
+
+    - name: Preserve the discovered host and version path without inventing a port
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_api_neutron_endpoint == 'http://10.0.2.15/v2.0'
+
+    - name: Reject Neutron version links with a changed origin, path, or identity
+      ansible.builtin.include_tasks: hybrid-m11-api-version-reject.yml
+      loop:
+        - name: foreign host
+          catalog: http://10.0.2.15:19696/neutron-api/
+          href: http://192.0.2.44:19696/neutron-api/v2.0
+        - name: changed port
+          catalog: http://10.0.2.15:19696/neutron-api/
+          href: http://10.0.2.15:9696/neutron-api/v2.0
+        - name: changed scheme
+          catalog: http://10.0.2.15:19696/neutron-api/
+          href: https://10.0.2.15:19696/neutron-api/v2.0
+        - name: changed prefix
+          catalog: http://10.0.2.15:19696/neutron-api/
+          href: http://10.0.2.15:19696/v2.0
+        - name: URL credentials
+          catalog: http://10.0.2.15:19696/neutron-api/
+          href: http://admin:secret@10.0.2.15:19696/neutron-api/v2.0
+        - name: query string
+          catalog: http://10.0.2.15:19696/neutron-api/
+          href: http://10.0.2.15:19696/neutron-api/v2.0?next=outside
+        - name: wrong version ID
+          catalog: http://10.0.2.15:19696/neutron-api/
+          href: http://10.0.2.15:19696/neutron-api/v2.1
+          version_id: v2.1
+        - name: duplicate current version
+          catalog: http://10.0.2.15:19696/neutron-api/
+          duplicate: true
+        - name: missing self link
+          catalog: http://10.0.2.15:19696/neutron-api/
+          self_link: false
+
+    - name: Reject the obsolete object-shaped Neutron versions response
+      ansible.builtin.set_fact:
+        student_hybrid_api_network_catalog_url: http://10.0.2.15:19696/neutron-api/
+        student_hybrid_api_network_discovery:
+          status: 200
+          json:
+            versions:
+              values:
+                - id: v2.0
+                  status: CURRENT
+                  links:
+                    - rel: self
+                      href: http://10.0.2.15:19696/neutron-api/v2.0
+        student_hybrid_api_version_rejected: false
+
+    - name: Require the production version validator to reject an object instead of an array
+      block:
+        - ansible.builtin.include_tasks: ../tasks/hybrid-m11-api-validate-neutron-version.yml
+      rescue:
+        - ansible.builtin.set_fact:
+            student_hybrid_api_version_rejected: true
+
+    - name: Confirm malformed Neutron version data was rejected
+      ansible.builtin.assert:
+        that:
+          - student_hybrid_api_version_rejected | bool
+
