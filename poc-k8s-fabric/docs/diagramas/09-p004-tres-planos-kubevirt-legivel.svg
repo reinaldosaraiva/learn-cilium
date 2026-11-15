@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220mm" height="150.857mm" viewBox="0 0 1400 960" role="img" aria-labelledby="title desc">
+<title id="title">Planos de rede comparados em P004</title>
+<desc id="desc">Resumo legível dos registros P004 para OVN-K, DCI/fabric e Cilium A/B com KubeVirt. Métricas, IDs e limites completos são transcritos junto da figura; os resultados permanecem históricos e por caso.</desc>
+<defs><marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="18" markerHeight="18" refX="17" refY="9" orient="auto"><path d="M0,0 L18,9 L0,18 z" fill="#111827"/></marker></defs>
+<rect width="1400" height="960" fill="#ffffff"/>
+<text x="40" y="52" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#111827">Planos de rede comparados em P004</text>
+<text x="40" y="92" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">KubeVirt · KVM nativo · FRR 10.7.1 · Containerlab SR Linux · histórico</text>
+<rect x="40" y="135" width="640" height="315" rx="16" fill="#ecfdf5" stroke="#047857" stroke-width="4"/>
+<rect x="720" y="135" width="640" height="315" rx="16" fill="#eff6ff" stroke="#1d4ed8" stroke-width="4"/>
+<rect x="40" y="490" width="640" height="315" rx="16" fill="#fff7ed" stroke="#9a3412" stroke-width="4"/>
+<rect x="720" y="490" width="640" height="315" rx="16" fill="#f5f3ff" stroke="#6b21a8" stroke-width="4"/>
+<text x="65" y="181" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">Braço C · OVN-K + KubeVirt · S003</text>
+<text x="65" y="222" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">UDN/CUDN · K01–K04</text>
+<text x="65" y="262" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">Same-CIDR · 10.100.0.0/24</text>
+<text x="65" y="302" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">VM 10.100.0.14 · 0 vazamento</text>
+<text x="65" y="342" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">K02 · migração L2 · 0% loss · TCP</text>
+<text x="65" y="382" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">K03/K04 · EVPN Type 5 · VNI 10100</text>
+<text x="65" y="422" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">Lift-and-shift · 192.168.50.10/24</text>
+<text x="745" y="181" font-family="Arial, sans-serif" font-size="29" font-weight="700" fill="#111827">Braço DCI + Fabric EVPN · S002/S004</text>
+<text x="745" y="222" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">X01–X07 · integração de três planos</text>
+<text x="745" y="262" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">192.168.100.10 ↔ 10.0.0.10 ↔</text>
+<text x="745" y="302" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">VM 10.200.0.x · 30/30</text>
+<text x="745" y="342" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">Type 5 · VNI 10100/10200 ·</text>
+<text x="745" y="382" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">50100/50200 · Type 2 MAC-VRF</text>
+<text x="745" y="422" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">BGP communities · RT 0/30 · Hub guard</text>
+<text x="65" y="536" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">Cilium A/B + KubeVirt · S005–S008</text>
+<text x="65" y="577" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">A · GoBGP nativo · B · FRR 10.7.1/R6=0</text>
+<text x="65" y="617" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">V00–V04 · CEP · VIP /32 · CNP</text>
+<text x="65" y="657" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">V05/V06 · migração L3 · Multi-Pool /32</text>
+<text x="65" y="697" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">V07-A/C-neg vs V07-B · same-CIDR</text>
+<text x="65" y="737" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">H6/V09 · EVPN Type 5 · VRFs auxiliares</text>
+<text x="65" y="777" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">S008 · INV-PoC-01–06 · detalhes abaixo</text>
+<text x="745" y="536" font-family="Arial, sans-serif" font-size="31" font-weight="700" fill="#111827">Escopo dos registros</text>
+<text x="745" y="577" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">Quatro braços em ensaios separados</text>
+<text x="745" y="617" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">IPs, VNI, perda, rotas e gates</text>
+<text x="745" y="657" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">continuam ligados a cada ID histórico.</text>
+<text x="745" y="697" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">Resultados de um braço não validam</text>
+<text x="745" y="737" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">outro. As inscrições completas vêm</text>
+<text x="745" y="777" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">na lista que acompanha a figura.</text>
+<rect x="40" y="825" width="1320" height="110" rx="14" fill="#fef2f2" stroke="#9a3412" stroke-width="3"/>
+<text x="65" y="869" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#9a3412">P004 · recorte histórico; não indica disponibilidade atual.</text>
+<text x="65" y="909" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">Os detalhes preservam o resultado e o limite de cada inscrição.</text>
+</svg>

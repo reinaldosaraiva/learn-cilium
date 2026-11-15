@@ -487,7 +487,7 @@ também os hashes efetivos. Não imprima nem copie o conteúdo do kubeconfig.
 \hypertarget{p010-e01-4-preparacao}{}
 ~~~
 
-Antes de executar o apêndice, digite `bash` no Terminal A e pressione Enter. Isso abre um `bash` aninhado, que herda as variáveis `LAB_*` (o `lab-env` as exporta). Os blocos de E01.5 a E06 terminam com `exit 1` quando um guarda detecta divergência; no `bash` aninhado, esse `exit 1` fecha só o aninhado e devolve você ao shell externo, onde a mensagem de parada continua visível, em vez de fechar o terminal inteiro. Quando isso acontecer, o shell externo ainda tem as variáveis `LAB_*`, mas não tem `k`, `record` nem `LAB_RECEIPT`. Não rode o apêndice outra vez (ele recusa um run-id que já tem recibo); leia o motivo da parada e siga “Se o Terminal A for perdido”, ao fim de E01.8. Se as variáveis `LAB_*` também sumirem, recarregue-as com o bloco de `lab-env` de E01.3, sem repetir `lab-session`. Esse comportamento com `bash` aninhado não foi exercitado em shell interativo: a rodada de 10/11/2026 executou os blocos com `bash -c`.
+Antes de executar o apêndice, digite `bash` no Terminal A e pressione Enter. Isso abre um `bash` aninhado, que herda as variáveis `LAB_*` (o `lab-env` as exporta). Os blocos de E01.5 a E06 terminam com `exit 1` quando um guarda detecta divergência; no `bash` aninhado, esse `exit 1` fecha só o aninhado e devolve você ao shell externo, onde a mensagem de parada continua visível, em vez de fechar o terminal inteiro. Quando isso acontecer, o shell externo ainda tem as variáveis `LAB_*`, mas não tem `k`, `record` nem `LAB_RECEIPT`. Não rode o apêndice outra vez (ele recusa um run-id que já tem recibo); leia o motivo da parada e siga “Se o Terminal A for perdido”, ao fim de E01.8. Se as variáveis `LAB_*` também sumirem, recarregue-as com o bloco de `lab-env` de E01.3, sem repetir `lab-session`. Esse comportamento com `bash` aninhado foi observado com subshell `bash -c` nas rodadas de 10/11/2026 e 15/11/2026; o que continua sem cobertura validada é o shell interativo em si. Na rodada de 15/11/2026 (VM Ubuntu 24.04.5 limpa), a guarda foi disparada de propósito, reexecutando o Apêndice A com o mesmo run-id — exatamente o caso em que ele recusa um run-id que já tem recibo — e o `exit 1` fechou só o aninhado: o shell externo manteve as variáveis `LAB_*` e ficou sem `k`, `record` e `LAB_RECEIPT`, como descrito acima.
 
 Faça esta preparação uma vez na mesma sessão Bash que seguirá até E06. O apêndice verifica as atribuições locais de `lab-env`, cria um recibo privado e define atalhos explícitos. Não chama o API server nem cria a namespace. Abra o apêndice, execute o bloco completo e volte pelo link de retorno.
 
@@ -652,7 +652,10 @@ unset lab_env
 
 Se `lab-env` falhar, o padrão `|| { ...; false; }` imprime o aviso e devolve
 erro sem fechar o Terminal A; não o troque por `exit`. Os blocos desta seção
-não foram executados em VM limpa na rodada de 10/11/2026.
+foram executados em VM limpa na rodada de 15/11/2026: o primeiro bloco
+(status/verify/sessão/env) fez parte da Opção A do E06.6, e o caminho de
+encerramento e o reinício completo (preflight/up/status/verify/sessão/env)
+foram executados em seguida, todos com `rc=0`.
 
 Depois, refaça E01.4 para criar um recibo novo para o `LAB_RUN_ID` novo e
 redefinir as funções locais. Não repita preflight nem up sobre o cluster que
@@ -2224,7 +2227,7 @@ Depois de registrar a remoção da namespace, mantenha a conferência por identi
 
 **Opção A — manter o cluster para outra rodada**
 
-Esta opção não foi executada em VM limpa na rodada de 10/11/2026; a rodada seguiu pela Opção B.
+Esta opção não foi executada em VM limpa na rodada de 10/11/2026 (a rodada seguiu pela Opção B); foi executada em VM limpa na rodada de 15/11/2026: registro no recibo, `lab-status`, `lab-verify`, `lab-session` e `lab-env` com `rc=0`, e em seguida o Apêndice A novo com E01.5–E01.8 em um `bash` aninhado novo (via `bash -c`, como nas rodadas anteriores), criando o recibo da nova sessão.
 
 Antes de criar outra sessão, conclua a rodada no **recibo antigo**. Esta opção só se aplica depois de E06.5 confirmar a remoção da namespace e de `lab-status`/`lab-verify` confirmarem que a infraestrutura permanece `up` e saudável. Em E06.6, registre a decisão e a hora no recibo atual antes de chamar `lab-session`:
 

@@ -544,7 +544,10 @@ atalhos ou usar \texttt{kubectl}, \texttt{cilium} e \texttt{hubble}. \texttt{fun
 sem fechar o seu terminal; leia a mensagem acima dele e não substitua o padrão
 por \texttt{exit}, que encerraria o Terminal A. A sintaxe desse padrão foi conferida,
 mas a rodada de 10/11/2026 carregou o \texttt{lab-{}\allowbreak{}env} a partir de um arquivo com
-\texttt{source}; o padrão em si não foi exercitado em VM limpa.
+\texttt{source}; o padrão em si foi exercitado em VM limpa na rodada de 15/11/2026
+(perfis iniciantes, fundamentos e plataforma): o caminho de sucesso do comando
+completo terminou com \texttt{rc=\allowbreak{}0}; o ramo de falha do \texttt{\textbar{}\allowbreak{}\textbar{}\allowbreak{} \{ .\allowbreak{}.\allowbreak{}.\allowbreak{}; false; \}} continua
+sem execução registrada.
 
 Para uma prática de plataforma, escolha o valor antes de iniciar:
 
@@ -600,7 +603,9 @@ admissão. Nunca limpe recursos por nome.
 Se \texttt{lab-{}\allowbreak{}up} falhar no meio da subida, o laboratório fica em estado parcial. De
 propósito, \texttt{lab-{}\allowbreak{}env} e \texttt{lab-{}\allowbreak{}verify} recusam esse estado imediatamente (a
 recusa imediata do \texttt{lab-{}\allowbreak{}verify} veio de uma correção posterior à última falha
-da rodada de 10/11 e não foi exercitada em VM limpa): não há
+da rodada de 10/11; em VM limpa, a rodada de 15/11/2026 a observou em estado
+\texttt{down}, com falha em segundos e a mensagem apontando para \texttt{lab-{}\allowbreak{}status} e
+\texttt{lab-{}\allowbreak{}down}; o estado \texttt{partial} usa o mesmo teste de status): não há
 kubeconfig confiável para carregar nem o que verificar. Rode
 \texttt{make -{}\allowbreak{}-{}\allowbreak{}no-{}\allowbreak{}print-{}\allowbreak{}directory lab-{}\allowbreak{}status LAB=\allowbreak{}plataforma}, que mostra apenas o
 estado \texttt{"status":\allowbreak{} "partial"}: a causa da parada está na saída do próprio
@@ -1689,9 +1694,11 @@ e, em \texttt{ipam24}, só os dois primeiros. Os CIDRs e a máscara não saíram
 listagem: vêm do \texttt{lab-{}\allowbreak{}verify} da automação e dos valores do cenário
 (\texttt{default} em \texttt{10.\allowbreak{}251.\allowbreak{}0.\allowbreak{}0/\allowbreak{}16} e \texttt{p003-{}\allowbreak{}m24} em \texttt{10.\allowbreak{}250.\allowbreak{}0.\allowbreak{}0/\allowbreak{}16}, ambos com
 máscara 24; \texttt{p003-{}\allowbreak{}m32} em \texttt{10.\allowbreak{}252.\allowbreak{}0.\allowbreak{}0/\allowbreak{}16}, máscara 32). O \texttt{custom-{}\allowbreak{}columns} do
-primeiro comando e o \texttt{jsonpath} do \texttt{cilium-{}\allowbreak{}config} ainda não foram executados em
-uma VM limpa: usam os mesmos campos que a automação lê, mas confira a saída na
-sua rodada. O pool \texttt{default} existe nos dois cenários e não faz parte do estudo
+primeiro comando e o \texttt{jsonpath} do \texttt{cilium-{}\allowbreak{}config} foram executados em uma
+VM limpa na rodada de 15/11/2026 (ipam24 e ipam32), com a saída esperada:
+pools \texttt{default} e \texttt{p003-{}\allowbreak{}m24} (e \texttt{p003-{}\allowbreak{}m32} em ipam32), pré-alocação
+\texttt{default=\allowbreak{}8,\allowbreak{}p003-{}\allowbreak{}m24=\allowbreak{}8} (e \texttt{p003-{}\allowbreak{}m32=\allowbreak{}8} em ipam32), um \texttt{/\allowbreak{}24} de \texttt{default} e um
+de \texttt{p003-{}\allowbreak{}m24} por nó (e 16 \texttt{/\allowbreak{}32} do \texttt{p003-{}\allowbreak{}m32} por nó em ipam32). O pool \texttt{default} existe nos dois cenários e não faz parte do estudo
 \texttt{/\allowbreak{}24} versus \texttt{/\allowbreak{}32}: ele serve aos pods que não pedem um pool. O terceiro
 comando, executado na rodada, mostrou um \texttt{/\allowbreak{}24} de \texttt{default} (\texttt{10.\allowbreak{}251.\allowbreak{}N.\allowbreak{}0/\allowbreak{}24})
 e um de \texttt{p003-{}\allowbreak{}m24} (\texttt{10.\allowbreak{}250.\allowbreak{}N.\allowbreak{}0/\allowbreak{}24}) por nó. No border, o \texttt{vtysh} imprime antes
@@ -2170,7 +2177,7 @@ transferir resultado de um braço para outro.
 \item
   Arquitetura comparada em P004 (S002--S008): OVN-K (C/D) × Fabric EVPN × Cilium A \& B + KubeVirt
 \item
-  Quatro braços testados ao vivo na vm-cilium com KVM nativo (/dev/kvm), FRR 10.7.1 e Containerlab SR Linux
+  Quatro braços testados ao vivo na vm-cilium (host do instrutor) com KVM nativo (/dev/kvm), FRR 10.7.1 e Containerlab SR Linux
 \item
   Braço C: OVN-Kubernetes v1.4.0 + KubeVirt (S003)
 \item

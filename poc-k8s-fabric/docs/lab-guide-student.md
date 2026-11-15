@@ -307,7 +307,10 @@ atalhos ou usar `kubectl`, `cilium` e `hubble`. `fundamentos` não usa
 sem fechar o seu terminal; leia a mensagem acima dele e não substitua o padrão
 por `exit`, que encerraria o Terminal A. A sintaxe desse padrão foi conferida,
 mas a rodada de 10/11/2026 carregou o `lab-env` a partir de um arquivo com
-`source`; o padrão em si não foi exercitado em VM limpa.
+`source`; o padrão em si foi exercitado em VM limpa na rodada de 15/11/2026
+(perfis iniciantes, fundamentos e plataforma): o caminho de sucesso do comando
+completo terminou com `rc=0`; o ramo de falha do `|| { ...; false; }` continua
+sem execução registrada.
 
 Para uma prática de plataforma, escolha o valor antes de iniciar:
 
@@ -354,7 +357,9 @@ admissão. Nunca limpe recursos por nome.
 Se `lab-up` falhar no meio da subida, o laboratório fica em estado parcial. De
 propósito, `lab-env` e `lab-verify` recusam esse estado imediatamente (a
 recusa imediata do `lab-verify` veio de uma correção posterior à última falha
-da rodada de 10/11 e não foi exercitada em VM limpa): não há
+da rodada de 10/11; em VM limpa, a rodada de 15/11/2026 a observou em estado
+`down`, com falha em segundos e a mensagem apontando para `lab-status` e
+`lab-down`; o estado `partial` usa o mesmo teste de status): não há
 kubeconfig confiável para carregar nem o que verificar. Rode
 `make --no-print-directory lab-status LAB=plataforma`, que mostra apenas o
 estado `"status": "partial"`: a causa da parada está na saída do próprio
@@ -1275,9 +1280,11 @@ e, em `ipam24`, só os dois primeiros. Os CIDRs e a máscara não saíram dessa
 listagem: vêm do `lab-verify` da automação e dos valores do cenário
 (`default` em `10.251.0.0/16` e `p003-m24` em `10.250.0.0/16`, ambos com
 máscara 24; `p003-m32` em `10.252.0.0/16`, máscara 32). O `custom-columns` do
-primeiro comando e o `jsonpath` do `cilium-config` ainda não foram executados em
-uma VM limpa: usam os mesmos campos que a automação lê, mas confira a saída na
-sua rodada. O pool `default` existe nos dois cenários e não faz parte do estudo
+primeiro comando e o `jsonpath` do `cilium-config` foram executados em uma
+VM limpa na rodada de 15/11/2026 (ipam24 e ipam32), com a saída esperada:
+pools `default` e `p003-m24` (e `p003-m32` em ipam32), pré-alocação
+`default=8,p003-m24=8` (e `p003-m32=8` em ipam32), um `/24` de `default` e um
+de `p003-m24` por nó (e 16 `/32` do `p003-m32` por nó em ipam32). O pool `default` existe nos dois cenários e não faz parte do estudo
 `/24` versus `/32`: ele serve aos pods que não pedem um pool. O terceiro
 comando, executado na rodada, mostrou um `/24` de `default` (`10.251.N.0/24`)
 e um de `p003-m24` (`10.250.N.0/24`) por nó. No border, o `vtysh` imprime antes
@@ -1580,7 +1587,7 @@ Fonte: elaboração própria, derivada dos registros experimentais históricos P
 > As métricas são vinculadas aos IDs e braços descritos. São registros históricos e não demonstram disponibilidade atual nem permitem transferir resultado de um braço para outro.
 
 - Arquitetura comparada em P004 (S002–S008): OVN-K (C/D) × Fabric EVPN × Cilium A & B + KubeVirt
-- Quatro braços testados ao vivo na vm-cilium com KVM nativo (/dev/kvm), FRR 10.7.1 e Containerlab SR Linux
+- Quatro braços testados ao vivo na vm-cilium (host do instrutor) com KVM nativo (/dev/kvm), FRR 10.7.1 e Containerlab SR Linux
 - Braço C: OVN-Kubernetes v1.4.0 + KubeVirt (S003)
 - Isolamento por UDN/CUDN L2 + Live Migration transparente
 - K01: tenant-a e tenant-b com mesmo CIDR primário

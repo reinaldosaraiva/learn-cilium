@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220mm" height="146.143mm" viewBox="0 0 1400 930" role="img" aria-labelledby="title desc">
+<title id="title">Réplica DCI: dois caminhos medidos</title>
+<desc id="desc">Resumo legível do registro histórico da réplica DCI P004. As inscrições completas, resultados e limites estão transcritos junto da figura no guia; nenhuma medição foi refeita.</desc>
+<defs><marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="18" markerHeight="18" refX="17" refY="9" orient="auto"><path d="M0,0 L18,9 L0,18 z" fill="#111827"/></marker></defs>
+<rect width="1400" height="930" fill="#ffffff"/>
+<text x="40" y="52" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#111827">Réplica DCI · dois caminhos medidos</text>
+<text x="40" y="92" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">P004 · 27–29/09/2026 · registro histórico, não disponibilidade atual</text>
+<text x="40" y="145" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#111827">M01/M02 · caminho do cliente legado</text>
+<rect x="40" y="165" width="310" height="220" rx="16" fill="#eff6ff" stroke="#1d4ed8" stroke-width="4"/>
+<rect x="440" y="165" width="490" height="220" rx="16" fill="#f3f4f6" stroke="#111827" stroke-width="4"/>
+<rect x="1020" y="165" width="340" height="220" rx="16" fill="#fff7ed" stroke="#9a3412" stroke-width="4"/>
+<text x="62" y="211" font-family="Arial, sans-serif" font-size="32" font-weight="700" fill="#111827">Tenant OVN</text>
+<text x="62" y="251" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">VPC</text>
+<text x="62" y="285" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">192.168.100.0/24</text>
+<text x="62" y="324" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">VM fake</text>
+<text x="62" y="360" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">192.168.100.10</text>
+<text x="462" y="211" font-family="Arial, sans-serif" font-size="32" font-weight="700" fill="#111827">Connect Gateways</text>
+<text x="462" y="251" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">Gateway 1 · ovnvrf100</text>
+<text x="462" y="287" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">VLAN 100 · FRR</text>
+<text x="462" y="323" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">Gateway 2 · ovnvrf200</text>
+<text x="462" y="359" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">VLAN 200 · FRR</text>
+<text x="1042" y="211" font-family="Arial, sans-serif" font-size="31" font-weight="700" fill="#111827">Cliente legado</text>
+<text x="1042" y="251" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">FRR · AS 200</text>
+<text x="1042" y="287" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">Anuncia</text>
+<text x="1042" y="323" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">10.0.0.0/16</text>
+<path d="M357 277 L433 277" fill="none" stroke="#111827" stroke-width="5" marker-end="url(#arrow)"/>
+<path d="M937 277 L1013 277" fill="none" stroke="#111827" stroke-width="5" marker-end="url(#arrow)"/>
+<path d="M680 396 L1190 396" fill="none" stroke="#1d4ed8" stroke-width="5" stroke-dasharray="12 9" marker-end="url(#arrow)"/>
+<text x="680" y="424" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#1d4ed8">BGP · AS 100/200</text>
+<text x="680" y="460" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#1d4ed8">Controle separado dos dados</text>
+<text x="40" y="507" font-family="Arial, sans-serif" font-size="32" font-weight="700" fill="#111827">M03 · EVPN Type 5 + VXLAN entre tenant OVN e peer externo</text>
+<rect x="40" y="530" width="350" height="155" rx="16" fill="#eff6ff" stroke="#1d4ed8" stroke-width="4"/>
+<rect x="520" y="530" width="360" height="155" rx="16" fill="#f5f3ff" stroke="#6b21a8" stroke-width="4"/>
+<rect x="1010" y="530" width="350" height="155" rx="16" fill="#fff7ed" stroke="#9a3412" stroke-width="4"/>
+<text x="62" y="573" font-family="Arial, sans-serif" font-size="31" font-weight="700" fill="#111827">Tenant OVN</text>
+<text x="62" y="615" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">192.168.100.0/24</text>
+<text x="62" y="655" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">VNI 50100</text>
+<text x="542" y="573" font-family="Arial, sans-serif" font-size="31" font-weight="700" fill="#111827">EVPN Type 5</text>
+<text x="542" y="615" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">Controle · BGP/EVPN</text>
+<text x="542" y="655" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">Dados · VXLAN/UDP 4789</text>
+<text x="1032" y="573" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">Peer FRR externo</text>
+<text x="1032" y="615" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">Recebe Type 5</text>
+<text x="1032" y="655" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">não é o cliente legado</text>
+<path d="M397 616 L513 616" fill="none" stroke="#111827" stroke-width="5" marker-end="url(#arrow)"/>
+<path d="M887 616 L1003 616" fill="none" stroke="#111827" stroke-width="5" marker-end="url(#arrow)"/>
+<rect x="40" y="704" width="1320" height="202" rx="14" fill="#f5f3ff" stroke="#6b21a8" stroke-width="3"/>
+<text x="65" y="747" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#6b21a8">A7 filtrou connected na redistribuição; a origem não virou static.</text>
+<text x="65" y="788" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">Ping positivo 30/30 · causal 0/3 · restaurado 3/3.</text>
+<text x="65" y="829" font-family="Arial, sans-serif" font-size="28" font-weight="normal" fill="#1f2937">VNI literal: NOT_RUN · dados e limites do recorte P004.</text>
+<text x="65" y="870" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#9a3412">As inscrições abaixo não revalidam nem indicam disponibilidade atual.</text>
+</svg>
